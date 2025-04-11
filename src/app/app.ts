@@ -8,9 +8,8 @@ import {
 } from "./kernels.ts";
 
 type Elements = {
-  canvas: HTMLElement,
-  progress_bar: HTMLElement,
-  progress_info: HTMLElement,
+  canvas_context: GPUCanvasContext;
+  on_update: (curr_step: number, total_steps: number, time_taken: number, total_cells: number) => void;
 };
 
 let run_app = async (elements: Elements) => {
@@ -129,8 +128,7 @@ let run_app = async (elements: Elements) => {
   device.queue.writeBuffer(gpu_A0, 0, cpu_A0.data, 0, cpu_A0.data.length);
   device.queue.writeBuffer(gpu_A1, 0, cpu_A1.data, 0, cpu_A1.data.length);
 
-  const canvas_context = elements.canvas.getContext("webgpu");
-  canvas_context.configure({
+  elements.canvas_context.configure({
     device: device,
     format: navigator.gpu.getPreferredCanvasFormat(),
     alphaMode: "premultiplied",
@@ -157,16 +155,8 @@ let run_app = async (elements: Elements) => {
 
   let update_description = (curr_step: number, total_steps: number, ms_start: number) => {
     let ms_end = performance.now();
-    elements.progress_bar.style.width = `${(curr_step/total_steps*100).toFixed(2)}%`;
-    elements.progress_bar.innerText = `${curr_step}/${total_steps}`;
     let ms_elapsed = ms_end-ms_start;
-    let step_rate = (curr_step)/(ms_elapsed*1e-3);
-    let cell_rate = (curr_step*total_cells)/(ms_elapsed*1e-3);
-    elements.progress_info.innerText =
-      `total_steps=${curr_step}/${total_steps}\n` +
-      `time_taken=${(ms_elapsed*1e-3).toFixed(2)} s\n` +
-      `step_rate=${(step_rate).toFixed(2)} steps/s\n` +
-      `cell_rate=${(cell_rate*1e-6).toFixed(2)} Mcells/s`;
+    elements.on_update(curr_step, total_steps, ms_elapsed*1e-3, total_cells);
   };
 
   {
@@ -189,7 +179,7 @@ let run_app = async (elements: Elements) => {
         let axis_mode = 0;
         kernel_copy_to_texture.create_pass(command_encoder, gpu_E, gpu_display_texture_view, grid_size, copy_x, scale, axis_mode);
         // NOTE: canvas texture view has to be retrieved here since the browser swaps it out in the swapchain
-        let canvas_texture_view = canvas_context.getCurrentTexture().createView();
+        let canvas_texture_view = elements.canvas_context.getCurrentTexture().createView();
         shader_render_texture.create_pass(command_encoder, canvas_texture_view, gpu_display_texture_view);
         device.queue.submit([command_encoder.finish()]);
         await device.queue.onSubmittedWorkDone();
