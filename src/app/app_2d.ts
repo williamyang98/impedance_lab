@@ -35,7 +35,7 @@ export interface Grid {
   epsilon_k: Ndarray;
 }
 
-function create_grid_layout(): GridLayout {
+export function create_grid_layout(): GridLayout {
   const scale = 2;
   return {
     pad_x: 8*scale,
@@ -193,6 +193,22 @@ function fill_spline(arr: NdarrayView, target_length: number) {
   }
 };
 
+export interface RunResult {
+  total_steps: number;
+  time_taken: number;
+  cell_rate: number;
+  step_rate: number;
+  total_cells: number;
+}
+
+export interface ImpedanceResult {
+  Z0: number;
+  Cih: number;
+  Lh: number;
+  propagation_speed: number;
+  propagation_delay: number;
+}
+
 export class Setup {
   grid_layout: GridLayout;
   grid: Grid;
@@ -201,6 +217,12 @@ export class Setup {
   constructor(layout: GridLayout) {
     this.grid_layout = layout;
     this.grid = create_grid(layout);
+  }
+
+  reset() {
+    const { v_field, e_field } = this.grid;
+    v_field.fill(0.0);
+    e_field.fill(0.0);
   }
 
   update_params(base_params: TransmissionLineParameters) {
@@ -283,53 +305,50 @@ export class Setup {
     }
   }
 
-  run() {
+  run(energy_threshold: number): RunResult {
     const [Ny,Nx] = this.grid.size;
-    const energy_threshold: number = 1e-3;
     let total_steps: number = 0;
 
     const step_stride = Math.round((Nx*Ny)**0.5)*2;
     const total_cells = Nx*Ny;
-    let previous_energy = 0.0;
+    let previous_energy: number | null = null;
+
+    const v_field = this.grid.v_field.cast(Float32Array);
+    const e_field = this.grid.e_field.cast(Float32Array);
+    const dx = this.grid.dx.cast(Float32Array);
+    const dy = this.grid.dy.cast(Float32Array);
+    const v_force = this.grid.v_force.cast(Uint32Array);
+    const v_table = this.grid.v_table.cast(Float32Array);
 
     const start_ms = performance.now();
     const max_step_strides = 100;
-
     for (let i = 0; i < max_step_strides; i++) {
-      electrostatic_solver(
-        this.grid.v_field.cast(Float32Array),
-        this.grid.e_field.cast(Float32Array),
-        this.grid.dx.cast(Float32Array),
-        this.grid.dy.cast(Float32Array),
-        this.grid.v_force.cast(Uint32Array),
-        this.grid.v_table.cast(Float32Array),
-        step_stride,
-      );
+      electrostatic_solver(v_field, e_field, dx, dy, v_force, v_table, step_stride);
       total_steps += step_stride;
-      const energy = calculate_homogenous_energy(
-        this.grid.e_field.cast(Float32Array),
-        this.grid.dx.cast(Float32Array),
-        this.grid.dy.cast(Float32Array),
-      )
-      const delta_energy = Math.abs(previous_energy-energy)/energy;
-      previous_energy = energy;
-      if (delta_energy < energy_threshold) {
-        break;
+      const energy = calculate_homogenous_energy(e_field, dx, dy)
+      if (previous_energy !== null) {
+        const delta_energy = Math.abs(previous_energy-energy)/energy;
+        if (delta_energy < energy_threshold) {
+          break;
+        }
       }
+      previous_energy = energy;
     }
     const end_ms = performance.now();
     const elapsed_ms = end_ms-start_ms;
-    const cell_rate = (total_cells*total_steps)/(elapsed_ms*1e-3);
-    const step_rate = total_steps/(elapsed_ms*1e-3);
-    console.table({
-      total_steps: `${total_steps}`,
-      time_taken: `${elapsed_ms.toPrecision(5)} ms`,
-      cell_rate: `${(cell_rate*1e-6).toPrecision(5)} Mcells/s`,
-      step_rate: `${step_rate.toPrecision(5)} steps/s`
-    });
+    const time_taken = elapsed_ms*1e-3;
+    const cell_rate = (total_cells*total_steps)/time_taken;
+    const step_rate = total_steps/time_taken;
+    return {
+      total_steps,
+      time_taken,
+      cell_rate,
+      step_rate,
+      total_cells,
+    }
   }
 
-  calculate_impedance() {
+  calculate_impedance(): ImpedanceResult {
     const epsilon_0 = 8.85e-12
     const c_0 = 3e8;
 
@@ -352,45 +371,13 @@ export class Setup {
     const Z0 = (Lh/Cih)**0.5;
     const propagation_speed = 1/(Cih*Lh)**0.5;
     const propagation_delay = 1/propagation_speed;
-    console.table({
-      Z0: `${Z0.toPrecision(5)} Ω`,
-      Cih: `${(Cih*1e12/100).toPrecision(5)} pF/cm`,
-      Lh: `${(Lh*1e9/100).toPrecision(5)} nF/cm`,
-      propagation_speed: `${(propagation_speed/c_0 * 100).toPrecision(5)}%`,
-      propagation_delay: `${(propagation_delay*1e12/100).toPrecision(5)} ps/cm`,
-    });
-  }
-}
-
-export class App2d {
-  setup: Setup;
-  params: TransmissionLineParameters;
-
-  static async init() {
-    await init_wasm_module();
-  }
-
-  constructor() {
-    const grid_layout = create_grid_layout();
-    const setup = new Setup(grid_layout);
-    const params: TransmissionLineParameters = {
-      dielectric_bottom_epsilon: 4.1,
-      dielectric_bottom_height: 0.0994,
-      signal_separation: 0.15,
-      signal_width: 0.1334,
-      signal_height: 0.0152,
-      dielectric_top_epsilon: 4.36,
-      dielectric_top_height: 0.45,
+    return {
+      Z0,
+      Cih,
+      Lh,
+      propagation_speed,
+      propagation_delay,
     };
-    setup.update_params(params);
-
-    this.setup = setup;
-    this.params = params;
-  }
-
-  run() {
-    this.setup.run();
-    this.setup.calculate_impedance();
   }
 
   render(canvas: HTMLCanvasElement) {
@@ -398,14 +385,14 @@ export class App2d {
     if (context === null) {
       throw Error("Failed to retrieve 2d context from canvas");
     }
-    const [Ny, Nx] = this.setup.grid.size;
+    const [Ny, Nx] = this.grid.size;
     canvas.width = Nx;
     canvas.height = Ny;
 
     const image_data = context.createImageData(Nx, Ny);
 
     const data = Ndarray.create_zeros([Ny,Nx], "f32");
-    const { v_field, e_field, dx, dy } = this.setup.grid;
+    const { v_field, e_field, dx, dy } = this.grid;
     for (let y = 0; y < Ny; y++) {
       for (let x = 0; x < Nx; x++) {
         const _v = v_field.get([y,x]);
@@ -437,4 +424,6 @@ export class App2d {
     }
     context.putImageData(image_data, 0, 0);
   }
-};
+}
+
+export { init_wasm_module };

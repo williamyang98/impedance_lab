@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import {
-  type SimulationSetup, GridDisplayMode, FieldDisplayMode, GpuFdtdEngine,
+  type SimulationSetup, type GridDisplayMode, type FieldDisplayMode, GpuFdtdEngine,
   create_simulation_setup,
 } from "../app/app.ts";
 
@@ -179,9 +179,9 @@ export default defineComponent({
         <button @click="tick_loop()" :disabled="is_running">Tick</button>
       </div>
       <div>
-        <label for="slice">Slice: {{ this.display_slice }}</label><br>
+        <label for="slice">Slice: {{ display_slice }}</label><br>
         <input id="slice" type="range" v-model.number="display_slice" min="0" :max="setup.grid.size[0]-1" step="1"/><br>
-        <label for="scale">Scale: {{ this.display_scale }}</label><br>
+        <label for="scale">Scale: {{ display_scale }}</label><br>
         <input id="scale" type="range" v-model.number="display_scale" min="-4" max="4" step="0.1"/><br>
         <label for="axis">Axis: </label>
         <select id="axis" v-model="display_axis">
@@ -211,7 +211,7 @@ export default defineComponent({
   </main>
 </template>
 
-<style scope>
+<style scoped>
 table, th, td {
   border: 1px solid;
 }
