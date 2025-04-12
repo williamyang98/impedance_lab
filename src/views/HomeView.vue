@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import {
-  type SimulationSetup, GpuFdtdEngine,
+  type SimulationSetup, GridDisplayMode, FieldDisplayMode, GpuFdtdEngine,
   create_simulation_setup,
 } from "../app/app.ts";
 
@@ -14,6 +14,13 @@ interface ComponentData {
   gpu_engine?: GpuFdtdEngine;
   loop_timer_id?: number;
   ms_start?: number;
+  display_rate: number;
+  display_slice: number;
+  display_scale: number;
+  display_axis: GridDisplayMode,
+  display_axis_options: GridDisplayMode[],
+  display_field: FieldDisplayMode,
+  display_field_options: FieldDisplayMode[],
 }
 
 export default defineComponent({
@@ -28,6 +35,13 @@ export default defineComponent({
       gpu_engine: undefined,
       loop_timer_id: undefined,
       ms_start: undefined,
+      display_rate: 128,
+      display_scale: 0,
+      display_slice: Math.floor(setup.grid.size[0]/2),
+      display_axis: "x",
+      display_axis_options: ["x", "y", "z", "mag"],
+      display_field: "e_field",
+      display_field_options: ["e_field", "h_field"],
     }
   },
   computed: {
@@ -56,8 +70,8 @@ export default defineComponent({
           return;
         }
         this.gpu_engine?.step_fdtd(this.curr_step);
-        if (this.curr_step % 128 == 0) {
-          await this.gpu_engine?.update_display();
+        if (this.curr_step % this.display_rate == 0) {
+          await this.refresh_display();
           this.update_progress();
         }
         this.curr_step++;
@@ -69,22 +83,55 @@ export default defineComponent({
       this.loop_timer_id = setTimeout(async () => await this.simulation_loop(), 0);
     },
     start_loop() {
-      if (this.gpu_engine === undefined) return;
       this.stop_loop();
       this.ms_start = performance.now();
       this.curr_step = 0;
+      this.gpu_engine?.reset();
       this.loop_timer_id = setTimeout(async () => await this.simulation_loop(), 0);
     },
     resume_loop() {
-      if (this.gpu_engine === undefined) return;
       this.stop_loop();
       this.loop_timer_id = setTimeout(async () => await this.simulation_loop(), 0);
+    },
+    async tick_loop() {
+      if (this.curr_step >= this.max_timesteps) return;
+      this.stop_loop();
+      this.gpu_engine?.step_fdtd(this.curr_step);
+      this.curr_step++;
+      await this.refresh_display();
+      this.update_progress();
     },
     stop_loop() {
       if (this.loop_timer_id !== undefined) {
         clearTimeout(this.loop_timer_id);
         this.loop_timer_id = undefined;
       }
+    },
+    async refresh_display() {
+      const get_scale_offset = (mode: FieldDisplayMode): number => {
+        switch (mode) {
+        case "e_field": return 0;
+        case "h_field": return 2;
+        }
+      };
+      const scale_offset = get_scale_offset(this.display_field);
+      const scale = 10**(this.display_scale+scale_offset);
+      this.gpu_engine?.update_display(this.display_slice, scale, this.display_field, this.display_axis);
+      await this.gpu_engine?.wait_finished();
+    },
+  },
+  watch: {
+    async display_scale(_new_value, _old_value) {
+      await this.refresh_display();
+    },
+    async display_slice(_new_value, _old_value) {
+      await this.refresh_display();
+    },
+    async display_axis(_new_value, _old_value) {
+      await this.refresh_display();
+    },
+    async display_field(_new_value, _old_value) {
+      await this.refresh_display();
     },
   },
   async mounted() {
@@ -126,9 +173,28 @@ export default defineComponent({
       </div>
       <br>
       <div>
-        <button @click="start_loop()" :disabled="is_running">Start</button>
-        <button @click="resume_loop()" :disabled="is_running">Resume</button>
-        <button @click="stop_loop()" :disabled="!is_running">Stop</button>
+        <button @click="start_loop()" :disabled="is_running">Restart</button>
+        <button @click="resume_loop()" v-if="!is_running">Resume</button>
+        <button @click="stop_loop()" v-if="is_running">Pause</button>
+        <button @click="tick_loop()" :disabled="is_running">Tick</button>
+      </div>
+      <div>
+        <label for="slice">Slice: {{ this.display_slice }}</label><br>
+        <input id="slice" type="range" v-model.number="display_slice" min="0" :max="setup.grid.size[0]-1" step="1"/><br>
+        <label for="scale">Scale: {{ this.display_scale }}</label><br>
+        <input id="scale" type="range" v-model.number="display_scale" min="-4" max="4" step="0.1"/><br>
+        <label for="axis">Axis: </label>
+        <select id="axis" v-model="display_axis">
+          <option v-for="axis in display_axis_options" :key="axis" :value="axis">
+            {{ axis }}
+          </option>
+        </select><br>
+        <label for="field">Field: </label>
+        <select id="axis" v-model="display_field">
+          <option v-for="field in display_field_options" :key="field" :value="field">
+            {{ field }}
+          </option>
+        </select>
       </div>
       <br>
       <div>

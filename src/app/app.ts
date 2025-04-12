@@ -147,6 +147,9 @@ export const create_simulation_setup = (): SimulationSetup => {
   };
 };
 
+export type GridDisplayMode = "x" | "y" | "z" | "mag";
+export type FieldDisplayMode = "e_field" | "h_field";
+
 export class GpuFdtdEngine {
   canvas_context: GPUCanvasContext;
   adapter: GPUAdapter;
@@ -215,6 +218,17 @@ export class GpuFdtdEngine {
     this.shader_render_texture = new ShaderRenderTexture(device);
   }
 
+  reset() {
+    const reset_buffer = (gpu_buffer: GPUBuffer, cpu_buffer: Ndarray) => {
+      this.device.queue.writeBuffer(gpu_buffer, 0, cpu_buffer.data, 0, cpu_buffer.data.length);
+    };
+    reset_buffer(this.e_field, this.setup.grid.init_e_field);
+    reset_buffer(this.h_field, this.setup.grid.init_h_field);
+    reset_buffer(this.bake_a0, this.setup.grid.bake_a0);
+    reset_buffer(this.bake_a1, this.setup.grid.bake_a1);
+    this.bake_b0 = this.setup.grid.bake_b0;
+  }
+
   step_fdtd(timestep: number) {
     const command_encoder = this.device.createCommandEncoder();
     const grid_size = this.setup.grid.size;
@@ -229,23 +243,44 @@ export class GpuFdtdEngine {
     this.device.queue.submit([command_encoder.finish()]);
   }
 
-  async update_display() {
+  update_display(copy_x: number, scale: number, field_mode: FieldDisplayMode, axis_mode: GridDisplayMode) {
     const grid_size = this.setup.grid.size;
     const [Nx,_Ny,_Nz] = grid_size;
 
+    const get_display_id = (mode: GridDisplayMode): number => {
+      switch (mode) {
+      case "x": return 0;
+      case "y": return 1;
+      case "z": return 2;
+      case "mag": return 3;
+      }
+    };
+
+    const get_field_buffer = (mode: FieldDisplayMode): GPUBuffer => {
+      switch (mode) {
+      case "e_field": return this.e_field;
+      case "h_field": return this.h_field;
+      }
+    };
+
+    const axis_id = get_display_id(axis_mode);
+    copy_x = Math.max(copy_x, 0);
+    copy_x = Math.min(copy_x, Nx-1);
+    const field_buffer = get_field_buffer(field_mode);
+
     const command_encoder = this.device.createCommandEncoder();
-    const copy_x = Math.floor(Nx/2);
-    const scale = 10**(-0.3);
-    const axis_mode = 0;
     this.kernel_copy_to_texture.create_pass(
       command_encoder,
-      this.e_field, this.display_texture_view, grid_size,
-      copy_x, scale, axis_mode,
+      field_buffer, this.display_texture_view, grid_size,
+      copy_x, scale, axis_id,
     );
     // NOTE: canvas texture view has to be retrieved here since the browser swaps it out in the swapchain
     const canvas_texture_view = this.canvas_context.getCurrentTexture().createView();
     this.shader_render_texture.create_pass(command_encoder, canvas_texture_view, this.display_texture_view);
     this.device.queue.submit([command_encoder.finish()]);
+  }
+
+  async wait_finished() {
     await this.device.queue.onSubmittedWorkDone();
   }
 }
