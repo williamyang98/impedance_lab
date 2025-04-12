@@ -1,72 +1,21 @@
-interface FieldAccessor {
-  size: number,
-  getter: string,
-  setter: string,
-}
-
-export type StructFieldType =
-  "s8" | "u8" |
-  "s16" | "u16" |
-  "s32" | "u32" |
-  "f32" | "f64";
-
-let get_field_accessor = (dtype: StructFieldType): FieldAccessor => {
-  switch (dtype) {
-  case "s8":  return { size: 1, getter: 'getInt8', setter: 'setInt8' };
-  case "u8":  return { size: 1, getter: 'getUint8', setter: 'setUint8' };
-  case "s16": return { size: 2, getter: 'getInt16', setter: 'setInt16' };
-  case "u16": return { size: 2, getter: 'getUint16', setter: 'setUint16' };
-  case "s32": return { size: 4, getter: 'getInt32', setter: 'setInt32' };
-  case "u32": return { size: 4, getter: 'getUint32', setter: 'setUint32' };
-  case "f32": return { size: 4, getter: 'getFloat32', setter: 'setFloat32' };
-  case "f64": return { size: 8, getter: 'getFloat64', setter: 'setFloat64' };
-  }
-}
-
-export function create_cstyle_struct(fields: Record<string, StructFieldType>): any {
-  // compute field offsets
-  const field_accessors: Record<string, FieldAccessor> = {};
-  for (const [name, type] of Object.entries(fields)) {
-    field_accessors[name] = get_field_accessor(type);
-  }
-
-  let offset = 0;
-  const offsets: Record<string, number> = {};
-  for (const [name, type] of Object.entries(fields)) {
-    offsets[name] = offset;
-    offset += field_accessors[name].size;
-  }
-  const total_bytes = offset;
-
-  // default allocation of buffer
-  var object: any = {};
-  object.buffer = new ArrayBuffer(total_bytes);
-  object.view = new DataView(object.buffer);
-  object.total_bytes = total_bytes;
-  object.offsets = offsets;
-
-  // add getters and setters
-  for (const [name, type] of Object.entries(fields)) {
-    let field_accessor = field_accessors[name];
-    const offset = offsets[name];
-    let is_little_endian = true;
-    Object.defineProperty(object, name, {
-        get(): number {
-            return this.view[field_accessor.getter](offset, is_little_endian);
-        },
-        set(value: number) {
-            this.view[field_accessor.setter](offset, value, is_little_endian);
-        },
-    });
-  }
-  return object;
-};
+import { StructView } from "./cstyle_struct.ts";
 
 export class KernelCurrentSource {
   label: string;
   workgroup_size: [number, number, number];
   device: GPUDevice;
-  params: any;
+  params = new StructView({
+    grid_size_x: "u32",
+    grid_size_y: "u32",
+    grid_size_z: "u32",
+    source_offset_x: "u32",
+    source_offset_y: "u32",
+    source_offset_z: "u32",
+    source_size_x: "u32",
+    source_size_y: "u32",
+    source_size_z: "u32",
+    e0: "f32",
+  });
   params_uniform: GPUBuffer;
   shader_source: string;
   shader_module: GPUShaderModule;
@@ -78,20 +27,8 @@ export class KernelCurrentSource {
     this.label = "current_source";
     this.workgroup_size = workgroup_size;
     this.device = device;
-    this.params = create_cstyle_struct({
-      grid_size_x: "u32",
-      grid_size_y: "u32",
-      grid_size_z: "u32",
-      source_offset_x: "u32",
-      source_offset_y: "u32",
-      source_offset_z: "u32",
-      source_size_x: "u32",
-      source_size_y: "u32",
-      source_size_z: "u32",
-      e0: "f32",
-    });
     this.params_uniform = device.createBuffer({
-      size: this.params.total_bytes,
+      size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     this.shader_source = `
@@ -164,24 +101,24 @@ export class KernelCurrentSource {
     source_offset: [number, number, number],
     source_size: [number, number, number],
   ) {
-    let dispatch_size: [number, number, number] = [
+    const dispatch_size: [number, number, number] = [
       Math.ceil(source_size[0]/this.workgroup_size[0]),
       Math.ceil(source_size[1]/this.workgroup_size[1]),
       Math.ceil(source_size[2]/this.workgroup_size[2]),
     ];
-    this.params.grid_size_x = grid_size[0];
-    this.params.grid_size_y = grid_size[1];
-    this.params.grid_size_z = grid_size[2];
-    this.params.source_offset_x = source_offset[0];
-    this.params.source_offset_y = source_offset[1];
-    this.params.source_offset_z = source_offset[2];
-    this.params.source_size_x = source_size[0];
-    this.params.source_size_y = source_size[1];
-    this.params.source_size_z = source_size[2];
-    this.params.e0 = e0;
-    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.length);
+    this.params.set("grid_size_x", grid_size[0]);
+    this.params.set("grid_size_y", grid_size[1]);
+    this.params.set("grid_size_z", grid_size[2]);
+    this.params.set("source_offset_x", source_offset[0]);
+    this.params.set("source_offset_y", source_offset[1]);
+    this.params.set("source_offset_z", source_offset[2]);
+    this.params.set("source_size_x", source_size[0]);
+    this.params.set("source_size_y", source_size[1]);
+    this.params.set("source_size_z", source_size[2]);
+    this.params.set("e0", e0);
+    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
-    let bind_group = this.device.createBindGroup({
+    const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
         {
@@ -195,7 +132,7 @@ export class KernelCurrentSource {
       ],
     });
 
-    let compute_pass = command_encoder.beginComputePass();
+    const compute_pass = command_encoder.beginComputePass();
     compute_pass.setPipeline(this.compute_pipeline);
     compute_pass.setBindGroup(0, bind_group);
     compute_pass.dispatchWorkgroups(dispatch_size[2], dispatch_size[1], dispatch_size[0]);
@@ -208,7 +145,11 @@ export class KernelUpdateElectricField {
   label: string;
   workgroup_size: [number, number, number];
   device: GPUDevice;
-  params: any;
+  params = new StructView({
+    grid_size_x: "u32",
+    grid_size_y: "u32",
+    grid_size_z: "u32",
+  });
   params_uniform: GPUBuffer;
   shader_source: string;
   shader_module: GPUShaderModule;
@@ -220,13 +161,8 @@ export class KernelUpdateElectricField {
     this.label = "update_e_field";
     this.workgroup_size = workgroup_size;
     this.device = device;
-    this.params = create_cstyle_struct({
-      grid_size_x: "u32",
-      grid_size_y: "u32",
-      grid_size_z: "u32",
-    });
     this.params_uniform = device.createBuffer({
-      size: this.params.total_bytes,
+      size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     this.shader_source = `
@@ -332,17 +268,17 @@ export class KernelUpdateElectricField {
     gpu_A1: GPUBuffer,
     grid_size: [number, number, number],
   ) {
-    let dispatch_size: [number, number, number] = [
+    const dispatch_size: [number, number, number] = [
       Math.ceil(grid_size[0]/this.workgroup_size[0]),
       Math.ceil(grid_size[1]/this.workgroup_size[1]),
       Math.ceil(grid_size[2]/this.workgroup_size[2]),
     ];
-    this.params.grid_size_x = grid_size[0];
-    this.params.grid_size_y = grid_size[1];
-    this.params.grid_size_z = grid_size[2];
-    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.length);
+    this.params.set("grid_size_x", grid_size[0]);
+    this.params.set("grid_size_y", grid_size[1]);
+    this.params.set("grid_size_z", grid_size[2]);
+    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
-    let bind_group = this.device.createBindGroup({
+    const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
         {
@@ -368,7 +304,7 @@ export class KernelUpdateElectricField {
       ],
     });
 
-    let compute_pass = command_encoder.beginComputePass();
+    const compute_pass = command_encoder.beginComputePass();
     compute_pass.setPipeline(this.compute_pipeline);
     compute_pass.setBindGroup(0, bind_group);
     compute_pass.dispatchWorkgroups(dispatch_size[2], dispatch_size[1], dispatch_size[0]);
@@ -381,7 +317,12 @@ export class KernelUpdateMagneticField {
   label: string;
   workgroup_size: [number, number, number];
   device: GPUDevice;
-  params: any;
+  params = new StructView({
+    grid_size_x: "u32",
+    grid_size_y: "u32",
+    grid_size_z: "u32",
+    b0: "f32",
+  });
   params_uniform: GPUBuffer;
   shader_source: string;
   shader_module: GPUShaderModule;
@@ -393,14 +334,8 @@ export class KernelUpdateMagneticField {
     this.label = "update_h_field";
     this.workgroup_size = workgroup_size;
     this.device = device;
-    this.params = create_cstyle_struct({
-      grid_size_x: "u32",
-      grid_size_y: "u32",
-      grid_size_z: "u32",
-      b0: "f32",
-    });
     this.params_uniform = device.createBuffer({
-      size: this.params.total_bytes,
+      size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     this.shader_source = `
@@ -498,18 +433,18 @@ export class KernelUpdateMagneticField {
     gpu_b0: number,
     grid_size: [number, number, number],
   ) {
-    let dispatch_size: [number, number, number] = [
+    const dispatch_size: [number, number, number] = [
       Math.ceil(grid_size[0]/this.workgroup_size[0]),
       Math.ceil(grid_size[1]/this.workgroup_size[1]),
       Math.ceil(grid_size[2]/this.workgroup_size[2]),
     ];
-    this.params.grid_size_x = grid_size[0];
-    this.params.grid_size_y = grid_size[1];
-    this.params.grid_size_z = grid_size[2];
-    this.params.b0 = gpu_b0;
-    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.length);
+    this.params.set("grid_size_x", grid_size[0]);
+    this.params.set("grid_size_y", grid_size[1]);
+    this.params.set("grid_size_z", grid_size[2]);
+    this.params.set("b0", gpu_b0);
+    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
-    let bind_group = this.device.createBindGroup({
+    const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
         {
@@ -527,7 +462,7 @@ export class KernelUpdateMagneticField {
       ],
     });
 
-    let compute_pass = command_encoder.beginComputePass();
+    const compute_pass = command_encoder.beginComputePass();
     compute_pass.setPipeline(this.compute_pipeline);
     compute_pass.setBindGroup(0, bind_group);
     compute_pass.dispatchWorkgroups(dispatch_size[2], dispatch_size[1], dispatch_size[0]);
@@ -540,7 +475,14 @@ export class KernelCopyToTexture {
   label: string;
   workgroup_size: [number, number];
   device: GPUDevice;
-  params: any;
+  params = new StructView({
+    size_x: "u32",
+    size_y: "u32",
+    size_z: "u32",
+    copy_x: "u32",
+    scale: "f32",
+    axis: "u32",
+  });
   params_uniform: GPUBuffer;
   shader_source: string;
   shader_module: GPUShaderModule;
@@ -552,16 +494,8 @@ export class KernelCopyToTexture {
     this.label = "copy_to_texture";
     this.workgroup_size = workgroup_size;
     this.device = device;
-    this.params = create_cstyle_struct({
-      size_x: "u32",
-      size_y: "u32",
-      size_z: "u32",
-      copy_x: "u32",
-      scale: "f32",
-      axis: "u32",
-    });
     this.params_uniform = device.createBuffer({
-      size: this.params.total_bytes,
+      size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     this.shader_source = `
@@ -657,19 +591,19 @@ export class KernelCopyToTexture {
     gpu_texture_view: GPUTextureView,
     grid_size: [number, number, number],
     copy_x: number, scale: number, axis: number) {
-    let dispatch_size: [number, number] = [
+    const dispatch_size: [number, number] = [
       Math.ceil(grid_size[1]/this.workgroup_size[0]),
       Math.ceil(grid_size[2]/this.workgroup_size[1]),
     ];
-    this.params.size_x = grid_size[0];
-    this.params.size_y = grid_size[1];
-    this.params.size_z = grid_size[2];
-    this.params.copy_x = copy_x;
-    this.params.scale = scale;
-    this.params.axis = axis;
-    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.length);
+    this.params.set("size_x", grid_size[0]);
+    this.params.set("size_y", grid_size[1]);
+    this.params.set("size_z", grid_size[2]);
+    this.params.set("copy_x", copy_x);
+    this.params.set("scale", scale);
+    this.params.set("axis", axis);
+    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
-    let bind_group = this.device.createBindGroup({
+    const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
         {
@@ -687,7 +621,7 @@ export class KernelCopyToTexture {
       ],
     });
 
-    let compute_pass = command_encoder.beginComputePass();
+    const compute_pass = command_encoder.beginComputePass();
     compute_pass.setPipeline(this.compute_pipeline);
     compute_pass.setBindGroup(0, bind_group);
     compute_pass.dispatchWorkgroups(dispatch_size[0], dispatch_size[1]);
@@ -699,7 +633,6 @@ export class KernelCopyToTexture {
 export class ShaderRenderTexture {
   label: string;
   device: GPUDevice;
-  params: any;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -824,7 +757,7 @@ export class ShaderRenderTexture {
     output_texture_view: GPUTextureView,
     gpu_texture_view: GPUTextureView,
   ) {
-    let bind_group = this.device.createBindGroup({
+    const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
         {

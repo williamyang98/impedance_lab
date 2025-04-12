@@ -25,7 +25,7 @@ export class SimulationGrid {
   constructor(size: [number, number, number]) {
     this.size = size;
     this.total_cells = size.reduce((a,b) => a*b, 1);
-    let total_dims = 3;
+    const total_dims = 3;
 
     this.init_e_field = Ndarray.create_zeros([...size, total_dims], "f32");
     this.init_h_field = Ndarray.create_zeros([...size, total_dims], "f32");
@@ -44,21 +44,21 @@ export class SimulationGrid {
     // a0 = 1/(1+sigma_k/e_k*dt)
     // a1 = 1/(e_k*d_xyz) * dt
     // b0 = 1/(mu_k*d_xyz) * dt
-    let dt = this.init_dt;
-    let d_xyz = this.init_d_xyz;
-    let epsilon_0 = 8.85e-12;
-    let mu_0 = 1.26e-6;
-    let mu_k = this.init_mu_k*mu_0;
+    const dt = this.init_dt;
+    const d_xyz = this.init_d_xyz;
+    const epsilon_0 = 8.85e-12;
+    const mu_0 = 1.26e-6;
+    const mu_k = this.init_mu_k*mu_0;
 
-    let [Nx,Ny,Nz] = this.size;
+    const [Nx,Ny,Nz] = this.size;
     for (let x = 0; x < Nx; x++) {
       for (let y = 0; y < Ny; y++) {
         for (let z = 0; z < Nz; z++) {
-          let i = [x,y,z];
-          let epsilon_k = this.init_epsilon_k.get(i)*epsilon_0;
-          let sigma_k = this.init_sigma_k.get(i);
-          let a0 = 1/(1+sigma_k/epsilon_k*dt);
-          let a1 = dt/(epsilon_k*d_xyz);
+          const i = [x,y,z];
+          const epsilon_k = this.init_epsilon_k.get(i)*epsilon_0;
+          const sigma_k = this.init_sigma_k.get(i);
+          const a0 = 1/(1+sigma_k/epsilon_k*dt);
+          const a1 = dt/(epsilon_k*d_xyz);
           this.bake_a0.set(i, a0);
           this.bake_a1.set(i, a1);
         }
@@ -79,24 +79,24 @@ export interface SimulationSetup {
   sources: SimulationSource[];
 }
 
-export let create_simulation_setup = (): SimulationSetup => {
-  let grid_size: [number, number, number] = [16,128,256];
-  let grid = new SimulationGrid(grid_size);
+export const create_simulation_setup = (): SimulationSetup => {
+  const grid_size: [number, number, number] = [16,128,256];
+  const grid = new SimulationGrid(grid_size);
 
-  let [Nx,Ny,Nz] = grid_size;
+  const [Nx,Ny,Nz] = grid_size;
   grid.init_dt = 1e-12;
   grid.init_d_xyz = 1e-3;
   grid.init_epsilon_k.fill(1.0);
   grid.init_sigma_k.fill(0.0);
   grid.init_mu_k = 1.0;
 
-  let plane_height = 1;
-  let plane_border = 20;
-  let signal_height = 1;
+  const plane_height = 1;
+  const plane_border = 20;
+  const signal_height = 1;
   // let signal_width = 10;
-  let signal_width = 20;
-  let separation_height = 5;
-  let x_start = Math.floor(Nx/2 - (plane_height+separation_height+signal_height)/2);
+  const signal_width = 20;
+  const separation_height = 5;
+  const x_start = Math.floor(Nx/2 - (plane_height+separation_height+signal_height)/2);
   // ground plane
   grid.init_sigma_k
     .lo([x_start, plane_border, plane_border])
@@ -104,20 +104,20 @@ export let create_simulation_setup = (): SimulationSetup => {
     .fill(1e8);
   // dielectric
   grid.init_epsilon_k
-  .lo([x_start+plane_height, plane_border, plane_border])
-  .hi([separation_height, Ny-plane_border*2, Nz-plane_border*2])
-  .fill(4.1);
+    .lo([x_start+plane_height, plane_border, plane_border])
+    .hi([separation_height, Ny-plane_border*2, Nz-plane_border*2])
+    .fill(4.1);
   // single ended transmission line
   grid.init_sigma_k
-  .lo([x_start+plane_height+separation_height, Math.floor(Ny/2-signal_width/2), plane_border])
-  .hi([signal_height, signal_width, Nz-plane_border*2])
-  .fill(1e8);
+    .lo([x_start+plane_height+separation_height, Math.floor(Ny/2-signal_width/2), plane_border])
+    .hi([signal_height, signal_width, Nz-plane_border*2])
+    .fill(1e8);
   // source
-  let source = new SimulationSource();
-  let period = 256;
+  const source = new SimulationSource();
+  const period = 256;
   for (let i = 0; i < period; i++) {
-    let dt = Math.PI*i/period;
-    let amplitude = Math.sin(dt)**2;
+    const dt = Math.PI*i/period;
+    const amplitude = Math.sin(dt)**2;
     source.signal.push(amplitude);
   }
   source.offset = [x_start+plane_height, Math.floor(Ny/2-signal_width/2), Math.floor(Nz/2)];
@@ -125,11 +125,11 @@ export let create_simulation_setup = (): SimulationSetup => {
   // terminator resistors
   {
     // let resistance = 78.338/2; // w=10
-    let resistance = 53.864/2; // w=20
-    let thickness = 1;
-    let area = (signal_width*grid.init_d_xyz)*(thickness*grid.init_d_xyz);
-    let length = separation_height*grid.init_d_xyz;
-    let sigma = length/(resistance*area);
+    const resistance = 53.864/2; // w=20
+    const thickness = 1;
+    const area = (signal_width*grid.init_d_xyz)*(thickness*grid.init_d_xyz);
+    const length = separation_height*grid.init_d_xyz;
+    const sigma = length/(resistance*area);
     grid.init_sigma_k
       .lo([x_start+plane_height,Math.floor(Ny/2-signal_width/2),plane_border])
       .hi([separation_height,signal_width,thickness])
@@ -174,8 +174,8 @@ export class GpuFdtdEngine {
     this.device = device;
     this.setup = setup;
 
-    let create_from_ndarray = (arr: Ndarray): GPUBuffer => {
-      let buffer = device.createBuffer({
+    const create_from_ndarray = (arr: Ndarray): GPUBuffer => {
+      const buffer = device.createBuffer({
         size: arr.data.byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
       });
@@ -189,7 +189,7 @@ export class GpuFdtdEngine {
     this.bake_a1 = create_from_ndarray(setup.grid.bake_a1);
     this.bake_b0 = setup.grid.bake_b0;
 
-    let [_Nx,Ny,Nz] = setup.grid.size;
+    const [_Nx,Ny,Nz] = setup.grid.size;
     canvas_context.configure({
       device: device,
       format: navigator.gpu.getPreferredCanvasFormat(),
@@ -205,9 +205,9 @@ export class GpuFdtdEngine {
     });
     this.display_texture_view = this.display_texture.createView({ dimension: "2d" });
 
-    let source_workgroup_size: [number, number, number] = [16,16,1];
-    let grid_workgroup_size: [number, number, number] = [1,1,256];
-    let texture_copy_workgroup_size: [number, number] = [1, 256];
+    const source_workgroup_size: [number, number, number] = [16,16,1];
+    const grid_workgroup_size: [number, number, number] = [1,1,256];
+    const texture_copy_workgroup_size: [number, number] = [1, 256];
     this.kernel_current_source = new KernelCurrentSource(source_workgroup_size, device);
     this.kernel_update_e_field = new KernelUpdateElectricField(grid_workgroup_size, device);
     this.kernel_update_h_field = new KernelUpdateMagneticField(grid_workgroup_size, device);
@@ -217,10 +217,10 @@ export class GpuFdtdEngine {
 
   step_fdtd(timestep: number) {
     const command_encoder = this.device.createCommandEncoder();
-    let grid_size = this.setup.grid.size;
-    for (let source of this.setup.sources) {
+    const grid_size = this.setup.grid.size;
+    for (const source of this.setup.sources) {
       if (timestep < source.signal.length) {
-        let e0 = source.signal[timestep];
+        const e0 = source.signal[timestep];
         this.kernel_current_source.create_pass(command_encoder, this.e_field, e0, grid_size, source.offset, source.size);
       }
     }
@@ -230,20 +230,20 @@ export class GpuFdtdEngine {
   }
 
   async update_display() {
-    let grid_size = this.setup.grid.size;
-    let [Nx,_Ny,_Nz] = grid_size;
+    const grid_size = this.setup.grid.size;
+    const [Nx,_Ny,_Nz] = grid_size;
 
     const command_encoder = this.device.createCommandEncoder();
-    let copy_x = Math.floor(Nx/2);
-    let scale = 10**(-0.3);
-    let axis_mode = 0;
+    const copy_x = Math.floor(Nx/2);
+    const scale = 10**(-0.3);
+    const axis_mode = 0;
     this.kernel_copy_to_texture.create_pass(
       command_encoder,
       this.e_field, this.display_texture_view, grid_size,
       copy_x, scale, axis_mode,
     );
     // NOTE: canvas texture view has to be retrieved here since the browser swaps it out in the swapchain
-    let canvas_texture_view = this.canvas_context.getCurrentTexture().createView();
+    const canvas_texture_view = this.canvas_context.getCurrentTexture().createView();
     this.shader_render_texture.create_pass(command_encoder, canvas_texture_view, this.display_texture_view);
     this.device.queue.submit([command_encoder.finish()]);
     await this.device.queue.onSubmittedWorkDone();

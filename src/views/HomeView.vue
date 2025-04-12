@@ -18,7 +18,7 @@ interface ComponentData {
 
 export default defineComponent({
   data(): ComponentData {
-    let setup = create_simulation_setup();
+    const setup = create_simulation_setup();
     return {
       setup,
       curr_step: 0,
@@ -44,12 +44,12 @@ export default defineComponent({
   methods: {
     update_progress() {
       this.ms_start = this.ms_start ?? performance.now();
-      let ms_end = performance.now();
-      let ms_elapsed = ms_end-this.ms_start;
+      const ms_end = performance.now();
+      const ms_elapsed = ms_end-this.ms_start;
       this.time_taken = ms_elapsed*1e-3;
     },
     async simulation_loop() {
-      let update_stride = 16; // avoid overhead of setTimeout
+      const update_stride = 16; // avoid overhead of setTimeout
       for (let i = 0; i < update_stride; i++) {
         if (this.curr_step >= this.max_timesteps) {
           this.loop_timer_id = undefined;
@@ -88,8 +88,8 @@ export default defineComponent({
     },
   },
   async mounted() {
-    let canvas = this.$refs.gpu_canvas as HTMLCanvasElement;
-    let canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
+    const canvas = this.$refs.gpu_canvas as HTMLCanvasElement;
+    const canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
     if (canvas_context === null) {
       throw Error("Failed to get webgpu context from canvas");
     }

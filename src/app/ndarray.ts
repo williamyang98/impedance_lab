@@ -15,7 +15,7 @@ export type NdarrayType =
   "s32" | "u32" |
   "f32" | "f64";
 
-let create_array = (size: number, dtype: NdarrayType): NdarrayData => {
+const create_array = (size: number, dtype: NdarrayType): NdarrayData => {
   switch (dtype) {
   case "s8": return new Int8Array(size);
   case "u8": return new Uint8Array(size);
@@ -29,7 +29,7 @@ let create_array = (size: number, dtype: NdarrayType): NdarrayData => {
   }
 }
 
-let get_dtype_from_array = (buffer: NdarrayData): NdarrayType => {
+const get_dtype_from_array = (buffer: NdarrayData): NdarrayType => {
   if (buffer instanceof Int8Array) return "s8";
   if (buffer instanceof Uint8Array) return "u8";
   if (buffer instanceof Uint8ClampedArray) return "u8_clamped";
@@ -69,17 +69,17 @@ export abstract class NdarrayView {
   };
 
   flatten = (): NdarrayView => {
-    let total_elems = this.shape.reduce((a,b) => a*b, 1);
+    const total_elems = this.shape.reduce((a,b) => a*b, 1);
     return this.reshape([total_elems]);
   }
 
   fill = (value: number): NdarrayView => {
-    var index = new Array(this.shape.length).fill(0);
+    const index = new Array(this.shape.length).fill(0);
     while (true) {
       this.set(index, value);
-      var is_finished = false;
+      let is_finished = false;
       for (let i = 0; i < index.length; i++) {
-        let j = index.length-1-i;
+        const j = index.length-1-i;
         index[j]++;
         if (index[j] < this.shape[j]) break;
         index[j] = 0;
@@ -91,19 +91,19 @@ export abstract class NdarrayView {
   }
 
   assign = (view: NdarrayView): NdarrayView => {
-    var is_shape_match =
+    const is_shape_match =
       (view.shape.length == this.shape.length) &&
       view.shape.map((e,i) => e == this.shape[i]).reduce((a,b) => a && b, true);
     if (!is_shape_match) {
       throw Error(`Assigned failed with shape ismatch between dest (${this.shape.join(',')}) and source (${view.shape.join(',')})`);
     }
-    var index = new Array(this.shape.length).fill(0);
+    const index = new Array(this.shape.length).fill(0);
     while (true) {
-      let value = view.get(index);
+      const value = view.get(index);
       this.set(index, value);
-      var is_finished = false;
+      let is_finished = false;
       for (let i = 0; i < index.length; i++) {
-        let j = index.length-1-i;
+        const j = index.length-1-i;
         index[j]++;
         if (index[j] < this.shape[j]) break;
         index[j] = 0;
@@ -115,14 +115,14 @@ export abstract class NdarrayView {
   }
 
   to_owned = (): Ndarray => {
-    let arr = Ndarray.create_zeros(this.shape, this.dtype);
-    var index = new Array(this.shape.length).fill(0);
+    const arr = Ndarray.create_zeros(this.shape, this.dtype);
+    const index = new Array(this.shape.length).fill(0);
     while (true) {
-      let value = this.get(index);
+      const value = this.get(index);
       arr.set(index, value);
-      var is_finished = false;
+      let is_finished = false;
       for (let i = 0; i < index.length; i++) {
-        let j = index.length-1-i;
+        const j = index.length-1-i;
         index[j]++;
         if (index[j] < this.shape[j]) break;
         index[j] = 0;
@@ -142,8 +142,8 @@ export class NdarrayViewReshape extends NdarrayView {
 
   constructor(view: NdarrayView, shape: number[]) {
     super();
-    let reshape_size = shape.reduce((a,b) => a*b, 1);
-    let view_size = view.shape.reduce((a,b) => a*b, 1);
+    const reshape_size = shape.reduce((a,b) => a*b, 1);
+    const view_size = view.shape.reduce((a,b) => a*b, 1);
     if (reshape_size != view_size) {
       throw Error(`Reshape total elements mismatch with original shape (${view.shape.join(',')}) => ${view_size} and target shape ${shape.join(',')} => ${reshape_size}`);
     }
@@ -151,23 +151,23 @@ export class NdarrayViewReshape extends NdarrayView {
     this.view = view;
     // precalculate stride for indexing
     {
-      var curr_stride = 1;
-      var stride = [];
+      let curr_stride = 1;
+      const stride = [];
       for (let i = 0; i < shape.length; i++) {
         stride.push(curr_stride);
-        let j = shape.length-1-i;
+        const j = shape.length-1-i;
         curr_stride *= shape[j];
       }
       stride.reverse();
       this.stride = stride;
     }
     {
-      var curr_stride = 1;
-      var stride = [];
-      let view_shape = view.shape;
+      let curr_stride = 1;
+      const stride = [];
+      const view_shape = view.shape;
       for (let i = 0; i < view_shape.length; i++) {
         stride.push(curr_stride);
-        let j = view_shape.length-1-i;
+        const j = view_shape.length-1-i;
         curr_stride *= view_shape[j];
       }
       stride.reverse();
@@ -180,14 +180,14 @@ export class NdarrayViewReshape extends NdarrayView {
   }
 
   private get_original_index = (index: number[]): number[] => {
-    var array_index = 0;
+    let array_index = 0;
     for (let i = 0; i < index.length; i++) {
       array_index += this.stride[i]*index[i];
     }
-    let original_index = [];
+    const original_index = [];
     for (let i = 0; i < this.view_stride.length; i++) {
-      let stride = this.view_stride[i];
-      let axis_index = Math.floor(array_index / stride);
+      const stride = this.view_stride[i];
+      const axis_index = Math.floor(array_index / stride);
       array_index -= axis_index*stride;
       original_index.push(axis_index);
     }
@@ -195,12 +195,12 @@ export class NdarrayViewReshape extends NdarrayView {
   }
 
   get = (index: number[]): number => {
-    let i = this.get_original_index(index);
+    const i = this.get_original_index(index);
     return this.view.get(i);
   }
 
   set = (index: number[], value: number) => {
-    let i = this.get_original_index(index);
+    const i = this.get_original_index(index);
     this.view.set(i, value);
   }
 }
@@ -220,7 +220,7 @@ export class NdarrayViewLow extends NdarrayView {
         throw Error(`Offset (${offset.join(',')}) at axis ${i} is outside of shape (${view.shape.join(',')})`);
       }
     }
-    let shape = view.shape.map((e,i) => e-offset[i]);
+    const shape = view.shape.map((e,i) => e-offset[i]);
     this.offset = offset;
     this.view = view;
     this.shape = shape
@@ -231,12 +231,12 @@ export class NdarrayViewLow extends NdarrayView {
   }
 
   get = (index: number[]): number => {
-    let i = index.map((e,i) => e+this.offset[i]);
+    const i = index.map((e,i) => e+this.offset[i]);
     return this.view.get(i);
   }
 
   set = (index: number[], value: number) => {
-    let i = index.map((e,i) => e+this.offset[i]);
+    const i = index.map((e,i) => e+this.offset[i]);
     this.view.set(i, value);
   }
 }
@@ -280,18 +280,18 @@ export class NdarrayViewTranspose extends NdarrayView {
   constructor(view: NdarrayView, order: number[]) {
     super();
 
-    let shape = view.shape;
+    const shape = view.shape;
     if (order.length != shape.length) {
       throw Error(`Transposed axis (${order.join(',')}) has mismatching size to view shape (${shape.join(',')})`);
     }
 
-    let unique_dims = new Set(order);
+    const unique_dims = new Set(order);
     if (unique_dims.size != shape.length) {
       throw Error(`Duplicate dimension in tranposed axis (${order.join(',')})`);
     }
 
     for (let i = 0; i < order.length; i++) {
-      let axis = order[i];
+      const axis = order[i];
       if (axis >= order.length || axis < 0) {
         throw Error(`Transposed axis (${order.join(',')}) outside of range along dimension ${i}`);
       }
@@ -311,12 +311,12 @@ export class NdarrayViewTranspose extends NdarrayView {
   }
 
   get = (index: number[]): number => {
-    let i = this.get_transposed_index(index);
+    const i = this.get_transposed_index(index);
     return this.view.get(i);
   }
 
   set = (index: number[], value: number) => {
-    let i = this.get_transposed_index(index);
+    const i = this.get_transposed_index(index);
     this.view.set(i, value);
   }
 }
@@ -329,14 +329,14 @@ export class NdarrayViewStride extends NdarrayView {
   constructor(view: NdarrayView, stride: number[]) {
     super();
 
-    let shape = view.shape;
+    const shape = view.shape;
     if (stride.length != shape.length) {
       throw Error(`Stride (${stride.join(',')}) has mismatching dimensionality to view shape (${shape.join(',')})`);
     }
 
     this.view = view;
     this.stride = stride.slice();
-    let new_shape = stride.map((e,i) => Math.ceil(shape[i]/e));
+    const new_shape = stride.map((e,i) => Math.ceil(shape[i]/e));
     this.shape = new_shape;
   }
 
@@ -349,12 +349,12 @@ export class NdarrayViewStride extends NdarrayView {
   }
 
   get = (index: number[]): number => {
-    let i = this.get_stride_index(index);
+    const i = this.get_stride_index(index);
     return this.view.get(i);
   }
 
   set = (index: number[], value: number) => {
-    let i = this.get_stride_index(index);
+    const i = this.get_stride_index(index);
     this.view.set(i, value);
   }
 }
@@ -371,11 +371,11 @@ export class Ndarray extends NdarrayView {
     this.shape = shape;
     this.dtype = dtype;
     // precalculate stride for indexing
-    var curr_stride = 1;
-    var stride = [];
+    let curr_stride = 1;
+    const stride = [];
     for (let i = 0; i < shape.length; i++) {
       stride.push(curr_stride);
-      let j = shape.length-1-i;
+      const j = shape.length-1-i;
       curr_stride *= shape[j];
     }
     stride.reverse();
@@ -383,17 +383,17 @@ export class Ndarray extends NdarrayView {
   }
 
   static create_zeros = (shape: number[], dtype: NdarrayType): Ndarray => {
-    let total_elems = shape.reduce((a,b) => a*b, 1);
-    let data = create_array(total_elems, dtype);
+    const total_elems = shape.reduce((a,b) => a*b, 1);
+    const data = create_array(total_elems, dtype);
     return new Ndarray(data, shape.slice(), dtype);
   };
 
   static create_from_buffer = (shape: number[], data: NdarrayData): Ndarray => {
-    let total_elems = shape.reduce((a,b) => a*b, 1);
+    const total_elems = shape.reduce((a,b) => a*b, 1);
     if (total_elems != data.length) {
       throw Error(`Mismatch between specified shape (${shape.join(',')}) => ${total_elems} and provided data with size ${data.length} for data: ${data}`);
     }
-    let dtype = get_dtype_from_array(data);
+    const dtype = get_dtype_from_array(data);
     return new Ndarray(data, shape.slice(), dtype);
   };
 
@@ -402,15 +402,15 @@ export class Ndarray extends NdarrayView {
   }
 
   static create_linspace = (start: number, step: number, shape: number[], dtype: NdarrayType): Ndarray => {
-    let arr = Ndarray.create_zeros(shape, dtype);
-    var index = new Array(shape.length).fill(0);
-    var value = start;
+    const arr = Ndarray.create_zeros(shape, dtype);
+    const index = new Array(shape.length).fill(0);
+    let value = start;
     while (true) {
       arr.set(index, value);
       value += step;
-      var is_finished = false;
+      let is_finished = false;
       for (let i = 0; i < index.length; i++) {
-        let j = index.length-1-i;
+        const j = index.length-1-i;
         index[j]++;
         if (index[j] < shape[j]) break;
         index[j] = 0;
@@ -425,7 +425,7 @@ export class Ndarray extends NdarrayView {
     if (index.length != this.shape.length) {
       throw Error(`Index (${index}) has mismatching dimension (${index.length}) to array shape (${this.shape}) with dimension (${this.shape.length})`);
     }
-    var array_index = 0;
+    let array_index = 0;
     for (let i = 0; i < index.length; i++) {
       array_index += this.stride[i]*index[i];
     }
@@ -433,12 +433,12 @@ export class Ndarray extends NdarrayView {
   }
 
   get = (index: number[]): number => {
-    let i = this.get_data_index(index);
+    const i = this.get_data_index(index);
     return this.data[i];
   }
 
   set = (index: number[], value: number) => {
-    let i = this.get_data_index(index);
+    const i = this.get_data_index(index);
     this.data[i] = value;
   }
 }
