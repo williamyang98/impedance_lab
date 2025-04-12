@@ -4,6 +4,69 @@ import {
   Setup, type TransmissionLineParameters, type RunResult, type ImpedanceResult,
   create_grid_layout, init_wasm_module,
 } from "../app/app_2d.ts";
+import Chart from 'chart.js/auto';
+
+interface LineChart {
+  set_data: (data: number[]) => void;
+  set_label: (label: string) => void;
+  update: () => void;
+  destroy: () => void;
+}
+
+function create_line_chart(canvas: HTMLCanvasElement): LineChart {
+  type Marker = { x: number, y: number };
+  const chart = new Chart(canvas, {
+    type: "line",
+    data: {
+      datasets: [
+        {
+          borderColor: "rgba(0,0,255,0.5)",
+          data: [] as Marker[],
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      animation: false,
+      scales: {
+        x: {
+          type: "linear",
+          title: {
+            text: "x",
+            display: true,
+          },
+        },
+        y: {
+          type: "linear",
+          title: {
+            text: "y",
+            display: true,
+          },
+        },
+      },
+    }
+  });
+
+  return {
+    set_data: (data: number[]) => {
+      const markers = data.map((e,i) => {
+        return { x: i, y: e };
+      });
+      chart.data.datasets[0].data = markers;
+    },
+    set_label: (label: string) => {
+      chart.data.datasets[0].label = label;
+      let title = chart.options.scales?.y?.title?.text;
+      if (title) title = label;
+    },
+    update: () => {
+      chart.update();
+    },
+    destroy: () => {
+      chart.destroy();
+    },
+  }
+}
 
 interface ComponentData {
   setup: Setup;
@@ -11,6 +74,8 @@ interface ComponentData {
   run_result?: RunResult;
   impedance_result?: ImpedanceResult;
   energy_threshold: number;
+  dx_chart?: LineChart,
+  dy_chart?: LineChart,
 }
 
 export default defineComponent({
@@ -27,15 +92,18 @@ export default defineComponent({
         dielectric_top_epsilon: 4.36,
         dielectric_top_height: 0.45,
       },
+      energy_threshold: -2.3,
       run_result: undefined,
       impedance_result: undefined,
-      energy_threshold: -2.3,
+      dx_chart: undefined,
+      dy_chart: undefined,
     };
   },
   methods: {
     update_params() {
       this.reset();
       this.setup.update_params(this.params);
+      this.update_charts();
       this.run();
     },
     run() {
@@ -48,8 +116,23 @@ export default defineComponent({
     reset() {
       this.setup.reset();
     },
+    create_charts() {
+      this.dx_chart?.destroy();
+      this.dy_chart?.destroy();
+      this.dx_chart = create_line_chart(this.$refs.dx_canvas as HTMLCanvasElement);
+      this.dy_chart = create_line_chart(this.$refs.dy_canvas as HTMLCanvasElement);
+    },
+    update_charts() {
+      this.dx_chart?.set_data(Array.from(this.setup.grid.dx.data));
+      this.dy_chart?.set_data(Array.from(this.setup.grid.dy.data));
+      this.dx_chart?.set_label("dx");
+      this.dy_chart?.set_label("dy");
+      this.dx_chart?.update();
+      this.dy_chart?.update();
+    }
   },
   async mounted() {
+    this.create_charts();
     await init_wasm_module();
     this.update_params();
   },
@@ -112,6 +195,12 @@ export default defineComponent({
   <div>
     <h2>Field Viewer</h2>
     <canvas ref="field_canvas" style="width: 400px; height: 200px"></canvas>
+  </div>
+
+  <div>
+    <h2>Debug Charts</h2>
+    <canvas ref="dx_canvas" style="max-width: 500px; max-height: 200px"></canvas>
+    <canvas ref="dy_canvas" style="max-width: 500px; max-height: 200px"></canvas>
   </div>
 </template>
 
