@@ -94,13 +94,13 @@ function normalise_transmission_line_parameters(
   const min_ratio: number = ratios.reduce((a,b) => Math.min(a,b), Infinity);
   const rescale = target_ratio / min_ratio;
   return {
-    dielectric_bottom_epsilon: params.dielectric_top_height,
-    dielectric_bottom_height: params.dielectric_top_epsilon,
-    signal_separation: params.signal_height*rescale,
+    dielectric_bottom_epsilon: params.dielectric_bottom_epsilon,
+    dielectric_bottom_height: params.dielectric_bottom_height*rescale,
+    signal_separation: params.signal_separation*rescale,
     signal_width: params.signal_width*rescale,
-    signal_height: params.signal_separation*rescale,
-    dielectric_top_epsilon: params.dielectric_bottom_height*rescale,
-    dielectric_top_height: params.dielectric_bottom_epsilon*rescale,
+    signal_height: params.signal_height*rescale,
+    dielectric_top_epsilon: params.dielectric_top_epsilon,
+    dielectric_top_height: params.dielectric_top_height*rescale,
   }
 };
 
@@ -366,28 +366,75 @@ export class App2d {
   setup: Setup;
   params: TransmissionLineParameters;
 
+  static async init() {
+    await init_wasm_module();
+  }
+
   constructor() {
     const grid_layout = create_grid_layout();
     const setup = new Setup(grid_layout);
     const params: TransmissionLineParameters = {
       dielectric_bottom_epsilon: 4.1,
-      dielectric_bottom_height: 0.45,
+      dielectric_bottom_height: 0.0994,
       signal_separation: 0.15,
       signal_width: 0.1334,
       signal_height: 0.0152,
-      dielectric_top_epsilon: 4.1,
-      dielectric_top_height: 0.1,
+      dielectric_top_epsilon: 4.36,
+      dielectric_top_height: 0.45,
     };
     setup.update_params(params);
 
     this.setup = setup;
     this.params = params;
-
-    init_wasm_module();
   }
 
   run() {
     this.setup.run();
     this.setup.calculate_impedance();
+  }
+
+  render(canvas: HTMLCanvasElement) {
+    const context = canvas.getContext("2d");
+    if (context === null) {
+      throw Error("Failed to retrieve 2d context from canvas");
+    }
+    const [Ny, Nx] = this.setup.grid.size;
+    canvas.width = Nx;
+    canvas.height = Ny;
+
+    const image_data = context.createImageData(Nx, Ny);
+
+    const data = Ndarray.create_zeros([Ny,Nx], "f32");
+    const { v_field, e_field, dx, dy } = this.setup.grid;
+    for (let y = 0; y < Ny; y++) {
+      for (let x = 0; x < Nx; x++) {
+        const _v = v_field.get([y,x]);
+        const ex = e_field.get([y,x,0]);
+        const ey = e_field.get([y,x,1]);
+        const dx_avg = (dx.get([Math.max(x-1,0)]) + dx.get([x]))/2.0;
+        const dy_avg = (dy.get([Math.max(y-1,0)]) + dy.get([y]))/2.0;
+        // e-field lies on boundary of yee-grid
+        const energy = (ex**2)*dx.get([x])*dy_avg + (ey**2)*dy.get([y])*dx_avg;
+        data.set([y,x], energy);
+      }
+    }
+    const data_max = data.cast(Float32Array).reduce((a,b) => Math.max(a,b), 0.0);
+    for (let y = 0; y < Ny; y++) {
+      for (let x = 0; x < Nx; x++) {
+        const i_image = 4*(x + y*Nx);
+        const d = data.get([y,x]);
+        const scale = 255/data_max;
+        const value = Math.min(Math.round(d*scale), 255);
+        const r = value;
+        const g = value;
+        const b = value;
+        const a = 255;
+        image_data.data[i_image+0] = r;
+        image_data.data[i_image+1] = g;
+        image_data.data[i_image+2] = b;
+        image_data.data[i_image+3] = a;
+      }
+    }
+    context.putImageData(image_data, 0, 0);
   }
 };
