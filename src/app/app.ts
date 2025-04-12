@@ -7,12 +7,7 @@ import {
   ShaderRenderTexture,
 } from "./kernels.ts";
 
-type Elements = {
-  canvas_context: GPUCanvasContext;
-  on_update: (curr_step: number, total_steps: number, time_taken: number, total_cells: number) => void;
-};
-
-class SimulationGrid {
+export class SimulationGrid {
   size: [number, number, number];
   total_cells: number;
   init_e_field: Ndarray;
@@ -73,18 +68,18 @@ class SimulationGrid {
   }
 }
 
-class SimulationSource {
+export class SimulationSource {
   signal: number[] = [];
   offset: [number, number, number] = [0,0,0];
   size: [number, number, number] = [0,0,0];
 }
 
-interface SimulationSetup {
+export interface SimulationSetup {
   grid: SimulationGrid;
   sources: SimulationSource[];
 }
 
-let create_simulation_setup = (): SimulationSetup => {
+export let create_simulation_setup = (): SimulationSetup => {
   let grid_size: [number, number, number] = [16,128,256];
   let grid = new SimulationGrid(grid_size);
 
@@ -98,7 +93,7 @@ let create_simulation_setup = (): SimulationSetup => {
   let plane_height = 1;
   let plane_border = 20;
   let signal_height = 1;
-  //let signal_width = 10;
+  // let signal_width = 10;
   let signal_width = 20;
   let separation_height = 5;
   let x_start = Math.floor(Nx/2 - (plane_height+separation_height+signal_height)/2);
@@ -129,7 +124,7 @@ let create_simulation_setup = (): SimulationSetup => {
   source.size = [separation_height, signal_width, 1];
   // terminator resistors
   {
-    //let resistance = 78.338/2; // w=10
+    // let resistance = 78.338/2; // w=10
     let resistance = 53.864/2; // w=20
     let thickness = 1;
     let area = (signal_width*grid.init_d_xyz)*(thickness*grid.init_d_xyz);
@@ -152,7 +147,7 @@ let create_simulation_setup = (): SimulationSetup => {
   }
 };
 
-class GpuFdtdEngine {
+export class GpuFdtdEngine {
   canvas_context: GPUCanvasContext;
   adapter: GPUAdapter;
   device: GPUDevice;
@@ -254,40 +249,3 @@ class GpuFdtdEngine {
     await this.device.queue.onSubmittedWorkDone();
   }
 }
-
-let run_app = async (elements: Elements) => {
-  if (!navigator.gpu) {
-    throw Error("WebGPU not supported.");
-  }
-
-  const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) {
-    throw Error("Couldn't request WebGPU adapter.");
-  }
-
-  const device = await adapter.requestDevice();
-  let setup = create_simulation_setup();
-  let gpu_engine = new GpuFdtdEngine(elements.canvas_context, adapter, device, setup);
-
-  let update_description = (curr_step: number, total_steps: number, ms_start: number) => {
-    let ms_end = performance.now();
-    let ms_elapsed = ms_end-ms_start;
-    elements.on_update(curr_step, total_steps, ms_elapsed*1e-3, setup.grid.total_cells);
-  };
-
-  {
-    let ms_start = performance.now();
-    let total_steps = 8192;
-    for (let i = 0; i < total_steps; i++) {
-      gpu_engine.step_fdtd(i);
-      if (i % 128 == 0) {
-        await gpu_engine.update_display();
-        update_description(i+1, total_steps, ms_start);
-      }
-    }
-    await device.queue.onSubmittedWorkDone();
-    update_description(total_steps, total_steps, ms_start);
-  }
-};
-
-export default run_app;
