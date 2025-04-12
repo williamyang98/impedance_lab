@@ -421,7 +421,7 @@ export class Ndarray extends NdarrayView {
     return arr;
   }
 
-  private _get_index = (index: number[]): number => {
+  get_data_index = (index: number[]): number => {
     if (index.length != this.shape.length) {
       throw Error(`Index (${index}) has mismatching dimension (${index.length}) to array shape (${this.shape}) with dimension (${this.shape.length})`);
     }
@@ -433,12 +433,12 @@ export class Ndarray extends NdarrayView {
   }
 
   get = (index: number[]): number => {
-    let i = this._get_index(index);
+    let i = this.get_data_index(index);
     return this.data[i];
   }
 
   set = (index: number[], value: number) => {
-    let i = this._get_index(index);
+    let i = this.get_data_index(index);
     this.data[i] = value;
   }
 }

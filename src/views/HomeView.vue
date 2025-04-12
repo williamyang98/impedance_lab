@@ -1,14 +1,14 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import {
-  SimulationSetup, GpuFdtdEngine,
+  type SimulationSetup, GpuFdtdEngine,
   create_simulation_setup,
 } from "../app/app.ts";
 
 interface ComponentData {
   setup: SimulationSetup;
   curr_step: number;
-  total_steps: number;
+  max_timesteps: number;
   time_taken: number;
   total_cells: number;
   gpu_engine?: GpuFdtdEngine;
@@ -25,9 +25,9 @@ export default defineComponent({
       time_taken: 0,
       total_cells: setup.grid.total_cells,
       max_timesteps: 8192,
-      gpu_engine: null,
-      loop_timer_id: null,
-      ms_start: null,
+      gpu_engine: undefined,
+      loop_timer_id: undefined,
+      ms_start: undefined,
     }
   },
   computed: {
@@ -37,17 +37,13 @@ export default defineComponent({
     cell_rate(): number {
       return (this.curr_step*this.total_cells) / Math.max(this.time_taken, 1e-6);
     },
-    is_running(): bool {
-      return this.loop_timer_id !== null;
+    is_running(): boolean {
+      return this.loop_timer_id !== undefined;
     },
   },
   methods: {
-    on_update(curr_step: number, total_steps: number, time_taken: number, total_cells: number) {
-      this.curr_step = curr_step;
-      this.time_taken = time_taken;
-      this.total_cells = total_cells;
-    },
     update_progress() {
+      this.ms_start = this.ms_start ?? performance.now();
       let ms_end = performance.now();
       let ms_elapsed = ms_end-this.ms_start;
       this.time_taken = ms_elapsed*1e-3;
@@ -56,12 +52,12 @@ export default defineComponent({
       let update_stride = 16; // avoid overhead of setTimeout
       for (let i = 0; i < update_stride; i++) {
         if (this.curr_step >= this.max_timesteps) {
-          this.loop_timer_id = null;
+          this.loop_timer_id = undefined;
           return;
         }
-        this.gpu_engine.step_fdtd(this.curr_step);
+        this.gpu_engine?.step_fdtd(this.curr_step);
         if (this.curr_step % 128 == 0) {
-          await this.gpu_engine.update_display();
+          await this.gpu_engine?.update_display();
           this.update_progress();
         }
         this.curr_step++;
@@ -69,31 +65,34 @@ export default defineComponent({
           this.update_progress();
         }
       }
-      if (this.loop_timer_id === null) return;
+      if (this.loop_timer_id === undefined) return;
       this.loop_timer_id = setTimeout(async () => await this.simulation_loop(), 0);
     },
     start_loop() {
-      if (this.gpu_engine === null) return;
+      if (this.gpu_engine === undefined) return;
       this.stop_loop();
       this.ms_start = performance.now();
       this.curr_step = 0;
       this.loop_timer_id = setTimeout(async () => await this.simulation_loop(), 0);
     },
     resume_loop() {
-      if (this.gpu_engine === null) return;
+      if (this.gpu_engine === undefined) return;
       this.stop_loop();
       this.loop_timer_id = setTimeout(async () => await this.simulation_loop(), 0);
     },
     stop_loop() {
-      if (this.loop_timer_id !== null) {
+      if (this.loop_timer_id !== undefined) {
         clearTimeout(this.loop_timer_id);
-        this.loop_timer_id = null;
+        this.loop_timer_id = undefined;
       }
     },
   },
   async mounted() {
-    let canvas = this.$refs.gpu_canvas;
-    let canvas_context: GPUCanvasContext = canvas.getContext("webgpu");
+    let canvas = this.$refs.gpu_canvas as HTMLCanvasElement;
+    let canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
+    if (canvas_context === null) {
+      throw Error("Failed to get webgpu context from canvas");
+    }
     if (!navigator.gpu) {
       throw Error("WebGPU not supported.");
     }

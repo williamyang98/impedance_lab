@@ -144,7 +144,7 @@ export let create_simulation_setup = (): SimulationSetup => {
   return {
     grid,
     sources: [source],
-  }
+  };
 };
 
 export class GpuFdtdEngine {
