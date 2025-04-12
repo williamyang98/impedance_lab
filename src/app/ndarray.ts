@@ -441,4 +441,11 @@ export class Ndarray extends NdarrayView {
     const i = this.get_data_index(index);
     this.data[i] = value;
   }
+
+  cast<T extends NdarrayData>(type: { new (): T }): T {
+    if (this.data instanceof type) {
+      return this.data;
+    }
+    throw Error(`Invalid cast from '${this.dtype}' to '${type}'`)
+  }
 }
