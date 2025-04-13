@@ -1,5 +1,38 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  // SelectGroup,
+  // SelectLabel,
+  SelectItem,
+} from "@/components/ui/select"
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  // TableCaption,
+  TableCell,
+  // TableHead,
+  // TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 </script>
 
 <script lang="ts">
@@ -10,71 +43,7 @@ import {
   type TransmissionLineParameters, type RunResult, type ImpedanceResult, create_grid_layout,
   type ParameterSearchConfig, type ParameterSearchResults, perform_parameter_search,
 } from "../app/app_2d.ts";
-import Chart from 'chart.js/auto';
-
-interface LineChart {
-  set_data: (data: { x: number, y: number }[]) => void;
-  set_ylabel: (label: string) => void;
-  set_xlabel: (label: string) => void;
-  update: () => void;
-  destroy: () => void;
-}
-
-function create_line_chart(canvas: HTMLCanvasElement): LineChart {
-  type Marker = { x: number, y: number };
-  const chart = new Chart(canvas, {
-    type: "line",
-    data: {
-      datasets: [
-        {
-          borderColor: "rgba(0,0,255,0.5)",
-          data: [] as Marker[],
-          fill: false,
-        }
-      ]
-    },
-    options: {
-      animation: false,
-      scales: {
-        x: {
-          type: "linear",
-          title: {
-            text: "x",
-            display: true,
-          },
-        },
-        y: {
-          type: "linear",
-          title: {
-            text: "y",
-            display: true,
-          },
-        },
-      },
-    }
-  });
-
-  return {
-    set_data: (data: { x: number, y: number }[]) => {
-      chart.data.datasets[0].data = data;
-    },
-    set_ylabel: (label: string) => {
-      chart.data.datasets[0].label = label;
-      let title = chart.options.scales?.y?.title?.text;
-      if (title !== null) title = label;
-    },
-    set_xlabel: (label: string) => {
-      let title = chart.options.scales?.x?.title?.text;
-      if (title !== null) title = label;
-    },
-    update: () => {
-      chart.update();
-    },
-    destroy: () => {
-      chart.destroy();
-    },
-  }
-}
+import LineChart from "./LineChart.vue";
 
 type SearchOption = "er0" | "er1" | "er0+er1" | "h0" | "h1" | "h0+h1" | "w" | "s" | "t";
 interface SearchConfig {
@@ -113,9 +82,6 @@ interface ComponentData {
   run_result?: RunResult;
   impedance_result?: ImpedanceResult;
   energy_threshold: number;
-  dx_chart?: LineChart;
-  dy_chart?: LineChart;
-  search_chart?: LineChart;
   Z0_target: number;
   search_option: SearchOption;
   search_options: SearchOption[];
@@ -138,9 +104,6 @@ export default defineComponent({
       energy_threshold: -2.3,
       run_result: undefined,
       impedance_result: undefined,
-      dx_chart: undefined,
-      dy_chart: undefined,
-      search_chart: undefined,
       Z0_target: 50,
       search_option: "w",
       search_options: ["er0", "er1", "er0+er1", "h0", "h1", "h0+h1", "w", "s", "t"],
@@ -163,26 +126,24 @@ export default defineComponent({
     reset() {
       this.setup.reset();
     },
-    create_charts() {
-      this.dx_chart?.destroy();
-      this.dy_chart?.destroy();
-      this.search_chart?.destroy();
-      this.dx_chart = create_line_chart(this.$refs.dx_canvas as HTMLCanvasElement);
-      this.dy_chart = create_line_chart(this.$refs.dy_canvas as HTMLCanvasElement);
-      this.search_chart = create_line_chart(this.$refs.search_canvas as HTMLCanvasElement);
-    },
     update_charts() {
       function create_markers(arr: Ndarray): { x: number, y: number }[] {
         return Array.from(arr.data).map((e,i) => {
           return { x: i, y: e }
         });
       }
-      this.dx_chart?.set_data(create_markers(this.setup.grid.dx));
-      this.dy_chart?.set_data(create_markers(this.setup.grid.dy));
-      this.dx_chart?.set_ylabel("dx");
-      this.dy_chart?.set_ylabel("dy");
-      this.dx_chart?.update();
-      this.dy_chart?.update();
+      if (this.$refs.dx_chart) {
+        const chart = this.$refs.dx_chart as typeof LineChart;
+        chart.set_data(create_markers(this.setup.grid.dx));
+        chart.set_ylabel("dx");
+        chart.update();
+      }
+      if (this.$refs.dy_chart) {
+        const chart = this.$refs.dy_chart as typeof LineChart;
+        chart.set_data(create_markers(this.setup.grid.dy));
+        chart.set_ylabel("dy");
+        chart.update();
+      }
     },
     async run_parameter_search() {
       const search_config = get_search_config(this.search_option);
@@ -212,16 +173,19 @@ export default defineComponent({
         };
       });
       xy_data.sort((a,b) => a.x-b.x);
-      this.search_chart?.set_data(xy_data);
-      this.search_chart?.set_xlabel(this.search_option);
-      this.search_chart?.set_ylabel("Z0");
-      this.search_chart?.update();
+      if (this.$refs.param_chart) {
+        const chart = this.$refs.param_chart as typeof LineChart;
+        chart.set_data(xy_data);
+        chart.set_xlabel(this.search_option);
+        chart.set_ylabel("Z0");
+        chart.update();
+      }
       this.update_params();
     },
   },
   mounted() {
     const mount = async () => {
-      this.create_charts();
+      // this.create_charts();
       await init_wasm_module();
       this.update_params();
     };
@@ -230,91 +194,177 @@ export default defineComponent({
   beforeUnmount() {
 
   },
+  watch: {
+    dx_canvas(old_canvas, new_canvas) {
+      console.log(old_canvas, new_canvas);
+    }
+  },
 });
 </script>
 
 <template>
-  <div>
-    <h2>Transmission line parameters</h2>
-    <form>
-      <label for="er0">er0: </label><input id="er0" type="number" v-model.number="params.dielectric_bottom_epsilon"/><br>
-      <label for="er1">er1: </label><input id="er1" type="number" v-model.number="params.dielectric_top_epsilon"/><br>
-      <label for="h0">h0: </label><input id="h0" type="number" v-model.number="params.dielectric_bottom_height"/><br>
-      <label for="h1">h1: </label><input id="h1" type="number" v-model.number="params.dielectric_top_height"/><br>
-      <label for="w">w: </label><input id="w" type="number" v-model.number="params.signal_width"/><br>
-      <label for="s">s: </label><input id="s" type="number" v-model.number="params.signal_separation"/><br>
-      <label for="t">t: </label><input id="t" type="number" v-model.number="params.signal_height"/><br>
-    </form>
-    <Button @click="update_params()" variant="outline">Update Parameters</Button>
-  </div>
-  <div>
-    <h2>Parameter search</h2>
-    <label for="z0">Z0: </label><input id="z0" type="number" v-model.number="Z0_target"/><br>
-    <label for="search_option">Parameter: </label>
-    <select id="search_option" v-model="search_option">
-      <option v-for="option in search_options" :key="option" :value="option">
-        {{ option }}
-      </option>
-    </select><br>
-    <button @click="run_parameter_search()">Run parameter search</button>
-  </div>
-  <div>
-    <h2>Simulation Controls</h2>
-    <form>
-      <label for="threshold">Threshold: {{ (10**energy_threshold).toPrecision(3) }}</label><br>
-      <input id="threshold" type="range" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/><br>
-    </form>
-    <button @click="run()">Run</button>
-    <button @click="reset()">Reset</button>
-  </div>
-
-  <div v-if="run_result">
-    <h2>Run Results</h2>
-    <table>
-      <tbody>
-        <tr><td>Total steps</td><td>{{ run_result.total_steps }}</td></tr>
-        <tr><td>Time taken</td><td>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</td></tr>
-        <tr><td>Step rate</td><td>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</td></tr>
-        <tr><td>Cell rate</td><td>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</td></tr>
-        <tr><td>Total cells</td><td>{{ run_result.total_cells }}</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div v-if="impedance_result">
-    <h2>Impedance Results</h2>
-    <table>
-      <tbody>
-        <tr><td>Z0</td><td>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</td></tr>
-        <tr><td>Cih</td><td>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</td></tr>
-        <tr><td>Lh</td><td>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</td></tr>
-        <tr><td>propagation speed</td><td>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</td></tr>
-        <tr><td>propagation delay</td><td>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div>
-    <h2>Field Viewer</h2>
-    <canvas ref="field_canvas" style="width: 400px; height: 200px"></canvas>
-  </div>
-
-  <div>
-    <h2>Debug Charts</h2>
-    <canvas ref="dx_canvas" style="max-width: 500px; max-height: 200px"></canvas>
-    <canvas ref="dy_canvas" style="max-width: 500px; max-height: 200px"></canvas>
-    <canvas ref="search_canvas" style="max-width: 500px; max-height: 200px"></canvas>
+  <div class="grid grid-flow-dense grid-cols-3 gap-2">
+    <Card class="gap-3 row-span-2">
+      <CardHeader>
+        <CardTitle>Transmission line parameters</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
+          <Label for="er0">Dielectric εr bottom</Label>
+          <Input id="er0" type="number" v-model.number="params.dielectric_bottom_epsilon"/>
+          <Label for="er1">Dielectric εr top</Label>
+          <Input id="er1" type="number" v-model.number="params.dielectric_top_epsilon"/>
+          <Label for="h0">Dielectric height bottom</Label>
+          <Input id="h0" type="number" v-model.number="params.dielectric_bottom_height"/>
+          <Label for="h1">Dielectric height top</Label>
+          <Input id="h1" type="number" v-model.number="params.dielectric_top_height"/>
+          <Label for="w">Trace width</Label>
+          <Input id="w" type="number" v-model.number="params.signal_width"/>
+          <Label for="s">Trace separation</Label>
+          <Input id="s" type="number" v-model.number="params.signal_separation"/>
+          <Label for="t">Trace thickness</Label>
+          <Input id="t" type="number" v-model.number="params.signal_height"/>
+        </form>
+      </CardContent>
+      <CardFooter class="flex justify-end mt-auto">
+        <Button @click="update_params()">Update Parameters</Button>
+      </CardFooter>
+    </Card>
+    <Card class="gap-3">
+      <CardHeader>
+        <CardTitle>Parameter search</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
+          <Label for="z0">Z0</Label>
+          <Input id="z0" type="number" v-model.number="Z0_target"/>
+          <Label for="search_option">Parameter</Label>
+          <Select id="search_option" v-model="search_option">
+            <SelectTrigger class="w-auto">
+              <SelectValue/>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="option in search_options" :key="option" :value="option">
+                {{ option }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </form>
+      </CardContent>
+      <CardFooter class="flex justify-end mt-auto">
+        <Button @click="run_parameter_search()">Search</Button>
+      </CardFooter>
+    </Card>
+    <Card class="gap-3">
+      <CardHeader>
+        <CardTitle>Simulation Controls</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
+          <Label for="threshold">Settling threshold</Label>
+          <Input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
+        </form>
+      </CardContent>
+      <CardFooter class="flex justify-end gap-x-2 mt-auto">
+        <Button @click="reset()" variant="outline">Reset</Button>
+        <Button @click="run()">Run</Button>
+      </CardFooter>
+    </Card>
+    <Card class="gap-3 row-span-2" v-if="run_result">
+      <CardHeader>
+        <CardTitle>Run Results</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableBody>
+            <TableRow>
+              <TableCell class="font-medium">Total steps</TableCell>
+              <TableCell>{{ run_result.total_steps }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell class="font-medium">Time taken</TableCell>
+              <TableCell>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell class="font-medium">Step rate</TableCell>
+              <TableCell>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell class="font-medium">Cell rate</TableCell>
+              <TableCell>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell class="font-medium">Total cells</TableCell>
+              <TableCell>{{ run_result.total_cells }}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+    <Card class="gap-3 row-span-2" v-if="impedance_result">
+      <CardHeader>
+        <CardTitle>Impedance Results</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableBody>
+            <TableRow>
+              <TableCell class="font-medium">Z0</TableCell>
+              <TableCell>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell class="font-medium">Cih</TableCell>
+              <TableCell>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell class="font-medium">Lh</TableCell>
+              <TableCell>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell class="font-medium">Propagation speed</TableCell>
+              <TableCell>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell class="font-medium">Propagation delay</TableCell>
+              <TableCell>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+    <Card class="gap-3 col-span-2 row-span-2">
+      <CardHeader>
+        <CardTitle>Field viewer</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <canvas ref="field_canvas" class="w-[100%] h-[100%]"></canvas>
+      </CardContent>
+    </Card>
+    <Card class="gap-3 col-span-2 row-span-2">
+      <CardHeader>
+        <CardTitle>Debug charts</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs default-value="dx" class="w-[100%]" :unmount-on-hide="false">
+          <TabsList class="grid w-full grid-cols-3">
+            <TabsTrigger value="dx">dx</TabsTrigger>
+            <TabsTrigger value="dy">dy</TabsTrigger>
+            <TabsTrigger value="param_search">Parameter Search</TabsTrigger>
+          </TabsList>
+          <TabsContent value="dx">
+            <LineChart ref="dx_chart" class="w-[100%] h-[100%]"></LineChart>
+          </TabsContent>
+          <TabsContent value="dy">
+            <LineChart ref="dy_chart" class="w-[100%] h-[100%]"></LineChart>
+          </TabsContent>
+          <TabsContent value="param_search">
+            <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   </div>
 </template>
 
 <style scoped>
-table, th, td {
-  border: 1px solid;
-}
-table {
-  border-collapse: collapse;
-}
-th, td {
-  padding: 0.25rem;
-}
 </style>
