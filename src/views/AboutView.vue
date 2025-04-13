@@ -1,14 +1,17 @@
 <script lang="ts">
 import { defineComponent } from "vue";
+import { Ndarray } from "../app/ndarray.ts";
 import {
-  Setup, type TransmissionLineParameters, type RunResult, type ImpedanceResult,
-  create_grid_layout, init_wasm_module,
+  Setup, init_wasm_module,
+  type TransmissionLineParameters, type RunResult, type ImpedanceResult, create_grid_layout,
+  type ParameterSearchConfig, type ParameterSearchResults, perform_parameter_search,
 } from "../app/app_2d.ts";
 import Chart from 'chart.js/auto';
 
 interface LineChart {
-  set_data: (data: number[]) => void;
-  set_label: (label: string) => void;
+  set_data: (data: { x: number, y: number }[]) => void;
+  set_ylabel: (label: string) => void;
+  set_xlabel: (label: string) => void;
   update: () => void;
   destroy: () => void;
 }
@@ -48,16 +51,17 @@ function create_line_chart(canvas: HTMLCanvasElement): LineChart {
   });
 
   return {
-    set_data: (data: number[]) => {
-      const markers = data.map((e,i) => {
-        return { x: i, y: e };
-      });
-      chart.data.datasets[0].data = markers;
+    set_data: (data: { x: number, y: number }[]) => {
+      chart.data.datasets[0].data = data;
     },
-    set_label: (label: string) => {
+    set_ylabel: (label: string) => {
       chart.data.datasets[0].label = label;
       let title = chart.options.scales?.y?.title?.text;
-      if (title) title = label;
+      if (title !== null) title = label;
+    },
+    set_xlabel: (label: string) => {
+      let title = chart.options.scales?.x?.title?.text;
+      if (title !== null) title = label;
     },
     update: () => {
       chart.update();
@@ -68,14 +72,49 @@ function create_line_chart(canvas: HTMLCanvasElement): LineChart {
   }
 }
 
+type SearchOption = "er0" | "er1" | "er0+er1" | "h0" | "h1" | "h0+h1" | "w" | "s" | "t";
+interface SearchConfig {
+  getter: (params: TransmissionLineParameters, value: number) => TransmissionLineParameters;
+  v_lower: number;
+  v_upper: number;
+  is_positive_correlation: boolean;
+};
+
+function get_search_config(option: SearchOption): SearchConfig {
+  const create_config = (
+    v_lower: number,
+    v_upper: number,
+    is_positive_correlation: boolean,
+    getter: (params: TransmissionLineParameters, value: number) => TransmissionLineParameters,
+  ): SearchConfig => {
+    return { getter, v_lower, v_upper, is_positive_correlation };
+  }
+
+  switch (option) {
+  case "er0": return create_config(1, 2, false, (p,v) => { return {...p, dielectric_bottom_epsilon: v }; });
+  case "er1": return create_config(1, 2, false, (p,v) => { return {...p, dielectric_top_epsilon: v }; });
+  case "er0+er1": return create_config(1, 2, false, (p,v) => { return {...p, dielectric_bottom_epsilon: v, dielectric_top_epsilon: v }; });
+  case "h0": return create_config(0, 1, true, (p,v) => { return {...p, dielectric_bottom_height: v }; });
+  case "h1": return create_config(0, 1, true, (p,v) => { return {...p, dielectric_top_height: v }; });
+  case "h0+h1": return create_config(0, 1, true, (p,v) => { return {...p, dielectric_bottom_height: v, dielectric_top_height: v }; });
+  case "w": return create_config(0, 1, false, (p,v) => { return {...p, signal_width: v }; });
+  case "s": return create_config(0, 1, true, (p,v) => { return {...p, signal_separation: v }; });
+  case "t": return create_config(0, 1, false, (p,v) => { return {...p, signal_height: v }; });
+  }
+}
+
 interface ComponentData {
   setup: Setup;
   params: TransmissionLineParameters;
   run_result?: RunResult;
   impedance_result?: ImpedanceResult;
   energy_threshold: number;
-  dx_chart?: LineChart,
-  dy_chart?: LineChart,
+  dx_chart?: LineChart;
+  dy_chart?: LineChart;
+  search_chart?: LineChart;
+  Z0_target: number;
+  search_option: SearchOption;
+  search_options: SearchOption[];
 }
 
 export default defineComponent({
@@ -97,6 +136,10 @@ export default defineComponent({
       impedance_result: undefined,
       dx_chart: undefined,
       dy_chart: undefined,
+      search_chart: undefined,
+      Z0_target: 50,
+      search_option: "w",
+      search_options: ["er0", "er1", "er0+er1", "h0", "h1", "h0+h1", "w", "s", "t"],
     };
   },
   methods: {
@@ -119,17 +162,58 @@ export default defineComponent({
     create_charts() {
       this.dx_chart?.destroy();
       this.dy_chart?.destroy();
+      this.search_chart?.destroy();
       this.dx_chart = create_line_chart(this.$refs.dx_canvas as HTMLCanvasElement);
       this.dy_chart = create_line_chart(this.$refs.dy_canvas as HTMLCanvasElement);
+      this.search_chart = create_line_chart(this.$refs.search_canvas as HTMLCanvasElement);
     },
     update_charts() {
-      this.dx_chart?.set_data(Array.from(this.setup.grid.dx.data));
-      this.dy_chart?.set_data(Array.from(this.setup.grid.dy.data));
-      this.dx_chart?.set_label("dx");
-      this.dy_chart?.set_label("dy");
+      function create_markers(arr: Ndarray): { x: number, y: number }[] {
+        return Array.from(arr.data).map((e,i) => {
+          return { x: i, y: e as number }
+        });
+      }
+      this.dx_chart?.set_data(create_markers(this.setup.grid.dx));
+      this.dy_chart?.set_data(create_markers(this.setup.grid.dy));
+      this.dx_chart?.set_ylabel("dx");
+      this.dy_chart?.set_ylabel("dy");
       this.dx_chart?.update();
       this.dy_chart?.update();
-    }
+    },
+    async run_parameter_search() {
+      const search_config = get_search_config(this.search_option);
+      const config: ParameterSearchConfig = {
+        v_lower: search_config.v_lower,
+        v_upper: search_config.v_upper,
+        is_positive_correlation: search_config.is_positive_correlation,
+        energy_threshold: 10**this.energy_threshold,
+        error_tolerance: 1e-2,
+        early_stop_threshold: 1e-2,
+        plateau_count: 5,
+      };
+      const getter = (value: number): TransmissionLineParameters => {
+        return search_config.getter(this.params, value);
+      };
+      const search_results: ParameterSearchResults = await perform_parameter_search(getter, this.setup, this.Z0_target, config);
+      const result = search_results.results[search_results.best_step];
+      this.params = result.params;
+      this.run_result = result.run_result;
+      this.impedance_result = result.impedance_result;
+      const xy_data = search_results.results.map((e) => {
+        const Z0 = e.impedance_result.Z0;
+        const value = e.value;
+        return {
+          x: value,
+          y: Z0,
+        };
+      });
+      xy_data.sort((a,b) => a.x-b.x);
+      this.search_chart?.set_data(xy_data);
+      this.search_chart?.set_xlabel(this.search_option);
+      this.search_chart?.set_ylabel("Z0");
+      this.search_chart?.update();
+      this.update_params();
+    },
   },
   async mounted() {
     this.create_charts();
@@ -155,6 +239,17 @@ export default defineComponent({
       <label for="t">t: </label><input id="t" type="number" v-model.number="params.signal_height"/><br>
     </form>
     <button @click="update_params()">Update Parameters</button>
+  </div>
+  <div>
+    <h2>Parameter search</h2>
+    <label for="z0">Z0: </label><input id="z0" type="number" v-model.number="Z0_target"/><br>
+    <label for="search_option">Parameter: </label>
+    <select id="search_option" v-model="search_option">
+      <option v-for="option in search_options" :key="option" :value="option">
+        {{ option }}
+      </option>
+    </select><br>
+    <button @click="run_parameter_search()">Run parameter search</button>
   </div>
   <div>
     <h2>Simulation Controls</h2>
@@ -201,6 +296,7 @@ export default defineComponent({
     <h2>Debug Charts</h2>
     <canvas ref="dx_canvas" style="max-width: 500px; max-height: 200px"></canvas>
     <canvas ref="dy_canvas" style="max-width: 500px; max-height: 200px"></canvas>
+    <canvas ref="search_canvas" style="max-width: 500px; max-height: 200px"></canvas>
   </div>
 </template>
 

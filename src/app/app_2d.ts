@@ -426,4 +426,118 @@ export class Setup {
   }
 }
 
+export interface ParameterSearchResults {
+  results: {
+    step: number;
+    value: number;
+    run_result: RunResult;
+    impedance_result: ImpedanceResult;
+    params: TransmissionLineParameters;
+  }[];
+  total_steps: number;
+  elapsed_ms: number;
+  best_step: number;
+}
+
+export interface ParameterSearchConfig {
+  v_lower: number;
+  v_upper: number;
+  is_positive_correlation: boolean;
+  energy_threshold: number;
+  error_tolerance: number;
+  early_stop_threshold: number;
+  plateau_count: number;
+}
+
+export async function perform_parameter_search(
+  param_getter: (value: number) => TransmissionLineParameters,
+  setup: Setup, Z0_target: number, config: ParameterSearchConfig,
+): Promise<ParameterSearchResults> {
+  let found_upper_bound = false;
+  let Z0_best: number | null = null;
+  let best_step: number | null = null;
+  let curr_plateau_count = 0;
+
+  let v_lower = config.v_lower;
+  let v_upper = config.v_upper;
+
+  const results = [];
+  const growth_ratio = 2;
+
+  const start_ms = performance.now();
+  let curr_step = 0;
+  while (true) {
+    const v_pivot = found_upper_bound ? (v_lower+v_upper)/2.0 : v_upper;
+    const params = param_getter(v_pivot);
+    setup.update_params(params);
+    const run_result = setup.run(config.energy_threshold);
+    const impedance_result = setup.calculate_impedance();
+    const Z0 = impedance_result.Z0;
+    console.log(`step=${curr_step}, value=${v_pivot}, Z0=${Z0}`);
+
+    results.push({
+      step: curr_step,
+      value: v_pivot,
+      run_result,
+      impedance_result,
+      params,
+    });
+
+    if (Z0_best !== null) {
+      const error_prev = Math.abs(Z0_target - Z0_best);
+      const error_curr = Math.abs(Z0_target - Z0);
+      const error_delta = error_curr - error_prev;
+      if (error_delta < 0) {
+        Z0_best = Z0;
+        best_step = curr_step;
+      }
+      if (error_delta > 0) {
+        curr_plateau_count++;
+      } else if (-error_delta/error_prev < config.early_stop_threshold) {
+        curr_plateau_count++;
+      } else {
+        curr_plateau_count = 0;
+      }
+      if (curr_plateau_count >= config.plateau_count) {
+        console.log("Plateau detected, exiting early");
+        break;
+      }
+    } else {
+      Z0_best = Z0;
+      best_step = curr_step;
+    }
+
+    if ((Z0 > Z0_target) !== config.is_positive_correlation) {
+      if (!found_upper_bound) {
+        v_upper = v_upper*growth_ratio;
+      }
+      v_lower = v_pivot;
+    } else {
+      found_upper_bound = true;
+      v_upper = v_pivot;
+    }
+
+    const error = Math.abs(Z0_target - Z0)/Z0_target;
+    if (error < config.error_tolerance) {
+      console.log("Exiting since impedance is within tolerance");
+      break;
+    }
+
+    curr_step++;
+    // avoid blocking main render thread
+    await new Promise((res) => setTimeout(res, 0));
+  }
+  const end_ms = performance.now();
+  const elapsed_ms = end_ms-start_ms;
+  const total_steps = curr_step+1;
+
+  return {
+    results,
+    total_steps,
+    elapsed_ms,
+    best_step: best_step as number,
+  };
+};
+
+
 export { init_wasm_module };
