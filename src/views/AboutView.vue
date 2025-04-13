@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import { Button } from "@/components/ui/button";
+</script>
+
 <script lang="ts">
 import { defineComponent } from "vue";
 import { Ndarray } from "../app/ndarray.ts";
@@ -170,7 +174,7 @@ export default defineComponent({
     update_charts() {
       function create_markers(arr: Ndarray): { x: number, y: number }[] {
         return Array.from(arr.data).map((e,i) => {
-          return { x: i, y: e as number }
+          return { x: i, y: e }
         });
       }
       this.dx_chart?.set_data(create_markers(this.setup.grid.dx));
@@ -215,10 +219,13 @@ export default defineComponent({
       this.update_params();
     },
   },
-  async mounted() {
-    this.create_charts();
-    await init_wasm_module();
-    this.update_params();
+  mounted() {
+    const mount = async () => {
+      this.create_charts();
+      await init_wasm_module();
+      this.update_params();
+    };
+    void mount();
   },
   beforeUnmount() {
 
@@ -238,7 +245,7 @@ export default defineComponent({
       <label for="s">s: </label><input id="s" type="number" v-model.number="params.signal_separation"/><br>
       <label for="t">t: </label><input id="t" type="number" v-model.number="params.signal_height"/><br>
     </form>
-    <button @click="update_params()">Update Parameters</button>
+    <Button @click="update_params()" variant="outline">Update Parameters</Button>
   </div>
   <div>
     <h2>Parameter search</h2>

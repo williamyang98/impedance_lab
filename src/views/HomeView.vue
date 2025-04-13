@@ -134,22 +134,27 @@ export default defineComponent({
       await this.refresh_display();
     },
   },
-  async mounted() {
-    const canvas = this.$refs.gpu_canvas as HTMLCanvasElement;
-    const canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
-    if (canvas_context === null) {
-      throw Error("Failed to get webgpu context from canvas");
-    }
-    if (!navigator.gpu) {
-      throw Error("WebGPU not supported.");
-    }
-    const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) {
-      throw Error("Couldn't request WebGPU adapter.");
-    }
-    const device = await adapter.requestDevice();
-    this.gpu_engine = new GpuFdtdEngine(canvas_context, adapter, device, this.setup);
-    this.start_loop();
+  mounted() {
+    const mount = async () => {
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        throw Error("Couldn't request WebGPU adapter.");
+      }
+      const device = await adapter.requestDevice();
+
+      const canvas = this.$refs.gpu_canvas as HTMLCanvasElement;
+      const canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
+      if (canvas_context === null) {
+        throw Error("Failed to get webgpu context from canvas");
+      }
+      if (!navigator.gpu) {
+        throw Error("WebGPU not supported.");
+      }
+
+      this.gpu_engine = new GpuFdtdEngine(canvas_context, adapter, device, this.setup);
+      this.start_loop();
+    };
+    void mount();
   },
   beforeUnmount() {
     this.stop_loop();

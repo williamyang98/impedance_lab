@@ -1,5 +1,5 @@
 export type NdarrayData =
-  | Int8Array
+    Int8Array
   | Uint8Array
   | Uint8ClampedArray
   | Int16Array
@@ -10,7 +10,7 @@ export type NdarrayData =
   | Float64Array;
 
 export type NdarrayType =
-  "s8" | "u8" | "u8_clamped"|
+  "s8" | "u8" | "u8_clamped" |
   "s16" | "u16" |
   "s32" | "u32" |
   "f32" | "f64";
@@ -39,7 +39,7 @@ const get_dtype_from_array = (buffer: NdarrayData): NdarrayType => {
   if (buffer instanceof Uint32Array) return "u32";
   if (buffer instanceof Float32Array) return "f32";
   if (buffer instanceof Float64Array) return "f64";
-  throw Error(`Unknown dtype for buffer: ${buffer}`);
+  return "f32";
 }
 
 export abstract class NdarrayView {
@@ -213,7 +213,7 @@ export class NdarrayViewLow extends NdarrayView {
   constructor(view: NdarrayView, offset: number[]) {
     super();
     if (offset.length != view.shape.length) {
-      throw Error(`Offset (${offset}) has mismatching dimension (${offset.length}) to array view shape (${view.shape}) with dimension (${view.shape.length})`);
+      throw Error(`Offset (${offset.join(',')}) has mismatching dimension (${offset.length}) to array view shape (${view.shape.join(',')}) with dimension (${view.shape.length})`);
     }
     for (let i = 0; i < offset.length; i++) {
       if (offset[i] >= view.shape[i] || offset[i] < 0) {
@@ -248,7 +248,7 @@ export class NdarrayViewHigh extends NdarrayView {
   constructor(view: NdarrayView, offset: number[]) {
     super();
     if (offset.length != view.shape.length) {
-      throw Error(`Offset (${offset}) has mismatching dimension (${offset.length}) to array view shape (${view.shape}) with dimension (${view.shape.length})`);
+      throw Error(`Offset (${offset.join(',')}) has mismatching dimension (${offset.length}) to array view shape (${view.shape.join(',')}) with dimension (${view.shape.length})`);
     }
     for (let i = 0; i < offset.length; i++) {
       if (offset[i] > view.shape[i] || offset[i] <= 0) {
@@ -391,7 +391,7 @@ export class Ndarray extends NdarrayView {
   static create_from_buffer = (shape: number[], data: NdarrayData): Ndarray => {
     const total_elems = shape.reduce((a,b) => a*b, 1);
     if (total_elems != data.length) {
-      throw Error(`Mismatch between specified shape (${shape.join(',')}) => ${total_elems} and provided data with size ${data.length} for data: ${data}`);
+      throw Error(`Mismatch between specified shape (${shape.join(',')}) => ${total_elems} and provided data with size ${data.length} for data: ${data.toString()}`);
     }
     const dtype = get_dtype_from_array(data);
     return new Ndarray(data, shape.slice(), dtype);
@@ -423,7 +423,7 @@ export class Ndarray extends NdarrayView {
 
   get_data_index = (index: number[]): number => {
     if (index.length != this.shape.length) {
-      throw Error(`Index (${index}) has mismatching dimension (${index.length}) to array shape (${this.shape}) with dimension (${this.shape.length})`);
+      throw Error(`Index (${index.join(',')}) has mismatching dimension (${index.length}) to array shape (${this.shape.join(',')}) with dimension (${this.shape.length})`);
     }
     let array_index = 0;
     for (let i = 0; i < index.length; i++) {
@@ -446,6 +446,6 @@ export class Ndarray extends NdarrayView {
     if (this.data instanceof type) {
       return this.data;
     }
-    throw Error(`Invalid cast from '${this.dtype}' to '${type}'`)
+    throw Error(`Invalid cast from '${this.dtype}' to '${type.toString()}'`)
   }
 }
