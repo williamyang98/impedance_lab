@@ -107,7 +107,7 @@ export default defineComponent({
       search_option: "w",
       search_options: ["er0", "er1", "er0+er1", "h0", "h1", "h0+h1", "w", "s", "t"],
       search_config: {
-        Z0_target: 50,
+        Z0_target: 85,
         ...get_parameter_config("w"),
         error_tolerance: 1e-2,
         early_stop_threshold: 1e-2,
@@ -212,14 +212,14 @@ export default defineComponent({
         <CardTitle>Transmission line parameters</CardTitle>
       </CardHeader>
       <CardContent>
-        <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
-          <Label for="er0">Dielectric εr bottom</Label>
+        <form class="grid grid-cols-[auto_auto] gap-y-1 gap-x-2">
+          <Label for="er0">εr bottom</Label>
           <Input id="er0" type="number" v-model.number="params.dielectric_bottom_epsilon"/>
-          <Label for="er1">Dielectric εr top</Label>
+          <Label for="er1">εr top</Label>
           <Input id="er1" type="number" v-model.number="params.dielectric_top_epsilon"/>
-          <Label for="h0">Dielectric height bottom</Label>
+          <Label for="h0">Height bottom</Label>
           <Input id="h0" type="number" v-model.number="params.dielectric_bottom_height"/>
-          <Label for="h1">Dielectric height top</Label>
+          <Label for="h1">Height top</Label>
           <Input id="h1" type="number" v-model.number="params.dielectric_top_height"/>
           <Label for="w">Trace width</Label>
           <Input id="w" type="number" v-model.number="params.signal_width"/>
@@ -230,7 +230,7 @@ export default defineComponent({
         </form>
       </CardContent>
       <CardFooter class="flex justify-end mt-auto">
-        <Button @click="update_params()">Update Parameters</Button>
+        <Button @click="update_params()">Calculate Impedance</Button>
       </CardFooter>
     </Card>
     <Card class="gap-3 row-span-2">
@@ -238,16 +238,22 @@ export default defineComponent({
         <CardTitle>Parameter search</CardTitle>
       </CardHeader>
       <CardContent>
-        <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
+        <form class="grid grid-cols-[auto_auto] gap-y-1 gap-x-2">
           <Label for="search_option">Parameter</Label>
           <Select id="search_option" v-model="search_option">
             <SelectTrigger class="w-auto">
               <SelectValue/>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-for="option in search_options" :key="option" :value="option">
-                {{ option }}
-              </SelectItem>
+              <SelectItem :value="'er0'">εr bottom</SelectItem>
+              <SelectItem :value="'er1'">εr top</SelectItem>
+              <SelectItem :value="'er0+er1'">εr both</SelectItem>
+              <SelectItem :value="'h0'">Height bottom</SelectItem>
+              <SelectItem :value="'h1'">Height top</SelectItem>
+              <SelectItem :value="'h0+h1'">Height both</SelectItem>
+              <SelectItem :value="'w'">Trace width</SelectItem>
+              <SelectItem :value="'s'">Trace separation</SelectItem>
+              <SelectItem :value="'t'">Trace thickness</SelectItem>
             </SelectContent>
           </Select>
           <Label for="z0">Z0 target</Label>
@@ -330,7 +336,7 @@ export default defineComponent({
               </TableBody>
             </Table>
             <div class="mt-1">
-              <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
+              <form class="grid grid-cols-[8rem_auto] gap-y-1 gap-x-1">
                 <Label for="threshold">Settling threshold</Label>
                 <Input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
               </form>
