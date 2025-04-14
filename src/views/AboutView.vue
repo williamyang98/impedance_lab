@@ -46,20 +46,20 @@ import {
 import LineChart from "./LineChart.vue";
 
 type SearchOption = "er0" | "er1" | "er0+er1" | "h0" | "h1" | "h0+h1" | "w" | "s" | "t";
-interface SearchConfig {
+interface ParameterConfig {
   getter: (params: TransmissionLineParameters, value: number) => TransmissionLineParameters;
   v_lower: number;
   v_upper: number;
   is_positive_correlation: boolean;
 };
 
-function get_search_config(option: SearchOption): SearchConfig {
+function get_parameter_config(option: SearchOption): ParameterConfig {
   const create_config = (
     v_lower: number,
     v_upper: number,
     is_positive_correlation: boolean,
     getter: (params: TransmissionLineParameters, value: number) => TransmissionLineParameters,
-  ): SearchConfig => {
+  ): ParameterConfig => {
     return { getter, v_lower, v_upper, is_positive_correlation };
   }
 
@@ -82,9 +82,9 @@ interface ComponentData {
   run_result?: RunResult;
   impedance_result?: ImpedanceResult;
   energy_threshold: number;
-  Z0_target: number;
   search_option: SearchOption;
   search_options: SearchOption[];
+  search_config: ParameterSearchConfig;
 }
 
 export default defineComponent({
@@ -104,9 +104,15 @@ export default defineComponent({
       energy_threshold: -2.3,
       run_result: undefined,
       impedance_result: undefined,
-      Z0_target: 50,
       search_option: "w",
       search_options: ["er0", "er1", "er0+er1", "h0", "h1", "h0+h1", "w", "s", "t"],
+      search_config: {
+        Z0_target: 50,
+        ...get_parameter_config("w"),
+        error_tolerance: 1e-2,
+        early_stop_threshold: 1e-2,
+        plateau_count: 5,
+      },
     };
   },
   methods: {
@@ -146,20 +152,14 @@ export default defineComponent({
       }
     },
     async run_parameter_search() {
-      const search_config = get_search_config(this.search_option);
-      const config: ParameterSearchConfig = {
-        v_lower: search_config.v_lower,
-        v_upper: search_config.v_upper,
-        is_positive_correlation: search_config.is_positive_correlation,
-        energy_threshold: 10**this.energy_threshold,
-        error_tolerance: 1e-2,
-        early_stop_threshold: 1e-2,
-        plateau_count: 5,
-      };
-      const getter = (value: number): TransmissionLineParameters => {
-        return search_config.getter(this.params, value);
-      };
-      const search_results: ParameterSearchResults = await perform_parameter_search(getter, this.setup, this.Z0_target, config);
+      const param_config = get_parameter_config(this.search_option);
+      const energy_threshold = 10**this.energy_threshold;
+      const search_results: ParameterSearchResults = await perform_parameter_search(
+        (value: number) => param_config.getter(this.params, value),
+        this.setup,
+        this.search_config,
+        energy_threshold,
+      );
       const result = search_results.results[search_results.best_step];
       this.params = result.params;
       this.run_result = result.run_result;
@@ -195,15 +195,18 @@ export default defineComponent({
 
   },
   watch: {
-    dx_canvas(old_canvas, new_canvas) {
-      console.log(old_canvas, new_canvas);
+    search_option(new_value, _old_value) {
+      const param_config = get_parameter_config(new_value);
+      this.search_config.v_lower = param_config.v_lower;
+      this.search_config.v_upper = param_config.v_upper;
+      this.search_config.is_positive_correlation = param_config.is_positive_correlation;
     }
   },
 });
 </script>
 
 <template>
-  <div class="grid grid-flow-dense grid-cols-3 gap-2">
+  <div class="grid grid-flow-row grid-cols-3 gap-2">
     <Card class="gap-3 row-span-2">
       <CardHeader>
         <CardTitle>Transmission line parameters</CardTitle>
@@ -230,14 +233,12 @@ export default defineComponent({
         <Button @click="update_params()">Update Parameters</Button>
       </CardFooter>
     </Card>
-    <Card class="gap-3">
+    <Card class="gap-3 row-span-2">
       <CardHeader>
         <CardTitle>Parameter search</CardTitle>
       </CardHeader>
       <CardContent>
         <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
-          <Label for="z0">Z0</Label>
-          <Input id="z0" type="number" v-model.number="Z0_target"/>
           <Label for="search_option">Parameter</Label>
           <Select id="search_option" v-model="search_option">
             <SelectTrigger class="w-auto">
@@ -249,116 +250,122 @@ export default defineComponent({
               </SelectItem>
             </SelectContent>
           </Select>
+          <Label for="z0">Z0 target</Label>
+          <Input id="z0" type="number" v-model.number="search_config.Z0_target"/>
+          <Label for="v_lower">Lower bound</Label>
+          <Input id="v_lower" type="number" v-model.number="search_config.v_lower"/>
+          <Label for="v_upper">Upper bound</Label>
+          <Input id="v_upper" type="number" v-model.number="search_config.v_upper"/>
+          <Label for="error_tolerance">Error tolerance</Label>
+          <Input id="error_tolerance" type="number" v-model.number="search_config.error_tolerance"/>
+          <Label for="early_stop_threshold">Early stop threshold</Label>
+          <Input id="early_stop_threshold" type="number" v-model.number="search_config.early_stop_threshold"/>
+          <Label for="plateau_count">Plateau count</Label>
+          <Input id="plateau_count" type="number" v-model.number="search_config.plateau_count"/>
         </form>
       </CardContent>
       <CardFooter class="flex justify-end mt-auto">
         <Button @click="run_parameter_search()">Search</Button>
       </CardFooter>
     </Card>
-    <Card class="gap-3">
+    <Card class="gap-3 row-span-2">
       <CardHeader>
-        <CardTitle>Simulation Controls</CardTitle>
+        <CardTitle>Results</CardTitle>
       </CardHeader>
       <CardContent>
-        <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
-          <Label for="threshold">Settling threshold</Label>
-          <Input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
-        </form>
-      </CardContent>
-      <CardFooter class="flex justify-end gap-x-2 mt-auto">
-        <Button @click="reset()" variant="outline">Reset</Button>
-        <Button @click="run()">Run</Button>
-      </CardFooter>
-    </Card>
-    <Card class="gap-3 row-span-2" v-if="run_result">
-      <CardHeader>
-        <CardTitle>Run Results</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableBody>
-            <TableRow>
-              <TableCell class="font-medium">Total steps</TableCell>
-              <TableCell>{{ run_result.total_steps }}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell class="font-medium">Time taken</TableCell>
-              <TableCell>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell class="font-medium">Step rate</TableCell>
-              <TableCell>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell class="font-medium">Cell rate</TableCell>
-              <TableCell>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell class="font-medium">Total cells</TableCell>
-              <TableCell>{{ run_result.total_cells }}</TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
-    <Card class="gap-3 row-span-2" v-if="impedance_result">
-      <CardHeader>
-        <CardTitle>Impedance Results</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableBody>
-            <TableRow>
-              <TableCell class="font-medium">Z0</TableCell>
-              <TableCell>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell class="font-medium">Cih</TableCell>
-              <TableCell>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell class="font-medium">Lh</TableCell>
-              <TableCell>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell class="font-medium">Propagation speed</TableCell>
-              <TableCell>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell class="font-medium">Propagation delay</TableCell>
-              <TableCell>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+        <Tabs default-value="impedance" class="w-[100%]" :unmount-on-hide="false">
+          <TabsList class="grid w-full grid-cols-2">
+            <TabsTrigger value="impedance">Impedance</TabsTrigger>
+            <TabsTrigger value="simulation">Simulation</TabsTrigger>
+          </TabsList>
+          <TabsContent value="impedance" v-if="impedance_result">
+            <Table>
+              <TableBody>
+                <TableRow>
+                  <TableCell class="font-medium">Z0</TableCell>
+                  <TableCell>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell class="font-medium">Cih</TableCell>
+                  <TableCell>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell class="font-medium">Lh</TableCell>
+                  <TableCell>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell class="font-medium">Propagation speed</TableCell>
+                  <TableCell>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell class="font-medium">Propagation delay</TableCell>
+                  <TableCell>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </TabsContent>
+          <TabsContent value="simulation" v-if="run_result">
+            <Table>
+              <TableBody>
+                <TableRow>
+                  <TableCell class="font-medium">Total steps</TableCell>
+                  <TableCell>{{ run_result.total_steps }}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell class="font-medium">Time taken</TableCell>
+                  <TableCell>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell class="font-medium">Step rate</TableCell>
+                  <TableCell>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell class="font-medium">Cell rate</TableCell>
+                  <TableCell>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell class="font-medium">Total cells</TableCell>
+                  <TableCell>{{ run_result.total_cells }}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+            <div class="mt-1">
+              <form class="grid grid-cols-[6rem_auto] gap-y-1 gap-x-2">
+                <Label for="threshold">Settling threshold</Label>
+                <Input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
+              </form>
+              <div class="flex justify-end gap-x-2 mt-3">
+                <Button @click="reset()" variant="outline">Reset</Button>
+                <Button @click="run()">Run</Button>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
-    <Card class="gap-3 col-span-2 row-span-2">
-      <CardHeader>
-        <CardTitle>Field viewer</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <canvas ref="field_canvas" class="w-[100%] h-[100%]"></canvas>
-      </CardContent>
-    </Card>
-    <Card class="gap-3 col-span-2 row-span-2">
+    <Card class="gap-3 col-span-3 row-span-1">
       <CardHeader>
         <CardTitle>Debug charts</CardTitle>
       </CardHeader>
       <CardContent>
-        <Tabs default-value="dx" class="w-[100%]" :unmount-on-hide="false">
-          <TabsList class="grid w-full grid-cols-3">
+        <Tabs default-value="field" class="w-[100%]" :unmount-on-hide="false">
+          <TabsList class="grid w-full grid-cols-4">
+            <TabsTrigger value="field">Field</TabsTrigger>
+            <TabsTrigger value="param_search">Parameter Search</TabsTrigger>
             <TabsTrigger value="dx">dx</TabsTrigger>
             <TabsTrigger value="dy">dy</TabsTrigger>
-            <TabsTrigger value="param_search">Parameter Search</TabsTrigger>
           </TabsList>
+          <TabsContent value="field">
+            <canvas ref="field_canvas" class="w-[100%] h-[100%]"></canvas>
+          </TabsContent>
+          <TabsContent value="param_search">
+            <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
+          </TabsContent>
           <TabsContent value="dx">
             <LineChart ref="dx_chart" class="w-[100%] h-[100%]"></LineChart>
           </TabsContent>
           <TabsContent value="dy">
             <LineChart ref="dy_chart" class="w-[100%] h-[100%]"></LineChart>
-          </TabsContent>
-          <TabsContent value="param_search">
-            <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
           </TabsContent>
         </Tabs>
       </CardContent>

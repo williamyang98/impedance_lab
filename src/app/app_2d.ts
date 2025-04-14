@@ -440,10 +440,10 @@ export interface ParameterSearchResults {
 }
 
 export interface ParameterSearchConfig {
+  Z0_target: number;
   v_lower: number;
   v_upper: number;
   is_positive_correlation: boolean;
-  energy_threshold: number;
   error_tolerance: number;
   early_stop_threshold: number;
   plateau_count: number;
@@ -451,7 +451,9 @@ export interface ParameterSearchConfig {
 
 export async function perform_parameter_search(
   param_getter: (value: number) => TransmissionLineParameters,
-  setup: Setup, Z0_target: number, config: ParameterSearchConfig,
+  setup: Setup,
+  config: ParameterSearchConfig,
+  energy_threshold: number,
 ): Promise<ParameterSearchResults> {
   let found_upper_bound = false;
   let Z0_best: number | null = null;
@@ -470,7 +472,7 @@ export async function perform_parameter_search(
     const v_pivot = found_upper_bound ? (v_lower+v_upper)/2.0 : v_upper;
     const params = param_getter(v_pivot);
     setup.update_params(params);
-    const run_result = setup.run(config.energy_threshold);
+    const run_result = setup.run(energy_threshold);
     const impedance_result = setup.calculate_impedance();
     const Z0 = impedance_result.Z0;
     console.log(`step=${curr_step}, value=${v_pivot}, Z0=${Z0}`);
@@ -484,8 +486,8 @@ export async function perform_parameter_search(
     });
 
     if (Z0_best !== null) {
-      const error_prev = Math.abs(Z0_target - Z0_best);
-      const error_curr = Math.abs(Z0_target - Z0);
+      const error_prev = Math.abs(config.Z0_target - Z0_best);
+      const error_curr = Math.abs(config.Z0_target - Z0);
       const error_delta = error_curr - error_prev;
       if (error_delta < 0) {
         Z0_best = Z0;
@@ -507,7 +509,7 @@ export async function perform_parameter_search(
       best_step = curr_step;
     }
 
-    if ((Z0 > Z0_target) !== config.is_positive_correlation) {
+    if ((Z0 > config.Z0_target) !== config.is_positive_correlation) {
       if (!found_upper_bound) {
         v_upper = v_upper*growth_ratio;
       }
@@ -517,7 +519,7 @@ export async function perform_parameter_search(
       v_upper = v_pivot;
     }
 
-    const error = Math.abs(Z0_target - Z0)/Z0_target;
+    const error = Math.abs(config.Z0_target - Z0)/config.Z0_target;
     if (error < config.error_tolerance) {
       console.log("Exiting since impedance is within tolerance");
       break;
