@@ -166,6 +166,8 @@ export default defineComponent({
           <TableHead>Index</TableHead>
           <TableHead>a0</TableHead>
           <TableHead>a1</TableHead>
+          <TableHead>error</TableHead>
+          <TableHead>n</TableHead>
           <TableHead>r0</TableHead>
           <TableHead>r1</TableHead>
           <TableHead>n0</TableHead>
@@ -177,10 +179,23 @@ export default defineComponent({
           <TableCell>{{ index }}</TableCell>
           <TableCell>{{ grid.a0.toPrecision(3) }}</TableCell>
           <TableCell>{{ grid.a1.toPrecision(3) }}</TableCell>
+          <TableCell>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(3) }}</TableCell>
+          <TableCell>{{ grid.n0 + grid.n1 }}</TableCell>
           <TableCell>{{ grid.r0.toFixed(3) }}</TableCell>
           <TableCell>{{ grid.r1.toFixed(3) }}</TableCell>
           <TableCell>{{ grid.n0 }}</TableCell>
           <TableCell>{{ grid.n1 }}</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell/>
+          <TableCell/>
+          <TableCell/>
+          <TableCell></TableCell>
+          <TableCell>{{ x_grids.reduce((a,b) => a+b.n0+b.n1, 0) }}</TableCell>
+          <TableCell/>
+          <TableCell/>
+          <TableCell/>
+          <TableCell/>
         </TableRow>
       </TableBody>
     </Table>
@@ -191,6 +206,8 @@ export default defineComponent({
           <TableHead>Index</TableHead>
           <TableHead>a0</TableHead>
           <TableHead>a1</TableHead>
+          <TableHead>error</TableHead>
+          <TableHead>n</TableHead>
           <TableHead>r0</TableHead>
           <TableHead>r1</TableHead>
           <TableHead>n0</TableHead>
@@ -202,10 +219,23 @@ export default defineComponent({
           <TableCell>{{ index }}</TableCell>
           <TableCell>{{ grid.a0.toPrecision(3) }}</TableCell>
           <TableCell>{{ grid.a1.toPrecision(3) }}</TableCell>
+          <TableCell>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(3) }}</TableCell>
+          <TableCell>{{ grid.n0 + grid.n1 }}</TableCell>
           <TableCell>{{ grid.r0.toFixed(3) }}</TableCell>
           <TableCell>{{ grid.r1.toFixed(3) }}</TableCell>
           <TableCell>{{ grid.n0 }}</TableCell>
           <TableCell>{{ grid.n1 }}</TableCell>
+        </TableRow>
+        <TableRow>
+          <TableCell/>
+          <TableCell/>
+          <TableCell/>
+          <TableCell></TableCell>
+          <TableCell>{{ y_grids.reduce((a,b) => a+b.n0+b.n1, 0) }}</TableCell>
+          <TableCell/>
+          <TableCell/>
+          <TableCell/>
+          <TableCell/>
         </TableRow>
       </TableBody>
     </Table>

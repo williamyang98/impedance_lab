@@ -93,9 +93,12 @@ function find_best_asymmetric_geometric_grid(
 export function generate_asymmetric_geometric_grid_from_regions(
   regions: number[],
   min_region_subdivisions?: number,
+  max_ratio?: number,
 ): AsymmetricGeometricGrid[] {
   const min_region = regions.reduce((a,b) => Math.min(a,b), Infinity);
   min_region_subdivisions = min_region_subdivisions ?? 3;
+  max_ratio = max_ratio ?? 0.35;
+
   const min_grid_resolution = regions
     .map((region) => region/min_region_subdivisions)
     .reduce((a,b) => Math.min(a,b), Infinity);
@@ -113,7 +116,7 @@ export function generate_asymmetric_geometric_grid_from_regions(
     const a0 = Math.min(a_left, a);
     const a1 = Math.min(a_right, a);
     const n_lower = min_region_subdivisions-1;
-    const n_upper = Math.max(Math.round(Math.log(A/Math.min(a0,a1))/Math.log(1.25)), 10);
+    const n_upper = Math.max(Math.round(Math.log(A/Math.min(a0,a1))/Math.log(1.0+max_ratio)), 10);
     const grid = find_best_asymmetric_geometric_grid(A, a0, a1, n_lower, n_upper);
     grids.push(grid);
   }
