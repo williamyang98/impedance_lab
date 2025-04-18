@@ -1,8 +1,9 @@
 import type { FunctionalComponent } from 'vue';
 import { type RouteComponent } from 'vue-router';
-import { Calculator, Cuboid } from 'lucide-vue-next';
+import { Calculator, Cuboid, Grid2x2 } from 'lucide-vue-next';
 import HomeView from './views/HomeView.vue';
 import AboutView from './views/AboutView.vue';
+import GridView from './views/GridView.vue';
 
 export interface CustomRoute {
   name: string;
@@ -23,5 +24,11 @@ export const routes: CustomRoute[] = [
     path: "/2d_calculator",
     view_component: AboutView,
     icon_component: Calculator,
+  },
+  {
+    name: "Mesher",
+    path: "/mesher",
+    view_component: GridView,
+    icon_component: Grid2x2,
   },
 ];

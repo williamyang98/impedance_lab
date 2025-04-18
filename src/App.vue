@@ -14,9 +14,9 @@ export default defineComponent({
 <template>
   <SidebarProvider v-bind="{ defaultOpen: false }">
     <AppSidebar />
-    <main>
+    <main class="w-[100%]">
       <SidebarTrigger/>
-      <div class="p-3 pt-0">
+      <div class="p-3 pt-0 w-[100%]">
         <RouterView />
       </div>
     </main>
