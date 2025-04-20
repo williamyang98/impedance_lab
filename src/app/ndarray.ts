@@ -73,6 +73,10 @@ export abstract class NdarrayView {
     return this.reshape([total_elems]);
   }
 
+  reverse = (): NdarrayView => {
+    return new NdarrayViewReverse(this);
+  }
+
   fill = (value: number): NdarrayView => {
     const index = new Array(this.shape.length).fill(0);
     while (true) {
@@ -131,6 +135,31 @@ export abstract class NdarrayView {
       if (is_finished) break;
     }
     return arr;
+  }
+}
+
+export class NdarrayViewReverse extends NdarrayView {
+  shape: number[];
+  view: NdarrayView;
+
+  constructor(view: NdarrayView) {
+    super();
+    this.shape = [...view.shape];
+    this.view = view;
+  }
+
+  get dtype(): NdarrayType {
+    return this.view.dtype;
+  }
+
+  get = (index: number[]): number => {
+    const i = index.map((e,i) => this.shape[i]-1-e);
+    return this.view.get(i);
+  }
+
+  set = (index: number[], value: number) => {
+    const i = index.map((e,i) => this.shape[i]-1-e);
+    this.view.set(i, value);
   }
 }
 

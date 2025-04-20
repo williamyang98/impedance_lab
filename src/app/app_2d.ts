@@ -4,6 +4,11 @@ import init_wasm_module, {
   calculate_inhomogenous_energy,
 } from "../wasm/pkg/fdtd_wasm.js";
 import { Ndarray, NdarrayView } from "./ndarray.ts";
+import {
+  generate_asymmetric_geometric_grid,
+  generate_asymmetric_geometric_grid_from_regions,
+  type AsymmetricGeometricGrid,
+} from "./mesher.ts";
 
 export interface TransmissionLineParameters {
   dielectric_bottom_epsilon: number;
@@ -15,13 +20,16 @@ export interface TransmissionLineParameters {
   dielectric_top_height: number;
 }
 
-export interface GridLayout {
-  pad_x: number;
-  signal_width: number;
+interface GridLayout {
+  pad_left: number;
+  pad_right: number;
+  signal_width_left: number;
+  signal_separation: number;
+  signal_width_right: number;
   signal_height: number;
   plane_height: number;
-  plane_separation: number;
-  signal_separation: number;
+  plane_separation_bottom: number;
+  plane_separation_top: number;
 }
 
 export interface Grid {
@@ -35,61 +43,16 @@ export interface Grid {
   epsilon_k: Ndarray;
 }
 
-export function create_grid_layout(): GridLayout {
-  const scale = 2;
-  return {
-    pad_x: 8*scale,
-    signal_width: 8*scale+1,
-    signal_height: 4*scale+1,
-    plane_height: 2*scale+1,
-    plane_separation: 8*scale+1,
-    signal_separation: 8*scale+1,
-  }
-}
-
-function create_grid(layout: GridLayout): Grid {
-  const Nx = layout.pad_x+layout.signal_width+layout.signal_separation+layout.signal_width+layout.pad_x;
-  const Ny = layout.plane_height+layout.plane_separation+layout.signal_height+layout.plane_separation+layout.plane_height;
-
-  const dx = Ndarray.create_zeros([Nx], "f32");
-  const dy = Ndarray.create_zeros([Ny], "f32");
-  const v_force = Ndarray.create_zeros([Ny,Nx], "u32");
-  const v_table = Ndarray.create_zeros([16], "f32");
-  const v_field = Ndarray.create_zeros([Ny,Nx], "f32");
-  const e_field = Ndarray.create_zeros([Ny,Nx,2], "f32");
-  const epsilon_k = Ndarray.create_zeros([Ny,Nx], "f32");
-
-  dx.fill(1.0);
-  dy.fill(1.0);
-  v_force.fill(0);
-  v_table.fill(0);
-  v_field.fill(0.0);
-  e_field.fill(0.0);
-  epsilon_k.fill(1.0);
-
-  return {
-    size: [Ny,Nx],
-    dx,
-    dy,
-    v_force,
-    v_table,
-    v_field,
-    e_field,
-    epsilon_k,
-  }
-}
-
 function normalise_transmission_line_parameters(
-  params: TransmissionLineParameters, layout: GridLayout,
-  target_ratio?: number,
+  params: TransmissionLineParameters, target_ratio?: number,
 ): TransmissionLineParameters {
   target_ratio = target_ratio ?? 0.5;
   const ratios: number[] = [
-    params.dielectric_bottom_height/layout.plane_separation,
-    params.dielectric_top_height/layout.plane_separation,
-    params.signal_width/layout.signal_width,
-    params.signal_separation/layout.signal_separation,
-    params.signal_height/layout.signal_height,
+    params.dielectric_bottom_height,
+    params.dielectric_top_height,
+    params.signal_width,
+    params.signal_separation,
+    params.signal_height,
   ];
   const min_ratio: number = ratios.reduce((a,b) => Math.min(a,b), Infinity);
   const rescale = target_ratio / min_ratio;
@@ -101,95 +64,6 @@ function normalise_transmission_line_parameters(
     signal_height: params.signal_height*rescale,
     dielectric_top_epsilon: params.dielectric_top_epsilon,
     dielectric_top_height: params.dielectric_top_height*rescale,
-  }
-};
-
-function get_geometric_spline(r: number, k: number, a: number): number[] {
-  let x = a;
-  const dx = [];
-  for (let i = 0; i <= k; i++) {
-    dx.push(x);
-    x *= r;
-  }
-  x /= r;
-  for (let i = 0; i < k; i++) {
-    x /= r;
-    dx.push(x);
-  }
-  return dx;
-};
-
-function get_geometric_sum_A(r: number, k: number, a?: number, epsilon?: number): number {
-  epsilon = epsilon ?? 1e-2;
-  a = a ?? 1.0;
-  if (Math.abs(r-1) < epsilon) {
-    return a*(2*k+1);
-  }
-  const rk = r**k;
-  return a*(rk + 2*(rk-1)/(r-1));
-};
-
-function _get_geometric_sum_k(A: number, r: number, a: number): number {
-  a = a ?? 1.0;
-  return Math.log(((A/a)*(r-1)+2)/(r+1)) / Math.log(r);
-};
-
-function get_geometric_sum_r(
-  A: number, k: number, a: number,
-  r_lower?: number, r_upper?: number,
-  max_loops?: number, epsilon?: number,
-): number {
-  r_lower = r_lower ?? 0;
-  r_upper = r_upper ?? 1;
-  max_loops = max_loops ?? 32;
-  epsilon = epsilon ?? 1e-2;
-
-  const growth_ratio = 2;
-  let r_best: number = 1;
-  let error_abs_best = Infinity;
-  let is_found_upper_bound = false;
-  for (let i = 0; i < max_loops; i++) {
-    const r_pivot: number = is_found_upper_bound ? (r_lower+r_upper)/2.0 : r_upper;
-    const A_pivot = get_geometric_sum_A(r_pivot, k, a);
-    const error_pivot = (A_pivot - A)/A;
-    const error_abs_pivot = Math.abs(error_pivot);
-    if (error_abs_pivot < error_abs_best) {
-      error_abs_best = error_abs_pivot;
-      r_best = r_pivot;
-    }
-    if (error_abs_pivot < epsilon) {
-      break;
-    }
-    if (error_pivot > 0) {
-      // need to decrease r
-      is_found_upper_bound = true;
-      r_upper = r_pivot;
-    } else {
-      // need to increase r
-      if (!is_found_upper_bound) {
-        r_upper = r_upper*growth_ratio;
-      }
-      r_lower = r_pivot;
-    }
-  }
-  return r_best;
-};
-
-
-function fill_spline(arr: NdarrayView, target_length: number) {
-  if (arr.shape.length !== 1) {
-    throw Error(`Expected 1d vector for spline generation but got (${arr.shape.join(',')})`);
-  }
-  const N = arr.shape[0];
-  if (N % 2 == 0) {
-    throw Error(`Expected 1d vector to have odd number of elements but got (${arr.shape.join(',')})`);
-  }
-  const k = Math.floor(N/2);
-  const a = 1.0;
-  const r = get_geometric_sum_r(target_length, k, a);
-  const spline = get_geometric_spline(r, k, a);
-  for (let i = 0; i < N; i++) {
-    arr.set([i], spline[i]);
   }
 };
 
@@ -210,26 +84,126 @@ export interface ImpedanceResult {
 }
 
 export class Setup {
-  grid_layout: GridLayout;
-  grid: Grid;
+  grid?: Grid;
+  grid_layout?: GridLayout;
   params?: TransmissionLineParameters;
 
-  constructor(layout: GridLayout) {
-    this.grid_layout = layout;
-    this.grid = create_grid(layout);
-  }
+  constructor() {}
 
   reset() {
-    const { v_field, e_field } = this.grid;
-    v_field.fill(0.0);
-    e_field.fill(0.0);
+    if (this.grid) {
+      const { v_field, e_field } = this.grid;
+      v_field.fill(0.0);
+      e_field.fill(0.0);
+    }
   }
 
   update_params(base_params: TransmissionLineParameters) {
-    const params = normalise_transmission_line_parameters(base_params, this.grid_layout);
+    const params = normalise_transmission_line_parameters(base_params);
     this.params = params;
 
-    const {
+    const x_regions = [params.signal_width, params.signal_separation, params.signal_width];
+    const y_regions = [params.dielectric_bottom_height, params.signal_height, params.dielectric_top_height];
+
+
+    const x_min_subdivisions = 10;
+    const y_min_subdivisions = 5;
+    const x_max_ratio = 0.30;
+    const y_max_ratio = 0.35;
+    const x_grid = generate_asymmetric_geometric_grid_from_regions(x_regions, x_min_subdivisions, x_max_ratio);
+    const y_grid = generate_asymmetric_geometric_grid_from_regions(y_regions, y_min_subdivisions, y_max_ratio);
+
+    const region_widths = x_grid.map((grid) => grid.n0+grid.n1);
+    const [signal_width_left, signal_separation, signal_width_right] = region_widths;
+    const pad_left = 2*signal_width_left;
+    const pad_right = 2*signal_width_right;
+
+    const region_heights = y_grid.map((grid) => grid.n0+grid.n1);
+    const [plane_separation_bottom, signal_height, plane_separation_top] = region_heights;
+    const plane_height = 3;
+    const Nx = pad_left + region_widths.reduce((a,b) => a+b, 0) + pad_right;
+    const Ny = plane_height + region_heights.reduce((a,b) => a+b, 0) + plane_height;
+
+    const size: [number, number] = [Ny, Nx];
+    const dx = Ndarray.create_zeros([Nx], "f32");
+    const dy = Ndarray.create_zeros([Ny], "f32");
+    const v_force = Ndarray.create_zeros([Ny,Nx], "u32");
+    const v_table = Ndarray.create_zeros([3], "f32");
+    const v_field = Ndarray.create_zeros([Ny,Nx], "f32");
+    const e_field = Ndarray.create_zeros([Ny,Nx,2], "f32");
+    const epsilon_k = Ndarray.create_zeros([Ny,Nx], "f32");
+
+    v_field.fill(0.0);
+    e_field.fill(0.0);
+
+    // force field potentials
+    const v_ground_index = 0;
+    const v_pos_index = 1;
+    const v_neg_index = 2;
+    v_table.set([v_ground_index], 0.0);
+    v_table.set([v_pos_index], 1.0);
+    v_table.set([v_neg_index], -1.0);
+    v_force.fill(0);
+    v_force
+      .lo([0, 0])
+      .hi([plane_height+1, Nx])
+      .fill((v_ground_index << 16) | 0xFFFF);
+    v_force
+      .lo([Ny-plane_height, 0])
+      .hi([plane_height, Nx])
+      .fill((v_ground_index << 16) | 0xFFFF);
+    v_force
+      .lo([plane_height+plane_separation_bottom, pad_left])
+      .hi([signal_height+1, signal_width_left+1])
+      .fill((v_pos_index << 16) | 0xFFFF);
+    v_force
+      .lo([plane_height+plane_separation_bottom, pad_left+signal_width_left+signal_separation])
+      .hi([signal_height+1, signal_width_right+1])
+      .fill((v_neg_index << 16) | 0xFFFF);
+    // create dielectric
+    epsilon_k.fill(1.0);
+    epsilon_k
+      .lo([plane_height, 0])
+      .hi([plane_separation_bottom, Nx])
+      .fill(params.dielectric_bottom_epsilon);
+    epsilon_k
+      .lo([plane_height+plane_separation_bottom, 0])
+      .hi([signal_height+plane_separation_top, Nx])
+      .fill(params.dielectric_top_epsilon);
+
+    function generate_deltas(deltas: NdarrayView, grids: AsymmetricGeometricGrid[]) {
+      let offset = 0;
+      for (let i = 0; i < grids.length; i++) {
+        const grid = grids[i];
+        const delta = grid.n0+grid.n1;
+        const view = deltas.lo([offset]).hi([delta]);
+        const subdivisions = generate_asymmetric_geometric_grid(grid);
+        for (let j = 0; j < subdivisions.length; j++) {
+          view.set([j], subdivisions[j]);
+        }
+        offset += delta;
+      }
+    }
+
+    function generate_padding(deltas: NdarrayView, a: number, r: number) {
+      const N = deltas.shape[0];
+      let v = a;
+      for (let i = 0; i < N; i++) {
+        deltas.set([i], v);
+        v *= r;
+      }
+    }
+
+    // grid feature lines
+    generate_deltas(dx.lo([pad_left]), x_grid);
+    generate_deltas(dy.lo([plane_height]), y_grid);
+    // grid padding
+    generate_padding(dx.hi([pad_left]).reverse(), x_grid[0].a0, 1.0+x_max_ratio);
+    generate_padding(dx.lo([Nx-pad_right]), x_grid[2].a1, 1.0+x_max_ratio);
+    generate_padding(dy.hi([plane_height]).reverse(), y_grid[0].a0, 1.0+y_max_ratio);
+    generate_padding(dy.lo([Ny-plane_height]), y_grid[2].a1, 1.0+y_max_ratio);
+
+    this.grid = {
       size,
       dx,
       dy,
@@ -238,74 +212,25 @@ export class Setup {
       v_field,
       e_field,
       epsilon_k,
-    } = this.grid;
-    const [Ny,Nx] = size;
-    const {
-      pad_x,
-      signal_width,
+    };
+
+    this.grid_layout = {
+      pad_left,
+      pad_right,
+      signal_width_left,
+      signal_separation,
+      signal_width_right,
       signal_height,
       plane_height,
-      plane_separation,
-      signal_separation,
-    } = this.grid_layout;
-
-    v_field.fill(0.0);
-    e_field.fill(0.0);
-
-    v_table.set([0], 0.0);
-    v_table.set([1], 1.0);
-    v_table.set([2], -1.0);
-
-    // force field potentials
-    v_force.fill(0);
-    v_force
-      .lo([0, 0])
-      .hi([plane_height+1, Nx])
-      .fill((0 << 16) | 0xFFFF);
-    v_force
-      .lo([Ny-plane_height, 0])
-      .hi([plane_height, Nx])
-      .fill((0 << 16) | 0xFFFF);
-    v_force
-      .lo([plane_height+plane_separation, Math.floor(Nx/2-signal_separation/2-signal_width)])
-      .hi([signal_height+1, signal_width+1])
-      .fill((1 << 16) | 0xFFFF);
-    v_force
-      .lo([plane_height+plane_separation, Math.floor(Nx/2+signal_separation/2)])
-      .hi([signal_height+1, signal_width+1])
-      .fill((2 << 16) | 0xFFFF);
-    // create dielectric
-    epsilon_k.fill(1.0);
-    epsilon_k
-      .lo([plane_height, 0])
-      .hi([plane_separation, Nx])
-      .fill(params.dielectric_bottom_epsilon);
-    epsilon_k
-      .lo([plane_height+plane_separation, 0])
-      .hi([signal_height+plane_separation, Nx])
-      .fill(params.dielectric_top_epsilon);
-
-    // increase effective transmission line width
-    fill_spline(dx.lo([Math.floor(Nx/2-signal_separation/2-signal_width)]).hi([signal_width]), params.signal_width);
-    fill_spline(dx.lo([Math.floor(Nx/2+signal_separation/2)]).hi([signal_width]), params.signal_width);
-    // increase effective spacing between pairs
-    fill_spline(dx.lo([Math.floor(Nx/2-signal_separation/2)]).hi([signal_separation]), params.signal_separation);
-    // increase effective plane separation bot
-    fill_spline(dy.lo([plane_height]).hi([plane_separation]), params.dielectric_bottom_height);
-    // increase effective trace thickness
-    fill_spline(dy.lo([plane_height+plane_separation]).hi([signal_height]), params.signal_height);
-    // increase effective plane separation top
-    fill_spline(dy.lo([plane_height+plane_separation+signal_height]).hi([plane_separation]), params.dielectric_top_height);
-    // create stretch padding
-    let dx_stretch = 1.0;
-    for (let x = 0; x < pad_x; x++) {
-      dx.set([pad_x-1-x], dx_stretch);
-      dx.set([Nx-pad_x+x], dx_stretch);
-      dx_stretch *= 1.2;
-    }
+      plane_separation_bottom,
+      plane_separation_top,
+    };
   }
 
   run(energy_threshold: number): RunResult {
+    if (this.grid === undefined) {
+      throw Error("Tried to run simulation when grid wasn't created");
+    }
     const [Ny,Nx] = this.grid.size;
     let total_steps: number = 0;
 
@@ -349,6 +274,10 @@ export class Setup {
   }
 
   calculate_impedance(): ImpedanceResult {
+    if (this.grid === undefined) {
+      throw Error("Tried to calculate impedance when grid wasn't created");
+    }
+
     const epsilon_0 = 8.85e-12
     const c_0 = 3e8;
 
@@ -379,51 +308,52 @@ export class Setup {
       propagation_delay,
     };
   }
+}
 
-  render(canvas: HTMLCanvasElement) {
-    const context = canvas.getContext("2d");
-    if (context === null) {
-      throw Error("Failed to retrieve 2d context from canvas");
-    }
-    const [Ny, Nx] = this.grid.size;
-    canvas.width = Nx;
-    canvas.height = Ny;
-
-    const image_data = context.createImageData(Nx, Ny);
-
-    const data = Ndarray.create_zeros([Ny,Nx], "f32");
-    const { v_field, e_field, dx, dy } = this.grid;
-    for (let y = 0; y < Ny; y++) {
-      for (let x = 0; x < Nx; x++) {
-        const _v = v_field.get([y,x]);
-        const ex = e_field.get([y,x,0]);
-        const ey = e_field.get([y,x,1]);
-        const dx_avg = (dx.get([Math.max(x-1,0)]) + dx.get([x]))/2.0;
-        const dy_avg = (dy.get([Math.max(y-1,0)]) + dy.get([y]))/2.0;
-        // e-field lies on boundary of yee-grid
-        const energy = (ex**2)*dx.get([x])*dy_avg + (ey**2)*dy.get([y])*dx_avg;
-        data.set([y,x], energy);
-      }
-    }
-    const data_max = data.cast(Float32Array).reduce((a,b) => Math.max(a,b), 0.0);
-    for (let y = 0; y < Ny; y++) {
-      for (let x = 0; x < Nx; x++) {
-        const i_image = 4*(x + y*Nx);
-        const d = data.get([y,x]);
-        const scale = 255/data_max;
-        const value = Math.min(Math.round(d*scale), 255);
-        const r = value;
-        const g = value;
-        const b = value;
-        const a = 255;
-        image_data.data[i_image+0] = r;
-        image_data.data[i_image+1] = g;
-        image_data.data[i_image+2] = b;
-        image_data.data[i_image+3] = a;
-      }
-    }
-    context.putImageData(image_data, 0, 0);
+export function render_grid_to_canvas(canvas: HTMLCanvasElement, grid: Grid) {
+  const context = canvas.getContext("2d");
+  if (context === null) {
+    throw Error("Failed to retrieve 2d context from canvas");
   }
+  const [Ny, Nx] = grid.size;
+  canvas.width = Nx;
+  canvas.height = Ny;
+
+  const image_data = context.createImageData(Nx, Ny);
+
+  const data = Ndarray.create_zeros([Ny,Nx], "f32");
+  const { v_field, e_field, dx, dy } = grid;
+  for (let y = 0; y < Ny; y++) {
+    for (let x = 0; x < Nx; x++) {
+      const _v = v_field.get([y,x]);
+      const ex = e_field.get([y,x,0]);
+      const ey = e_field.get([y,x,1]);
+      const dx_avg = (dx.get([Math.max(x-1,0)]) + dx.get([x]))/2.0;
+      const dy_avg = (dy.get([Math.max(y-1,0)]) + dy.get([y]))/2.0;
+      // e-field lies on boundary of yee-grid
+      const energy = (ex**2)*dx.get([x])*dy_avg + (ey**2)*dy.get([y])*dx_avg;
+      data.set([y,x], energy);
+    }
+  }
+  const data_max = data.cast(Float32Array).reduce((a,b) => Math.max(a,b), 0.0);
+  for (let y = 0; y < Ny; y++) {
+    for (let x = 0; x < Nx; x++) {
+      const i_image = 4*(x + y*Nx);
+      const d = data.get([y,x]);
+      const scale = 255/data_max;
+      const value = Math.min(Math.round(d*scale), 255);
+      const r = value;
+      const g = value;
+      const b = value;
+      const a = 255;
+      image_data.data[i_image+0] = r;
+      image_data.data[i_image+1] = g;
+      image_data.data[i_image+2] = b;
+      image_data.data[i_image+3] = a;
+    }
+  }
+  context.putImageData(image_data, 0, 0);
+
 }
 
 export interface ParameterSearchResults {

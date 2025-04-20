@@ -40,8 +40,9 @@ import { defineComponent } from "vue";
 import { Ndarray } from "../app/ndarray.ts";
 import {
   Setup, init_wasm_module,
-  type TransmissionLineParameters, type RunResult, type ImpedanceResult, create_grid_layout,
+  type TransmissionLineParameters, type RunResult, type ImpedanceResult,
   type ParameterSearchConfig, type ParameterSearchResults, perform_parameter_search,
+render_grid_to_canvas,
 } from "../app/app_2d.ts";
 import LineChart from "./LineChart.vue";
 
@@ -89,9 +90,8 @@ interface ComponentData {
 
 export default defineComponent({
   data(): ComponentData {
-    const grid_layout = create_grid_layout();
     return {
-      setup: new Setup(grid_layout),
+      setup: new Setup(),
       params: {
         dielectric_bottom_epsilon: 4.1,
         dielectric_bottom_height: 0.0994,
@@ -127,7 +127,9 @@ export default defineComponent({
       this.run_result = this.setup.run(threshold);
       this.impedance_result = this.setup.calculate_impedance();
       const canvas = this.$refs.field_canvas as HTMLCanvasElement;
-      this.setup.render(canvas);
+      if (this.setup.grid) {
+        render_grid_to_canvas(canvas, this.setup.grid);
+      }
     },
     reset() {
       this.setup.reset();
@@ -138,15 +140,17 @@ export default defineComponent({
           return { x: i, y: e }
         });
       }
+      const grid = this.setup.grid;
+      if (grid === undefined) return;
       if (this.$refs.dx_chart) {
         const chart = this.$refs.dx_chart as typeof LineChart;
-        chart.set_data(create_markers(this.setup.grid.dx));
+        chart.set_data(create_markers(grid.dx));
         chart.set_ylabel("dx");
         chart.update();
       }
       if (this.$refs.dy_chart) {
         const chart = this.$refs.dy_chart as typeof LineChart;
-        chart.set_data(create_markers(this.setup.grid.dy));
+        chart.set_data(create_markers(grid.dy));
         chart.set_ylabel("dy");
         chart.update();
       }
