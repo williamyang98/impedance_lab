@@ -42,7 +42,7 @@ import {
   Setup, init_wasm_module,
   type TransmissionLineParameters, type RunResult, type ImpedanceResult,
   type ParameterSearchConfig, type ParameterSearchResults, perform_parameter_search,
-render_grid_to_canvas,
+  WebgpuGrid2dRenderer,
 } from "../app/app_2d.ts";
 import LineChart from "./LineChart.vue";
 
@@ -77,6 +77,16 @@ function get_parameter_config(option: SearchOption): ParameterConfig {
   }
 }
 
+type FieldAxis = "x" | "y" | "mag" | "vec";
+function field_axis_to_id(axis: FieldAxis): number {
+  switch (axis) {
+  case "x": return 0;
+  case "y": return 1;
+  case "mag": return 2;
+  case "vec": return 3;
+  }
+}
+
 interface ComponentData {
   setup: Setup;
   params: TransmissionLineParameters;
@@ -86,6 +96,9 @@ interface ComponentData {
   search_option: SearchOption;
   search_options: SearchOption[];
   search_config: ParameterSearchConfig;
+  grid2d_renderer?: WebgpuGrid2dRenderer;
+  display_axis: FieldAxis;
+  display_scale: number;
 }
 
 export default defineComponent({
@@ -113,6 +126,9 @@ export default defineComponent({
         early_stop_threshold: 1e-2,
         plateau_count: 5,
       },
+      grid2d_renderer: undefined,
+      display_axis: "vec",
+      display_scale: 1.0,
     };
   },
   methods: {
@@ -126,10 +142,21 @@ export default defineComponent({
       const threshold = 10**this.energy_threshold;
       this.run_result = this.setup.run(threshold);
       this.impedance_result = this.setup.calculate_impedance();
-      const canvas = this.$refs.field_canvas as HTMLCanvasElement;
-      if (this.setup.grid) {
-        render_grid_to_canvas(canvas, this.setup.grid);
-      }
+      this.upload_field_data();
+      void this.render_field_data();
+    },
+    upload_field_data() {
+      if (this.setup.grid === undefined) return;
+      const field = this.setup.grid.e_field;
+      this.grid2d_renderer?.update_texture(field);
+    },
+    async render_field_data() {
+      const canvas = this.$refs.field_canvas as (HTMLCanvasElement | null);
+      if (canvas === null) return;
+      if (this.grid2d_renderer === undefined) return;
+      const axis = field_axis_to_id(this.display_axis);
+      this.grid2d_renderer?.update_canvas(canvas, this.display_scale, axis);
+      await this.grid2d_renderer.wait_finished();
     },
     reset() {
       this.setup.reset();
@@ -191,6 +218,15 @@ export default defineComponent({
     const mount = async () => {
       // this.create_charts();
       await init_wasm_module();
+      const adapter = await navigator.gpu.requestAdapter();
+      if (!adapter) {
+        throw Error("Couldn't request WebGPU adapter.");
+      }
+      const device = await adapter.requestDevice();
+      if (!navigator.gpu) {
+        throw Error("WebGPU not supported.");
+      }
+      this.grid2d_renderer = new WebgpuGrid2dRenderer(adapter, device);
       this.update_params();
     };
     void mount();
@@ -204,7 +240,13 @@ export default defineComponent({
       this.search_config.v_lower = param_config.v_lower;
       this.search_config.v_upper = param_config.v_upper;
       this.search_config.is_positive_correlation = param_config.is_positive_correlation;
-    }
+    },
+    display_axis(_new_value, _old_value) {
+      void this.render_field_data();
+    },
+    display_scale(_new_value, _old_value) {
+      void this.render_field_data();
+    },
   },
 });
 </script>
@@ -366,7 +408,23 @@ export default defineComponent({
             <TabsTrigger value="dy">dy</TabsTrigger>
           </TabsList>
           <TabsContent value="field">
-            <canvas ref="field_canvas" class="w-[100%] h-[100%]"></canvas>
+            <form class="grid grid-cols-[8rem_auto_8rem_auto] gap-y-1 gap-x-1">
+              <Label for="display_scale">Display scale</Label>
+              <Input id="display_scale" type="number" v-model.number="display_scale" min="0" max="10" step="0.1"/>
+              <Label for="display_axis">Axis</Label>
+              <Select id="display_axis" v-model="display_axis">
+                <SelectTrigger class="w-auto">
+                  <SelectValue/>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem :value="'x'">Ex</SelectItem>
+                  <SelectItem :value="'y'">Ey</SelectItem>
+                  <SelectItem :value="'mag'">Magnitude</SelectItem>
+                  <SelectItem :value="'vec'">Vector</SelectItem>
+                </SelectContent>
+              </Select>
+            </form>
+            <canvas ref="field_canvas" id="field_canvas" class="w-[100%] h-[100%]"></canvas>
           </TabsContent>
           <TabsContent value="param_search">
             <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
@@ -384,4 +442,7 @@ export default defineComponent({
 </template>
 
 <style scoped>
+canvas#field_canvas {
+  image-rendering: pixelated;
+}
 </style>

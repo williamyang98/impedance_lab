@@ -9,6 +9,7 @@ import {
   generate_asymmetric_geometric_grid_from_regions,
   type AsymmetricGeometricGrid,
 } from "./mesher.ts";
+import { ShaderRenderTexture2 } from "./kernels.ts";
 
 export interface TransmissionLineParameters {
   dielectric_bottom_epsilon: number;
@@ -310,6 +311,105 @@ export class Setup {
   }
 }
 
+export class WebgpuGrid2dRenderer {
+  adapter: GPUAdapter;
+  device: GPUDevice;
+  display_texture?: GPUTexture;
+  shader_render_texture: ShaderRenderTexture2;
+
+  constructor(adapter: GPUAdapter, device: GPUDevice) {
+    this.adapter = adapter;
+    this.device = device;
+    this.shader_render_texture = new ShaderRenderTexture2(device);
+  }
+
+  update_texture(data: Ndarray) {
+    // TODO: Figure out best way of switching between v-field, e-field, energy normalised,
+    //       and grid normalised view (dx, dy lut for coordinate warping to better reflect real shape)
+    const shape = data.shape;
+    if (shape.length != 3) {
+      throw Error(`Tried to update grid 2d renderer with non 3d array: (${shape.join(',')})`);
+    }
+    const [height, width, channels] = shape;
+    if (channels != 2) {
+      throw Error(`Expected 2 channels but got ${channels} channels`);
+    }
+    if (
+      this.display_texture === undefined ||
+      this.display_texture.width != width ||
+      this.display_texture.height != height
+    ) {
+      this.display_texture = this.device.createTexture({
+        dimension: "2d",
+        format: "rg16float",
+        mipLevelCount: 1,
+        sampleCount: 1,
+        size: [width, height, 1],
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+      });
+    }
+    const f32_data = data.cast(Float32Array);
+    const N = width*height*channels;
+    const f16_data = new Uint16Array(N);
+    const u32_view = new Uint32Array(f32_data.buffer);
+    for (let i = 0; i < N; i++) {
+      // IEEE.754 32bit floating point format
+      // sign: 1, exponent: 8, mantissa: 23
+      // value = (-1)^sign * 2^(exponent-127) * (1 + mantissa*2^-23)
+      const f32_x = u32_view[i];
+      const f32_sign = (f32_x >> 31) & 0x1;
+      const f32_exponent = ((f32_x >> 23) & 0xFF) - 127;
+      const f32_mantissa = f32_x & 0x7FFFFF;
+
+      // IEEE.754 16bit floating point
+      // sign: 1, exponent: 5, mantissa: 10
+      // value = (-1)^sign * 2^(exponent-15) * (1 + mantissa*2^-10)
+      let f16_y = 0;
+      const f16_sign = f32_sign << 15;
+      // clamp exponent to displayable values
+      const f16_exponent = Math.min(Math.max(f32_exponent + 15, 0), 31);
+      const f16_mantissa = f32_mantissa >> 13;
+      f16_y = f16_sign | (f16_exponent << 10) | f16_mantissa;
+      f16_data[i] = f16_y;
+    }
+    this.device.queue.writeTexture(
+      { texture: this.display_texture },
+      f16_data,
+      { bytesPerRow: width*(2*channels) },
+      { width, height },
+    );
+  }
+
+  update_canvas(canvas: HTMLCanvasElement, scale: number, axis: number) {
+    if (this.display_texture === undefined) {
+      return;
+    }
+    const canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
+    if (canvas_context === null) {
+      throw Error("Failed to get webgpu context from canvas");
+    }
+    canvas_context.configure({
+      device: this.device,
+      format: navigator.gpu.getPreferredCanvasFormat(),
+      alphaMode: "premultiplied",
+    });
+
+    const canvas_texture_view = canvas_context.getCurrentTexture().createView();
+    const command_encoder = this.device.createCommandEncoder();
+    const display_texture_view = this.display_texture.createView({ dimension: "2d" });
+    this.shader_render_texture.create_pass(
+      command_encoder,
+      canvas_texture_view, display_texture_view,
+      scale, axis,
+    );
+    this.device.queue.submit([command_encoder.finish()]);
+  }
+
+  async wait_finished() {
+    await this.device.queue.onSubmittedWorkDone();
+  }
+}
+
 export function render_grid_to_canvas(canvas: HTMLCanvasElement, grid: Grid) {
   const context = canvas.getContext("2d");
   if (context === null) {
@@ -332,10 +432,14 @@ export function render_grid_to_canvas(canvas: HTMLCanvasElement, grid: Grid) {
       const dy_avg = (dy.get([Math.max(y-1,0)]) + dy.get([y]))/2.0;
       // e-field lies on boundary of yee-grid
       const energy = (ex**2)*dx.get([x])*dy_avg + (ey**2)*dy.get([y])*dx_avg;
+      // const energy = ey*dy.get([y])*dx_avg;
+      // const energy = ex*dx.get([x])*dy_avg;
+      // const energy = ey;
+      // const energy = ex;
       data.set([y,x], energy);
     }
   }
-  const data_max = data.cast(Float32Array).reduce((a,b) => Math.max(a,b), 0.0);
+  const data_max = data.cast(Float32Array).map(Math.abs).reduce((a,b) => Math.max(a,b), 0.0);
   for (let y = 0; y < Ny; y++) {
     for (let x = 0; x < Nx; x++) {
       const i_image = 4*(x + y*Nx);
@@ -345,6 +449,9 @@ export function render_grid_to_canvas(canvas: HTMLCanvasElement, grid: Grid) {
       const r = value;
       const g = value;
       const b = value;
+      // const r = Math.min(Math.round(d*scale), 255);
+      // const g = Math.min(Math.round(-d*scale), 255);
+      // const b = 0;
       const a = 255;
       image_data.data[i_image+0] = r;
       image_data.data[i_image+1] = g;
