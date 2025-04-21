@@ -480,8 +480,6 @@ export class KernelCopyToTexture {
     size_y: "u32",
     size_z: "u32",
     copy_x: "u32",
-    scale: "f32",
-    axis: "u32",
   });
   params_uniform: GPUBuffer;
   shader_source: string;
@@ -504,13 +502,11 @@ export class KernelCopyToTexture {
         size_y: u32,
         size_z: u32,
         copy_x: u32,
-        scale: f32,
-        axis: u32,
       }
 
       @group(0) @binding(0) var<uniform> params: Params;
       @group(0) @binding(1) var<storage, read> grid: array<f32>;
-      @group(0) @binding(2) var grid_tex: texture_storage_2d<rgba8unorm, write>;
+      @group(0) @binding(2) var grid_tex: texture_storage_2d<rgba16float, write>;
 
       @compute
       @workgroup_size(${this.workgroup_size.join(",")})
@@ -532,21 +528,13 @@ export class KernelCopyToTexture {
         let src_i = n_dims*(src_x*Nzy + iy*Nz + iz);
         let dst_i = vec2<u32>(u32(iz), u32(iy));
 
-        if (params.axis <= 2) {
-          let E: f32 = grid[src_i+params.axis];
-          let v: f32 = E*params.scale;
-          let colour = vec4<f32>(max(-v, 0.0),max(v, 0.0),0.0,1.0);
-          textureStore(grid_tex, dst_i, colour);
-        } else {
-          let Ex: f32 = grid[src_i+0];
-          let Ey: f32 = grid[src_i+1];
-          let Ez: f32 = grid[src_i+2];
-          let E: vec3<f32> = vec3<f32>(Ex,Ey,Ez);
-          let E_mag = length(E);
-          let v = E_mag*params.scale;
-          let colour = vec4<f32>(v,v,v,1.0);
-          textureStore(grid_tex, dst_i, colour);
-        }
+        let Ex: f32 = grid[src_i+0];
+        let Ey: f32 = grid[src_i+1];
+        let Ez: f32 = grid[src_i+2];
+        let E: vec3<f32> = vec3<f32>(Ex,Ey,Ez);
+        let E_mag: f32 = length(E);
+        let colour = vec4<f32>(Ex,Ey,Ez,E_mag);
+        textureStore(grid_tex, dst_i, colour);
       }
     `;
     this.shader_module = device.createShaderModule({
@@ -569,7 +557,7 @@ export class KernelCopyToTexture {
           visibility: GPUShaderStage.COMPUTE,
           storageTexture: {
             access: "write-only",
-            format: "rgba8unorm",
+            format: "rgba16float",
             viewDimension: "2d",
           },
         },
@@ -590,7 +578,8 @@ export class KernelCopyToTexture {
     gpu_grid: GPUBuffer,
     gpu_texture_view: GPUTextureView,
     grid_size: [number, number, number],
-    copy_x: number, scale: number, axis: number) {
+    copy_x: number,
+  ) {
     const dispatch_size: [number, number] = [
       Math.ceil(grid_size[1]/this.workgroup_size[0]),
       Math.ceil(grid_size[2]/this.workgroup_size[1]),
@@ -599,8 +588,6 @@ export class KernelCopyToTexture {
     this.params.set("size_y", grid_size[1]);
     this.params.set("size_z", grid_size[2]);
     this.params.set("copy_x", copy_x);
-    this.params.set("scale", scale);
-    this.params.set("axis", axis);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
     const bind_group = this.device.createBindGroup({
@@ -633,6 +620,11 @@ export class KernelCopyToTexture {
 export class ShaderRenderTexture {
   label: string;
   device: GPUDevice;
+  params = new StructView({
+    scale: "f32",
+    axis: "u32",
+  });
+  params_uniform: GPUBuffer;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -649,9 +641,19 @@ export class ShaderRenderTexture {
   constructor(device: GPUDevice) {
     this.label = "render_texture";
     this.device = device;
+    this.params_uniform = device.createBuffer({
+      size: this.params.buffer.byteLength,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
     this.shader_source = `
-      @group(0) @binding(0) var grid_sampler: sampler;
-      @group(0) @binding(1) var grid_texture: texture_2d<f32>;
+      struct Params {
+        scale: f32,
+        axis: u32,
+      }
+
+      @group(0) @binding(0) var<uniform> params: Params;
+      @group(0) @binding(1) var grid_sampler: sampler;
+      @group(0) @binding(2) var grid_texture: texture_2d<f32>;
 
       struct VertexOut {
         @builtin(position) vertex_position : vec4f,
@@ -669,7 +671,20 @@ export class ShaderRenderTexture {
       @fragment
       fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
         let data = textureSampleLevel(grid_texture, grid_sampler, vertex.frag_position, 0.0);
-        let color = vec4f(data.r, data.g, data.b, 1.0);
+        var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
+        if (params.axis == 0) {
+          let value = data.r*params.scale;
+          color = vec4f(max(value, 0), max(-value, 0), 0, 1.0);
+        } else if (params.axis == 1) {
+          let value = data.g*params.scale;
+          color = vec4f(max(value, 0), max(-value, 0), 0, 1.0);
+        } else if (params.axis == 2) {
+          let value = data.b*params.scale;
+          color = vec4f(max(value, 0), max(-value, 0), 0, 1.0);
+        } else if (params.axis == 3) {
+          let value = data.a*params.scale;
+          color = vec4f(value, value, value, 1.0);
+        }
         return color;
       }
     `;
@@ -714,12 +729,17 @@ export class ShaderRenderTexture {
         {
           binding: 0,
           visibility: GPUShaderStage.FRAGMENT,
+          buffer: { type: "uniform" },
+        },
+        {
+          binding: 1,
+          visibility: GPUShaderStage.FRAGMENT,
           sampler: {
             type: "filtering",
           },
         },
         {
-          binding: 1,
+          binding: 2,
           visibility: GPUShaderStage.FRAGMENT,
           texture: {},
         },
@@ -749,23 +769,35 @@ export class ShaderRenderTexture {
       },
     });
     this.clear_color = { r: 0.0, g: 0.5, b: 1.0, a: 1.0 };
-    this.grid_sampler = device.createSampler();
+    this.grid_sampler = device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+    });
   }
 
   create_pass(
     command_encoder: GPUCommandEncoder,
     output_texture_view: GPUTextureView,
     gpu_texture_view: GPUTextureView,
+    scale: number, axis: number,
   ) {
+    this.params.set("scale", scale);
+    this.params.set("axis", axis);
+    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
+
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
         {
           binding: 0,
-          resource: this.grid_sampler,
+          resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size },
         },
         {
           binding: 1,
+          resource: this.grid_sampler,
+        },
+        {
+          binding: 2,
           resource: gpu_texture_view,
         },
       ],

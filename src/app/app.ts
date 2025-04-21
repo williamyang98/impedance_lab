@@ -200,7 +200,7 @@ export class GpuFdtdEngine {
     });
     this.display_texture = device.createTexture({
       dimension: "2d",
-      format: "rgba8unorm",
+      format: "rgba16float",
       mipLevelCount: 1,
       sampleCount: 1,
       size: [Nz, Ny, 1],
@@ -272,11 +272,15 @@ export class GpuFdtdEngine {
     this.kernel_copy_to_texture.create_pass(
       command_encoder,
       field_buffer, this.display_texture_view, grid_size,
-      copy_x, scale, axis_id,
+      copy_x,
     );
     // NOTE: canvas texture view has to be retrieved here since the browser swaps it out in the swapchain
     const canvas_texture_view = this.canvas_context.getCurrentTexture().createView();
-    this.shader_render_texture.create_pass(command_encoder, canvas_texture_view, this.display_texture_view);
+    this.shader_render_texture.create_pass(
+      command_encoder,
+      canvas_texture_view, this.display_texture_view,
+      scale, axis_id,
+    );
     this.device.queue.submit([command_encoder.finish()]);
   }
 

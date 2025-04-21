@@ -166,7 +166,7 @@ export default defineComponent({
   <main>
     <h1>Home</h1>
     <div>
-      <canvas ref="gpu_canvas" style="width: 512px; height: 256px;"></canvas>
+      <canvas ref="gpu_canvas" class="w-[100%]"></canvas>
       <br>
       <div style="width: 512px; height: 1.5rem; background-color: #222222">
         <div
