@@ -116,12 +116,12 @@ export class Setup {
 
     const region_widths = x_grid.map((grid) => grid.n0+grid.n1);
     const [signal_width_left, signal_separation, signal_width_right] = region_widths;
-    const pad_left = 2*signal_width_left;
-    const pad_right = 2*signal_width_right;
+    const pad_left = signal_width_left;
+    const pad_right = signal_width_right;
 
     const region_heights = y_grid.map((grid) => grid.n0+grid.n1);
     const [plane_separation_bottom, signal_height, plane_separation_top] = region_heights;
-    const plane_height = 3;
+    const plane_height = 2;
     const Nx = pad_left + region_widths.reduce((a,b) => a+b, 0) + pad_right;
     const Ny = plane_height + region_heights.reduce((a,b) => a+b, 0) + plane_height;
 
@@ -311,16 +311,52 @@ export class Setup {
   }
 }
 
+export function convert_f32_to_f16(f32_data: Float32Array, f16_data: Uint16Array) {
+  if (f32_data.length != f16_data.length) {
+    throw Error(`Mismatch between f32 buffer with length ${f32_data.length} and f16 buffer with length ${f16_data.length}`);
+  }
+  const N = f32_data.length;
+  const u32_view = new Uint32Array(f32_data.buffer);
+  for (let i = 0; i < N; i++) {
+    // IEEE.754 32bit floating point format
+    // sign: 1, exponent: 8, mantissa: 23
+    // value = (-1)^sign * 2^(exponent-127) * (1 + mantissa*2^-23)
+    const f32_x = u32_view[i];
+    const f32_sign = (f32_x >> 31) & 0x1;
+    const f32_exponent = ((f32_x >> 23) & 0xFF) - 127;
+    const f32_mantissa = f32_x & 0x7FFFFF;
+
+    // IEEE.754 16bit floating point
+    // sign: 1, exponent: 5, mantissa: 10
+    // value = (-1)^sign * 2^(exponent-15) * (1 + mantissa*2^-10)
+    let f16_y = 0;
+    const f16_sign = f32_sign << 15;
+    // clamp exponent to displayable values
+    const f16_exponent = Math.min(Math.max(f32_exponent + 15, 0), 31);
+    const f16_mantissa = f32_mantissa >> 13;
+    f16_y = f16_sign | (f16_exponent << 10) | f16_mantissa;
+    f16_data[i] = f16_y;
+  }
+}
+
 export class WebgpuGrid2dRenderer {
   adapter: GPUAdapter;
   device: GPUDevice;
   display_texture?: GPUTexture;
+  spline_dx_texture?: GPUTexture;
+  spline_dy_texture?: GPUTexture;
   shader_render_texture: ShaderRenderTexture2;
 
   constructor(adapter: GPUAdapter, device: GPUDevice) {
     this.adapter = adapter;
     this.device = device;
     this.shader_render_texture = new ShaderRenderTexture2(device);
+  }
+
+  update_grid(grid: Grid) {
+    this.update_texture(grid.e_field);
+    this.update_dx_spline(grid.dx);
+    this.update_dy_spline(grid.dy);
   }
 
   update_texture(data: Ndarray) {
@@ -348,30 +384,10 @@ export class WebgpuGrid2dRenderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const f32_data = data.cast(Float32Array);
     const N = width*height*channels;
+    const f32_data = data.cast(Float32Array);
     const f16_data = new Uint16Array(N);
-    const u32_view = new Uint32Array(f32_data.buffer);
-    for (let i = 0; i < N; i++) {
-      // IEEE.754 32bit floating point format
-      // sign: 1, exponent: 8, mantissa: 23
-      // value = (-1)^sign * 2^(exponent-127) * (1 + mantissa*2^-23)
-      const f32_x = u32_view[i];
-      const f32_sign = (f32_x >> 31) & 0x1;
-      const f32_exponent = ((f32_x >> 23) & 0xFF) - 127;
-      const f32_mantissa = f32_x & 0x7FFFFF;
-
-      // IEEE.754 16bit floating point
-      // sign: 1, exponent: 5, mantissa: 10
-      // value = (-1)^sign * 2^(exponent-15) * (1 + mantissa*2^-10)
-      let f16_y = 0;
-      const f16_sign = f32_sign << 15;
-      // clamp exponent to displayable values
-      const f16_exponent = Math.min(Math.max(f32_exponent + 15, 0), 31);
-      const f16_mantissa = f32_mantissa >> 13;
-      f16_y = f16_sign | (f16_exponent << 10) | f16_mantissa;
-      f16_data[i] = f16_y;
-    }
+    convert_f32_to_f16(f32_data, f16_data);
     this.device.queue.writeTexture(
       { texture: this.display_texture },
       f16_data,
@@ -380,10 +396,75 @@ export class WebgpuGrid2dRenderer {
     );
   }
 
-  update_canvas(canvas: HTMLCanvasElement, scale: number, axis: number) {
-    if (this.display_texture === undefined) {
-      return;
+  update_dy_spline(dy: Ndarray) {
+    if (dy.shape.length != 1) {
+      throw Error(`dy spline array should be 1 dimensional but got: (${dy.shape.join(',')})`);
     }
+
+    const height: number = dy.shape[0];
+
+    if (
+      this.spline_dy_texture === undefined ||
+      this.spline_dy_texture.width != height
+    ) {
+      this.spline_dy_texture = this.device.createTexture({
+        dimension: "1d",
+        format: "r16float",
+        mipLevelCount: 1,
+        sampleCount: 1,
+        size: [height, 1, 1],
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+      });
+    }
+
+    const f32_dy = dy.cast(Float32Array);
+    const f16_dy = new Uint16Array(height);
+    convert_f32_to_f16(f32_dy, f16_dy);
+    this.device.queue.writeTexture(
+      { texture: this.spline_dy_texture },
+      f16_dy,
+      { bytesPerRow: height*2 },
+      { width: height, height: 1 },
+    );
+  }
+
+  update_dx_spline(dx: Ndarray) {
+    if (dx.shape.length != 1) {
+      throw Error(`dx spline array should be 1 dimensional but got: (${dx.shape.join(',')})`);
+    }
+
+    const width: number = dx.shape[0];
+
+    if (
+      this.spline_dx_texture === undefined ||
+      this.spline_dx_texture.width != width
+    ) {
+      this.spline_dx_texture = this.device.createTexture({
+        dimension: "1d",
+        format: "r16float",
+        mipLevelCount: 1,
+        sampleCount: 1,
+        size: [width, 1, 1],
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+      });
+    }
+
+    const f32_dx = dx.cast(Float32Array);
+    const f16_dx = new Uint16Array(width);
+    convert_f32_to_f16(f32_dx, f16_dx);
+    this.device.queue.writeTexture(
+      { texture: this.spline_dx_texture },
+      f16_dx,
+      { bytesPerRow: width*2 },
+      { width, height: 1 },
+    );
+  }
+
+  update_canvas(canvas: HTMLCanvasElement, scale: number, axis: number) {
+    if (this.display_texture === undefined) return;
+    if (this.spline_dx_texture === undefined) return;
+    if (this.spline_dy_texture === undefined) return;
+
     const canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
     if (canvas_context === null) {
       throw Error("Failed to get webgpu context from canvas");
@@ -397,9 +478,11 @@ export class WebgpuGrid2dRenderer {
     const canvas_texture_view = canvas_context.getCurrentTexture().createView();
     const command_encoder = this.device.createCommandEncoder();
     const display_texture_view = this.display_texture.createView({ dimension: "2d" });
+    const spline_dx_view = this.spline_dx_texture.createView({ dimension: "1d" });
+    const spline_dy_view = this.spline_dy_texture.createView({ dimension: "1d" });
     this.shader_render_texture.create_pass(
       command_encoder,
-      canvas_texture_view, display_texture_view,
+      canvas_texture_view, display_texture_view, spline_dx_view, spline_dy_view,
       scale, axis,
     );
     this.device.queue.submit([command_encoder.finish()]);

@@ -843,6 +843,7 @@ export class ShaderRenderTexture2 {
   vertex_buffer_layout: GPUVertexBufferLayout;
   clear_color: GPUColor;
   grid_sampler: GPUSampler;
+  spline_sampler: GPUSampler;
 
   constructor(device: GPUDevice) {
     this.label = "render_texture";
@@ -860,6 +861,9 @@ export class ShaderRenderTexture2 {
       @group(0) @binding(0) var<uniform> params: Params;
       @group(0) @binding(1) var grid_sampler: sampler;
       @group(0) @binding(2) var grid_texture: texture_2d<f32>;
+      @group(0) @binding(3) var spline_sampler: sampler;
+      @group(0) @binding(4) var spline_dx: texture_1d<f32>;
+      @group(0) @binding(5) var spline_dy: texture_1d<f32>;
 
       struct VertexOut {
         @builtin(position) vertex_position : vec4f,
@@ -877,31 +881,35 @@ export class ShaderRenderTexture2 {
       @fragment
       fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
         let data = textureSampleLevel(grid_texture, grid_sampler, vertex.frag_position, 0.0);
+        let Ex = data.r*params.scale;
+        let Ey = data.g*params.scale;
+        let dx = textureSample(spline_dx, spline_sampler, vertex.frag_position.x).r;
+        let dy = textureSample(spline_dy, spline_sampler, vertex.frag_position.y).r;
+
         var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
         if (params.axis == 0) {
-          let Ex = -data.r*params.scale;
-          color = vec4f(max(Ex, 0), max(-Ex, 0), 0, 1.0);
+          color = vec4f(max(-Ex, 0), max(Ex, 0), 0, 1.0);
         } else if (params.axis == 1) {
-          let Ey = -data.g*params.scale;
-          color = vec4f(max(Ey, 0), max(-Ey, 0), 0, 1.0);
+          color = vec4f(max(-Ey, 0), max(Ey, 0), 0, 1.0);
         } else if (params.axis == 2) {
-          let Ex = -data.r;
-          let Ey = -data.g;
           let E: vec2<f32> = vec2<f32>(Ex, Ey);
-          let mag = length(E)*params.scale;
+          let mag = length(E);
           color = vec4f(mag, mag, mag, 1.0);
         } else if (params.axis == 3) {
-          let Ex = -data.r;
-          let Ey = -data.g;
           let E: vec2<f32> = vec2<f32>(Ex, Ey);
           let angle = atan2(Ey, -Ex);
-          let value = length(E)*params.scale;
+          let value = length(E);
 
           let hue = angle / (2.0*3.1415) + 0.5;
           let saturation = 1.0;
           let rgb = hsv_to_rgb(vec3<f32>(hue, saturation, value));
           color = vec4<f32>(rgb.r, rgb.g, rgb.b, 1.0);
+        } else if (params.axis == 4) {
+          let dA = dx*dy;
+          let energy = (Ex*Ex+Ey*Ey)*dA*20.0;
+          color = vec4f(energy, energy, energy, 1.0);
         }
+
         return color;
       }
 
@@ -965,7 +973,30 @@ export class ShaderRenderTexture2 {
         {
           binding: 2,
           visibility: GPUShaderStage.FRAGMENT,
-          texture: {},
+          texture: {
+            viewDimension: "2d",
+          },
+        },
+        {
+          binding: 3,
+          visibility: GPUShaderStage.FRAGMENT,
+          sampler: {
+            type: "filtering",
+          },
+        },
+        {
+          binding: 4,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: {
+            viewDimension: "1d",
+          },
+        },
+        {
+          binding: 5,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: {
+            viewDimension: "1d",
+          },
         },
       ],
     });
@@ -997,12 +1028,18 @@ export class ShaderRenderTexture2 {
       magFilter: "nearest",
       minFilter: "nearest",
     });
+    this.spline_sampler = device.createSampler({
+      magFilter: "linear",
+      minFilter: "linear",
+    });
   }
 
   create_pass(
     command_encoder: GPUCommandEncoder,
     output_texture_view: GPUTextureView,
     gpu_texture_view: GPUTextureView,
+    spline_dx_view: GPUTextureView,
+    spline_dy_view: GPUTextureView,
     scale: number, axis: number,
   ) {
     this.params.set("scale", scale);
@@ -1023,6 +1060,18 @@ export class ShaderRenderTexture2 {
         {
           binding: 2,
           resource: gpu_texture_view,
+        },
+        {
+          binding: 3,
+          resource: this.spline_sampler,
+        },
+        {
+          binding: 4,
+          resource: spline_dx_view,
+        },
+        {
+          binding: 5,
+          resource: spline_dy_view,
         },
       ],
     });

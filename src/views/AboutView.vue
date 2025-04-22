@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectTrigger,
@@ -77,13 +78,14 @@ function get_parameter_config(option: SearchOption): ParameterConfig {
   }
 }
 
-type FieldAxis = "x" | "y" | "mag" | "vec";
+type FieldAxis = "x" | "y" | "mag" | "vec" | "energy";
 function field_axis_to_id(axis: FieldAxis): number {
   switch (axis) {
   case "x": return 0;
   case "y": return 1;
   case "mag": return 2;
   case "vec": return 3;
+  case "energy": return 4;
   }
 }
 
@@ -147,8 +149,8 @@ export default defineComponent({
     },
     upload_field_data() {
       if (this.setup.grid === undefined) return;
-      const field = this.setup.grid.e_field;
-      this.grid2d_renderer?.update_texture(field);
+      if (this.grid2d_renderer === undefined) return;
+      this.grid2d_renderer.update_grid(this.setup.grid);
     },
     async render_field_data() {
       const canvas = this.$refs.field_canvas as (HTMLCanvasElement | null);
@@ -408,7 +410,7 @@ export default defineComponent({
             <TabsTrigger value="dy">dy</TabsTrigger>
           </TabsList>
           <TabsContent value="field">
-            <form class="grid grid-cols-[8rem_auto_8rem_auto] gap-y-1 gap-x-1">
+            <form class="grid grid-cols-4 gap-x-3">
               <Label for="display_scale">Display scale</Label>
               <Input id="display_scale" type="number" v-model.number="display_scale" min="0" max="10" step="0.1"/>
               <Label for="display_axis">Axis</Label>
@@ -421,10 +423,11 @@ export default defineComponent({
                   <SelectItem :value="'y'">Ey</SelectItem>
                   <SelectItem :value="'mag'">Magnitude</SelectItem>
                   <SelectItem :value="'vec'">Vector</SelectItem>
+                  <SelectItem :value="'energy'">Energy</SelectItem>
                 </SelectContent>
               </Select>
             </form>
-            <canvas ref="field_canvas" id="field_canvas" class="w-[100%] h-[100%]"></canvas>
+            <canvas ref="field_canvas" id="field_canvas" class="w-[100%] h-[100%] pt-2"></canvas>
           </TabsContent>
           <TabsContent value="param_search">
             <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
