@@ -3,7 +3,7 @@ import { Ndarray } from "../../utility/ndarray.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
 import { convert_f32_to_f16 } from "../../utility/convert_f32_to_f16.ts";
 
-export class WebgpuGrid2dRenderer {
+export class Renderer {
   adapter: GPUAdapter;
   device: GPUDevice;
   display_texture?: GPUTexture;

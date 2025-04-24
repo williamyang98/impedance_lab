@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from "vue";
-import { GridDisplayMode, FieldDisplayMode, Renderer } from "./renderer.ts";
+import { type GridDisplayMode, type FieldDisplayMode, Renderer } from "./renderer.ts";
 import { GpuGrid } from "../../engine/fdtd_3d.ts";
 
 interface ComponentData {

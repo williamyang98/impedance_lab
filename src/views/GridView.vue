@@ -16,7 +16,7 @@ import { defineComponent } from "vue";
 import {
   generate_asymmetric_geometric_grid_from_regions,
   generate_asymmetric_geometric_grid,
-  AsymmetricGeometricGrid,
+  type AsymmetricGeometricGrid,
 } from "../engine/mesher.ts";
 import Chart from "chart.js/auto";
 

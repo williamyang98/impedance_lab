@@ -1,4 +1,3 @@
-import { Ndarray } from "../utility/ndarray.ts";
 import {
   type SimulationSetup, SimulationSource, SimulationGrid,
 } from "../engine/fdtd_3d.ts";

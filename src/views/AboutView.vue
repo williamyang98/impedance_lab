@@ -2,7 +2,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectTrigger,
@@ -55,6 +54,7 @@ import {
 } from "../app/app_2d.ts";
 import LineChart from "../components/LineChart.vue";
 import { Viewer2D } from "../components/viewer_2d";
+import { type RunResult, type ImpedanceResult } from "../engine/electrostatic_2d.ts";
 
 type SearchOption = "er0" | "er1" | "er0+er1" | "h0" | "h1" | "h0+h1" | "w" | "s" | "t";
 interface ParameterConfig {
@@ -145,10 +145,10 @@ export default defineComponent({
       void this.refresh_viewer();
     },
     async refresh_viewer() {
-      const viewer = this.$refs.viewer_2d as (typeof Viewer2D | null);
+      if (this.$refs.viewer_2d === null) return;
+      const viewer = this.$refs.viewer_2d as typeof Viewer2D;
       const grid = this.setup.grid;
       if (grid === undefined) return;
-      if (viewer === null) return;
       viewer.upload_grid(grid);
       await viewer.refresh_canvas();
     },

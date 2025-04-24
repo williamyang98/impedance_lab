@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectTrigger,
@@ -13,8 +12,7 @@ import {
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { Ndarray } from "../../utility/ndarray.ts";
-import { WebgpuGrid2dRenderer } from "./renderer.ts";
+import { Renderer } from "./renderer.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
 
 type FieldAxis = "x" | "y" | "mag" | "vec" | "energy";
@@ -29,7 +27,7 @@ function field_axis_to_id(axis: FieldAxis): number {
 }
 
 interface ComponentData {
-  grid_renderer: WebgpuGrid2dRenderer;
+  grid_renderer: Renderer;
   display_axis: FieldAxis;
   display_scale: number;
 }
@@ -41,7 +39,7 @@ export default defineComponent({
   // this is because we have a <script setup> tag for this component which prevents auto-exposing
   expose: ["upload_grid", "refresh_canvas"],
   data(): ComponentData {
-    const grid_renderer = new WebgpuGrid2dRenderer(this.gpu_adapter, this.gpu_device);
+    const grid_renderer = new Renderer(this.gpu_adapter, this.gpu_device);
     return {
       grid_renderer,
       display_axis: "vec",

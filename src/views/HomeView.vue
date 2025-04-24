@@ -5,7 +5,7 @@ import { Viewer3D } from "../components/viewer_3d";
 <script lang="ts">
 import { defineComponent } from "vue";
 import { create_simulation_setup } from "../app/app_3d.ts";
-import { SimulationSetup, GpuGrid, GpuEngine } from "../engine/fdtd_3d.ts";
+import { type SimulationSetup, GpuGrid, GpuEngine } from "../engine/fdtd_3d.ts";
 
 interface ComponentData {
   setup: SimulationSetup;
@@ -92,7 +92,7 @@ export default defineComponent({
     async tick_loop() {
       if (this.curr_step >= this.max_timesteps) return;
       this.stop_loop();
-      this.gpu_engine?.step_fdtd(this.curr_step);
+      this.gpu_engine.step_fdtd(this.gpu_grid, this.curr_step);
       this.curr_step++;
       await this.refresh_display();
       this.update_progress();
