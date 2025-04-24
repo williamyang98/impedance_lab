@@ -1,5 +1,5 @@
 [package]
-name = "fdtd_wasm"
+name = "fdtd_core"
 version = "0.1.0"
 edition = "2021"
 

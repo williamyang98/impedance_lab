@@ -1,6 +1,6 @@
-import { run_global_section_search, run_binary_search } from "./util";
+import { run_global_section_search, run_binary_search } from "../utility/search.ts";
 
-function get_geometric_sum(a: number, r: number, n: number) {
+export function get_geometric_sum(a: number, r: number, n: number) {
   if (Math.abs(1-r) < 1e-3) {
     return a*n;
   }

@@ -17,7 +17,7 @@ import {
   generate_asymmetric_geometric_grid_from_regions,
   generate_asymmetric_geometric_grid,
   AsymmetricGeometricGrid,
-} from "../app/mesher.ts";
+} from "../engine/mesher.ts";
 import Chart from "chart.js/auto";
 
 interface ComponentData {

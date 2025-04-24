@@ -1,15 +1,10 @@
-import init_wasm_module, {
-  electrostatic_solver,
-  calculate_homogenous_energy,
-  calculate_inhomogenous_energy,
-} from "../wasm/pkg/fdtd_wasm.js";
-import { Ndarray, NdarrayView } from "./ndarray.ts";
+import { NdarrayView } from "../utility/ndarray.ts";
 import {
   generate_asymmetric_geometric_grid,
   generate_asymmetric_geometric_grid_from_regions,
   type AsymmetricGeometricGrid,
-} from "./mesher.ts";
-import { ShaderRenderTexture2 } from "./kernels.ts";
+} from "../engine/mesher.ts";
+import { Grid, type ImpedanceResult, type RunResult } from "../engine/electrostatic_2d.ts";
 
 export interface TransmissionLineParameters {
   dielectric_bottom_epsilon: number;
@@ -31,17 +26,6 @@ interface GridLayout {
   plane_height: number;
   plane_separation_bottom: number;
   plane_separation_top: number;
-}
-
-export interface Grid {
-  size: [number, number];
-  dx: Ndarray;
-  dy: Ndarray;
-  v_force: Ndarray;
-  v_table: Ndarray;
-  v_field: Ndarray;
-  e_field: Ndarray;
-  epsilon_k: Ndarray;
 }
 
 function normalise_transmission_line_parameters(
@@ -68,22 +52,6 @@ function normalise_transmission_line_parameters(
   }
 };
 
-export interface RunResult {
-  total_steps: number;
-  time_taken: number;
-  cell_rate: number;
-  step_rate: number;
-  total_cells: number;
-}
-
-export interface ImpedanceResult {
-  Z0: number;
-  Cih: number;
-  Lh: number;
-  propagation_speed: number;
-  propagation_delay: number;
-}
-
 export class Setup {
   grid?: Grid;
   grid_layout?: GridLayout;
@@ -94,8 +62,8 @@ export class Setup {
   reset() {
     if (this.grid) {
       const { v_field, e_field } = this.grid;
-      v_field.fill(0.0);
-      e_field.fill(0.0);
+      v_field.fill(0);
+      e_field.fill(0);
     }
   }
 
@@ -125,14 +93,16 @@ export class Setup {
     const Nx = pad_left + region_widths.reduce((a,b) => a+b, 0) + pad_right;
     const Ny = plane_height + region_heights.reduce((a,b) => a+b, 0) + plane_height;
 
-    const size: [number, number] = [Ny, Nx];
-    const dx = Ndarray.create_zeros([Nx], "f32");
-    const dy = Ndarray.create_zeros([Ny], "f32");
-    const v_force = Ndarray.create_zeros([Ny,Nx], "u32");
-    const v_table = Ndarray.create_zeros([3], "f32");
-    const v_field = Ndarray.create_zeros([Ny,Nx], "f32");
-    const e_field = Ndarray.create_zeros([Ny,Nx,2], "f32");
-    const epsilon_k = Ndarray.create_zeros([Ny,Nx], "f32");
+    const grid = new Grid(Ny, Nx);
+    const {
+      dx,
+      dy,
+      v_force,
+      v_table,
+      v_field,
+      e_field,
+      epsilon_k,
+    } = grid;
 
     v_field.fill(0.0);
     e_field.fill(0.0);
@@ -204,17 +174,9 @@ export class Setup {
     generate_padding(dy.hi([plane_height]).reverse(), y_grid[0].a0, 1.0+y_max_ratio);
     generate_padding(dy.lo([Ny-plane_height]), y_grid[2].a1, 1.0+y_max_ratio);
 
-    this.grid = {
-      size,
-      dx,
-      dy,
-      v_force,
-      v_table,
-      v_field,
-      e_field,
-      epsilon_k,
-    };
+    grid.bake();
 
+    this.grid = grid;
     this.grid_layout = {
       pad_left,
       pad_right,
@@ -227,322 +189,6 @@ export class Setup {
       plane_separation_top,
     };
   }
-
-  run(energy_threshold: number): RunResult {
-    if (this.grid === undefined) {
-      throw Error("Tried to run simulation when grid wasn't created");
-    }
-    const [Ny,Nx] = this.grid.size;
-    let total_steps: number = 0;
-
-    const step_stride = Math.round((Nx*Ny)**0.5)*2;
-    const total_cells = Nx*Ny;
-    let previous_energy: number | null = null;
-
-    const v_field = this.grid.v_field.cast(Float32Array);
-    const e_field = this.grid.e_field.cast(Float32Array);
-    const dx = this.grid.dx.cast(Float32Array);
-    const dy = this.grid.dy.cast(Float32Array);
-    const v_force = this.grid.v_force.cast(Uint32Array);
-    const v_table = this.grid.v_table.cast(Float32Array);
-
-    const start_ms = performance.now();
-    const max_step_strides = 100;
-    for (let i = 0; i < max_step_strides; i++) {
-      electrostatic_solver(v_field, e_field, dx, dy, v_force, v_table, step_stride);
-      total_steps += step_stride;
-      const energy = calculate_homogenous_energy(e_field, dx, dy)
-      if (previous_energy !== null) {
-        const delta_energy = Math.abs(previous_energy-energy)/energy;
-        if (delta_energy < energy_threshold) {
-          break;
-        }
-      }
-      previous_energy = energy;
-    }
-    const end_ms = performance.now();
-    const elapsed_ms = end_ms-start_ms;
-    const time_taken = elapsed_ms*1e-3;
-    const cell_rate = (total_cells*total_steps)/time_taken;
-    const step_rate = total_steps/time_taken;
-    return {
-      total_steps,
-      time_taken,
-      cell_rate,
-      step_rate,
-      total_cells,
-    }
-  }
-
-  calculate_impedance(): ImpedanceResult {
-    if (this.grid === undefined) {
-      throw Error("Tried to calculate impedance when grid wasn't created");
-    }
-
-    const epsilon_0 = 8.85e-12
-    const c_0 = 3e8;
-
-    const energy_homogenous = calculate_homogenous_energy(
-      this.grid.e_field.cast(Float32Array),
-      this.grid.dx.cast(Float32Array),
-      this.grid.dy.cast(Float32Array),
-    );
-    const energy_inhomogenous = calculate_inhomogenous_energy(
-      this.grid.e_field.cast(Float32Array),
-      this.grid.epsilon_k.cast(Float32Array),
-      this.grid.dx.cast(Float32Array),
-      this.grid.dy.cast(Float32Array),
-    );
-
-    const v0: number = 2.0;
-    const Ch = 1/(v0**2) * epsilon_0 * energy_homogenous;
-    const Lh = 1/((c_0**2) * Ch);
-    const Cih = 1/(v0**2) * epsilon_0 * energy_inhomogenous;
-    const Z0 = (Lh/Cih)**0.5;
-    const propagation_speed = 1/(Cih*Lh)**0.5;
-    const propagation_delay = 1/propagation_speed;
-    return {
-      Z0,
-      Cih,
-      Lh,
-      propagation_speed,
-      propagation_delay,
-    };
-  }
-}
-
-export function convert_f32_to_f16(f32_data: Float32Array, f16_data: Uint16Array) {
-  if (f32_data.length != f16_data.length) {
-    throw Error(`Mismatch between f32 buffer with length ${f32_data.length} and f16 buffer with length ${f16_data.length}`);
-  }
-  const N = f32_data.length;
-  const u32_view = new Uint32Array(f32_data.buffer);
-  for (let i = 0; i < N; i++) {
-    // IEEE.754 32bit floating point format
-    // sign: 1, exponent: 8, mantissa: 23
-    // value = (-1)^sign * 2^(exponent-127) * (1 + mantissa*2^-23)
-    const f32_x = u32_view[i];
-    const f32_sign = (f32_x >> 31) & 0x1;
-    const f32_exponent = ((f32_x >> 23) & 0xFF) - 127;
-    const f32_mantissa = f32_x & 0x7FFFFF;
-
-    // IEEE.754 16bit floating point
-    // sign: 1, exponent: 5, mantissa: 10
-    // value = (-1)^sign * 2^(exponent-15) * (1 + mantissa*2^-10)
-    let f16_y = 0;
-    const f16_sign = f32_sign << 15;
-    // clamp exponent to displayable values
-    const f16_exponent = Math.min(Math.max(f32_exponent + 15, 0), 31);
-    const f16_mantissa = f32_mantissa >> 13;
-    f16_y = f16_sign | (f16_exponent << 10) | f16_mantissa;
-    f16_data[i] = f16_y;
-  }
-}
-
-export class WebgpuGrid2dRenderer {
-  adapter: GPUAdapter;
-  device: GPUDevice;
-  display_texture?: GPUTexture;
-  spline_dx_texture?: GPUTexture;
-  spline_dy_texture?: GPUTexture;
-  shader_render_texture: ShaderRenderTexture2;
-
-  constructor(adapter: GPUAdapter, device: GPUDevice) {
-    this.adapter = adapter;
-    this.device = device;
-    this.shader_render_texture = new ShaderRenderTexture2(device);
-  }
-
-  update_grid(grid: Grid) {
-    this.update_texture(grid.e_field);
-    this.update_dx_spline(grid.dx);
-    this.update_dy_spline(grid.dy);
-  }
-
-  update_texture(data: Ndarray) {
-    // TODO: Figure out best way of switching between v-field, e-field, energy normalised,
-    //       and grid normalised view (dx, dy lut for coordinate warping to better reflect real shape)
-    const shape = data.shape;
-    if (shape.length != 3) {
-      throw Error(`Tried to update grid 2d renderer with non 3d array: (${shape.join(',')})`);
-    }
-    const [height, width, channels] = shape;
-    if (channels != 2) {
-      throw Error(`Expected 2 channels but got ${channels} channels`);
-    }
-    if (
-      this.display_texture === undefined ||
-      this.display_texture.width != width ||
-      this.display_texture.height != height
-    ) {
-      this.display_texture = this.device.createTexture({
-        dimension: "2d",
-        format: "rg16float",
-        mipLevelCount: 1,
-        sampleCount: 1,
-        size: [width, height, 1],
-        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
-      });
-    }
-    const N = width*height*channels;
-    const f32_data = data.cast(Float32Array);
-    const f16_data = new Uint16Array(N);
-    convert_f32_to_f16(f32_data, f16_data);
-    this.device.queue.writeTexture(
-      { texture: this.display_texture },
-      f16_data,
-      { bytesPerRow: width*(2*channels) },
-      { width, height },
-    );
-  }
-
-  update_dy_spline(dy: Ndarray) {
-    if (dy.shape.length != 1) {
-      throw Error(`dy spline array should be 1 dimensional but got: (${dy.shape.join(',')})`);
-    }
-
-    const height: number = dy.shape[0];
-
-    if (
-      this.spline_dy_texture === undefined ||
-      this.spline_dy_texture.width != height
-    ) {
-      this.spline_dy_texture = this.device.createTexture({
-        dimension: "1d",
-        format: "r16float",
-        mipLevelCount: 1,
-        sampleCount: 1,
-        size: [height, 1, 1],
-        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
-      });
-    }
-
-    const f32_dy = dy.cast(Float32Array);
-    const f16_dy = new Uint16Array(height);
-    convert_f32_to_f16(f32_dy, f16_dy);
-    this.device.queue.writeTexture(
-      { texture: this.spline_dy_texture },
-      f16_dy,
-      { bytesPerRow: height*2 },
-      { width: height, height: 1 },
-    );
-  }
-
-  update_dx_spline(dx: Ndarray) {
-    if (dx.shape.length != 1) {
-      throw Error(`dx spline array should be 1 dimensional but got: (${dx.shape.join(',')})`);
-    }
-
-    const width: number = dx.shape[0];
-
-    if (
-      this.spline_dx_texture === undefined ||
-      this.spline_dx_texture.width != width
-    ) {
-      this.spline_dx_texture = this.device.createTexture({
-        dimension: "1d",
-        format: "r16float",
-        mipLevelCount: 1,
-        sampleCount: 1,
-        size: [width, 1, 1],
-        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
-      });
-    }
-
-    const f32_dx = dx.cast(Float32Array);
-    const f16_dx = new Uint16Array(width);
-    convert_f32_to_f16(f32_dx, f16_dx);
-    this.device.queue.writeTexture(
-      { texture: this.spline_dx_texture },
-      f16_dx,
-      { bytesPerRow: width*2 },
-      { width, height: 1 },
-    );
-  }
-
-  update_canvas(canvas: HTMLCanvasElement, scale: number, axis: number) {
-    if (this.display_texture === undefined) return;
-    if (this.spline_dx_texture === undefined) return;
-    if (this.spline_dy_texture === undefined) return;
-
-    const canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
-    if (canvas_context === null) {
-      throw Error("Failed to get webgpu context from canvas");
-    }
-    canvas_context.configure({
-      device: this.device,
-      format: navigator.gpu.getPreferredCanvasFormat(),
-      alphaMode: "premultiplied",
-    });
-
-    const canvas_texture_view = canvas_context.getCurrentTexture().createView();
-    const command_encoder = this.device.createCommandEncoder();
-    const display_texture_view = this.display_texture.createView({ dimension: "2d" });
-    const spline_dx_view = this.spline_dx_texture.createView({ dimension: "1d" });
-    const spline_dy_view = this.spline_dy_texture.createView({ dimension: "1d" });
-    this.shader_render_texture.create_pass(
-      command_encoder,
-      canvas_texture_view, display_texture_view, spline_dx_view, spline_dy_view,
-      scale, axis,
-    );
-    this.device.queue.submit([command_encoder.finish()]);
-  }
-
-  async wait_finished() {
-    await this.device.queue.onSubmittedWorkDone();
-  }
-}
-
-export function render_grid_to_canvas(canvas: HTMLCanvasElement, grid: Grid) {
-  const context = canvas.getContext("2d");
-  if (context === null) {
-    throw Error("Failed to retrieve 2d context from canvas");
-  }
-  const [Ny, Nx] = grid.size;
-  canvas.width = Nx;
-  canvas.height = Ny;
-
-  const image_data = context.createImageData(Nx, Ny);
-
-  const data = Ndarray.create_zeros([Ny,Nx], "f32");
-  const { v_field, e_field, dx, dy } = grid;
-  for (let y = 0; y < Ny; y++) {
-    for (let x = 0; x < Nx; x++) {
-      const _v = v_field.get([y,x]);
-      const ex = e_field.get([y,x,0]);
-      const ey = e_field.get([y,x,1]);
-      const dx_avg = (dx.get([Math.max(x-1,0)]) + dx.get([x]))/2.0;
-      const dy_avg = (dy.get([Math.max(y-1,0)]) + dy.get([y]))/2.0;
-      // e-field lies on boundary of yee-grid
-      const energy = (ex**2)*dx.get([x])*dy_avg + (ey**2)*dy.get([y])*dx_avg;
-      // const energy = ey*dy.get([y])*dx_avg;
-      // const energy = ex*dx.get([x])*dy_avg;
-      // const energy = ey;
-      // const energy = ex;
-      data.set([y,x], energy);
-    }
-  }
-  const data_max = data.cast(Float32Array).map(Math.abs).reduce((a,b) => Math.max(a,b), 0.0);
-  for (let y = 0; y < Ny; y++) {
-    for (let x = 0; x < Nx; x++) {
-      const i_image = 4*(x + y*Nx);
-      const d = data.get([y,x]);
-      const scale = 255/data_max;
-      const value = Math.min(Math.round(d*scale), 255);
-      const r = value;
-      const g = value;
-      const b = value;
-      // const r = Math.min(Math.round(d*scale), 255);
-      // const g = Math.min(Math.round(-d*scale), 255);
-      // const b = 0;
-      const a = 255;
-      image_data.data[i_image+0] = r;
-      image_data.data[i_image+1] = g;
-      image_data.data[i_image+2] = b;
-      image_data.data[i_image+3] = a;
-    }
-  }
-  context.putImageData(image_data, 0, 0);
 
 }
 
@@ -575,6 +221,10 @@ export async function perform_parameter_search(
   config: ParameterSearchConfig,
   energy_threshold: number,
 ): Promise<ParameterSearchResults> {
+  if (setup.grid === undefined) {
+    throw Error(`Tried to perform parametric search when setup grid was not created`);
+  }
+
   let found_upper_bound = false;
   let Z0_best: number | null = null;
   let best_step: number | null = null;
@@ -592,8 +242,8 @@ export async function perform_parameter_search(
     const v_pivot = found_upper_bound ? (v_lower+v_upper)/2.0 : v_upper;
     const params = param_getter(v_pivot);
     setup.update_params(params);
-    const run_result = setup.run(energy_threshold);
-    const impedance_result = setup.calculate_impedance();
+    const run_result = setup.grid.run(energy_threshold);
+    const impedance_result = setup.grid.calculate_impedance();
     const Z0 = impedance_result.Z0;
     console.log(`step=${curr_step}, value=${v_pivot}, Z0=${Z0}`);
 
@@ -661,5 +311,3 @@ export async function perform_parameter_search(
   };
 };
 
-
-export { init_wasm_module };

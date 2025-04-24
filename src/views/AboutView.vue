@@ -34,18 +34,27 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+
+// https://stackoverflow.com/a/68841834
+// this.$ref.viewer_2d will return a { __v_skip: True } instead of the child component
+// since the child component has a <script setup> tag
+import { defineExpose, ref } from "vue";
+const viewer_2d = ref(null);
+defineExpose({
+  viewer_2d
+});
 </script>
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { Ndarray } from "../app/ndarray.ts";
+import { Ndarray } from "../utility/ndarray.ts";
 import {
-  Setup, init_wasm_module,
-  type TransmissionLineParameters, type RunResult, type ImpedanceResult,
+  Setup,
+  type TransmissionLineParameters,
   type ParameterSearchConfig, type ParameterSearchResults, perform_parameter_search,
-  WebgpuGrid2dRenderer,
 } from "../app/app_2d.ts";
-import LineChart from "./LineChart.vue";
+import LineChart from "../components/LineChart.vue";
+import { Viewer2D } from "../components/viewer_2d";
 
 type SearchOption = "er0" | "er1" | "er0+er1" | "h0" | "h1" | "h0+h1" | "w" | "s" | "t";
 interface ParameterConfig {
@@ -78,17 +87,6 @@ function get_parameter_config(option: SearchOption): ParameterConfig {
   }
 }
 
-type FieldAxis = "x" | "y" | "mag" | "vec" | "energy";
-function field_axis_to_id(axis: FieldAxis): number {
-  switch (axis) {
-  case "x": return 0;
-  case "y": return 1;
-  case "mag": return 2;
-  case "vec": return 3;
-  case "energy": return 4;
-  }
-}
-
 interface ComponentData {
   setup: Setup;
   params: TransmissionLineParameters;
@@ -98,12 +96,13 @@ interface ComponentData {
   search_option: SearchOption;
   search_options: SearchOption[];
   search_config: ParameterSearchConfig;
-  grid2d_renderer?: WebgpuGrid2dRenderer;
-  display_axis: FieldAxis;
-  display_scale: number;
 }
 
 export default defineComponent({
+  components: {
+    Viewer2D,
+    LineChart,
+  },
   data(): ComponentData {
     return {
       setup: new Setup(),
@@ -128,9 +127,6 @@ export default defineComponent({
         early_stop_threshold: 1e-2,
         plateau_count: 5,
       },
-      grid2d_renderer: undefined,
-      display_axis: "vec",
-      display_scale: 1.0,
     };
   },
   methods: {
@@ -141,24 +137,20 @@ export default defineComponent({
       this.run();
     },
     run() {
+      const grid = this.setup.grid;
+      if (grid === undefined) return;
       const threshold = 10**this.energy_threshold;
-      this.run_result = this.setup.run(threshold);
-      this.impedance_result = this.setup.calculate_impedance();
-      this.upload_field_data();
-      void this.render_field_data();
+      this.run_result = grid.run(threshold);
+      this.impedance_result = grid.calculate_impedance();
+      void this.refresh_viewer();
     },
-    upload_field_data() {
-      if (this.setup.grid === undefined) return;
-      if (this.grid2d_renderer === undefined) return;
-      this.grid2d_renderer.update_grid(this.setup.grid);
-    },
-    async render_field_data() {
-      const canvas = this.$refs.field_canvas as (HTMLCanvasElement | null);
-      if (canvas === null) return;
-      if (this.grid2d_renderer === undefined) return;
-      const axis = field_axis_to_id(this.display_axis);
-      this.grid2d_renderer?.update_canvas(canvas, this.display_scale, axis);
-      await this.grid2d_renderer.wait_finished();
+    async refresh_viewer() {
+      const viewer = this.$refs.viewer_2d as (typeof Viewer2D | null);
+      const grid = this.setup.grid;
+      if (grid === undefined) return;
+      if (viewer === null) return;
+      viewer.upload_grid(grid);
+      await viewer.refresh_canvas();
     },
     reset() {
       this.setup.reset();
@@ -217,21 +209,7 @@ export default defineComponent({
     },
   },
   mounted() {
-    const mount = async () => {
-      // this.create_charts();
-      await init_wasm_module();
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        throw Error("Couldn't request WebGPU adapter.");
-      }
-      const device = await adapter.requestDevice();
-      if (!navigator.gpu) {
-        throw Error("WebGPU not supported.");
-      }
-      this.grid2d_renderer = new WebgpuGrid2dRenderer(adapter, device);
-      this.update_params();
-    };
-    void mount();
+    this.update_params();
   },
   beforeUnmount() {
 
@@ -242,12 +220,6 @@ export default defineComponent({
       this.search_config.v_lower = param_config.v_lower;
       this.search_config.v_upper = param_config.v_upper;
       this.search_config.is_positive_correlation = param_config.is_positive_correlation;
-    },
-    display_axis(_new_value, _old_value) {
-      void this.render_field_data();
-    },
-    display_scale(_new_value, _old_value) {
-      void this.render_field_data();
     },
   },
 });
@@ -410,24 +382,7 @@ export default defineComponent({
             <TabsTrigger value="dy">dy</TabsTrigger>
           </TabsList>
           <TabsContent value="field">
-            <form class="grid grid-cols-4 gap-x-3">
-              <Label for="display_scale">Display scale</Label>
-              <Input id="display_scale" type="number" v-model.number="display_scale" min="0" max="10" step="0.1"/>
-              <Label for="display_axis">Axis</Label>
-              <Select id="display_axis" v-model="display_axis">
-                <SelectTrigger class="w-auto">
-                  <SelectValue/>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem :value="'x'">Ex</SelectItem>
-                  <SelectItem :value="'y'">Ey</SelectItem>
-                  <SelectItem :value="'mag'">Magnitude</SelectItem>
-                  <SelectItem :value="'vec'">Vector</SelectItem>
-                  <SelectItem :value="'energy'">Energy</SelectItem>
-                </SelectContent>
-              </Select>
-            </form>
-            <canvas ref="field_canvas" id="field_canvas" class="w-[100%] h-[100%] pt-2"></canvas>
+            <Viewer2D ref="viewer_2d"></Viewer2D>
           </TabsContent>
           <TabsContent value="param_search">
             <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
@@ -445,7 +400,4 @@ export default defineComponent({
 </template>
 
 <style scoped>
-canvas#field_canvas {
-  image-rendering: pixelated;
-}
 </style>
