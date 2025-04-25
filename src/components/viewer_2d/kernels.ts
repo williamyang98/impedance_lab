@@ -1,6 +1,6 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
 
-export type Axis = "voltage" | "electric_x" | "electric_y" | "electric_mag" | "electric_vec" | "energy";
+export type Axis = "voltage" | "electric_x" | "electric_y" | "electric_mag" | "electric_vec" | "energy" | "force";
 
 function axis_to_shader_id(axis: Axis): number {
   switch (axis) {
@@ -10,6 +10,7 @@ function axis_to_shader_id(axis: Axis): number {
     case "electric_mag":  return 3;
     case "electric_vec":  return 4;
     case "energy":        return 5;
+    case "force":         return 6;
   }
 }
 
@@ -55,6 +56,7 @@ export class ShaderRenderTexture {
       @group(0) @binding(4) var spline_sampler: sampler;
       @group(0) @binding(5) var spline_dx: texture_1d<f32>;
       @group(0) @binding(6) var spline_dy: texture_1d<f32>;
+      @group(0) @binding(7) var v_force: texture_2d<f32>;
 
       struct VertexOut {
         @builtin(position) vertex_position : vec4f,
@@ -75,6 +77,7 @@ export class ShaderRenderTexture {
         let E = textureSampleLevel(e_field, grid_sampler, vertex.frag_position, 0.0).rg;
         let dx = textureSample(spline_dx, spline_sampler, vertex.frag_position.x).r;
         let dy = textureSample(spline_dy, spline_sampler, vertex.frag_position.y).r;
+        let V_force = textureSampleLevel(v_force, grid_sampler, vertex.frag_position, 0.0).r;
 
         var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
         if (params.axis == 0) {
@@ -98,6 +101,8 @@ export class ShaderRenderTexture {
           let dA = dx*dy;
           let energy = (E.x*E.x+E.y*E.y)*dA*params.scale*20;
           color = vec4f(energy, energy, energy, 1.0);
+        } else if (params.axis == 6) {
+          color = vec4f(max(-V_force*params.scale, 0), max(V_force*params.scale, 0), 0.0, 1.0);
         }
 
         return color;
@@ -195,6 +200,13 @@ export class ShaderRenderTexture {
             viewDimension: "1d",
           },
         },
+        {
+          binding: 7,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: {
+            viewDimension: "2d",
+          },
+        },
       ],
     });
     this.pipeline_layout = device.createPipelineLayout({
@@ -238,6 +250,7 @@ export class ShaderRenderTexture {
     e_field_view: GPUTextureView,
     spline_dx_view: GPUTextureView,
     spline_dy_view: GPUTextureView,
+    v_force_view: GPUTextureView,
     scale: number, axis: Axis,
   ) {
     this.params.set("scale", scale);
@@ -274,6 +287,10 @@ export class ShaderRenderTexture {
         {
           binding: 6,
           resource: spline_dy_view,
+        },
+        {
+          binding: 7,
+          resource: v_force_view,
         },
       ],
     });

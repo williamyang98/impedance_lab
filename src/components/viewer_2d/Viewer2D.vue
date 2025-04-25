@@ -81,6 +81,7 @@ defineExpose({
         <SelectItem :value="'electric_mag'">|E|</SelectItem>
         <SelectItem :value="'electric_vec'">Ê</SelectItem>
         <SelectItem :value="'energy'">Energy</SelectItem>
+        <SelectItem :value="'force'">Force</SelectItem>
       </SelectContent>
     </Select>
   </form>

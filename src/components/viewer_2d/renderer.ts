@@ -6,8 +6,9 @@ import { convert_f32_to_f16 } from "../../wasm/pkg/fdtd_core.js";
 export class Renderer {
   adapter: GPUAdapter;
   device: GPUDevice;
-  e_field_texture?: GPUTexture;
+  v_force_texture?: GPUTexture;
   v_field_texture?: GPUTexture;
+  e_field_texture?: GPUTexture;
   spline_dx_texture?: GPUTexture;
   spline_dy_texture?: GPUTexture;
   shader_render_texture: ShaderRenderTexture;
@@ -19,10 +20,58 @@ export class Renderer {
   }
 
   upload_grid(grid: Grid) {
+    this._upload_v_force(grid.v_force, grid.v_table);
     this._upload_v_field(grid.v_field);
     this._upload_e_field(grid.e_field);
     this._upload_dx_spline(grid.dx);
     this._upload_dy_spline(grid.dy);
+  }
+
+  _upload_v_force(v_force: Ndarray, v_table: Ndarray) {
+    const shape = v_force.shape;
+    if (shape.length != 2) {
+      throw Error(`Tried to update grid 2d renderer with non 2d array: (${shape.join(',')})`);
+    }
+    if (v_table.shape.length != 1) {
+      throw Error(`Voltage table should be 1d but has shape: (${v_table.shape.join(',')})`);
+    }
+    const [height, width] = shape;
+    if (
+      this.v_force_texture === undefined ||
+      this.v_force_texture.width != width ||
+      this.v_force_texture.height != height
+    ) {
+      this.v_force_texture = this.device.createTexture({
+        dimension: "2d",
+        format: "r16float",
+        mipLevelCount: 1,
+        sampleCount: 1,
+        size: [width, height, 1],
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+      });
+    }
+    const N = width*height;
+    const voltage = Ndarray.create_zeros(shape, "f32");
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = [y,x];
+        const data = v_force.get(i);
+        const v_index = (data >> 16) & 0xFFFF;
+        const v_beta = (data & 0xFFFF) / 0xFFFF;
+        const v_value = v_table.get([v_index]);
+        const v_input = v_beta*v_value;
+        voltage.set(i, v_input);
+      }
+    }
+    const f32_data = voltage.cast(Float32Array);
+    const f16_data = new Uint16Array(N);
+    convert_f32_to_f16(f32_data, f16_data);
+    this.device.queue.writeTexture(
+      { texture: this.v_force_texture },
+      f16_data,
+      { bytesPerRow: width*2 },
+      { width, height },
+    );
   }
 
   _upload_v_field(v_field: Ndarray) {
@@ -161,6 +210,7 @@ export class Renderer {
     if (this.e_field_texture === undefined) return;
     if (this.spline_dx_texture === undefined) return;
     if (this.spline_dy_texture === undefined) return;
+    if (this.v_force_texture === undefined) return;
 
     canvas_context.configure({
       device: this.device,
@@ -174,9 +224,10 @@ export class Renderer {
     const e_field_view = this.e_field_texture.createView({ dimension: "2d" });
     const spline_dx_view = this.spline_dx_texture.createView({ dimension: "1d" });
     const spline_dy_view = this.spline_dy_texture.createView({ dimension: "1d" });
+    const v_force_view = this.v_force_texture.createView({ dimension: "2d" });
     this.shader_render_texture.create_pass(
       command_encoder,
-      canvas_texture_view, v_field_view, e_field_view, spline_dx_view, spline_dy_view,
+      canvas_texture_view, v_field_view, e_field_view, spline_dx_view, spline_dy_view, v_force_view,
       scale, axis,
     );
     this.device.queue.submit([command_encoder.finish()]);
