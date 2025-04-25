@@ -21,7 +21,11 @@ export default defineComponent({
         await init_wasm_module();
         this.state = "finished";
       } catch (error) {
-        this.error_message = error.toString();
+        if (error instanceof Error) {
+          this.error_message = error.message;
+        } else {
+          this.error_message = String(error);
+        }
         this.state = "failed";
       }
     },

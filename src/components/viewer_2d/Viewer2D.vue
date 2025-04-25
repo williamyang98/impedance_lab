@@ -8,12 +8,14 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select"
-</script>
 
-<script lang="ts">
-import { defineComponent } from "vue";
 import { Renderer } from "./renderer.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
+
+import {
+  ref, watch, inject, useTemplateRef, defineExpose,
+  type ComputedRef,
+} from "vue";
 
 type FieldAxis = "x" | "y" | "mag" | "vec" | "energy";
 function field_axis_to_id(axis: FieldAxis): number {
@@ -26,48 +28,42 @@ function field_axis_to_id(axis: FieldAxis): number {
   }
 }
 
-interface ComponentData {
-  grid_renderer: Renderer;
-  display_axis: FieldAxis;
-  display_scale: number;
+const gpu_device_inject = inject<ComputedRef<GPUDevice>>("gpu_device");
+const gpu_adapter_inject = inject<ComputedRef<GPUAdapter>>("gpu_adapter");
+if (gpu_device_inject === undefined) throw Error(`Expected gpu_device to be injected from provider`);
+if (gpu_adapter_inject === undefined) throw Error(`Expected gpu_adapter to be injected from provider`);
+const gpu_device = gpu_device_inject.value;
+const gpu_adapter = gpu_adapter_inject.value;
+
+const grid_renderer = new Renderer(gpu_adapter, gpu_device);
+const display_axis = ref<FieldAxis>("vec");
+const display_scale = ref<number>(1.0);
+
+const field_canvas = useTemplateRef<HTMLCanvasElement>("field-canvas");
+
+function upload_grid(grid: Grid) {
+  grid_renderer.upload_grid(grid);
 }
 
-export default defineComponent({
-  inject: ["gpu_device", "gpu_adapter"],
-  // https://stackoverflow.com/a/68841834
-  // we are using defineExpose which requires us to specify exposed fields/methods
-  // this is because we have a <script setup> tag for this component which prevents auto-exposing
-  expose: ["upload_grid", "refresh_canvas"],
-  data(): ComponentData {
-    const grid_renderer = new Renderer(this.gpu_adapter, this.gpu_device);
-    return {
-      grid_renderer,
-      display_axis: "vec",
-      display_scale: 1.0,
-    };
-  },
-  methods: {
-    upload_grid(grid: Grid) {
-      this.grid_renderer.upload_grid(grid);
-    },
-    async refresh_canvas() {
-      const canvas = this.$refs.field_canvas as (HTMLCanvasElement | null);
-      if (canvas === null) return;
-      const axis = field_axis_to_id(this.display_axis);
-      this.grid_renderer.update_canvas(canvas, this.display_scale, axis);
-      await this.grid_renderer.wait_finished();
-    },
-  },
-  mounted() {
-  },
-  watch: {
-    display_axis(_new_value, _old_value) {
-      void this.refresh_canvas();
-    },
-    display_scale(_new_value, _old_value) {
-      void this.refresh_canvas();
-    },
-  },
+async function refresh_canvas() {
+  const canvas = field_canvas.value;
+  if (canvas === null) return;
+  const axis = field_axis_to_id(display_axis.value);
+  grid_renderer.update_canvas(canvas, display_scale.value, axis);
+  await grid_renderer.wait_finished();
+}
+
+watch(display_axis, async (_new_value, _old_value) => {
+  await refresh_canvas();
+});
+
+watch(display_scale, async (_new_value, _old_value) => {
+  await refresh_canvas();
+});
+
+defineExpose({
+  upload_grid,
+  refresh_canvas,
 });
 </script>
 
@@ -89,7 +85,7 @@ export default defineComponent({
       </SelectContent>
     </Select>
   </form>
-  <canvas ref="field_canvas" class="grid-view w-[100%] h-[100%] pt-2"></canvas>
+  <canvas ref="field-canvas" class="grid-view w-[100%] h-[100%] pt-2"></canvas>
 </template>
 
 <style scoped>
