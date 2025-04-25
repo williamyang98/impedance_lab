@@ -10,23 +10,13 @@ import {
 } from "@/components/ui/select"
 
 import { Renderer } from "./renderer.ts";
+import { type Axis } from "./kernels.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
 
 import {
-  ref, watch, inject, useTemplateRef, defineExpose,
+  ref, computed, watch, inject, useTemplateRef, defineExpose,
   type ComputedRef,
 } from "vue";
-
-type FieldAxis = "x" | "y" | "mag" | "vec" | "energy";
-function field_axis_to_id(axis: FieldAxis): number {
-  switch (axis) {
-  case "x": return 0;
-  case "y": return 1;
-  case "mag": return 2;
-  case "vec": return 3;
-  case "energy": return 4;
-  }
-}
 
 const gpu_device_inject = inject<ComputedRef<GPUDevice>>("gpu_device");
 const gpu_adapter_inject = inject<ComputedRef<GPUAdapter>>("gpu_adapter");
@@ -36,20 +26,28 @@ const gpu_device = gpu_device_inject.value;
 const gpu_adapter = gpu_adapter_inject.value;
 
 const grid_renderer = new Renderer(gpu_adapter, gpu_device);
-const display_axis = ref<FieldAxis>("vec");
+const display_axis = ref<Axis>("electric_vec");
 const display_scale = ref<number>(1.0);
 
-const field_canvas = useTemplateRef<HTMLCanvasElement>("field-canvas");
+const canvas_element = useTemplateRef<HTMLCanvasElement>("field-canvas");
+const canvas_context = computed<GPUCanvasContext>(() => {
+  const canvas = canvas_element.value;
+  if (canvas === null) {
+    throw Error(`Failed to get canvas element`);
+  }
+  const canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
+  if (canvas_context === null) {
+    throw Error("Failed to get webgpu context from canvas");
+  }
+  return canvas_context;
+});
 
 function upload_grid(grid: Grid) {
   grid_renderer.upload_grid(grid);
 }
 
 async function refresh_canvas() {
-  const canvas = field_canvas.value;
-  if (canvas === null) return;
-  const axis = field_axis_to_id(display_axis.value);
-  grid_renderer.update_canvas(canvas, display_scale.value, axis);
+  grid_renderer.update_canvas(canvas_context.value, display_scale.value, display_axis.value);
   await grid_renderer.wait_finished();
 }
 
@@ -77,10 +75,11 @@ defineExpose({
         <SelectValue/>
       </SelectTrigger>
       <SelectContent>
-        <SelectItem :value="'x'">Ex</SelectItem>
-        <SelectItem :value="'y'">Ey</SelectItem>
-        <SelectItem :value="'mag'">Magnitude</SelectItem>
-        <SelectItem :value="'vec'">Vector</SelectItem>
+        <SelectItem :value="'voltage'">V</SelectItem>
+        <SelectItem :value="'electric_x'">Ex</SelectItem>
+        <SelectItem :value="'electric_y'">Ey</SelectItem>
+        <SelectItem :value="'electric_mag'">|E|</SelectItem>
+        <SelectItem :value="'electric_vec'">Ê</SelectItem>
         <SelectItem :value="'energy'">Energy</SelectItem>
       </SelectContent>
     </Select>

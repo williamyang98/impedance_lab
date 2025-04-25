@@ -1,5 +1,18 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
 
+export type Axis = "voltage" | "electric_x" | "electric_y" | "electric_mag" | "electric_vec" | "energy";
+
+function axis_to_shader_id(axis: Axis): number {
+  switch (axis) {
+    case "voltage":       return 0;
+    case "electric_x":    return 1;
+    case "electric_y":    return 2;
+    case "electric_mag":  return 3;
+    case "electric_vec":  return 4;
+    case "energy":        return 5;
+  }
+}
+
 export class ShaderRenderTexture {
   label: string;
   device: GPUDevice;
@@ -37,10 +50,11 @@ export class ShaderRenderTexture {
 
       @group(0) @binding(0) var<uniform> params: Params;
       @group(0) @binding(1) var grid_sampler: sampler;
-      @group(0) @binding(2) var grid_texture: texture_2d<f32>;
-      @group(0) @binding(3) var spline_sampler: sampler;
-      @group(0) @binding(4) var spline_dx: texture_1d<f32>;
-      @group(0) @binding(5) var spline_dy: texture_1d<f32>;
+      @group(0) @binding(2) var v_field: texture_2d<f32>;
+      @group(0) @binding(3) var e_field: texture_2d<f32>;
+      @group(0) @binding(4) var spline_sampler: sampler;
+      @group(0) @binding(5) var spline_dx: texture_1d<f32>;
+      @group(0) @binding(6) var spline_dy: texture_1d<f32>;
 
       struct VertexOut {
         @builtin(position) vertex_position : vec4f,
@@ -57,33 +71,32 @@ export class ShaderRenderTexture {
 
       @fragment
       fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
-        let data = textureSampleLevel(grid_texture, grid_sampler, vertex.frag_position, 0.0);
-        let Ex = data.r*params.scale;
-        let Ey = data.g*params.scale;
+        let V = textureSampleLevel(v_field, grid_sampler, vertex.frag_position, 0.0).r;
+        let E = textureSampleLevel(e_field, grid_sampler, vertex.frag_position, 0.0).rg;
         let dx = textureSample(spline_dx, spline_sampler, vertex.frag_position.x).r;
         let dy = textureSample(spline_dy, spline_sampler, vertex.frag_position.y).r;
 
         var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
         if (params.axis == 0) {
-          color = vec4f(max(-Ex, 0), max(Ex, 0), 0, 1.0);
+          color = vec4f(max(-V*params.scale, 0), max(V*params.scale, 0), 0.0, 1.0);
         } else if (params.axis == 1) {
-          color = vec4f(max(-Ey, 0), max(Ey, 0), 0, 1.0);
+          color = vec4f(max(-E.x*params.scale, 0), max(E.x*params.scale, 0), 0, 1.0);
         } else if (params.axis == 2) {
-          let E: vec2<f32> = vec2<f32>(Ex, Ey);
-          let mag = length(E);
-          color = vec4f(mag, mag, mag, 1.0);
+          color = vec4f(max(-E.y*params.scale, 0), max(E.y*params.scale, 0), 0, 1.0);
         } else if (params.axis == 3) {
-          let E: vec2<f32> = vec2<f32>(Ex, Ey);
-          let angle = atan2(Ey, -Ex);
-          let value = length(E);
+          let mag = length(E)*params.scale;
+          color = vec4f(mag, mag, mag, 1.0);
+        } else if (params.axis == 4) {
+          let angle = atan2(E.y, -E.x);
+          let value = length(E)*params.scale;
 
           let hue = angle / (2.0*3.1415) + 0.5;
           let saturation = 1.0;
           let rgb = hsv_to_rgb(vec3<f32>(hue, saturation, value));
           color = vec4<f32>(rgb.r, rgb.g, rgb.b, 1.0);
-        } else if (params.axis == 4) {
+        } else if (params.axis == 5) {
           let dA = dx*dy;
-          let energy = (Ex*Ex+Ey*Ey)*dA*20.0;
+          let energy = (E.x*E.x+E.y*E.y)*dA*params.scale*20;
           color = vec4f(energy, energy, energy, 1.0);
         }
 
@@ -157,19 +170,26 @@ export class ShaderRenderTexture {
         {
           binding: 3,
           visibility: GPUShaderStage.FRAGMENT,
+          texture: {
+            viewDimension: "2d",
+          },
+        },
+        {
+          binding: 4,
+          visibility: GPUShaderStage.FRAGMENT,
           sampler: {
             type: "filtering",
           },
         },
         {
-          binding: 4,
+          binding: 5,
           visibility: GPUShaderStage.FRAGMENT,
           texture: {
             viewDimension: "1d",
           },
         },
         {
-          binding: 5,
+          binding: 6,
           visibility: GPUShaderStage.FRAGMENT,
           texture: {
             viewDimension: "1d",
@@ -214,13 +234,14 @@ export class ShaderRenderTexture {
   create_pass(
     command_encoder: GPUCommandEncoder,
     output_texture_view: GPUTextureView,
-    gpu_texture_view: GPUTextureView,
+    v_field_view: GPUTextureView,
+    e_field_view: GPUTextureView,
     spline_dx_view: GPUTextureView,
     spline_dy_view: GPUTextureView,
-    scale: number, axis: number,
+    scale: number, axis: Axis,
   ) {
     this.params.set("scale", scale);
-    this.params.set("axis", axis);
+    this.params.set("axis", axis_to_shader_id(axis));
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
     const bind_group = this.device.createBindGroup({
@@ -236,18 +257,22 @@ export class ShaderRenderTexture {
         },
         {
           binding: 2,
-          resource: gpu_texture_view,
+          resource: v_field_view,
         },
         {
           binding: 3,
-          resource: this.spline_sampler,
+          resource: e_field_view,
         },
         {
           binding: 4,
-          resource: spline_dx_view,
+          resource: this.spline_sampler,
         },
         {
           binding: 5,
+          resource: spline_dx_view,
+        },
+        {
+          binding: 6,
           resource: spline_dy_view,
         },
       ],

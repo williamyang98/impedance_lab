@@ -1,12 +1,13 @@
-import { ShaderRenderTexture } from "./kernels.ts";
+import { ShaderRenderTexture, type Axis } from "./kernels.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
-import { convert_f32_to_f16 } from "../../utility/convert_f32_to_f16.ts";
+import { convert_f32_to_f16 } from "../../wasm/pkg/fdtd_core.js";
 
 export class Renderer {
   adapter: GPUAdapter;
   device: GPUDevice;
-  display_texture?: GPUTexture;
+  e_field_texture?: GPUTexture;
+  v_field_texture?: GPUTexture;
   spline_dx_texture?: GPUTexture;
   spline_dy_texture?: GPUTexture;
   shader_render_texture: ShaderRenderTexture;
@@ -18,15 +19,46 @@ export class Renderer {
   }
 
   upload_grid(grid: Grid) {
-    this._upload_texture(grid.e_field);
+    this._upload_v_field(grid.v_field);
+    this._upload_e_field(grid.e_field);
     this._upload_dx_spline(grid.dx);
     this._upload_dy_spline(grid.dy);
   }
 
-  _upload_texture(data: Ndarray) {
-    // TODO: Figure out best way of switching between v-field, e-field, energy normalised,
-    //       and grid normalised view (dx, dy lut for coordinate warping to better reflect real shape)
-    const shape = data.shape;
+  _upload_v_field(v_field: Ndarray) {
+    const shape = v_field.shape;
+    if (shape.length != 2) {
+      throw Error(`Tried to update grid 2d renderer with non 2d array: (${shape.join(',')})`);
+    }
+    const [height, width] = shape;
+    if (
+      this.v_field_texture === undefined ||
+      this.v_field_texture.width != width ||
+      this.v_field_texture.height != height
+    ) {
+      this.v_field_texture = this.device.createTexture({
+        dimension: "2d",
+        format: "r16float",
+        mipLevelCount: 1,
+        sampleCount: 1,
+        size: [width, height, 1],
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+      });
+    }
+    const N = width*height;
+    const f32_data = v_field.cast(Float32Array);
+    const f16_data = new Uint16Array(N);
+    convert_f32_to_f16(f32_data, f16_data);
+    this.device.queue.writeTexture(
+      { texture: this.v_field_texture },
+      f16_data,
+      { bytesPerRow: width*2 },
+      { width, height },
+    );
+  }
+
+  _upload_e_field(e_field: Ndarray) {
+    const shape = e_field.shape;
     if (shape.length != 3) {
       throw Error(`Tried to update grid 2d renderer with non 3d array: (${shape.join(',')})`);
     }
@@ -35,11 +67,11 @@ export class Renderer {
       throw Error(`Expected 2 channels but got ${channels} channels`);
     }
     if (
-      this.display_texture === undefined ||
-      this.display_texture.width != width ||
-      this.display_texture.height != height
+      this.e_field_texture === undefined ||
+      this.e_field_texture.width != width ||
+      this.e_field_texture.height != height
     ) {
-      this.display_texture = this.device.createTexture({
+      this.e_field_texture = this.device.createTexture({
         dimension: "2d",
         format: "rg16float",
         mipLevelCount: 1,
@@ -49,11 +81,11 @@ export class Renderer {
       });
     }
     const N = width*height*channels;
-    const f32_data = data.cast(Float32Array);
+    const f32_data = e_field.cast(Float32Array);
     const f16_data = new Uint16Array(N);
     convert_f32_to_f16(f32_data, f16_data);
     this.device.queue.writeTexture(
-      { texture: this.display_texture },
+      { texture: this.e_field_texture },
       f16_data,
       { bytesPerRow: width*(2*channels) },
       { width, height },
@@ -124,15 +156,12 @@ export class Renderer {
     );
   }
 
-  update_canvas(canvas: HTMLCanvasElement, scale: number, axis: number) {
-    if (this.display_texture === undefined) return;
+  update_canvas(canvas_context: GPUCanvasContext, scale: number, axis: Axis) {
+    if (this.v_field_texture === undefined) return;
+    if (this.e_field_texture === undefined) return;
     if (this.spline_dx_texture === undefined) return;
     if (this.spline_dy_texture === undefined) return;
 
-    const canvas_context: GPUCanvasContext | null = canvas.getContext("webgpu");
-    if (canvas_context === null) {
-      throw Error("Failed to get webgpu context from canvas");
-    }
     canvas_context.configure({
       device: this.device,
       format: navigator.gpu.getPreferredCanvasFormat(),
@@ -141,12 +170,13 @@ export class Renderer {
 
     const canvas_texture_view = canvas_context.getCurrentTexture().createView();
     const command_encoder = this.device.createCommandEncoder();
-    const display_texture_view = this.display_texture.createView({ dimension: "2d" });
+    const v_field_view = this.v_field_texture.createView({ dimension: "2d" });
+    const e_field_view = this.e_field_texture.createView({ dimension: "2d" });
     const spline_dx_view = this.spline_dx_texture.createView({ dimension: "1d" });
     const spline_dy_view = this.spline_dy_texture.createView({ dimension: "1d" });
     this.shader_render_texture.create_pass(
       command_encoder,
-      canvas_texture_view, display_texture_view, spline_dx_view, spline_dy_view,
+      canvas_texture_view, v_field_view, e_field_view, spline_dx_view, spline_dy_view,
       scale, axis,
     );
     this.device.queue.submit([command_encoder.finish()]);
@@ -155,57 +185,4 @@ export class Renderer {
   async wait_finished() {
     await this.device.queue.onSubmittedWorkDone();
   }
-}
-
-export function cpu_render_grid_to_canvas(canvas: HTMLCanvasElement, grid: Grid) {
-  const context = canvas.getContext("2d");
-  if (context === null) {
-    throw Error("Failed to retrieve 2d context from canvas");
-  }
-  const [Ny, Nx] = grid.size;
-  canvas.width = Nx;
-  canvas.height = Ny;
-
-  const image_data = context.createImageData(Nx, Ny);
-
-  const data = Ndarray.create_zeros([Ny,Nx], "f32");
-  const { v_field, e_field, dx, dy } = grid;
-  for (let y = 0; y < Ny; y++) {
-    for (let x = 0; x < Nx; x++) {
-      const _v = v_field.get([y,x]);
-      const ex = e_field.get([y,x,0]);
-      const ey = e_field.get([y,x,1]);
-      const dx_avg = (dx.get([Math.max(x-1,0)]) + dx.get([x]))/2.0;
-      const dy_avg = (dy.get([Math.max(y-1,0)]) + dy.get([y]))/2.0;
-      // e-field lies on boundary of yee-grid
-      const energy = (ex**2)*dx.get([x])*dy_avg + (ey**2)*dy.get([y])*dx_avg;
-      // const energy = ey*dy.get([y])*dx_avg;
-      // const energy = ex*dx.get([x])*dy_avg;
-      // const energy = ey;
-      // const energy = ex;
-      data.set([y,x], energy);
-    }
-  }
-  const data_max = data.cast(Float32Array).map(Math.abs).reduce((a,b) => Math.max(a,b), 0.0);
-  for (let y = 0; y < Ny; y++) {
-    for (let x = 0; x < Nx; x++) {
-      const i_image = 4*(x + y*Nx);
-      const d = data.get([y,x]);
-      const scale = 255/data_max;
-      const value = Math.min(Math.round(d*scale), 255);
-      const r = value;
-      const g = value;
-      const b = value;
-      // const r = Math.min(Math.round(d*scale), 255);
-      // const g = Math.min(Math.round(-d*scale), 255);
-      // const b = 0;
-      const a = 255;
-      image_data.data[i_image+0] = r;
-      image_data.data[i_image+1] = g;
-      image_data.data[i_image+2] = b;
-      image_data.data[i_image+3] = a;
-    }
-  }
-  context.putImageData(image_data, 0, 0);
-
 }
