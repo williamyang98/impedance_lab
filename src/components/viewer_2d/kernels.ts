@@ -78,20 +78,21 @@ export class ShaderRenderTexture {
         let dx = textureSample(spline_dx, spline_sampler, vertex.frag_position.x).r;
         let dy = textureSample(spline_dy, spline_sampler, vertex.frag_position.y).r;
         let V_force = textureSampleLevel(v_force, grid_sampler, vertex.frag_position, 0.0).rg;
+        let alpha_scale: f32 = 100.0;
 
         var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
         if (params.axis == 0) {
           let value = V*params.scale;
-          color = vec4f(-value, value, 0.0, abs(value));
+          color = vec4f(-value, value, 0.0, abs(value)*alpha_scale);
         } else if (params.axis == 1) {
           let value = E.x*params.scale;
-          color = vec4f(-value, value, 0, abs(value));
+          color = vec4f(-value, value, 0, abs(value)*alpha_scale);
         } else if (params.axis == 2) {
           let value = E.y*params.scale;
-          color = vec4f(-value, value, 0, abs(value));
+          color = vec4f(-value, value, 0, abs(value)*alpha_scale);
         } else if (params.axis == 3) {
           let value = length(E)*params.scale;
-          color = vec4f(value, value, value, value);
+          color = vec4f(value, value, value, value*alpha_scale);
         } else if (params.axis == 4) {
           let angle = atan2(E.y, -E.x);
           let value = length(E)*params.scale;
@@ -99,12 +100,12 @@ export class ShaderRenderTexture {
           let hue = angle / (2.0*3.1415) + 0.5;
           let saturation = 1.0;
           let rgb = hsv_to_rgb(vec3<f32>(hue, saturation, value));
-          color = vec4<f32>(rgb.r, rgb.g, rgb.b, value);
+          color = vec4<f32>(rgb.r, rgb.g, rgb.b, value*alpha_scale);
         } else if (params.axis == 5) {
           let dA = dx*dy;
           let energy = (E.x*E.x+E.y*E.y)*dA;
           let value = energy*params.scale*20;
-          color = vec4f(value, value, value, value);
+          color = vec4f(value, value, value, value*alpha_scale);
         } else if (params.axis == 6) {
           let V_input = V_force.r*params.scale;
           let V_beta = V_force.g;
