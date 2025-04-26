@@ -149,4 +149,12 @@ export class Grid {
       propagation_delay,
     };
   }
+
+  get width(): number {
+    return this.dx.cast(Float32Array).reduce((a,b) => a+b, 0);
+  }
+
+  get height(): number {
+    return this.dy.cast(Float32Array).reduce((a,b) => a+b, 0);
+  }
 }
