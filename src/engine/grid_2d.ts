@@ -176,4 +176,78 @@ export class RegionGrid {
     const i_end = [this.y_region_to_grid_indices[y_end], this.x_region_to_grid_indices[x_end]];
     return this.grid.epsilon_k.hi(i_end).lo(i_start);
   }
+
+  v_force_region_with_sdf(
+    start: [number, number], end: [number, number],
+    voltage_index: number,
+    sdf: (x_norm: number, y_norm: number) => number,
+  ) {
+    const v_force = this.v_force_region(start, end);
+    const dx_arr = this.dx_region(start[1], end[1]);
+    const dy_arr = this.dy_region(start[0], end[0]);
+    const width = this.x_regions.slice(start[1], end[1]).reduce((a,b) => a+b, 0);
+    const height = this.y_regions.slice(start[0], end[0]).reduce((a,b) => a+b, 0);
+
+    const [Ny, Nx] = v_force.shape;
+
+    // 4x MSAA
+    const My = 2;
+    const Mx = 2;
+
+    const y_offsets: number[] = new Array(Ny);
+    const x_offsets: number[] = new Array(Nx);
+    for (let y = 0, y_offset = 0; y < Ny; y++) {
+      const dy = dy_arr.get([y]);
+      y_offsets[y] = y_offset;
+      y_offset += dy;
+    }
+    for (let x = 0, x_offset = 0; x < Nx; x++) {
+      const dx = dx_arr.get([x]);
+      x_offsets[x] = x_offset;
+      x_offset += dx;
+    }
+
+    for (let y = 0; y < Ny; y++) {
+      const y_offset = y_offsets[y];
+      const dy = dy_arr.get([y]);
+      for (let x = 0; x < Nx; x++) {
+        const x_offset = x_offsets[x];
+        const dx = dx_arr.get([x]);
+        const i = [y,x];
+        // perform multisampling
+        let total_samples = 0;
+        let total_beta = 0;
+        for (let mx = 0; mx < Mx; mx++) {
+          for (let my = 0; my < My; my++) {
+            const ex = (mx+0.5)/Mx;
+            const ey = (my+0.5)/My;
+            const x_norm = (x_offset+dx*ex)/width;
+            const y_norm = (y_offset+dy*ey)/height;
+            total_beta += sdf(x_norm, y_norm);
+            total_samples++;
+          }
+        }
+        const beta = total_beta/total_samples;
+        const beta_quantised = Math.floor(0xFFFF*beta);
+        v_force.set(i, (voltage_index << 16) | beta_quantised);
+      }
+    }
+  }
 }
+
+export function normalise_regions(x_regions: number[], y_regions: number[]) {
+  const x_region_min = x_regions.reduce((a,b) => Math.min(a,b), Infinity);
+  const y_region_min = y_regions.reduce((a,b) => Math.min(a,b), Infinity);
+  const region_min = Math.min(x_region_min, y_region_min);
+  for (let i = 0; i < x_regions.length; i++) {
+    x_regions[i] /= region_min;
+  }
+  for (let i = 0; i < y_regions.length; i++) {
+    y_regions[i] /= region_min;
+  }
+}
+
+export const sdf_slope_top_left = (x: number, y: number) => (y > x) ? 1.0 : 0.0;
+export const sdf_slope_top_right = (x: number, y: number) => (y > 1-x) ? 1.0 : 0.0;
+export const sdf_slope_bottom_left = (x: number, y: number) => (y < 1-x) ? 1.0 : 0.0;
+export const sdf_slope_bottom_right = (x: number, y: number) => (y < x) ? 1.0 : 0.0;
