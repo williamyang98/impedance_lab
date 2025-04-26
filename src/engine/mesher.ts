@@ -97,7 +97,7 @@ export function generate_asymmetric_geometric_grid_from_regions(
 ): AsymmetricGeometricGrid[] {
   const min_region = regions.reduce((a,b) => Math.min(a,b), Infinity);
   min_region_subdivisions = min_region_subdivisions ?? 3;
-  max_ratio = max_ratio ?? 0.35;
+  max_ratio = max_ratio ?? 0.5;
 
   const min_grid_resolution = regions
     .map((region) => region/min_region_subdivisions)
