@@ -77,18 +77,21 @@ export class ShaderRenderTexture {
         let E = textureSampleLevel(e_field, grid_sampler, vertex.frag_position, 0.0).rg;
         let dx = textureSample(spline_dx, spline_sampler, vertex.frag_position.x).r;
         let dy = textureSample(spline_dy, spline_sampler, vertex.frag_position.y).r;
-        let V_force = textureSampleLevel(v_force, grid_sampler, vertex.frag_position, 0.0).r;
+        let V_force = textureSampleLevel(v_force, grid_sampler, vertex.frag_position, 0.0).rg;
 
         var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
         if (params.axis == 0) {
-          color = vec4f(max(-V*params.scale, 0), max(V*params.scale, 0), 0.0, 1.0);
+          let value = V*params.scale;
+          color = vec4f(-value, value, 0.0, abs(value));
         } else if (params.axis == 1) {
-          color = vec4f(max(-E.x*params.scale, 0), max(E.x*params.scale, 0), 0, 1.0);
+          let value = E.x*params.scale;
+          color = vec4f(-value, value, 0, abs(value));
         } else if (params.axis == 2) {
-          color = vec4f(max(-E.y*params.scale, 0), max(E.y*params.scale, 0), 0, 1.0);
+          let value = E.y*params.scale;
+          color = vec4f(-value, value, 0, abs(value));
         } else if (params.axis == 3) {
-          let mag = length(E)*params.scale;
-          color = vec4f(mag, mag, mag, 1.0);
+          let value = length(E)*params.scale;
+          color = vec4f(value, value, value, value);
         } else if (params.axis == 4) {
           let angle = atan2(E.y, -E.x);
           let value = length(E)*params.scale;
@@ -96,16 +99,33 @@ export class ShaderRenderTexture {
           let hue = angle / (2.0*3.1415) + 0.5;
           let saturation = 1.0;
           let rgb = hsv_to_rgb(vec3<f32>(hue, saturation, value));
-          color = vec4<f32>(rgb.r, rgb.g, rgb.b, 1.0);
+          color = vec4<f32>(rgb.r, rgb.g, rgb.b, value);
         } else if (params.axis == 5) {
           let dA = dx*dy;
-          let energy = (E.x*E.x+E.y*E.y)*dA*params.scale*20;
-          color = vec4f(energy, energy, energy, 1.0);
+          let energy = (E.x*E.x+E.y*E.y)*dA;
+          let value = energy*params.scale*20;
+          color = vec4f(value, value, value, value);
         } else if (params.axis == 6) {
-          color = vec4f(max(-V_force*params.scale, 0), max(V_force*params.scale, 0), 0.0, 1.0);
+          let V_input = V_force.r*params.scale;
+          let V_beta = V_force.g;
+          let cmap = red_green_cmap(V_input);
+          color = vec4f(cmap, V_beta);
         }
 
         return color;
+      }
+
+      fn red_green_cmap(value: f32) -> vec3<f32> {
+        const neg_color = vec3<f32>(1.0, 0.0, 0.0);
+        const mid_color = vec3<f32>(1.0, 1.0, 1.0);
+        const pos_color = vec3<f32>(0.0, 1.0, 0.0);
+
+        let alpha = clamp(value, -1.0, 1.0);
+        if (alpha < 0.0) {
+          return mix(neg_color, mid_color, alpha+1);
+        } else {
+          return mix(mid_color, pos_color, alpha);
+        }
       }
 
       // https://stackoverflow.com/a/17897228
@@ -223,7 +243,22 @@ export class ShaderRenderTexture {
         entryPoint: "fragment_main",
         targets: [
           {
+            // we are output to canvas texture
             format: navigator.gpu.getPreferredCanvasFormat(),
+            // alpha blending
+            blend: {
+              color: {
+                srcFactor: 'src-alpha',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add',
+              },
+              alpha: {
+                srcFactor: 'one',
+                dstFactor: 'one-minus-src-alpha',
+                operation: 'add',
+              },
+            },
+            writeMask: GPUColorWrite.ALL,
           },
         ],
       },
@@ -232,7 +267,7 @@ export class ShaderRenderTexture {
         topology: "triangle-list",
       },
     });
-    this.clear_color = { r: 0.0, g: 0.5, b: 1.0, a: 1.0 };
+    this.clear_color = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
     this.grid_sampler = device.createSampler({
       magFilter: "nearest",
       minFilter: "nearest",

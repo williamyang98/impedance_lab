@@ -85,7 +85,7 @@ defineExpose({
       </SelectContent>
     </Select>
   </form>
-  <canvas ref="field-canvas" class="grid-view w-[100%] h-[100%] pt-2"></canvas>
+  <canvas ref="field-canvas" class="grid-view w-[100%] h-[100%] mt-2 rounded-sm border-1 border-slate-300"></canvas>
 </template>
 
 <style scoped>

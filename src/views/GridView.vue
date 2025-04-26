@@ -53,9 +53,17 @@ function normalise_regions(x_regions: number[], y_regions: number[]) {
 const x_regions = [0.1334, 0.15, 0.1334];
 const y_regions = [0.1, 0.05, 0.1];
 normalise_regions(x_regions, y_regions);
-const region_grid = new RegionGrid(x_regions, y_regions);
+const region_grid = new RegionGrid({
+  x_regions,
+  y_regions,
+  y_pad_height: 2,
+});
+
+region_grid.v_force_region([0,0],[1,5]).fill((0<<16) | 0xFFFF);
+region_grid.v_force_region([4,0],[5,5]).fill((0<<16) | 0xFFFF);
 region_grid.v_force_region([2,1],[3,2]).fill((1<<16) | 0xFFFF);
 region_grid.v_force_region([2,3],[3,4]).fill((2<<16) | 0xFFFF);
+region_grid.grid.v_table.set([0], 0);
 region_grid.grid.v_table.set([1], 1);
 region_grid.grid.v_table.set([2], -1);
 region_grid.grid.bake();

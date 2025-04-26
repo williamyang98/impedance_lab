@@ -41,17 +41,17 @@ export class Renderer {
       this.v_force_texture.width != width ||
       this.v_force_texture.height != height
     ) {
+      // store value/beta pairs in red/green channels
       this.v_force_texture = this.device.createTexture({
         dimension: "2d",
-        format: "r16float",
+        format: "rg16float",
         mipLevelCount: 1,
         sampleCount: 1,
         size: [width, height, 1],
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const N = width*height;
-    const voltage = Ndarray.create_zeros(shape, "f32");
+    const voltage = Ndarray.create_zeros([...shape, 2], "f32");
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const i = [y,x];
@@ -59,17 +59,17 @@ export class Renderer {
         const v_index = (data >> 16) & 0xFFFF;
         const v_beta = (data & 0xFFFF) / 0xFFFF;
         const v_value = v_table.get([v_index]);
-        const v_input = v_beta*v_value;
-        voltage.set(i, v_input);
+        voltage.set([...i, 0], v_value);
+        voltage.set([...i, 1], v_beta);
       }
     }
     const f32_data = voltage.cast(Float32Array);
-    const f16_data = new Uint16Array(N);
+    const f16_data = new Uint16Array(f32_data.length);
     convert_f32_to_f16(f32_data, f16_data);
     this.device.queue.writeTexture(
       { texture: this.v_force_texture },
       f16_data,
-      { bytesPerRow: width*2 },
+      { bytesPerRow: width*2*2 },
       { width, height },
     );
   }
