@@ -251,3 +251,61 @@ export const sdf_slope_top_left = (x: number, y: number) => (y > x) ? 1.0 : 0.0;
 export const sdf_slope_top_right = (x: number, y: number) => (y > 1-x) ? 1.0 : 0.0;
 export const sdf_slope_bottom_left = (x: number, y: number) => (y < 1-x) ? 1.0 : 0.0;
 export const sdf_slope_bottom_right = (x: number, y: number) => (y < x) ? 1.0 : 0.0;
+
+export class GridLines {
+  id_to_index: number[] = [];
+  lines: number[] = [];
+  is_sorted: boolean = false;
+
+  get length(): number {
+    return this.id_to_index.length;
+  }
+
+  push(line: number): number {
+    const id = this.lines.length;
+    if (id > 0 && this.lines[id-1] > line) {
+      this.is_sorted = false;
+    }
+    this.lines.push(line);
+    this.id_to_index.push(id);
+    return id;
+  }
+
+  sort() {
+    const N = this.lines.length;
+    const sort_indices: number[] = new Array(N);
+    for (let i = 0; i < N; i++) {
+      sort_indices[i] = i;
+    }
+
+    sort_indices.sort((a,b) => this.lines[a] - this.lines[b]);
+    this.lines = sort_indices.map((i) => this.lines[i]);
+    const new_id_to_index = new Array(N);
+    for (let i = 0; i < N; i++) {
+      const new_i = sort_indices[i];
+      new_id_to_index[new_i] = this.id_to_index[i];
+    }
+    this.id_to_index = new_id_to_index;
+    this.is_sorted = true;
+  }
+
+  get_index(id: number) {
+    return this.id_to_index[id];
+  }
+
+  get_line(id: number) {
+    const index = this.id_to_index[id];
+    return this.lines[index];
+  }
+
+  to_regions(): number[] {
+    if (!this.is_sorted) this.sort();
+    const N = this.id_to_index.length;
+    if (N < 2) throw Error(`Need at least 2 grid lines for a region`);
+    const regions = new Array(N-1);
+    for (let i = 0; i < (N-1); i++) {
+      regions[i] = this.lines[i+1]-this.lines[i];
+    }
+    return regions;
+  }
+}

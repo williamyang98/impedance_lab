@@ -4,6 +4,7 @@ import { Calculator, Cuboid, Grid2x2 } from 'lucide-vue-next';
 import HomeView from './views/HomeView.vue';
 import AboutView from './views/AboutView.vue';
 import GridView from './views/GridView.vue';
+import TestView from './views/TestView.vue';
 
 export interface CustomRoute {
   name: string;
@@ -30,5 +31,11 @@ export const routes: CustomRoute[] = [
     path: "/mesher",
     view_component: GridView,
     icon_component: Grid2x2,
+  },
+  {
+    name: "Test",
+    path: "/test",
+    view_component: TestView,
+    icon_component: Calculator,
   },
 ];
