@@ -75,7 +75,7 @@ if (false) {
   {
     transmission_line.signal_width.value = 10;
     transmission_line.trace_taper.value = 0;
-    transmission_line.trace_height.value = 0.01;
+    transmission_line.trace_height.value = 1;
     transmission_line.plane_height.value = 63;
     transmission_line.plane_epsilon.value = 4;
   }

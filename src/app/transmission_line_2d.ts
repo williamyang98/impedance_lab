@@ -29,6 +29,8 @@ class TransmissionLineLayout {
   y_grid_lines = new GridLines();
   x_location: number = 0;
   y_location: number = 0;
+  x_tolerance: number = 1e-6;
+  y_tolerance: number = 1e-6;
   traces: Trace[] = [];
   layers: Layer[] = [];
   region_grid?: RegionGrid = undefined;
@@ -42,10 +44,10 @@ class TransmissionLineLayout {
     this.x_location += width;
     const x_right = this.x_location;
 
-    const ix_taper_left = this.x_grid_lines.push(x_left);
-    const ix_taper_right = this.x_grid_lines.push(x_right);
-    const ix_signal_left = this.x_grid_lines.push(x_left+left_taper);
-    const ix_signal_right = this.x_grid_lines.push(x_right-right_taper);
+    const ix_taper_left = this.x_grid_lines.push(x_left, this.x_tolerance);
+    const ix_taper_right = this.x_grid_lines.push(x_right, this.x_tolerance);
+    const ix_signal_left = this.x_grid_lines.push(x_left+left_taper, this.x_tolerance);
+    const ix_signal_right = this.x_grid_lines.push(x_right-right_taper, this.x_tolerance);
 
     const trace = {
       ix_taper_left,
@@ -58,9 +60,9 @@ class TransmissionLineLayout {
   }
 
   push_horizontal_separation(width: number) {
-    this.x_grid_lines.push(this.x_location);
+    this.x_grid_lines.push(this.x_location, this.x_tolerance);
     this.x_location += width;
-    this.x_grid_lines.push(this.x_location);
+    this.x_grid_lines.push(this.x_location, this.x_tolerance);
   }
 
   push_layer(height: number): Layer {
@@ -68,8 +70,8 @@ class TransmissionLineLayout {
     this.y_location += height;
     const y_end = this.y_location;
 
-    const iy_start = this.y_grid_lines.push(y_start);
-    const iy_end = this.y_grid_lines.push(y_end);
+    const iy_start = this.y_grid_lines.push(y_start, this.y_tolerance);
+    const iy_end = this.y_grid_lines.push(y_end, this.y_tolerance);
     const layer = {
       iy_start,
       iy_end,
@@ -129,6 +131,7 @@ class TransmissionLineLayout {
     const gy_end = v_force.y_region_to_grid(ry_end);
 
     // expand voltage field to include the next index so voltage along boundary of conductor is met
+    // also allow infinitely flat traces (gy_start == gy_end)
     if (gx_taper_left < gx_signal_left) {
       v_force.transform_norm_grid(
         [gy_start, gx_taper_left],
@@ -171,12 +174,15 @@ class TransmissionLineLayout {
     const gy_end = v_force.y_region_to_grid(ry_end);
 
     // expand voltage field to include the next index so voltage along boundary of conductor is met
-    v_force
-      .get_grid(
-        [gy_start, gx_start],
-        [Math.min(gy_end+1,Ny), Math.min(gx_end+1,Nx)],
-      )
-      .fill((voltage_index << 16) | 0xFFFF);
+    // also allow infinitely flat traces (gy_start == gy_end)
+    if (rx_start < rx_end) {
+      v_force
+        .get_grid(
+          [gy_start, gx_start],
+          [Math.min(gy_end+1,Ny), Math.min(gx_end+1,Nx)],
+        )
+        .fill((voltage_index << 16) | 0xFFFF);
+    }
   }
 
   fill_dielectric(layer: Layer, ek: number) {
@@ -272,6 +278,16 @@ export class SingleEndedMicrostrip implements TransmissionLineSetup {
     const plane_epsilon = this.plane_epsilon.value!;
 
     const layout = new TransmissionLineLayout();
+    const tolerance_alpha = 0.9;
+    layout.x_tolerance = [signal_width, trace_taper/2, 1e-6]
+      .filter(a => a > 0)
+      .reduce((a,b) => Math.min(a,b), Infinity)
+      *tolerance_alpha;
+    layout.y_tolerance = [trace_height, plane_height, 1e-6]
+      .filter(a => a > 0)
+      .reduce((a,b) => Math.min(a,b), Infinity)
+      *tolerance_alpha;
+
     const padding_width = signal_width*5;
     layout.push_horizontal_separation(padding_width);
     const trace_signal = layout.push_symmetric_trace(signal_width, trace_taper/2);
@@ -368,6 +384,16 @@ export class DifferentialMicrostrip implements TransmissionLineSetup {
     const plane_epsilon_top = this.plane_epsilon_top.value!;
 
     const layout = new TransmissionLineLayout();
+    const tolerance_alpha = 0.9;
+    layout.x_tolerance = [signal_width, signal_separation, trace_taper/2, 1e-6]
+      .filter(a => a > 0)
+      .reduce((a,b) => Math.min(a,b), Infinity)
+      *tolerance_alpha;
+    layout.y_tolerance = [trace_height, plane_height_bottom, plane_height_top, 1e-6]
+      .filter(a => a > 0)
+      .reduce((a,b) => Math.min(a,b), Infinity)
+      *tolerance_alpha;
+
     const padding_width = [signal_width, signal_separation].reduce((a,b) => Math.max(a,b), 0)*5;
     layout.push_horizontal_separation(padding_width);
     const trace_left = layout.push_symmetric_trace(signal_width, trace_taper/2);
@@ -499,6 +525,16 @@ export class DifferentialCoplanarCompositeMicrostrip implements TransmissionLine
     const plane_epsilon_2b = this.plane_epsilon_2b.value!;
 
     const layout = new TransmissionLineLayout();
+    const tolerance_alpha = 0.9;
+    layout.x_tolerance = [signal_width, coplanar_separation, coplanar_width, signal_separation, trace_taper/2, 1e-6]
+      .filter(a => a > 0)
+      .reduce((a,b) => Math.min(a,b), Infinity)
+      *tolerance_alpha;
+    layout.y_tolerance = [trace_height, plane_height_1a, plane_height_1b, plane_height_2a, plane_height_2b, 1e-6]
+      .filter(a => a > 0)
+      .reduce((a,b) => Math.min(a,b), Infinity)
+      *tolerance_alpha;
+
     const trace_coplanar_left = layout.push_asymmetric_trace(coplanar_width, 0, trace_taper/2);
     layout.push_horizontal_separation(coplanar_separation);
     const trace_signal_left = layout.push_symmetric_trace(signal_width, trace_taper/2);
