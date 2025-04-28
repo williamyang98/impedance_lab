@@ -53,6 +53,78 @@ export interface RegionGridBuilder {
   y_min_subdivisions?: number;
 }
 
+export class RegionView {
+  region_grid: RegionGrid;
+  view: NdarrayView;
+
+  constructor(region_grid: RegionGrid, view: NdarrayView) {
+    this.region_grid = region_grid;
+    this.view = view;
+  }
+
+  get_region(region_start: [number, number], region_end: [number, number]): NdarrayView {
+    const [region_y_start, region_x_start] = region_start;
+    const [region_y_end, region_x_end] = region_end;
+
+    const grid_y_start = this.region_grid.y_region_to_grid_indices[region_y_start];
+    const grid_x_start = this.region_grid.x_region_to_grid_indices[region_x_start];
+    const grid_y_end = this.region_grid.y_region_to_grid_indices[region_y_end];
+    const grid_x_end = this.region_grid.x_region_to_grid_indices[region_x_end];
+    const grid_start = [grid_y_start, grid_x_start];
+    const grid_end = [grid_y_end, grid_x_end];
+
+    return this.view.hi(grid_end).lo(grid_start);
+  }
+
+  transform_norm_region(
+    region_start: [number, number], region_end: [number, number],
+    transform: (value: number, [y_start, x_start]: [number, number], [y_size, x_size]: [number, number]) => number,
+  ) {
+    const [region_y_start, region_x_start] = region_start;
+    const [region_y_end, region_x_end] = region_end;
+
+    const grid_y_start = this.region_grid.y_region_to_grid_indices[region_y_start];
+    const grid_x_start = this.region_grid.x_region_to_grid_indices[region_x_start];
+    const grid_y_end = this.region_grid.y_region_to_grid_indices[region_y_end];
+    const grid_x_end = this.region_grid.x_region_to_grid_indices[region_x_end];
+    const grid_start = [grid_y_start, grid_x_start];
+    const grid_end = [grid_y_end, grid_x_end];
+
+    const width = this.region_grid.x_regions.slice(region_x_start, region_x_end).reduce((a,b) => a+b, 0);
+    const height = this.region_grid.y_regions.slice(region_y_start, region_y_end).reduce((a,b) => a+b, 0);
+    const norm_grid_dx = this.region_grid.dx_grid.slice(grid_x_start, grid_x_end).map(x => x/width);
+    const norm_grid_dy = this.region_grid.dy_grid.slice(grid_y_start, grid_y_end).map(y => y/height);
+    const view = this.view.hi(grid_end).lo(grid_start);
+    const [Ny, Nx] = view.shape;
+
+    const norm_y_offsets: number[] = new Array(Ny);
+    const norm_x_offsets: number[] = new Array(Nx);
+    for (let y = 0, y_offset = 0; y < Ny; y++) {
+      const dy = norm_grid_dy[y];
+      norm_y_offsets[y] = y_offset;
+      y_offset += dy;
+    }
+    for (let x = 0, x_offset = 0; x < Nx; x++) {
+      const dx = norm_grid_dx[x];
+      norm_x_offsets[x] = x_offset;
+      x_offset += dx;
+    }
+
+    for (let y = 0; y < Ny; y++) {
+      const y_offset = norm_y_offsets[y];
+      const dy = norm_grid_dy[y];
+      for (let x = 0; x < Nx; x++) {
+        const x_offset = norm_x_offsets[x];
+        const dx = norm_grid_dx[x];
+        const i = [y,x];
+        const value = view.get(i);
+        const new_value = transform(value, [y_offset, x_offset], [dy, dx]);
+        view.set(i, new_value);
+      }
+    }
+  }
+}
+
 export class RegionGrid {
   grid: Grid;
 
@@ -66,6 +138,8 @@ export class RegionGrid {
   y_region_lines: number[];
   x_grid_lines: number[];
   y_grid_lines: number[];
+  dx_grid: number[];
+  dy_grid: number[];
 
   constructor(builder: RegionGridBuilder) {
     let {
@@ -128,6 +202,10 @@ export class RegionGrid {
     const x_region_lines = get_grid_lines_from_deltas(x_regions);
     const y_region_lines = get_grid_lines_from_deltas(y_regions);
 
+    // unwrap dx and dy from Ndarray to number[] to avoid n-dim indexing overhead
+    const dx_grid = Array.from(grid.dx.cast(Float32Array));
+    const dy_grid = Array.from(grid.dy.cast(Float32Array));
+
     this.grid = grid;
     this.x_regions = x_regions;
     this.y_regions = y_regions;
@@ -139,6 +217,8 @@ export class RegionGrid {
     this.y_grid_lines = y_grid_lines;
     this.x_region_lines = x_region_lines;
     this.y_region_lines = y_region_lines;
+    this.dx_grid = dx_grid;
+    this.dy_grid = dy_grid;
   }
 
   dx_region(start: number, end: number): NdarrayView {
@@ -153,86 +233,14 @@ export class RegionGrid {
     return this.grid.dy.hi([i_end]).lo([i_start]);
   }
 
-  v_force_region([y_start, x_start]: [number, number], [y_end, x_end]: [number, number]): NdarrayView {
-    const i_start = [this.y_region_to_grid_indices[y_start], this.x_region_to_grid_indices[x_start]];
-    const i_end = [this.y_region_to_grid_indices[y_end], this.x_region_to_grid_indices[x_end]];
-    return this.grid.v_force.hi(i_end).lo(i_start);
+  v_force_region_view(): RegionView {
+    return new RegionView(this, this.grid.v_force);
   }
 
-  v_field_region([y_start, x_start]: [number, number], [y_end, x_end]: [number, number]): NdarrayView {
-    const i_start = [this.y_region_to_grid_indices[y_start], this.x_region_to_grid_indices[x_start]];
-    const i_end = [this.y_region_to_grid_indices[y_end], this.x_region_to_grid_indices[x_end]];
-    return this.grid.v_field.hi(i_end).lo(i_start);
+  epsilon_k_region_view(): RegionView {
+    return new RegionView(this, this.grid.epsilon_k);
   }
 
-  e_field_region([y_start, x_start]: [number, number], [y_end, x_end]: [number, number]): NdarrayView {
-    const i_start = [this.y_region_to_grid_indices[y_start], this.x_region_to_grid_indices[x_start], 0];
-    const i_end = [this.y_region_to_grid_indices[y_end], this.x_region_to_grid_indices[x_end], 2];
-    return this.grid.e_field.hi(i_end).lo(i_start);
-  }
-
-  epsilon_k_region([y_start, x_start]: [number, number], [y_end, x_end]: [number, number]): NdarrayView {
-    const i_start = [this.y_region_to_grid_indices[y_start], this.x_region_to_grid_indices[x_start]];
-    const i_end = [this.y_region_to_grid_indices[y_end], this.x_region_to_grid_indices[x_end]];
-    return this.grid.epsilon_k.hi(i_end).lo(i_start);
-  }
-
-  v_force_region_with_sdf(
-    start: [number, number], end: [number, number],
-    voltage_index: number,
-    sdf: (x_norm: number, y_norm: number) => number,
-  ) {
-    const v_force = this.v_force_region(start, end);
-    const dx_arr = this.dx_region(start[1], end[1]);
-    const dy_arr = this.dy_region(start[0], end[0]);
-    const width = this.x_regions.slice(start[1], end[1]).reduce((a,b) => a+b, 0);
-    const height = this.y_regions.slice(start[0], end[0]).reduce((a,b) => a+b, 0);
-
-    const [Ny, Nx] = v_force.shape;
-
-    // 4x MSAA
-    const My = 2;
-    const Mx = 2;
-
-    const y_offsets: number[] = new Array(Ny);
-    const x_offsets: number[] = new Array(Nx);
-    for (let y = 0, y_offset = 0; y < Ny; y++) {
-      const dy = dy_arr.get([y]);
-      y_offsets[y] = y_offset;
-      y_offset += dy;
-    }
-    for (let x = 0, x_offset = 0; x < Nx; x++) {
-      const dx = dx_arr.get([x]);
-      x_offsets[x] = x_offset;
-      x_offset += dx;
-    }
-
-    for (let y = 0; y < Ny; y++) {
-      const y_offset = y_offsets[y];
-      const dy = dy_arr.get([y]);
-      for (let x = 0; x < Nx; x++) {
-        const x_offset = x_offsets[x];
-        const dx = dx_arr.get([x]);
-        const i = [y,x];
-        // perform multisampling
-        let total_samples = 0;
-        let total_beta = 0;
-        for (let mx = 0; mx < Mx; mx++) {
-          for (let my = 0; my < My; my++) {
-            const ex = (mx+0.5)/Mx;
-            const ey = (my+0.5)/My;
-            const x_norm = (x_offset+dx*ex)/width;
-            const y_norm = (y_offset+dy*ey)/height;
-            total_beta += sdf(x_norm, y_norm);
-            total_samples++;
-          }
-        }
-        const beta = total_beta/total_samples;
-        const beta_quantised = Math.floor(0xFFFF*beta);
-        v_force.set(i, (voltage_index << 16) | beta_quantised);
-      }
-    }
-  }
 }
 
 export function normalise_regions(x_regions: number[], y_regions: number[]) {
@@ -251,6 +259,33 @@ export const sdf_slope_top_left = (x: number, y: number) => (y > x) ? 1.0 : 0.0;
 export const sdf_slope_top_right = (x: number, y: number) => (y > 1-x) ? 1.0 : 0.0;
 export const sdf_slope_bottom_left = (x: number, y: number) => (y < 1-x) ? 1.0 : 0.0;
 export const sdf_slope_bottom_right = (x: number, y: number) => (y < x) ? 1.0 : 0.0;
+
+export function get_voltage_transform(sdf: (x: number, y: number) => number, voltage_index: number) {
+  const My = 2;
+  const Mx = 2;
+  const total_samples = My*Mx;
+  function transform(
+    _value: number,
+    [y_start, x_start]: [number, number],
+    [y_size, x_size]: [number, number]): number
+  {
+    // multisampling
+    let total_beta = 0;
+    for (let my = 0; my < My; my++) {
+      const ey = (my+0.5)/My;
+      const y_norm = y_start + y_size*ey;
+      for (let mx = 0; mx < Mx; mx++) {
+        const ex = (mx+0.5)/Mx;
+        const x_norm = x_start + x_size*ex;
+        total_beta += sdf(x_norm, y_norm);
+      }
+    }
+    const beta = total_beta/total_samples;
+    const beta_quantised = Math.floor(0xFFFF*beta);
+    return (voltage_index << 16) | beta_quantised;
+  }
+  return transform;
+}
 
 export class GridLines {
   id_to_index: number[] = [];

@@ -1,9 +1,10 @@
 import {
   RegionGrid, normalise_regions,
-  // sdf_slope_top_left,
-  // sdf_slope_top_right,
+  get_voltage_transform,
   sdf_slope_bottom_left,
   sdf_slope_bottom_right,
+  // sdf_slope_top_left,
+  // sdf_slope_top_right,
 } from "../engine/grid_2d.ts";
 
 export type ValidationErrorType = "success" | "warn" | "error";
@@ -29,6 +30,9 @@ export interface TransmissionLineSetup {
   get_parameters(): Parameter[];
   create_region_grid(): RegionGrid | null;
 }
+
+const voltage_slope_bottom_left = (voltage_index: number) => get_voltage_transform(sdf_slope_bottom_left, voltage_index);
+const voltage_slope_bottom_right = (voltage_index: number) => get_voltage_transform(sdf_slope_bottom_right, voltage_index);
 
 export class DifferentialMicrostrip implements TransmissionLineSetup {
   signal_width: Parameter;
@@ -120,36 +124,39 @@ export class DifferentialMicrostrip implements TransmissionLineSetup {
     const Nx = region_grid.x_regions.length;
     const Ny = region_grid.y_regions.length;
 
+    const v_force = region_grid.v_force_region_view();
+    const epsilon_k = region_grid.epsilon_k_region_view();
+
     function create_trace(x_start: number, voltage_index: number, mask?: number): number {
       mask = mask ?? 0b111;
       let x_offset = x_start;
       const y_offset = 2;
       if ((mask & 0b100) == 0b100) {
-        region_grid.v_force_region_with_sdf([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_index, sdf_slope_bottom_right);
+        v_force.transform_norm_region([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_slope_bottom_right(voltage_index));
         x_offset++;
       }
       if ((mask & 0b010) == 0b010) {
-        region_grid.v_force_region([y_offset,x_offset], [y_offset+1,x_offset+1]).fill((voltage_index << 16) | 0xFFFF);
+        v_force.get_region([y_offset,x_offset], [y_offset+1,x_offset+1]).fill((voltage_index << 16) | 0xFFFF);
         x_offset++;
       }
       if ((mask & 0b001) == 0b001) {
-        region_grid.v_force_region_with_sdf([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_index, sdf_slope_bottom_left);
+        v_force.transform_norm_region([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_slope_bottom_left(voltage_index));
         x_offset++;
       }
       return x_offset-x_start;
     }
 
     // ground planes
-    region_grid.v_force_region([0,0],[1,Nx]).fill((0<<16) | 0xFFFF);
-    region_grid.v_force_region([Ny-1,0],[Ny,Nx]).fill((0<<16) | 0xFFFF);
+    v_force.get_region([0,0],[1,Nx]).fill((0<<16) | 0xFFFF);
+    v_force.get_region([Ny-1,0],[Ny,Nx]).fill((0<<16) | 0xFFFF);
     let x_offset = 1;
     x_offset += create_trace(x_offset, 1, has_taper ? 0b111 : 0b010); // positive trace
     x_offset++; // signal separation
     x_offset += create_trace(x_offset, 2, has_taper ? 0b111 : 0b010); // negative trace
     void x_offset;
     // dielectric
-    region_grid.epsilon_k_region([1,0],[2,Nx]).fill(plane_epsilon_bottom);
-    region_grid.epsilon_k_region([Ny-1,0],[Ny,Nx]).fill(plane_epsilon_top);
+    epsilon_k.get_region([1,0],[2,Nx]).fill(plane_epsilon_bottom);
+    epsilon_k.get_region([Ny-1,0],[Ny,Nx]).fill(plane_epsilon_top);
     return region_grid;
   }
 }
@@ -292,28 +299,31 @@ export class DifferentialCoplanarCompositeMicrostrip implements TransmissionLine
     const Nx = region_grid.x_regions.length;
     const Ny = region_grid.y_regions.length;
 
+    const v_force = region_grid.v_force_region_view();
+    const epsilon_k = region_grid.epsilon_k_region_view();
+
     function create_trace(x_start: number, voltage_index: number, mask?: number): number {
       mask = mask ?? 0b111;
       const y_offset = 3;
       let x_offset = x_start;
       if ((mask & 0b100) == 0b100) {
-        region_grid.v_force_region_with_sdf([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_index, sdf_slope_bottom_right);
+        v_force.transform_norm_region([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_slope_bottom_right(voltage_index));
         x_offset++;
       }
       if ((mask & 0b010) == 0b010) {
-        region_grid.v_force_region([y_offset,x_offset], [y_offset+1,x_offset+1]).fill((voltage_index << 16) | 0xFFFF);
+        v_force.get_region([y_offset,x_offset], [y_offset+1,x_offset+1]).fill((voltage_index << 16) | 0xFFFF);
         x_offset++;
       }
       if ((mask & 0b001) == 0b001) {
-        region_grid.v_force_region_with_sdf([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_index, sdf_slope_bottom_left);
+        v_force.transform_norm_region([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_slope_bottom_left(voltage_index));
         x_offset++;
       }
       return x_offset-x_start;
     }
 
     // ground planes
-    region_grid.v_force_region([0,0],[1,Nx]).fill((0<<16) | 0xFFFF);
-    region_grid.v_force_region([Ny-1,0],[Ny,Nx]).fill((0<<16) | 0xFFFF);
+    v_force.get_region([0,0],[1,Nx]).fill((0<<16) | 0xFFFF);
+    v_force.get_region([Ny-1,0],[Ny,Nx]).fill((0<<16) | 0xFFFF);
     let x_offset = 1;
     x_offset += create_trace(x_offset, 0, has_taper ? 0b011 : 0b010); // coplanar trace left
     x_offset++; // coplanar separation
@@ -324,10 +334,10 @@ export class DifferentialCoplanarCompositeMicrostrip implements TransmissionLine
     x_offset += create_trace(x_offset, 0, has_taper ? 0b110: 0b010); // coplanar trace right
     void x_offset;
     // dielectric
-    region_grid.epsilon_k_region([1,0],[2,Nx]).fill(plane_epsilon_1a);
-    region_grid.epsilon_k_region([2,0],[3,Nx]).fill(plane_epsilon_1b);
-    region_grid.epsilon_k_region([3,0],[5,Nx]).fill(plane_epsilon_2a);
-    region_grid.epsilon_k_region([5,0],[6,Nx]).fill(plane_epsilon_2b);
+    epsilon_k.get_region([1,0],[2,Nx]).fill(plane_epsilon_1a);
+    epsilon_k.get_region([2,0],[3,Nx]).fill(plane_epsilon_1b);
+    epsilon_k.get_region([3,0],[5,Nx]).fill(plane_epsilon_2a);
+    epsilon_k.get_region([5,0],[6,Nx]).fill(plane_epsilon_2b);
     return region_grid;
   }
 }
