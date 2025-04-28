@@ -28,6 +28,7 @@ import { Viewer2D } from "../components/viewer_2d";
 import {
   DifferentialCoplanarCompositeMicrostrip,
   DifferentialMicrostrip,
+  SingleEndedMicrostrip,
 } from "../app/transmission_line_2d.ts";
 import { type RunResult, type ImpedanceResult } from "../engine/electrostatic_2d.ts";
 
@@ -39,7 +40,7 @@ const chart = ref<Chart | undefined>(undefined);
 
 let transmission_line = undefined;
 
-if (true) {
+if (false) {
   transmission_line = new DifferentialCoplanarCompositeMicrostrip();
   {
     transmission_line.signal_separation.value = 0.2;
@@ -57,7 +58,7 @@ if (true) {
     transmission_line.plane_epsilon_2a.value = 4.1;
     transmission_line.plane_epsilon_2b.value = 4.1;
   }
-} else {
+} else if (false) {
   transmission_line = new DifferentialMicrostrip();
   {
     transmission_line.signal_width.value = 0.25;
@@ -69,14 +70,19 @@ if (true) {
     transmission_line.plane_epsilon_bottom.value = 4.1;
     transmission_line.plane_epsilon_top.value = 4.1;
   }
+} else {
+  transmission_line = new SingleEndedMicrostrip();
+  {
+    transmission_line.signal_width.value = 10;
+    transmission_line.trace_taper.value = 0;
+    transmission_line.trace_height.value = 0.01;
+    transmission_line.plane_height.value = 63;
+    transmission_line.plane_epsilon.value = 4;
+  }
 }
-
 
 const region_grid = transmission_line.create_region_grid()!;
 const grid = region_grid.grid;
-grid.v_table.set([0], 0);
-grid.v_table.set([1], 1);
-grid.v_table.set([2], -1);
 grid.bake();
 
 const is_running = ref<boolean>(false);

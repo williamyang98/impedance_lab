@@ -110,7 +110,7 @@ class TransmissionLineLayout {
     if (this.region_grid === undefined) {
       throw Error(`Did not create region grid`);
     }
-    // add 1 to region indices to account for padding
+
     const rx_signal_left = this.x_grid_lines.get_index(trace.ix_signal_left);
     const rx_taper_left = this.x_grid_lines.get_index(trace.ix_taper_left);
     const rx_taper_right = this.x_grid_lines.get_index(trace.ix_taper_right);
@@ -119,20 +119,35 @@ class TransmissionLineLayout {
     const ry_end = this.y_grid_lines.get_index(layer.iy_end);
 
     const v_force = this.region_grid.v_force_region_view();
-    if (rx_taper_left < rx_signal_left) {
-      v_force.transform_norm_region(
-        [ry_start,rx_taper_left], [ry_end,rx_signal_left],
+    const [Ny, Nx] = v_force.view.shape;
+
+    const gx_taper_left = v_force.x_region_to_grid(rx_taper_left);
+    const gx_signal_left = v_force.x_region_to_grid(rx_signal_left);
+    const gx_signal_right = v_force.x_region_to_grid(rx_signal_right);
+    const gx_taper_right = v_force.x_region_to_grid(rx_taper_right);
+    const gy_start = v_force.y_region_to_grid(ry_start);
+    const gy_end = v_force.y_region_to_grid(ry_end);
+
+    // expand voltage field to include the next index so voltage along boundary of conductor is met
+    if (gx_taper_left < gx_signal_left) {
+      v_force.transform_norm_grid(
+        [gy_start, gx_taper_left],
+        [Math.min(gy_end+1,Ny), gx_signal_left],
         voltage_slope_bottom_right(voltage_index),
       );
     }
     if (rx_signal_left < rx_signal_right) {
       v_force
-        .get_region([ry_start,rx_signal_left], [ry_end,rx_signal_right])
+        .get_grid(
+          [gy_start, gx_signal_left],
+          [Math.min(gy_end+1,Ny), Math.min(gx_signal_right+1,Nx)],
+        )
         .fill((voltage_index << 16) | 0xFFFF);
     }
     if (rx_signal_right < rx_taper_right) {
-      v_force.transform_norm_region(
-        [ry_start,rx_signal_right], [ry_end,rx_taper_right],
+      v_force.transform_norm_grid(
+        [gy_start,gx_signal_right],
+        [Math.min(gy_end+1,Ny), Math.min(gx_taper_right+1,Nx)],
         voltage_slope_bottom_left(voltage_index),
       );
     }
@@ -146,9 +161,21 @@ class TransmissionLineLayout {
     const ry_end = this.y_grid_lines.get_index(layer.iy_end);
     const rx_start = 0;
     const rx_end = this.region_grid.x_regions.length;
+
     const v_force = this.region_grid.v_force_region_view();
+    const [Ny, Nx] = v_force.view.shape;
+
+    const gx_start = v_force.x_region_to_grid(rx_start);
+    const gx_end = v_force.x_region_to_grid(rx_end);
+    const gy_start = v_force.y_region_to_grid(ry_start);
+    const gy_end = v_force.y_region_to_grid(ry_end);
+
+    // expand voltage field to include the next index so voltage along boundary of conductor is met
     v_force
-      .get_region([ry_start,rx_start], [ry_end,rx_end])
+      .get_grid(
+        [gy_start, gx_start],
+        [Math.min(gy_end+1,Ny), Math.min(gx_end+1,Nx)],
+      )
       .fill((voltage_index << 16) | 0xFFFF);
   }
 
@@ -157,7 +184,6 @@ class TransmissionLineLayout {
       throw Error(`Did not create region grid`);
     }
 
-    // add 1 to region indices to account for padding
     const ry_start = this.y_grid_lines.get_index(layer.iy_start);
     const ry_end = this.y_grid_lines.get_index(layer.iy_end);
     const rx_start = 0;
@@ -192,6 +218,87 @@ export interface Parameter {
 export interface TransmissionLineSetup {
   get_parameters(): Parameter[];
   create_region_grid(): RegionGrid | null;
+}
+
+export class SingleEndedMicrostrip implements TransmissionLineSetup {
+  signal_width: Parameter;
+  trace_taper: Parameter;
+  trace_height: Parameter;
+  plane_height: Parameter;
+  plane_epsilon: Parameter;
+
+  constructor() {
+    function make_param(name: string, min_value: number, positive_correlation: boolean): Parameter {
+      return {
+        name,
+        search_config: { min_value, positive_correlation},
+      };
+    }
+    this.signal_width = make_param("Trace width", 0, false);
+    this.trace_taper = make_param("Trace taper", 0, true);
+    this.trace_height = make_param("Trace height", 0, false);
+    this.plane_height = make_param("Plane height", 0, true);
+    this.plane_epsilon = make_param("Plane epsilon", 1, false);
+  }
+
+  get_parameters(): Parameter[] {
+    return [
+      this.signal_width,
+      this.trace_taper,
+      this.trace_height,
+      this.plane_height,
+      this.plane_epsilon,
+    ]
+  }
+
+  validate(): boolean {
+    if (this.signal_width.value === undefined) return false;
+    if (this.trace_taper.value === undefined) return false;
+    if (this.trace_height.value === undefined) return false;
+    if (this.plane_height.value === undefined) return false;
+    if (this.plane_epsilon.value === undefined) return false;
+    return true;
+  }
+
+  create_region_grid(): RegionGrid | null {
+    if (!this.validate()) {
+      return null;
+    }
+
+    const signal_width = this.signal_width.value!;
+    const trace_taper = this.trace_taper.value!;
+    const trace_height = this.trace_height.value!;
+    const plane_height = this.plane_height.value!;
+    const plane_epsilon = this.plane_epsilon.value!;
+
+    const layout = new TransmissionLineLayout();
+    const padding_width = signal_width*5;
+    layout.push_horizontal_separation(padding_width);
+    const trace_signal = layout.push_symmetric_trace(signal_width, trace_taper/2);
+    layout.push_horizontal_separation(padding_width);
+
+    const padding_height = plane_height;
+    const layer_bottom = layout.push_layer(padding_height);
+    const layer_1a = layout.push_layer(plane_height);
+    const layer_trace = layout.push_layer(trace_height);
+    const layer_1b = layout.push_layer(plane_height);
+    const layer_top = layout.push_layer(padding_height);
+
+    const region_grid = layout.create_grid();
+
+    // forcing potentials
+    region_grid.grid.v_table.set([0], 0);
+    region_grid.grid.v_table.set([1], 1);
+    region_grid.grid.v_input = 1;
+    layout.set_layer_voltage(layer_bottom, 0);
+    layout.set_layer_voltage(layer_top, 0);
+    layout.set_trace_voltage(trace_signal, layer_trace, 1);
+    // dielectric
+    layout.fill_dielectric(layer_1a, plane_epsilon);
+    layout.fill_dielectric(layer_trace, plane_epsilon);
+    layout.fill_dielectric(layer_1b, plane_epsilon);
+    return region_grid;
+  }
 }
 
 export class DifferentialMicrostrip implements TransmissionLineSetup {
@@ -278,6 +385,10 @@ export class DifferentialMicrostrip implements TransmissionLineSetup {
     const region_grid = layout.create_grid();
 
     // forcing potentials
+    region_grid.grid.v_table.set([0], 0);
+    region_grid.grid.v_table.set([1], 1);
+    region_grid.grid.v_table.set([2], -1);
+    region_grid.grid.v_input = 2;
     layout.set_layer_voltage(layer_bottom, 0);
     layout.set_layer_voltage(layer_top, 0);
     layout.set_trace_voltage(trace_left, layer_trace, 1);
@@ -408,6 +519,10 @@ export class DifferentialCoplanarCompositeMicrostrip implements TransmissionLine
     const region_grid = layout.create_grid();
 
     // forcing potentials
+    region_grid.grid.v_table.set([0], 0);
+    region_grid.grid.v_table.set([1], 1);
+    region_grid.grid.v_table.set([2], -1);
+    region_grid.grid.v_input = 2;
     layout.set_layer_voltage(layer_bottom, 0);
     layout.set_layer_voltage(layer_top, 0);
     layout.set_trace_voltage(trace_coplanar_left, layer_trace, 0);

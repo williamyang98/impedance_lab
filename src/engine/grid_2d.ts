@@ -63,7 +63,19 @@ export class RegionView {
     this.view = view;
   }
 
-  get_region(region_start: [number, number], region_end: [number, number]): NdarrayView {
+  x_region_to_grid(rx: number): number {
+    const gx = this.region_grid.x_region_to_grid_indices[rx];
+    return gx;
+  }
+
+  y_region_to_grid(ry: number): number {
+    const gy = this.region_grid.y_region_to_grid_indices[ry];
+    return gy;
+  }
+
+  region_to_grid(
+    region_start: [number, number], region_end: [number, number],
+  ): [[number, number], [number, number]] {
     const [region_y_start, region_x_start] = region_start;
     const [region_y_end, region_x_end] = region_end;
 
@@ -71,9 +83,17 @@ export class RegionView {
     const grid_x_start = this.region_grid.x_region_to_grid_indices[region_x_start];
     const grid_y_end = this.region_grid.y_region_to_grid_indices[region_y_end];
     const grid_x_end = this.region_grid.x_region_to_grid_indices[region_x_end];
-    const grid_start = [grid_y_start, grid_x_start];
-    const grid_end = [grid_y_end, grid_x_end];
+    const grid_start: [number, number] = [grid_y_start, grid_x_start];
+    const grid_end: [number, number] = [grid_y_end, grid_x_end];
+    return [grid_start, grid_end];
+  }
 
+  get_region(region_start: [number, number], region_end: [number, number]): NdarrayView {
+    const [grid_start, grid_end] = this.region_to_grid(region_start, region_end);
+    return this.get_grid(grid_start, grid_end);
+  }
+
+  get_grid(grid_start: [number, number], grid_end: [number, number]): NdarrayView {
     return this.view.hi(grid_end).lo(grid_start);
   }
 
@@ -81,20 +101,23 @@ export class RegionView {
     region_start: [number, number], region_end: [number, number],
     transform: (value: number, [y_start, x_start]: [number, number], [y_size, x_size]: [number, number]) => number,
   ) {
-    const [region_y_start, region_x_start] = region_start;
-    const [region_y_end, region_x_end] = region_end;
+    const [grid_start, grid_end] = this.region_to_grid(region_start, region_end);
+    this.transform_norm_grid(grid_start, grid_end, transform);
+  }
 
-    const grid_y_start = this.region_grid.y_region_to_grid_indices[region_y_start];
-    const grid_x_start = this.region_grid.x_region_to_grid_indices[region_x_start];
-    const grid_y_end = this.region_grid.y_region_to_grid_indices[region_y_end];
-    const grid_x_end = this.region_grid.x_region_to_grid_indices[region_x_end];
-    const grid_start = [grid_y_start, grid_x_start];
-    const grid_end = [grid_y_end, grid_x_end];
+  transform_norm_grid(
+    grid_start: [number, number], grid_end: [number, number],
+    transform: (value: number, [y_start, x_start]: [number, number], [y_size, x_size]: [number, number]) => number,
+  ) {
+    const [grid_y_start, grid_x_start] = grid_start;
+    const [grid_y_end, grid_x_end] = grid_end;
 
-    const width = this.region_grid.x_regions.slice(region_x_start, region_x_end).reduce((a,b) => a+b, 0);
-    const height = this.region_grid.y_regions.slice(region_y_start, region_y_end).reduce((a,b) => a+b, 0);
-    const norm_grid_dx = this.region_grid.dx_grid.slice(grid_x_start, grid_x_end).map(x => x/width);
-    const norm_grid_dy = this.region_grid.dy_grid.slice(grid_y_start, grid_y_end).map(y => y/height);
+    const dx_grid = this.region_grid.dx_grid.slice(grid_x_start, grid_x_end);
+    const dy_grid = this.region_grid.dy_grid.slice(grid_y_start, grid_y_end);
+    const width = dx_grid.reduce((a,b) => a+b, 0);
+    const height = dy_grid.reduce((a,b) => a+b, 0);
+    const norm_grid_dx = dx_grid.map(x => x/width);
+    const norm_grid_dy = dy_grid.map(y => y/height);
     const view = this.view.hi(grid_end).lo(grid_start);
     const [Ny, Nx] = view.shape;
 

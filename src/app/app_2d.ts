@@ -11,30 +11,6 @@ export interface TransmissionLineParameters {
   dielectric_top_height: number;
 }
 
-function normalise_transmission_line_parameters(
-  params: TransmissionLineParameters, target_ratio?: number,
-): TransmissionLineParameters {
-  target_ratio = target_ratio ?? 0.5;
-  const ratios: number[] = [
-    params.dielectric_bottom_height,
-    params.dielectric_top_height,
-    params.signal_width,
-    params.signal_separation,
-    params.signal_height,
-  ];
-  const min_ratio: number = ratios.reduce((a,b) => Math.min(a,b), Infinity);
-  const rescale = target_ratio / min_ratio;
-  return {
-    dielectric_bottom_epsilon: params.dielectric_bottom_epsilon,
-    dielectric_bottom_height: params.dielectric_bottom_height*rescale,
-    signal_separation: params.signal_separation*rescale,
-    signal_width: params.signal_width*rescale,
-    signal_height: params.signal_height*rescale,
-    dielectric_top_epsilon: params.dielectric_top_epsilon,
-    dielectric_top_height: params.dielectric_top_height*rescale,
-  }
-};
-
 export class Setup {
   grid?: Grid;
   params?: TransmissionLineParameters;
@@ -49,8 +25,7 @@ export class Setup {
     }
   }
 
-  update_params(base_params: TransmissionLineParameters) {
-    const params = normalise_transmission_line_parameters(base_params);
+  update_params(params: TransmissionLineParameters) {
     this.params = params;
 
     const transmission_line = new DifferentialMicrostrip();

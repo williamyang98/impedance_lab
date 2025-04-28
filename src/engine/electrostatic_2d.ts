@@ -36,6 +36,8 @@ export class Grid {
   dy_mid: Ndarray;
   dxy_norm: Ndarray;
 
+  v_input: number;
+
   constructor(Ny: number, Nx: number) {
     this.size = [Ny, Nx];
     this.dx = Ndarray.create_zeros([Nx], "f32");
@@ -49,6 +51,7 @@ export class Grid {
     this.dx_mid = Ndarray.create_zeros([Nx-1], "f32");
     this.dy_mid = Ndarray.create_zeros([Ny-1], "f32");
     this.dxy_norm = Ndarray.create_zeros([Ny-1, Nx-1], "f32");
+    this.v_input = 1;
   }
 
   bake() {
@@ -134,7 +137,7 @@ export class Grid {
       this.dy.cast(Float32Array),
     );
 
-    const v0: number = 2.0;
+    const v0: number = this.v_input;
     const Ch = 1/(v0**2) * epsilon_0 * energy_homogenous;
     const Lh = 1/((c_0**2) * Ch);
     const Cih = 1/(v0**2) * epsilon_0 * energy_inhomogenous;

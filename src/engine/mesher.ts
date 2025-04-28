@@ -155,19 +155,20 @@ export function calculate_grid_regions(
     const A = regions[i];
     if (i == 0) {
       const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a1));
-      const n = Math.max(min_grid_resolution, n_estimate);
+      const n = Math.max(min_region_subdivisions, n_estimate);
       const r = get_geometric_r(A, a1, n);
       const grid: GeometricGrid = { a: a1, r, n, direction: "left" };
       grids.push({ type: "symmetric", grid });
     } else if (i == (N-1)) {
       const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a0));
-      const n = Math.max(min_grid_resolution, n_estimate);
+      const n = Math.max(min_region_subdivisions, n_estimate);
       const r = get_geometric_r(A, a0, n);
       const grid: GeometricGrid = { a: a0, r, n, direction: "right" };
       grids.push({ type: "symmetric", grid });
     } else {
       const n_lower = min_region_subdivisions-1;
-      const n_upper = Math.max(Math.round(Math.log(A/Math.min(a0,a1))/Math.log(1.0+max_ratio)), 10);
+      const n_upper_estimate = Math.ceil(get_geometric_n(A/2, 1.0+max_ratio, Math.min(a0,a1))*2);
+      const n_upper = Math.max(min_region_subdivisions, n_upper_estimate);
       const grid = find_best_asymmetric_geometric_grid(A, a0, a1, n_lower, n_upper);
       grids.push({ type: "asymmetric", grid });
     }
