@@ -243,17 +243,19 @@ export class RegionGrid {
 
 }
 
-export function normalise_regions(x_regions: number[], y_regions: number[]): number {
+export function normalise_regions(x_regions: number[], y_regions: number[], target_ratio?: number): number {
+  target_ratio = target_ratio ?? 0.5;
   const x_region_min = x_regions.reduce((a,b) => Math.min(a,b), Infinity);
   const y_region_min = y_regions.reduce((a,b) => Math.min(a,b), Infinity);
   const region_min = Math.min(x_region_min, y_region_min);
+  const rescale = target_ratio/region_min;
   for (let i = 0; i < x_regions.length; i++) {
-    x_regions[i] /= region_min;
+    x_regions[i] *= rescale;
   }
   for (let i = 0; i < y_regions.length; i++) {
-    y_regions[i] /= region_min;
+    y_regions[i] *= rescale;
   }
-  return 1/region_min;
+  return rescale;
 }
 
 export const sdf_slope_top_left = (x: number, y: number) => (y > x) ? 1.0 : 0.0;
