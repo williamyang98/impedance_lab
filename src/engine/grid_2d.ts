@@ -1,35 +1,38 @@
 import { NdarrayView } from "../utility/ndarray.ts";
 import {
-  generate_asymmetric_geometric_grid_from_regions,
+  type GridRegion,
   generate_asymmetric_geometric_grid,
-  type AsymmetricGeometricGrid,
+  generate_geometric_grid,
 } from "./mesher.ts";
 import { Grid } from "./electrostatic_2d.ts";
 
-function generate_deltas(deltas: NdarrayView, grids: AsymmetricGeometricGrid[]) {
+function generate_grid_deltas(deltas: NdarrayView, grids: GridRegion[]) {
   let offset = 0;
   for (let i = 0; i < grids.length; i++) {
-    const grid = grids[i];
-    const delta = grid.n0+grid.n1;
-    const view = deltas.lo([offset]).hi([delta]);
-    const subdivisions = generate_asymmetric_geometric_grid(grid);
-    for (let j = 0; j < subdivisions.length; j++) {
-      view.set([j], subdivisions[j]);
+    const { type, grid } = grids[i];
+    switch (type) {
+      case "asymmetric": {
+        const delta = grid.n0+grid.n1;
+        const view = deltas.lo([offset]).hi([delta]);
+        const subdivisions = generate_asymmetric_geometric_grid(grid);
+        for (let j = 0; j < subdivisions.length; j++) {
+          view.set([j], subdivisions[j]);
+        }
+        offset += delta;
+        break;
+      }
+      case "symmetric": {
+        const delta = grid.n;
+        const view = deltas.lo([offset]).hi([delta]);
+        const subdivisions = generate_geometric_grid(grid);
+        for (let j = 0; j < subdivisions.length; j++) {
+          view.set([j], subdivisions[j]);
+        }
+        offset += delta;
+        break;
+      }
     }
-    offset += delta;
   }
-}
-
-function _generate_padding(deltas: NdarrayView, a: number, r: number): number {
-  const N = deltas.shape[0];
-  let v = a;
-  let sum: number = 0;
-  for (let i = 0; i < N; i++) {
-    deltas.set([i], v);
-    sum += v;
-    v *= r;
-  }
-  return sum;
 }
 
 function get_grid_lines_from_deltas(deltas: number[]): number[] {
@@ -128,8 +131,8 @@ export class RegionGrid {
 
   x_regions: number[];
   y_regions: number[];
-  x_grids: AsymmetricGeometricGrid[];
-  y_grids: AsymmetricGeometricGrid[];
+  x_grid_regions: GridRegion[];
+  y_grid_regions: GridRegion[];
   x_region_to_grid_indices: number[];
   y_region_to_grid_indices: number[];
   x_region_lines: number[];
@@ -139,23 +142,18 @@ export class RegionGrid {
   dx_grid: number[];
   dy_grid: number[];
 
-  constructor(builder: RegionGridBuilder) {
-    const { x_regions, y_regions } = builder;
-    let {
-      x_max_ratio, y_max_ratio,
-      x_min_subdivisions, y_min_subdivisions,
-    } = builder;
-
+  constructor(x_grid_regions: GridRegion[], y_grid_regions: GridRegion[]) {
     // Map (My,Mx) regions to (Ny,Nx) grid
-    x_min_subdivisions = x_min_subdivisions ?? 10;
-    y_min_subdivisions = y_min_subdivisions ?? 5;
-    x_max_ratio = x_max_ratio ?? 0.30;
-    y_max_ratio = y_max_ratio ?? 0.35;
-    const x_grids = generate_asymmetric_geometric_grid_from_regions(x_regions, x_min_subdivisions, x_max_ratio);
-    const y_grids = generate_asymmetric_geometric_grid_from_regions(y_regions, y_min_subdivisions, y_max_ratio);
 
-    const x_grid_widths = x_grids.map((grid) => grid.n0+grid.n1);
-    const y_grid_heights = y_grids.map((grid) => grid.n0+grid.n1);
+    function get_grid_length({ type, grid }: GridRegion) {
+      switch (type) {
+      case "asymmetric": return grid.n0 + grid.n1;
+      case "symmetric": return grid.n;
+      }
+    }
+
+    const x_grid_widths = x_grid_regions.map(get_grid_length);
+    const y_grid_heights = y_grid_regions.map(get_grid_length);
 
     const Nx = x_grid_widths.reduce((a,b) => a+b, 0);
     const Ny = y_grid_heights.reduce((a,b) => a+b, 0);
@@ -163,8 +161,8 @@ export class RegionGrid {
     const grid = new Grid(Ny, Nx);
 
     // grid feature lines
-    generate_deltas(grid.dx, x_grids);
-    generate_deltas(grid.dy, y_grids);
+    generate_grid_deltas(grid.dx, x_grid_regions);
+    generate_grid_deltas(grid.dy, y_grid_regions);
 
     // convert from region space to grid space
     const x_region_to_grid_indices: number[] = [0];
@@ -178,21 +176,41 @@ export class RegionGrid {
       y_region_to_grid_indices.push(y);
     }
 
-    // create region and grid lines for visualisation
-    const x_grid_lines = get_grid_lines_from_deltas(Array.from(grid.dx.data));
-    const y_grid_lines = get_grid_lines_from_deltas(Array.from(grid.dy.data));
-    const x_region_lines = get_grid_lines_from_deltas(x_regions);
-    const y_region_lines = get_grid_lines_from_deltas(y_regions);
-
     // unwrap dx and dy from Ndarray to number[] to avoid n-dim indexing overhead
     const dx_grid = Array.from(grid.dx.cast(Float32Array));
     const dy_grid = Array.from(grid.dy.cast(Float32Array));
 
+    // create region and grid lines for visualisation
+    const x_grid_lines = get_grid_lines_from_deltas(Array.from(grid.dx.data));
+    const y_grid_lines = get_grid_lines_from_deltas(Array.from(grid.dy.data));
+    const x_regions = new Array(x_grid_regions.length);
+    const y_regions = new Array(y_grid_regions.length);
+    for (let i = 0; i < x_grid_regions.length; i++) {
+      const grid_start = x_region_to_grid_indices[i];
+      const grid_end = x_region_to_grid_indices[i+1];
+      const x_start = x_grid_lines[grid_start];
+      const x_end = x_grid_lines[grid_end];
+      const width = x_end-x_start;
+      x_regions[i] = width;
+    }
+    for (let i = 0; i < y_grid_regions.length; i++) {
+      const grid_start = y_region_to_grid_indices[i];
+      const grid_end = y_region_to_grid_indices[i+1];
+      const y_start = y_grid_lines[grid_start];
+      const y_end = y_grid_lines[grid_end];
+      const height = y_end-y_start;
+      y_regions[i] = height;
+    }
+
+    const x_region_lines = get_grid_lines_from_deltas(x_regions);
+    const y_region_lines = get_grid_lines_from_deltas(y_regions);
+
+
     this.grid = grid;
     this.x_regions = x_regions;
     this.y_regions = y_regions;
-    this.x_grids = x_grids;
-    this.y_grids = y_grids;
+    this.x_grid_regions = x_grid_regions;
+    this.y_grid_regions = y_grid_regions;
     this.x_region_to_grid_indices = x_region_to_grid_indices;
     this.y_region_to_grid_indices = y_region_to_grid_indices;
     this.x_grid_lines = x_grid_lines;

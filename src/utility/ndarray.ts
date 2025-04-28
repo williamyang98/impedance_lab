@@ -477,4 +477,9 @@ export class Ndarray extends NdarrayView {
     }
     throw Error(`Invalid cast from '${this.dtype}' to '${type.toString()}'`)
   }
+
+  fill = (value: number): Ndarray => {
+    this.data.fill(value);
+    return this;
+  }
 }

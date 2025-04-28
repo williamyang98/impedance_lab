@@ -1,10 +1,5 @@
-import { NdarrayView } from "../utility/ndarray.ts";
-import {
-  generate_asymmetric_geometric_grid,
-  generate_asymmetric_geometric_grid_from_regions,
-  type AsymmetricGeometricGrid,
-} from "../engine/mesher.ts";
 import { Grid, type ImpedanceResult, type RunResult } from "../engine/electrostatic_2d.ts";
+import { DifferentialMicrostrip } from "../app/transmission_line_2d.ts";
 
 export interface TransmissionLineParameters {
   dielectric_bottom_epsilon: number;
@@ -14,18 +9,6 @@ export interface TransmissionLineParameters {
   signal_height: number;
   dielectric_top_epsilon: number;
   dielectric_top_height: number;
-}
-
-interface GridLayout {
-  pad_left: number;
-  pad_right: number;
-  signal_width_left: number;
-  signal_separation: number;
-  signal_width_right: number;
-  signal_height: number;
-  plane_height: number;
-  plane_separation_bottom: number;
-  plane_separation_top: number;
 }
 
 function normalise_transmission_line_parameters(
@@ -54,7 +37,6 @@ function normalise_transmission_line_parameters(
 
 export class Setup {
   grid?: Grid;
-  grid_layout?: GridLayout;
   params?: TransmissionLineParameters;
 
   constructor() {}
@@ -71,123 +53,25 @@ export class Setup {
     const params = normalise_transmission_line_parameters(base_params);
     this.params = params;
 
-    const x_regions = [params.signal_width, params.signal_separation, params.signal_width];
-    const y_regions = [params.dielectric_bottom_height, params.signal_height, params.dielectric_top_height];
-
-
-    const x_min_subdivisions = 10;
-    const y_min_subdivisions = 5;
-    const x_max_ratio = 0.30;
-    const y_max_ratio = 0.35;
-    const x_grid = generate_asymmetric_geometric_grid_from_regions(x_regions, x_min_subdivisions, x_max_ratio);
-    const y_grid = generate_asymmetric_geometric_grid_from_regions(y_regions, y_min_subdivisions, y_max_ratio);
-
-    const region_widths = x_grid.map((grid) => grid.n0+grid.n1);
-    const [signal_width_left, signal_separation, signal_width_right] = region_widths;
-    const pad_left = signal_width_left;
-    const pad_right = signal_width_right;
-
-    const region_heights = y_grid.map((grid) => grid.n0+grid.n1);
-    const [plane_separation_bottom, signal_height, plane_separation_top] = region_heights;
-    const plane_height = 2;
-    const Nx = pad_left + region_widths.reduce((a,b) => a+b, 0) + pad_right;
-    const Ny = plane_height + region_heights.reduce((a,b) => a+b, 0) + plane_height;
-
-    const grid = new Grid(Ny, Nx);
-    const {
-      dx,
-      dy,
-      v_force,
-      v_table,
-      v_field,
-      e_field,
-      epsilon_k,
-    } = grid;
-
-    v_field.fill(0.0);
-    e_field.fill(0.0);
-
-    // force field potentials
-    const v_ground_index = 0;
-    const v_pos_index = 1;
-    const v_neg_index = 2;
-    v_table.set([v_ground_index], 0.0);
-    v_table.set([v_pos_index], 1.0);
-    v_table.set([v_neg_index], -1.0);
-    v_force.fill(0);
-    v_force
-      .lo([0, 0])
-      .hi([plane_height+1, Nx])
-      .fill((v_ground_index << 16) | 0xFFFF);
-    v_force
-      .lo([Ny-plane_height, 0])
-      .hi([plane_height, Nx])
-      .fill((v_ground_index << 16) | 0xFFFF);
-    v_force
-      .lo([plane_height+plane_separation_bottom, pad_left])
-      .hi([signal_height+1, signal_width_left+1])
-      .fill((v_pos_index << 16) | 0xFFFF);
-    v_force
-      .lo([plane_height+plane_separation_bottom, pad_left+signal_width_left+signal_separation])
-      .hi([signal_height+1, signal_width_right+1])
-      .fill((v_neg_index << 16) | 0xFFFF);
-    // create dielectric
-    epsilon_k.fill(1.0);
-    epsilon_k
-      .lo([plane_height, 0])
-      .hi([plane_separation_bottom, Nx])
-      .fill(params.dielectric_bottom_epsilon);
-    epsilon_k
-      .lo([plane_height+plane_separation_bottom, 0])
-      .hi([signal_height+plane_separation_top, Nx])
-      .fill(params.dielectric_top_epsilon);
-
-    function generate_deltas(deltas: NdarrayView, grids: AsymmetricGeometricGrid[]) {
-      let offset = 0;
-      for (let i = 0; i < grids.length; i++) {
-        const grid = grids[i];
-        const delta = grid.n0+grid.n1;
-        const view = deltas.lo([offset]).hi([delta]);
-        const subdivisions = generate_asymmetric_geometric_grid(grid);
-        for (let j = 0; j < subdivisions.length; j++) {
-          view.set([j], subdivisions[j]);
-        }
-        offset += delta;
-      }
+    const transmission_line = new DifferentialMicrostrip();
+    {
+      transmission_line.signal_width.value = params.signal_width;
+      transmission_line.signal_separation.value = params.signal_separation;
+      transmission_line.trace_taper.value = 0;
+      transmission_line.trace_height.value = params.signal_height;
+      transmission_line.plane_height_bottom.value = params.dielectric_bottom_height;
+      transmission_line.plane_height_top.value = params.dielectric_top_height;
+      transmission_line.plane_epsilon_bottom.value = params.dielectric_bottom_epsilon;
+      transmission_line.plane_epsilon_top.value = params.dielectric_top_epsilon;
     }
-
-    function generate_padding(deltas: NdarrayView, a: number, r: number) {
-      const N = deltas.shape[0];
-      let v = a;
-      for (let i = 0; i < N; i++) {
-        deltas.set([i], v);
-        v *= r;
-      }
-    }
-
-    // grid feature lines
-    generate_deltas(dx.lo([pad_left]), x_grid);
-    generate_deltas(dy.lo([plane_height]), y_grid);
-    // grid padding
-    generate_padding(dx.hi([pad_left]).reverse(), x_grid[0].a0, 1.0+x_max_ratio);
-    generate_padding(dx.lo([Nx-pad_right]), x_grid[2].a1, 1.0+x_max_ratio);
-    generate_padding(dy.hi([plane_height]).reverse(), y_grid[0].a0, 1.0+y_max_ratio);
-    generate_padding(dy.lo([Ny-plane_height]), y_grid[2].a1, 1.0+y_max_ratio);
-
+    const region_grid = transmission_line.create_region_grid()!;
+    const grid = region_grid.grid;
+    grid.v_table.set([0], 0);
+    grid.v_table.set([1], 1);
+    grid.v_table.set([2], -1);
     grid.bake();
 
     this.grid = grid;
-    this.grid_layout = {
-      pad_left,
-      pad_right,
-      signal_width_left,
-      signal_separation,
-      signal_width_right,
-      signal_height,
-      plane_height,
-      plane_separation_bottom,
-      plane_separation_top,
-    };
   }
 
 }

@@ -1,10 +1,43 @@
 import { run_global_section_search, run_binary_search } from "../utility/search.ts";
 
+export interface GeometricGrid {
+  a: number;
+  r: number;
+  n: number;
+  direction: "right" | "left";
+}
+
+export function generate_geometric_grid(grid: GeometricGrid): number[] {
+  const arr = new Array(grid.n);
+  let s = grid.a;
+  for (let i = 0; i < grid.n; i++) {
+    arr[i] = s;
+    s *= grid.r;
+  }
+  if (grid.direction == "left") {
+    arr.reverse();
+  }
+  return arr;
+}
+
 export function get_geometric_sum(a: number, r: number, n: number) {
   if (Math.abs(1-r) < 1e-3) {
     return a*n;
   }
   return a*(Math.pow(r, n)-1)/(r-1);
+}
+
+function get_geometric_n(sum: number, r: number, a: number): number {
+  return Math.log(1 + sum*(r-1)/a)/Math.log(r);
+}
+
+function get_geometric_r(sum: number, a: number, n: number): number {
+  function search_function(r: number): number {
+    const pred_sum = get_geometric_sum(a, r, n);
+    return (pred_sum - sum)/2;
+  }
+  const r = run_binary_search(search_function, 0, 1);
+  return r;
 }
 
 export interface AsymmetricGeometricGrid {
@@ -90,11 +123,15 @@ function find_best_asymmetric_geometric_grid(
   return grid;
 }
 
-export function generate_asymmetric_geometric_grid_from_regions(
+export type GridRegion =
+  { type: "symmetric", grid: GeometricGrid } |
+  { type: "asymmetric", grid: AsymmetricGeometricGrid };
+
+export function calculate_grid_regions(
   regions: number[],
   min_region_subdivisions?: number,
   max_ratio?: number,
-): AsymmetricGeometricGrid[] {
+): GridRegion[] {
   const min_region = regions.reduce((a,b) => Math.min(a,b), Infinity);
   min_region_subdivisions = min_region_subdivisions ?? 3;
   max_ratio = max_ratio ?? 0.5;
@@ -106,19 +143,34 @@ export function generate_asymmetric_geometric_grid_from_regions(
     const size_scale = region/min_region;
     return Math.sqrt(size_scale)*min_grid_resolution;
   });
-  const grids = [];
-  for (let i = 0; i < regions.length; i++) {
+  const grids: GridRegion[] = [];
+  const N = regions.length;
+  for (let i = 0; i < N; i++) {
     const a = a_estimate[i];
     const a_left = (i > 0) ? a_estimate[i-1] : a;
-    const a_right = (i < (regions.length-1)) ? a_estimate[i+1] : a;
-
-    const A = regions[i];
+    const a_right = (i < (N-1)) ? a_estimate[i+1] : a;
     const a0 = Math.min(a_left, a);
     const a1 = Math.min(a_right, a);
-    const n_lower = min_region_subdivisions-1;
-    const n_upper = Math.max(Math.round(Math.log(A/Math.min(a0,a1))/Math.log(1.0+max_ratio)), 10);
-    const grid = find_best_asymmetric_geometric_grid(A, a0, a1, n_lower, n_upper);
-    grids.push(grid);
+
+    const A = regions[i];
+    if (i == 0) {
+      const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a1));
+      const n = Math.max(min_grid_resolution, n_estimate);
+      const r = get_geometric_r(A, a1, n);
+      const grid: GeometricGrid = { a: a1, r, n, direction: "left" };
+      grids.push({ type: "symmetric", grid });
+    } else if (i == (N-1)) {
+      const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a0));
+      const n = Math.max(min_grid_resolution, n_estimate);
+      const r = get_geometric_r(A, a0, n);
+      const grid: GeometricGrid = { a: a0, r, n, direction: "right" };
+      grids.push({ type: "symmetric", grid });
+    } else {
+      const n_lower = min_region_subdivisions-1;
+      const n_upper = Math.max(Math.round(Math.log(A/Math.min(a0,a1))/Math.log(1.0+max_ratio)), 10);
+      const grid = find_best_asymmetric_geometric_grid(A, a0, a1, n_lower, n_upper);
+      grids.push({ type: "asymmetric", grid });
+    }
   }
   return grids;
 }

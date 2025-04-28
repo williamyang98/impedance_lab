@@ -280,27 +280,27 @@ onMounted(async () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead></TableHead>
-                    <TableHead>a0</TableHead>
-                    <TableHead>a1</TableHead>
-                    <TableHead>error</TableHead>
+                    <TableHead>a</TableHead>
                     <TableHead>n</TableHead>
-                    <TableHead>r0</TableHead>
-                    <TableHead>r1</TableHead>
-                    <TableHead>n0</TableHead>
-                    <TableHead>n1</TableHead>
+                    <TableHead>r</TableHead>
+                    <TableHead>|1-r|</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="(grid, index) in region_grid.x_grids" :key="index">
+                  <TableRow v-for="({ type, grid }, index) in region_grid.x_grid_regions" :key="index">
                     <TableCell class="font-medium">{{ index }}</TableCell>
-                    <TableCell>{{ grid.a0.toPrecision(2) }}</TableCell>
-                    <TableCell>{{ grid.a1.toPrecision(2) }}</TableCell>
-                    <TableCell>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</TableCell>
-                    <TableCell>{{ grid.n0 + grid.n1 }}</TableCell>
-                    <TableCell>{{ grid.r0.toFixed(2) }}</TableCell>
-                    <TableCell>{{ grid.r1.toFixed(2) }}</TableCell>
-                    <TableCell>{{ grid.n0 }}</TableCell>
-                    <TableCell>{{ grid.n1 }}</TableCell>
+                    <template v-if="type == 'asymmetric'">
+                      <TableCell>[{{ grid.a0.toPrecision(2) }}, {{ grid.a1.toPrecision(2) }}]</TableCell>
+                      <TableCell>[{{ grid.n0 }}, {{ grid.n1 }}]</TableCell>
+                      <TableCell>[{{ grid.r0.toFixed(2) }}, {{ grid.r1.toFixed(2) }}]</TableCell>
+                      <TableCell>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</TableCell>
+                    </template>
+                    <template v-if="type == 'symmetric'">
+                      <TableCell>{{ grid.a.toPrecision(2) }}</TableCell>
+                      <TableCell>{{ grid.n.toPrecision(2) }}</TableCell>
+                      <TableCell>{{ grid.r.toFixed(2) }}</TableCell>
+                      <TableCell>{{ Math.abs(1-grid.r).toPrecision(2) }}</TableCell>
+                    </template>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -312,27 +312,27 @@ onMounted(async () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead></TableHead>
-                    <TableHead>a0</TableHead>
-                    <TableHead>a1</TableHead>
-                    <TableHead>error</TableHead>
+                    <TableHead>a</TableHead>
                     <TableHead>n</TableHead>
-                    <TableHead>r0</TableHead>
-                    <TableHead>r1</TableHead>
-                    <TableHead>n0</TableHead>
-                    <TableHead>n1</TableHead>
+                    <TableHead>r</TableHead>
+                    <TableHead>|1-r|</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  <TableRow v-for="(grid, index) in region_grid.y_grids" :key="index">
+                  <TableRow v-for="({ type, grid }, index) in region_grid.y_grid_regions" :key="index">
                     <TableCell class="font-medium">{{ index }}</TableCell>
-                    <TableCell>{{ grid.a0.toPrecision(2) }}</TableCell>
-                    <TableCell>{{ grid.a1.toPrecision(2) }}</TableCell>
-                    <TableCell>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</TableCell>
-                    <TableCell>{{ grid.n0 + grid.n1 }}</TableCell>
-                    <TableCell>{{ grid.r0.toFixed(2) }}</TableCell>
-                    <TableCell>{{ grid.r1.toFixed(2) }}</TableCell>
-                    <TableCell>{{ grid.n0 }}</TableCell>
-                    <TableCell>{{ grid.n1 }}</TableCell>
+                    <template v-if="type == 'asymmetric'">
+                      <TableCell>[{{ grid.a0.toPrecision(2) }}, {{ grid.a1.toPrecision(2) }}]</TableCell>
+                      <TableCell>[{{ grid.n0 }}, {{ grid.n1 }}]</TableCell>
+                      <TableCell>[{{ grid.r0.toFixed(2) }}, {{ grid.r1.toFixed(2) }}]</TableCell>
+                      <TableCell>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</TableCell>
+                    </template>
+                    <template v-if="type == 'symmetric'">
+                      <TableCell>{{ grid.a.toPrecision(2) }}</TableCell>
+                      <TableCell>{{ grid.n.toPrecision(2) }}</TableCell>
+                      <TableCell>{{ grid.r.toFixed(2) }}</TableCell>
+                      <TableCell>{{ Math.abs(1-grid.r).toPrecision(2) }}</TableCell>
+                    </template>
                   </TableRow>
                 </TableBody>
               </Table>

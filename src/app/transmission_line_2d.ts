@@ -7,6 +7,8 @@ import {
   // sdf_slope_top_right,
 } from "../engine/grid_2d.ts";
 
+import { calculate_grid_regions } from "../engine/mesher.ts";
+
 interface Trace {
   ix_taper_left: number;
   ix_signal_left: number;
@@ -83,12 +85,22 @@ class TransmissionLineLayout {
     const x_regions = this.x_grid_lines.to_regions();
     const y_regions = this.y_grid_lines.to_regions();
     normalise_regions(x_regions, y_regions);
-    const region_grid = new RegionGrid({
-      x_regions,
-      y_regions,
-      x_min_subdivisions: 10,
-      y_min_subdivisions: 10,
-    });
+
+    const x_min_subdivisions = 10;
+    const y_min_subdivisions = 10;
+    const x_max_ratio = 0.5;
+    const y_max_ratio = 0.5;
+    const x_region_grids = calculate_grid_regions(x_regions, x_min_subdivisions, x_max_ratio);
+    const y_region_grids = calculate_grid_regions(y_regions, y_min_subdivisions, y_max_ratio);
+
+    // TODO: figure out a better place to set this up
+    //       also avoid having to hack this by overriding the number of splines
+    const bottom_layer = y_region_grids[0];
+    const top_layer = y_region_grids[y_region_grids.length-1];
+    if (bottom_layer.type == "symmetric") { bottom_layer.grid.n = 3; }
+    if (top_layer.type == "symmetric") { top_layer.grid.n = 3; }
+
+    const region_grid = new RegionGrid(x_region_grids, y_region_grids);
     this.region_grid = region_grid;
     region_grid.grid.epsilon_k.fill(1);
     return region_grid;
@@ -249,17 +261,19 @@ export class DifferentialMicrostrip implements TransmissionLineSetup {
     const plane_epsilon_top = this.plane_epsilon_top.value!;
 
     const layout = new TransmissionLineLayout();
-    layout.push_horizontal_separation(1);
+    const padding_width = [signal_width, signal_separation].reduce((a,b) => Math.max(a,b), 0)*5;
+    layout.push_horizontal_separation(padding_width);
     const trace_left = layout.push_symmetric_trace(signal_width, trace_taper/2);
     layout.push_horizontal_separation(signal_separation);
     const trace_right = layout.push_symmetric_trace(signal_width, trace_taper/2);
-    layout.push_horizontal_separation(1);
+    layout.push_horizontal_separation(padding_width);
 
-    const layer_bottom = layout.push_layer(0.1);
+    const padding_height = [plane_height_bottom, plane_height_top].reduce((a,b) => Math.min(a,b), Infinity)*2;
+    const layer_bottom = layout.push_layer(padding_height);
     const layer_1a = layout.push_layer(plane_height_bottom);
     const layer_trace = layout.push_layer(trace_height);
     const layer_1b = layout.push_layer(plane_height_top);
-    const layer_top = layout.push_layer(0.1);
+    const layer_top = layout.push_layer(padding_height);
 
     const region_grid = layout.create_grid();
 
