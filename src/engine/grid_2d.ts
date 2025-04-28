@@ -20,7 +20,7 @@ function generate_deltas(deltas: NdarrayView, grids: AsymmetricGeometricGrid[]) 
   }
 }
 
-function generate_padding(deltas: NdarrayView, a: number, r: number): number {
+function _generate_padding(deltas: NdarrayView, a: number, r: number): number {
   const N = deltas.shape[0];
   let v = a;
   let sum: number = 0;
@@ -45,8 +45,6 @@ function get_grid_lines_from_deltas(deltas: number[]): number[] {
 export interface RegionGridBuilder {
   x_regions: number[];
   y_regions: number[];
-  x_pad_width?: number;
-  y_pad_height?: number;
   x_max_ratio?: number;
   y_max_ratio?: number;
   x_min_subdivisions?: number;
@@ -142,16 +140,11 @@ export class RegionGrid {
   dy_grid: number[];
 
   constructor(builder: RegionGridBuilder) {
+    const { x_regions, y_regions } = builder;
     let {
-      x_regions, y_regions,
-      x_pad_width, y_pad_height,
       x_max_ratio, y_max_ratio,
       x_min_subdivisions, y_min_subdivisions,
     } = builder;
-
-    // For a (My-2,Mx-2) given regions we will get (My,Mx) actual regions due to padding regions
-    // const Mx = x_regions.length+2;
-    // const My = y_regions.length+2;
 
     // Map (My,Mx) regions to (Ny,Nx) grid
     x_min_subdivisions = x_min_subdivisions ?? 10;
@@ -161,12 +154,8 @@ export class RegionGrid {
     const x_grids = generate_asymmetric_geometric_grid_from_regions(x_regions, x_min_subdivisions, x_max_ratio);
     const y_grids = generate_asymmetric_geometric_grid_from_regions(y_regions, y_min_subdivisions, y_max_ratio);
 
-    let x_grid_widths = x_grids.map((grid) => grid.n0+grid.n1);
-    let y_grid_heights = y_grids.map((grid) => grid.n0+grid.n1);
-    x_pad_width = x_pad_width ?? x_grid_widths.reduce((a,b) => Math.max(a,b), 0);
-    y_pad_height = y_pad_height ?? y_grid_heights.reduce((a,b) => Math.max(a,b), 0);
-    x_grid_widths = [x_pad_width, ...x_grid_widths, x_pad_width];
-    y_grid_heights = [y_pad_height, ...y_grid_heights, y_pad_height];
+    const x_grid_widths = x_grids.map((grid) => grid.n0+grid.n1);
+    const y_grid_heights = y_grids.map((grid) => grid.n0+grid.n1);
 
     const Nx = x_grid_widths.reduce((a,b) => a+b, 0);
     const Ny = y_grid_heights.reduce((a,b) => a+b, 0);
@@ -174,15 +163,8 @@ export class RegionGrid {
     const grid = new Grid(Ny, Nx);
 
     // grid feature lines
-    generate_deltas(grid.dx.lo([x_pad_width]), x_grids);
-    generate_deltas(grid.dy.lo([y_pad_height]), y_grids);
-    // grid padding
-    const x_pad_left_region = generate_padding(grid.dx.hi([x_pad_width]).reverse(), x_grids[0].a0, 1.0+x_max_ratio);
-    const x_pad_right_region = generate_padding(grid.dx.lo([Nx-x_pad_width]), x_grids[x_grids.length-1].a1, 1.0+x_max_ratio);
-    const y_pad_bottom_region = generate_padding(grid.dy.hi([y_pad_height]).reverse(), y_grids[0].a0, 1.0+y_max_ratio);
-    const y_pad_top_region = generate_padding(grid.dy.lo([Ny-y_pad_height]), y_grids[y_grids.length-1].a1, 1.0+y_max_ratio);
-    x_regions = [x_pad_left_region, ...x_regions, x_pad_right_region];
-    y_regions = [y_pad_bottom_region, ...y_regions, y_pad_top_region];
+    generate_deltas(grid.dx, x_grids);
+    generate_deltas(grid.dy, y_grids);
 
     // convert from region space to grid space
     const x_region_to_grid_indices: number[] = [0];
@@ -243,7 +225,7 @@ export class RegionGrid {
 
 }
 
-export function normalise_regions(x_regions: number[], y_regions: number[]) {
+export function normalise_regions(x_regions: number[], y_regions: number[]): number {
   const x_region_min = x_regions.reduce((a,b) => Math.min(a,b), Infinity);
   const y_region_min = y_regions.reduce((a,b) => Math.min(a,b), Infinity);
   const region_min = Math.min(x_region_min, y_region_min);
@@ -253,6 +235,7 @@ export function normalise_regions(x_regions: number[], y_regions: number[]) {
   for (let i = 0; i < y_regions.length; i++) {
     y_regions[i] /= region_min;
   }
+  return 1/region_min;
 }
 
 export const sdf_slope_top_left = (x: number, y: number) => (y > x) ? 1.0 : 0.0;
@@ -296,7 +279,22 @@ export class GridLines {
     return this.id_to_index.length;
   }
 
-  push(line: number): number {
+  push(line: number, threshold?: number): number {
+    threshold = threshold ?? 1e-6;
+    // check if line already exists
+    const N = this.lines.length;
+    for (let i = 0; i < N; i++) {
+      const other_line = this.lines[i];
+      const dist = Math.abs(other_line-line);
+      if (dist < threshold) {
+        for (let id = 0; id < N; id++) {
+          if (this.id_to_index[id] === i) {
+            return id;
+          }
+        }
+      }
+    }
+
     const id = this.lines.length;
     if (id > 0 && this.lines[id-1] > line) {
       this.is_sorted = false;

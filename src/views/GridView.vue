@@ -27,7 +27,7 @@ import Chart from "chart.js/auto";
 import { Viewer2D } from "../components/viewer_2d";
 import {
   DifferentialCoplanarCompositeMicrostrip,
-  // DifferentialMicrostrip,
+  DifferentialMicrostrip,
 } from "../app/transmission_line_2d.ts";
 import { type RunResult, type ImpedanceResult } from "../engine/electrostatic_2d.ts";
 
@@ -37,35 +37,40 @@ const grid_canvas_elem = useTemplateRef<HTMLCanvasElement>("grid-canvas");
 const viewer_2d_elem = useTemplateRef<typeof Viewer2D>("viewer-2d");
 const chart = ref<Chart | undefined>(undefined);
 
-const transmission_line = new DifferentialCoplanarCompositeMicrostrip();
-{
-  transmission_line.signal_separation.value = 0.2;
-  transmission_line.signal_width.value = 0.25;
-  transmission_line.coplanar_separation.value = 0.2;
-  transmission_line.coplanar_width.value = 0.25;
-  transmission_line.trace_taper.value = 0.05;
-  transmission_line.trace_height.value = 0.035;
-  transmission_line.plane_height_1a.value = 0.1;
-  transmission_line.plane_height_1b.value = 0.1;
-  transmission_line.plane_height_2a.value = 0.1;
-  transmission_line.plane_height_2b.value = 0.1;
-  transmission_line.plane_epsilon_1a.value = 4.1;
-  transmission_line.plane_epsilon_1b.value = 4.1;
-  transmission_line.plane_epsilon_2a.value = 4.1;
-  transmission_line.plane_epsilon_2b.value = 4.1;
+let transmission_line = undefined;
+
+if (true) {
+  transmission_line = new DifferentialCoplanarCompositeMicrostrip();
+  {
+    transmission_line.signal_separation.value = 0.2;
+    transmission_line.signal_width.value = 0.25;
+    transmission_line.coplanar_separation.value = 0.2;
+    transmission_line.coplanar_width.value = 0.25;
+    transmission_line.trace_taper.value = 0.05;
+    transmission_line.trace_height.value = 0.035;
+    transmission_line.plane_height_1a.value = 0.1;
+    transmission_line.plane_height_1b.value = 0.1;
+    transmission_line.plane_height_2a.value = 0.1;
+    transmission_line.plane_height_2b.value = 0.1;
+    transmission_line.plane_epsilon_1a.value = 4.1;
+    transmission_line.plane_epsilon_1b.value = 4.1;
+    transmission_line.plane_epsilon_2a.value = 4.1;
+    transmission_line.plane_epsilon_2b.value = 4.1;
+  }
+} else {
+  transmission_line = new DifferentialMicrostrip();
+  {
+    transmission_line.signal_width.value = 0.25;
+    transmission_line.signal_separation.value = 0.15;
+    transmission_line.trace_taper.value = 0.05;
+    transmission_line.trace_height.value = 0.035;
+    transmission_line.plane_height_bottom.value = 0.25;
+    transmission_line.plane_height_top.value = 0.25;
+    transmission_line.plane_epsilon_bottom.value = 4.1;
+    transmission_line.plane_epsilon_top.value = 4.1;
+  }
 }
 
-// const transmission_line = new DifferentialMicrostrip();
-// {
-//   transmission_line.signal_width.value = 0.25;
-//   transmission_line.signal_separation.value = 0.15;
-//   transmission_line.trace_taper.value = 0.05;
-//   transmission_line.trace_height.value = 0.035;
-//   transmission_line.plane_height_bottom.value = 0.25;
-//   transmission_line.plane_height_top.value = 0.25;
-//   transmission_line.plane_epsilon_bottom.value = 4.1;
-//   transmission_line.plane_epsilon_top.value = 4.1;
-// }
 
 const region_grid = transmission_line.create_region_grid()!;
 const grid = region_grid.grid;

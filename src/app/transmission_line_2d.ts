@@ -1,11 +1,162 @@
 import {
-  RegionGrid, normalise_regions,
+  GridLines, RegionGrid, normalise_regions,
   get_voltage_transform,
   sdf_slope_bottom_left,
   sdf_slope_bottom_right,
   // sdf_slope_top_left,
   // sdf_slope_top_right,
 } from "../engine/grid_2d.ts";
+
+interface Trace {
+  ix_taper_left: number;
+  ix_signal_left: number;
+  ix_signal_right: number;
+  ix_taper_right: number;
+}
+
+interface Layer {
+  iy_start: number;
+  iy_end: number;
+}
+
+const voltage_slope_bottom_left = (voltage_index: number) => get_voltage_transform(sdf_slope_bottom_left, voltage_index);
+const voltage_slope_bottom_right = (voltage_index: number) => get_voltage_transform(sdf_slope_bottom_right, voltage_index);
+
+class TransmissionLineLayout {
+  x_grid_lines = new GridLines();
+  y_grid_lines = new GridLines();
+  x_location: number = 0;
+  y_location: number = 0;
+  traces: Trace[] = [];
+  layers: Layer[] = [];
+  region_grid?: RegionGrid = undefined;
+
+  push_symmetric_trace(width: number, taper: number): Trace {
+    return this.push_asymmetric_trace(width, taper, taper);
+  }
+
+  push_asymmetric_trace(width: number, left_taper: number, right_taper: number): Trace {
+    const x_left = this.x_location;
+    this.x_location += width;
+    const x_right = this.x_location;
+
+    const ix_taper_left = this.x_grid_lines.push(x_left);
+    const ix_taper_right = this.x_grid_lines.push(x_right);
+    const ix_signal_left = this.x_grid_lines.push(x_left+left_taper);
+    const ix_signal_right = this.x_grid_lines.push(x_right-right_taper);
+
+    const trace = {
+      ix_taper_left,
+      ix_taper_right,
+      ix_signal_left,
+      ix_signal_right,
+    };
+    this.traces.push(trace);
+    return trace;
+  }
+
+  push_horizontal_separation(width: number) {
+    this.x_grid_lines.push(this.x_location);
+    this.x_location += width;
+    this.x_grid_lines.push(this.x_location);
+  }
+
+  push_layer(height: number): Layer {
+    const y_start = this.y_location;
+    this.y_location += height;
+    const y_end = this.y_location;
+
+    const iy_start = this.y_grid_lines.push(y_start);
+    const iy_end = this.y_grid_lines.push(y_end);
+    const layer = {
+      iy_start,
+      iy_end,
+    };
+    this.layers.push(layer);
+    return layer;
+  }
+
+  create_grid(): RegionGrid {
+    if (this.region_grid !== undefined) {
+      throw Error(`Tried to reinitialise region grid again`);
+    }
+    const x_regions = this.x_grid_lines.to_regions();
+    const y_regions = this.y_grid_lines.to_regions();
+    normalise_regions(x_regions, y_regions);
+    const region_grid = new RegionGrid({
+      x_regions,
+      y_regions,
+      x_min_subdivisions: 10,
+      y_min_subdivisions: 10,
+    });
+    this.region_grid = region_grid;
+    region_grid.grid.epsilon_k.fill(1);
+    return region_grid;
+  }
+
+  set_trace_voltage(trace: Trace, layer: Layer, voltage_index: number) {
+    if (this.region_grid === undefined) {
+      throw Error(`Did not create region grid`);
+    }
+    // add 1 to region indices to account for padding
+    const rx_signal_left = this.x_grid_lines.get_index(trace.ix_signal_left);
+    const rx_taper_left = this.x_grid_lines.get_index(trace.ix_taper_left);
+    const rx_taper_right = this.x_grid_lines.get_index(trace.ix_taper_right);
+    const rx_signal_right = this.x_grid_lines.get_index(trace.ix_signal_right);
+    const ry_start = this.y_grid_lines.get_index(layer.iy_start);
+    const ry_end = this.y_grid_lines.get_index(layer.iy_end);
+
+    const v_force = this.region_grid.v_force_region_view();
+    if (rx_taper_left < rx_signal_left) {
+      v_force.transform_norm_region(
+        [ry_start,rx_taper_left], [ry_end,rx_signal_left],
+        voltage_slope_bottom_right(voltage_index),
+      );
+    }
+    if (rx_signal_left < rx_signal_right) {
+      v_force
+        .get_region([ry_start,rx_signal_left], [ry_end,rx_signal_right])
+        .fill((voltage_index << 16) | 0xFFFF);
+    }
+    if (rx_signal_right < rx_taper_right) {
+      v_force.transform_norm_region(
+        [ry_start,rx_signal_right], [ry_end,rx_taper_right],
+        voltage_slope_bottom_left(voltage_index),
+      );
+    }
+  }
+
+  set_layer_voltage(layer: Layer, voltage_index: number) {
+    if (this.region_grid === undefined) {
+      throw Error(`Did not create region grid`);
+    }
+    const ry_start = this.y_grid_lines.get_index(layer.iy_start);
+    const ry_end = this.y_grid_lines.get_index(layer.iy_end);
+    const rx_start = 0;
+    const rx_end = this.region_grid.x_regions.length;
+    const v_force = this.region_grid.v_force_region_view();
+    v_force
+      .get_region([ry_start,rx_start], [ry_end,rx_end])
+      .fill((voltage_index << 16) | 0xFFFF);
+  }
+
+  fill_dielectric(layer: Layer, ek: number) {
+    if (this.region_grid === undefined) {
+      throw Error(`Did not create region grid`);
+    }
+
+    // add 1 to region indices to account for padding
+    const ry_start = this.y_grid_lines.get_index(layer.iy_start);
+    const ry_end = this.y_grid_lines.get_index(layer.iy_end);
+    const rx_start = 0;
+    const rx_end = this.region_grid.x_regions.length;
+    const epsilon_k = this.region_grid.epsilon_k_region_view();
+    if (ry_start < ry_end) {
+      epsilon_k.get_region([ry_start,rx_start],[ry_end,rx_end]).fill(ek);
+    }
+  }
+}
+
 
 export type ValidationErrorType = "success" | "warn" | "error";
 export interface ValidationError {
@@ -30,9 +181,6 @@ export interface TransmissionLineSetup {
   get_parameters(): Parameter[];
   create_region_grid(): RegionGrid | null;
 }
-
-const voltage_slope_bottom_left = (voltage_index: number) => get_voltage_transform(sdf_slope_bottom_left, voltage_index);
-const voltage_slope_bottom_right = (voltage_index: number) => get_voltage_transform(sdf_slope_bottom_right, voltage_index);
 
 export class DifferentialMicrostrip implements TransmissionLineSetup {
   signal_width: Parameter;
@@ -100,66 +248,34 @@ export class DifferentialMicrostrip implements TransmissionLineSetup {
     const plane_epsilon_bottom = this.plane_epsilon_bottom.value!;
     const plane_epsilon_top = this.plane_epsilon_top.value!;
 
-    let x_regions: number[] = [];
-    const has_taper = trace_taper > 0.0;
-    if (has_taper) {
-      x_regions = [
-        trace_taper/2, signal_width-trace_taper, trace_taper/2,
-        signal_separation,
-        trace_taper/2, signal_width-trace_taper, trace_taper/2,
-      ];
-    } else {
-      x_regions = [signal_width, signal_separation, signal_width];
-    }
-    const y_regions = [plane_height_bottom, trace_height, plane_height_top];
-    normalise_regions(x_regions, y_regions);
-    const region_grid = new RegionGrid({
-      x_regions,
-      y_regions,
-      y_pad_height: 2,
-      x_min_subdivisions: 10,
-      y_min_subdivisions: 10,
-    });
+    const layout = new TransmissionLineLayout();
+    layout.push_horizontal_separation(1);
+    const trace_left = layout.push_symmetric_trace(signal_width, trace_taper/2);
+    layout.push_horizontal_separation(signal_separation);
+    const trace_right = layout.push_symmetric_trace(signal_width, trace_taper/2);
+    layout.push_horizontal_separation(1);
 
-    const Nx = region_grid.x_regions.length;
-    const Ny = region_grid.y_regions.length;
+    const layer_bottom = layout.push_layer(0.1);
+    const layer_1a = layout.push_layer(plane_height_bottom);
+    const layer_trace = layout.push_layer(trace_height);
+    const layer_1b = layout.push_layer(plane_height_top);
+    const layer_top = layout.push_layer(0.1);
 
-    const v_force = region_grid.v_force_region_view();
-    const epsilon_k = region_grid.epsilon_k_region_view();
+    const region_grid = layout.create_grid();
 
-    function create_trace(x_start: number, voltage_index: number, mask?: number): number {
-      mask = mask ?? 0b111;
-      let x_offset = x_start;
-      const y_offset = 2;
-      if ((mask & 0b100) == 0b100) {
-        v_force.transform_norm_region([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_slope_bottom_right(voltage_index));
-        x_offset++;
-      }
-      if ((mask & 0b010) == 0b010) {
-        v_force.get_region([y_offset,x_offset], [y_offset+1,x_offset+1]).fill((voltage_index << 16) | 0xFFFF);
-        x_offset++;
-      }
-      if ((mask & 0b001) == 0b001) {
-        v_force.transform_norm_region([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_slope_bottom_left(voltage_index));
-        x_offset++;
-      }
-      return x_offset-x_start;
-    }
-
-    // ground planes
-    v_force.get_region([0,0],[1,Nx]).fill((0<<16) | 0xFFFF);
-    v_force.get_region([Ny-1,0],[Ny,Nx]).fill((0<<16) | 0xFFFF);
-    let x_offset = 1;
-    x_offset += create_trace(x_offset, 1, has_taper ? 0b111 : 0b010); // positive trace
-    x_offset++; // signal separation
-    x_offset += create_trace(x_offset, 2, has_taper ? 0b111 : 0b010); // negative trace
-    void x_offset;
+    // forcing potentials
+    layout.set_layer_voltage(layer_bottom, 0);
+    layout.set_layer_voltage(layer_top, 0);
+    layout.set_trace_voltage(trace_left, layer_trace, 1);
+    layout.set_trace_voltage(trace_right, layer_trace, 2);
     // dielectric
-    epsilon_k.get_region([1,0],[2,Nx]).fill(plane_epsilon_bottom);
-    epsilon_k.get_region([Ny-1,0],[Ny,Nx]).fill(plane_epsilon_top);
+    layout.fill_dielectric(layer_1a, plane_epsilon_bottom);
+    layout.fill_dielectric(layer_trace, plane_epsilon_top);
+    layout.fill_dielectric(layer_1b, plane_epsilon_top);
     return region_grid;
   }
 }
+
 
 export class DifferentialCoplanarCompositeMicrostrip implements TransmissionLineSetup {
   signal_separation: Parameter;
@@ -257,87 +373,39 @@ export class DifferentialCoplanarCompositeMicrostrip implements TransmissionLine
     const plane_epsilon_2a = this.plane_epsilon_2a.value!;
     const plane_epsilon_2b = this.plane_epsilon_2b.value!;
 
-    const has_taper = trace_taper > 0.0;
+    const layout = new TransmissionLineLayout();
+    const trace_coplanar_left = layout.push_asymmetric_trace(coplanar_width, 0, trace_taper/2);
+    layout.push_horizontal_separation(coplanar_separation);
+    const trace_signal_left = layout.push_symmetric_trace(signal_width, trace_taper/2);
+    layout.push_horizontal_separation(signal_separation);
+    const trace_signal_right = layout.push_symmetric_trace(signal_width, trace_taper/2);
+    layout.push_horizontal_separation(coplanar_separation);
+    const trace_coplanar_right = layout.push_asymmetric_trace(coplanar_width, trace_taper/2, 0);
 
-    let x_regions: number[] = [];
-    if (has_taper) {
-      x_regions = [
-        coplanar_width-trace_taper, trace_taper/2,
-        coplanar_separation,
-        trace_taper/2, signal_width-trace_taper, trace_taper/2,
-        signal_separation,
-        trace_taper/2, signal_width-trace_taper, trace_taper/2,
-        coplanar_separation,
-        trace_taper/2, coplanar_width-trace_taper,
-      ];
-    } else {
-      x_regions = [
-        coplanar_width, coplanar_separation,
-        signal_width, signal_separation, signal_width,
-        coplanar_separation, coplanar_width,
-      ];
-    }
+    // create y grid lines
+    const layer_bottom = layout.push_layer(0.1);
+    const layer_1a = layout.push_layer(plane_height_1a);
+    const layer_1b = layout.push_layer(plane_height_1b);
+    const layer_trace = layout.push_layer(trace_height);
+    const layer_2a = layout.push_layer(plane_height_2a);
+    const layer_2b = layout.push_layer(plane_height_2b);
+    const layer_top = layout.push_layer(0.1);
 
-    const y_regions = [
-      plane_height_1a,
-      plane_height_1b,
-      trace_height,
-      plane_height_2a,
-      plane_height_2b,
-    ];
-    normalise_regions(x_regions, y_regions);
-    const taper_ratio = trace_taper/Math.max(coplanar_width, signal_width);
-    const x_min_subdivisions = ((taper_ratio > 0.1) || !has_taper) ? 10 : 5;
-    const region_grid = new RegionGrid({
-      x_regions,
-      y_regions,
-      y_pad_height: 2,
-      x_min_subdivisions,
-      y_min_subdivisions: 10,
-    });
+    const region_grid = layout.create_grid();
 
-    const Nx = region_grid.x_regions.length;
-    const Ny = region_grid.y_regions.length;
-
-    const v_force = region_grid.v_force_region_view();
-    const epsilon_k = region_grid.epsilon_k_region_view();
-
-    function create_trace(x_start: number, voltage_index: number, mask?: number): number {
-      mask = mask ?? 0b111;
-      const y_offset = 3;
-      let x_offset = x_start;
-      if ((mask & 0b100) == 0b100) {
-        v_force.transform_norm_region([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_slope_bottom_right(voltage_index));
-        x_offset++;
-      }
-      if ((mask & 0b010) == 0b010) {
-        v_force.get_region([y_offset,x_offset], [y_offset+1,x_offset+1]).fill((voltage_index << 16) | 0xFFFF);
-        x_offset++;
-      }
-      if ((mask & 0b001) == 0b001) {
-        v_force.transform_norm_region([y_offset,x_offset], [y_offset+1,x_offset+1], voltage_slope_bottom_left(voltage_index));
-        x_offset++;
-      }
-      return x_offset-x_start;
-    }
-
-    // ground planes
-    v_force.get_region([0,0],[1,Nx]).fill((0<<16) | 0xFFFF);
-    v_force.get_region([Ny-1,0],[Ny,Nx]).fill((0<<16) | 0xFFFF);
-    let x_offset = 1;
-    x_offset += create_trace(x_offset, 0, has_taper ? 0b011 : 0b010); // coplanar trace left
-    x_offset++; // coplanar separation
-    x_offset += create_trace(x_offset, 1, has_taper ? 0b111 : 0b010); // positive trace
-    x_offset++; // signal separation
-    x_offset += create_trace(x_offset, 2, has_taper ? 0b111 : 0b010); // negative trace
-    x_offset++; // coplanar separation
-    x_offset += create_trace(x_offset, 0, has_taper ? 0b110: 0b010); // coplanar trace right
-    void x_offset;
+    // forcing potentials
+    layout.set_layer_voltage(layer_bottom, 0);
+    layout.set_layer_voltage(layer_top, 0);
+    layout.set_trace_voltage(trace_coplanar_left, layer_trace, 0);
+    layout.set_trace_voltage(trace_coplanar_right, layer_trace, 0);
+    layout.set_trace_voltage(trace_signal_left, layer_trace, 1);
+    layout.set_trace_voltage(trace_signal_right, layer_trace, 2);
     // dielectric
-    epsilon_k.get_region([1,0],[2,Nx]).fill(plane_epsilon_1a);
-    epsilon_k.get_region([2,0],[3,Nx]).fill(plane_epsilon_1b);
-    epsilon_k.get_region([3,0],[5,Nx]).fill(plane_epsilon_2a);
-    epsilon_k.get_region([5,0],[6,Nx]).fill(plane_epsilon_2b);
+    layout.fill_dielectric(layer_1a, plane_epsilon_1a);
+    layout.fill_dielectric(layer_1b, plane_epsilon_1b);
+    layout.fill_dielectric(layer_trace, plane_epsilon_2a);
+    layout.fill_dielectric(layer_2a, plane_epsilon_2a);
+    layout.fill_dielectric(layer_2b, plane_epsilon_2b);
     return region_grid;
   }
 }
