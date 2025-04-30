@@ -6,6 +6,7 @@ import { convert_f32_to_f16 } from "../../wasm/pkg/fdtd_core.js";
 export class Renderer {
   adapter: GPUAdapter;
   device: GPUDevice;
+  grid_size?: [number, number];
   v_force_texture?: GPUTexture;
   v_field_texture?: GPUTexture;
   e_field_texture?: GPUTexture;
@@ -20,6 +21,7 @@ export class Renderer {
   }
 
   upload_grid(grid: Grid) {
+    this.grid_size = grid.size;
     this._upload_v_force(grid.v_force, grid.v_table);
     this._upload_v_field(grid.v_field);
     this._upload_e_field(grid.e_field);
@@ -153,7 +155,7 @@ export class Renderer {
       this.spline_dy_texture.width != height
     ) {
       this.spline_dy_texture = this.device.createTexture({
-        dimension: "1d",
+        dimension: "2d",
         format: "r16float",
         mipLevelCount: 1,
         sampleCount: 1,
@@ -185,7 +187,7 @@ export class Renderer {
       this.spline_dx_texture.width != width
     ) {
       this.spline_dx_texture = this.device.createTexture({
-        dimension: "1d",
+        dimension: "2d",
         format: "r16float",
         mipLevelCount: 1,
         sampleCount: 1,
@@ -206,6 +208,7 @@ export class Renderer {
   }
 
   update_canvas(canvas_context: GPUCanvasContext, scale: number, axis: Axis) {
+    if (this.grid_size === undefined) return;
     if (this.v_field_texture === undefined) return;
     if (this.e_field_texture === undefined) return;
     if (this.spline_dx_texture === undefined) return;
@@ -217,18 +220,19 @@ export class Renderer {
       format: navigator.gpu.getPreferredCanvasFormat(),
       alphaMode: "premultiplied",
     });
+    const canvas_size: [number, number] = [canvas_context.canvas.height, canvas_context.canvas.width];
 
     const canvas_texture_view = canvas_context.getCurrentTexture().createView();
     const command_encoder = this.device.createCommandEncoder();
     const v_field_view = this.v_field_texture.createView({ dimension: "2d" });
     const e_field_view = this.e_field_texture.createView({ dimension: "2d" });
-    const spline_dx_view = this.spline_dx_texture.createView({ dimension: "1d" });
-    const spline_dy_view = this.spline_dy_texture.createView({ dimension: "1d" });
+    const spline_dx_view = this.spline_dx_texture.createView({ dimension: "2d" });
+    const spline_dy_view = this.spline_dy_texture.createView({ dimension: "2d" });
     const v_force_view = this.v_force_texture.createView({ dimension: "2d" });
     this.shader_render_texture.create_pass(
       command_encoder,
       canvas_texture_view, v_field_view, e_field_view, spline_dx_view, spline_dy_view, v_force_view,
-      scale, axis,
+      this.grid_size, canvas_size, scale, axis,
     );
     this.device.queue.submit([command_encoder.finish()]);
   }

@@ -46,7 +46,25 @@ function upload_grid(grid: Grid) {
   grid_renderer.upload_grid(grid);
 }
 
+function update_canvas_size() {
+  const canvas = canvas_element.value;
+  const grid_size = grid_renderer.grid_size;
+  if (canvas === null) return;
+  if (grid_size === undefined) return;
+  const [Ny,Nx] = grid_size;
+  const aspect_ratio = Nx/Ny;
+  const target_height = Math.round(canvas.clientWidth/aspect_ratio);
+  if (canvas.clientHeight != target_height) {
+    canvas.style.height = `${target_height}px`;
+  }
+  if (canvas.width != canvas.clientWidth || canvas.height != canvas.clientHeight) {
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+  }
+}
+
 async function refresh_canvas() {
+  update_canvas_size();
   grid_renderer.update_canvas(canvas_context.value, display_scale.value, display_axis.value);
   await grid_renderer.wait_finished();
 }
@@ -62,6 +80,8 @@ watch(display_scale, async (_new_value, _old_value) => {
 defineExpose({
   upload_grid,
   refresh_canvas,
+  set_display_axis: (axis: Axis) => display_axis.value = axis,
+  set_display_scale: (scale: number) => display_scale.value = scale,
 });
 </script>
 
@@ -82,6 +102,7 @@ defineExpose({
         <SelectItem :value="'electric_vec'">Ê</SelectItem>
         <SelectItem :value="'energy'">Energy</SelectItem>
         <SelectItem :value="'force'">Force</SelectItem>
+        <SelectItem :value="'electric_quiver'">Ê (quiver)</SelectItem>
       </SelectContent>
     </Select>
   </form>
@@ -90,6 +111,6 @@ defineExpose({
 
 <style scoped>
 canvas.grid-view {
-  image-rendering: pixelated;
+  image-rendering: auto;
 }
 </style>
