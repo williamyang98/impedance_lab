@@ -288,7 +288,7 @@ export class SingleEndedMicrostrip implements TransmissionLineSetup {
       .reduce((a,b) => Math.min(a,b), Infinity)
       *tolerance_alpha;
 
-    const padding_width = signal_width*5;
+    const padding_width = signal_width*20;
     layout.push_horizontal_separation(padding_width);
     const trace_signal = layout.push_symmetric_trace(signal_width, trace_taper/2);
     layout.push_horizontal_separation(padding_width);
@@ -394,7 +394,10 @@ export class DifferentialMicrostrip implements TransmissionLineSetup {
       .reduce((a,b) => Math.min(a,b), Infinity)
       *tolerance_alpha;
 
-    const padding_width = [signal_width, signal_separation].reduce((a,b) => Math.max(a,b), 0)*5;
+    const padding_width_factor = 10;
+    const padding_width = [signal_width, signal_separation]
+      .reduce((a,b) => Math.max(a,b), 0)
+      *padding_width_factor;
     layout.push_horizontal_separation(padding_width);
     const trace_left = layout.push_symmetric_trace(signal_width, trace_taper/2);
     layout.push_horizontal_separation(signal_separation);

@@ -32,7 +32,7 @@ import {
 } from "../app/transmission_line_2d.ts";
 import { type RunResult, type ImpedanceResult } from "../engine/electrostatic_2d.ts";
 
-import { ref, useTemplateRef, onMounted } from "vue";
+import { ref, useTemplateRef, onMounted, watch } from "vue";
 
 const grid_canvas_elem = useTemplateRef<HTMLCanvasElement>("grid-canvas");
 const viewer_2d_elem = useTemplateRef<typeof Viewer2D>("viewer-2d");
@@ -73,11 +73,11 @@ if (false) {
 } else {
   transmission_line = new SingleEndedMicrostrip();
   {
-    transmission_line.signal_width.value = 10;
-    transmission_line.trace_taper.value = 0;
-    transmission_line.trace_height.value = 1;
-    transmission_line.plane_height.value = 63;
-    transmission_line.plane_epsilon.value = 4;
+    transmission_line.signal_width.value = 0.15;
+    transmission_line.trace_taper.value = 0.05;
+    transmission_line.trace_height.value = 0.0152;
+    transmission_line.plane_height.value = 0.45;
+    transmission_line.plane_epsilon.value = 4.1;
   }
 }
 
@@ -194,6 +194,11 @@ async function update_grid_viewer() {
 onMounted(async () => {
   await run();
   update_chart();
+  await update_grid_viewer();
+});
+
+watch(viewer_2d_elem, async (elem) => {
+  if (elem === null) return;
   await update_grid_viewer();
 });
 </script>
@@ -349,7 +354,7 @@ onMounted(async () => {
     </Card>
     <Card class="gap-3 col-span-5">
       <CardContent>
-        <Tabs default-value="grid" class="w-full" :unmount-on-hide="false">
+        <Tabs default-value="viewer" class="w-full" :unmount-on-hide="false">
           <TabsList class="grid w-full grid-cols-2">
             <TabsTrigger value="grid">Grid</TabsTrigger>
             <TabsTrigger value="viewer">Viewer</TabsTrigger>
