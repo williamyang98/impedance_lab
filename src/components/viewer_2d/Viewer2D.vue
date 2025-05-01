@@ -59,8 +59,19 @@ function update_canvas_size(): boolean {
   return true;
 }
 
+function is_canvas_valid(): boolean {
+  const canvas = canvas_element.value;
+  if (canvas === null) return false;
+  if (canvas.width == 0) return false;
+  if (canvas.height == 0) return false;
+  return true;
+}
+
 async function refresh_canvas() {
   update_canvas_size();
+  if (!is_canvas_valid()) {
+    return;
+  }
   grid_renderer.update_canvas(canvas_context.value, display_scale.value, display_axis.value);
   await grid_renderer.wait_finished();
 }
