@@ -426,16 +426,16 @@ class ShaderQuiverGrid {
         // create arrow
         var arrow_x = position.x;
         var arrow_y = position.y;
-        // resize to fit grid
-        arrow_x *= 0.5/f32(params.quiver_count_x);
-        arrow_y *= 0.5/f32(params.quiver_count_y);
         // scale to magnitude of field
-        let scale = min(1.0, params.scale*2.0*mag);
-        arrow_x *= min(1.0, scale*2.0); // make the arrow shorter faster than it is skinny
+        let scale = min(1.0, params.scale*mag);
+        arrow_x *= min(1.0, scale*1.5); // make the arrow shorter faster than it is skinny
         arrow_y *= min(1.0, scale);
         // rotate based on orientation
-        let rot_arrow_x = arrow_x*cos(angle) - arrow_y*sin(angle);
-        let rot_arrow_y = arrow_x*sin(angle) + arrow_y*cos(angle);
+        var rot_arrow_x = arrow_x*cos(angle) - arrow_y*sin(angle);
+        var rot_arrow_y = arrow_x*sin(angle) + arrow_y*cos(angle);
+        // resize to fit grid (we do this after rotation to adjust for aspect ratio)
+        rot_arrow_x *= 0.5/f32(params.quiver_count_x);
+        rot_arrow_y *= 0.5/f32(params.quiver_count_y);
         // translate to location on grid
         let vertex_x = rot_arrow_x + x_coord + 0.5/f32(params.quiver_count_x);
         let vertex_y = rot_arrow_y + y_coord + 0.5/f32(params.quiver_count_y);
@@ -464,13 +464,12 @@ class ShaderQuiverGrid {
 
     // arrow shape [-1,+1]
     const arrow_height = 1.0;
-    const arrow_width = 1.25;
-    const quiver_width = 0.35;
+    const quiver_width = 0.5;
     this.vertices = new Float32Array([
       // arrow tip
        0.0, 1.0,
-      -arrow_width/2, 1.0-arrow_height,
-       arrow_width/2, 1.0-arrow_height,
+      -1.0, 1.0-arrow_height,
+       1.0, 1.0-arrow_height,
       // quiver body
       -quiver_width/2, 1.0-arrow_height,
        quiver_width/2, 1.0-arrow_height,
