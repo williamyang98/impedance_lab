@@ -29,7 +29,7 @@ import {
   DifferentialCoplanarCompositeMicrostrip,
   DifferentialMicrostrip,
   SingleEndedMicrostrip,
-} from "../app/transmission_line_2d.ts";
+} from "../engine/transmission_line_2d.ts";
 import { type RunResult, type ImpedanceResult } from "../engine/electrostatic_2d.ts";
 
 import { ref, useTemplateRef, onMounted, watch } from "vue";

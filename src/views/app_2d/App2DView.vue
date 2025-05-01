@@ -46,15 +46,15 @@ defineExpose({
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { Ndarray } from "../utility/ndarray.ts";
+import { Ndarray } from "../../utility/ndarray.ts";
 import {
   Setup,
   type TransmissionLineParameters,
   type ParameterSearchConfig, type ParameterSearchResults, perform_parameter_search,
-} from "../app/app_2d.ts";
-import LineChart from "../components/LineChart.vue";
-import { Viewer2D } from "../components/viewer_2d";
-import { type RunResult, type ImpedanceResult } from "../engine/electrostatic_2d.ts";
+} from "./app_2d.ts";
+import LineChart from "../../components/LineChart.vue";
+import { Viewer2D } from "../../components/viewer_2d";
+import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
 
 type SearchOption = "er0" | "er1" | "er0+er1" | "h0" | "h1" | "h0+h1" | "w" | "s" | "t";
 interface ParameterConfig {

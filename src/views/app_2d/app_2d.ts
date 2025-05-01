@@ -1,5 +1,5 @@
-import { Grid, type ImpedanceResult, type RunResult } from "../engine/electrostatic_2d.ts";
-import { DifferentialMicrostrip } from "../app/transmission_line_2d.ts";
+import { Grid, type ImpedanceResult, type RunResult } from "../../engine/electrostatic_2d.ts";
+import { DifferentialMicrostrip } from "../../engine/transmission_line_2d.ts";
 
 export interface TransmissionLineParameters {
   dielectric_bottom_epsilon: number;

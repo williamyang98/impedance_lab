@@ -5,9 +5,9 @@ import {
   sdf_slope_bottom_right,
   // sdf_slope_top_left,
   // sdf_slope_top_right,
-} from "../engine/grid_2d.ts";
+} from "./grid_2d.ts";
 
-import { calculate_grid_regions } from "../engine/mesher.ts";
+import { calculate_grid_regions } from "./mesher.ts";
 
 interface Trace {
   ix_taper_left: number;

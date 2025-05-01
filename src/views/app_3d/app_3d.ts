@@ -1,6 +1,6 @@
 import {
   type SimulationSetup, SimulationSource, SimulationGrid,
-} from "../engine/fdtd_3d.ts";
+} from "../../engine/fdtd_3d.ts";
 
 export const create_simulation_setup = (): SimulationSetup => {
   const grid_size: [number, number, number] = [16,128,256];

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Viewer3D } from "../components/viewer_3d";
+import { Viewer3D } from "../../components/viewer_3d";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -8,8 +8,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import { create_simulation_setup } from "../app/app_3d.ts";
-import { GpuGrid, GpuEngine } from "../engine/fdtd_3d.ts";
+import { create_simulation_setup } from "./app_3d.ts";
+import { GpuGrid, GpuEngine } from "../../engine/fdtd_3d.ts";
 import {
   ref, computed, inject, useTemplateRef, onMounted, onBeforeUnmount,
   type ComputedRef,
