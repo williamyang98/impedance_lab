@@ -14,7 +14,7 @@ import { type Axis } from "./kernels.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
 
 import {
-  ref, computed, watch, inject, useTemplateRef, defineExpose,
+  ref, computed, watch, inject, useTemplateRef, defineExpose, onBeforeUnmount,
   type ComputedRef,
 } from "vue";
 
@@ -26,7 +26,7 @@ const gpu_device = gpu_device_inject.value;
 const gpu_adapter = gpu_adapter_inject.value;
 
 const grid_renderer = new Renderer(gpu_adapter, gpu_device);
-const display_axis = ref<Axis>("electric_vec");
+const display_axis = ref<Axis>("electric_quiver");
 const display_scale = ref<number>(1.0);
 
 const canvas_element = useTemplateRef<HTMLCanvasElement>("field-canvas");
@@ -46,21 +46,17 @@ function upload_grid(grid: Grid) {
   grid_renderer.upload_grid(grid);
 }
 
-function update_canvas_size() {
+function update_canvas_size(): boolean {
   const canvas = canvas_element.value;
   const grid_size = grid_renderer.grid_size;
-  if (canvas === null) return;
-  if (grid_size === undefined) return;
-  const [Ny,Nx] = grid_size;
-  const aspect_ratio = Nx/Ny;
-  const target_height = Math.round(canvas.clientWidth/aspect_ratio);
-  if (canvas.clientHeight != target_height) {
-    canvas.style.height = `${target_height}px`;
+  if (canvas === null) return false;
+  if (grid_size === undefined) return false;
+  if (canvas.width == canvas.clientWidth && canvas.height == canvas.clientHeight) {
+    return false;
   }
-  if (canvas.width != canvas.clientWidth || canvas.height != canvas.clientHeight) {
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
-  }
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  return true;
 }
 
 async function refresh_canvas() {
@@ -75,6 +71,27 @@ watch(display_axis, async (_new_value, _old_value) => {
 
 watch(display_scale, async (_new_value, _old_value) => {
   await refresh_canvas();
+});
+
+// rerender grid if canvas was resized
+let resize_observer: ResizeObserver | undefined = undefined;
+watch(canvas_element, (elem) => {
+  if (elem === null) return;
+  if (resize_observer !== undefined) {
+    resize_observer.disconnect();
+  }
+  resize_observer = new ResizeObserver(() => {
+    if (update_canvas_size()) {
+      void refresh_canvas();
+    }
+  });
+  resize_observer.observe(elem);
+});
+
+onBeforeUnmount(() => {
+  if (resize_observer !== undefined) {
+    resize_observer.disconnect();
+  }
 });
 
 defineExpose({
@@ -112,5 +129,7 @@ defineExpose({
 <style scoped>
 canvas.grid-view {
   image-rendering: auto;
+  aspect-ratio: 2 / 1;
+  display: block;
 }
 </style>
