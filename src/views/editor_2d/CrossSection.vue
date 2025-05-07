@@ -60,6 +60,7 @@ function get_trace_alignments(): TraceAlignment[] {
 interface Layout {
   viewport_width: number;
   viewport_height: number;
+  soldermask?: SvgPoint[];
   traces: SvgTrace[];
 }
 
@@ -113,46 +114,100 @@ const layout = computed<Layout>(() => {
 
   const total_traces_horizontal = get_total_traces_horizontal();
   const max_traces_horizontal = get_max_total_traces_horizontal();
+  const trace_combined_width = trace_separation*2+trace_taper*2+trace_width;
 
   function get_viewport_width(): number {
-    const trace_combined_width = trace_separation*2+trace_taper*2+trace_width;
     return viewport_width_padding*2 + trace_combined_width*max_traces_horizontal;
   }
   const viewport_width = get_viewport_width();
+
+  const cursor = {
+    x: 0,
+  };
+
+  function create_trace_points(alignment: TraceAlignment): SvgPoint[] {
+    const points: SvgPoint[] = [];
+    cursor.x += trace_separation;
+    if (alignment == "top") {
+      points.push({ x: cursor.x, y: 0 });
+      cursor.x += trace_taper;
+      points.push({ x: cursor.x, y: trace_height });
+      cursor.x += trace_width;
+      points.push({ x: cursor.x, y: trace_height });
+      cursor.x += trace_taper;
+      points.push({ x: cursor.x, y: 0 });
+    } else {
+      points.push({ x: cursor.x, y: viewport_height });
+      cursor.x += trace_taper;
+      points.push({ x: cursor.x, y: viewport_height-trace_height });
+      cursor.x += trace_width;
+      points.push({ x: cursor.x, y: viewport_height-trace_height });
+      cursor.x += trace_taper;
+      points.push({ x: cursor.x, y: viewport_height });
+    }
+    cursor.x += trace_separation;
+    return points;
+  }
+
+  function create_soldermask(): SvgPoint[] {
+    if (trace_alignments.length < 1) {
+      console.error("Failed to create soldermask since layer had no trace alignment");
+      return [];
+    }
+    const alignment = trace_alignments[0];
+    const points: SvgPoint[] = [];
+    function offset_trace_point(point: SvgPoint): SvgPoint {
+      if (alignment == "top") {
+        return {
+          x: point.x,
+          y: point.y+soldermask_height,
+        };
+      } else {
+        return {
+          x: point.x,
+          y: point.y-soldermask_height,
+        };
+      }
+    }
+
+    const soldermask_base_y = alignment == "top" ? 0 : viewport_height;
+    const soldermask_surface_y = alignment == "top" ? soldermask_height : viewport_height-soldermask_height;
+
+    cursor.x = 0;
+    points.push({ x: cursor.x, y: soldermask_base_y })
+    points.push({ x: cursor.x, y: soldermask_surface_y })
+    cursor.x += viewport_width_padding;
+    for (let i = 0; i < total_traces_horizontal; i++) {
+      if (signal.type == "broadside_pair") {
+        const is_left = i < (total_traces_horizontal/2);
+        if (!props.builder.is_broadside_signal_in_layer(props.index, alignment, is_left)) {
+          cursor.x += trace_combined_width;
+          continue;
+        };
+      } else {
+        if (!props.builder.is_signal_in_layer(props.index, alignment)) {
+          cursor.x += trace_combined_width;
+          continue;
+        }
+      }
+      const trace_points: SvgPoint[] = create_trace_points(alignment);
+      for (const point of trace_points) {
+        points.push(offset_trace_point(point));
+      }
+    }
+    cursor.x += viewport_width_padding;
+    points.push({ x: cursor.x, y: soldermask_surface_y })
+    points.push({ x: cursor.x, y: soldermask_base_y })
+    return points;
+  }
+
+  const has_soldermask = props.layer.type == "soldermask" && props.builder.is_signal_in_layer(props.index);
+  const soldermask = has_soldermask ? create_soldermask() : undefined;
 
   function create_traces(): SvgTrace[] {
     const traces: SvgTrace[] = [];
     if (props.layer.type == "copper") {
       return traces;
-    }
-
-
-    const cursor = {
-      x: 0,
-    };
-
-    function create_trace_points(alignment: TraceAlignment): SvgPoint[] {
-      const points: SvgPoint[] = [];
-      cursor.x += trace_separation;
-      if (alignment == "top") {
-        points.push({ x: cursor.x, y: 0 });
-        cursor.x += trace_taper;
-        points.push({ x: cursor.x, y: trace_height });
-        cursor.x += trace_width;
-        points.push({ x: cursor.x, y: trace_height });
-        cursor.x += trace_taper;
-        points.push({ x: cursor.x, y: 0 });
-      } else {
-        points.push({ x: cursor.x, y: viewport_height });
-        cursor.x += trace_taper;
-        points.push({ x: cursor.x, y: viewport_height-trace_height });
-        cursor.x += trace_width;
-        points.push({ x: cursor.x, y: viewport_height-trace_height });
-        cursor.x += trace_taper;
-        points.push({ x: cursor.x, y: viewport_height });
-      }
-      cursor.x += trace_separation;
-      return points;
     }
 
     for (const alignment of trace_alignments) {
@@ -197,6 +252,7 @@ const layout = computed<Layout>(() => {
     viewport_height,
     viewport_width,
     traces,
+    soldermask,
   }
 });
 
@@ -210,10 +266,19 @@ const layout = computed<Layout>(() => {
   :viewBox="`0 0 ${layout.viewport_width} ${layout.viewport_height}`"
   preserveAspectRatio="xMidYMid meet"
 >
-  <rect
-    x="0" :width="layout.viewport_width"
-    y="0" :height="layout.viewport_height" :fill="layer_type_to_colour(layer.type)"
-    :stroke="colours.black" stroke-width="0.5"></rect>
+  <template v-if="layout.soldermask === undefined">
+    <rect
+      x="0" :width="layout.viewport_width"
+      y="0" :height="layout.viewport_height" :fill="layer_type_to_colour(layer.type)"
+      :stroke="colours.black" stroke-width="0.5"></rect>
+  </template>
+  <template v-else>
+    <polygon
+      :points="svg_points_to_string(layout.soldermask)"
+      :fill="layer_type_to_colour(layer.type)"
+      :stroke="colours.black" stroke-width="0.5"
+    />
+  </template>
 
   <template v-for="(trace, index) in layout.traces" :key="index">
     <polygon
