@@ -1,9 +1,10 @@
 import type { FunctionalComponent } from 'vue';
 import { type RouteComponent } from 'vue-router';
-import { Calculator, Cuboid, Grid2x2 } from 'lucide-vue-next';
+import { Calculator, Cuboid, Grid2x2, Pencil } from 'lucide-vue-next';
 import { App3DView } from './views/app_3d';
 import { App2DView } from './views/app_2d';
 import { default as GridView } from './views/GridView.vue';
+import { Editor } from './views/editor_2d';
 
 export interface CustomRoute {
   name: string;
@@ -30,5 +31,11 @@ export const routes: CustomRoute[] = [
     path: "/mesher",
     view_component: GridView,
     icon_component: Grid2x2,
+  },
+  {
+    name: "editor_2d",
+    path: "/editor_2d",
+    view_component: Editor,
+    icon_component: Pencil,
   },
 ];
