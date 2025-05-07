@@ -211,6 +211,13 @@ export class Builder {
     if ((next_layer?.type == "air" || next_layer?.type == "soldermask") && prev_layer?.type != "dielectric") {
       return false;
     }
+
+    // prevent removal of layer from shorting a signal
+    const is_top_signal = (index-1) >= 0 && this.is_signal_in_layer(index-1, "bottom");
+    const is_bottom_signal = (index+1) <= total_layers-1 && this.is_signal_in_layer(index+1, "top");
+    // we perform this wierd xor to allow for copper on copper layers
+    if (is_top_signal && (is_bottom_signal || next_layer?.type == "copper")) return false;
+    if (is_bottom_signal && (is_top_signal || prev_layer?.type == "copper")) return false;
     return true;
   }
 
@@ -272,6 +279,11 @@ export class Builder {
         console.warn("Failed to find enough layers to convert to broadside pair");
       }
     }
+  }
+
+  set_signal_has_coplanar_ground(has_coplanar_ground: boolean) {
+    if (this.signal.type == "broadside_pair") return;
+    this.signal = { ...this.signal, has_coplanar_ground };
   }
 
   get_broadside_pair_possible_locations(max_count?: number): TracePosition[] {

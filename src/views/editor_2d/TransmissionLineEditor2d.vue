@@ -15,15 +15,6 @@ function layer_type_to_string(type: LayerType): string {
   }
 }
 
-function layer_type_to_colour(type: LayerType): string {
-  switch (type) {
-  case "air": return "bg-slate-50";
-  case "soldermask": return "bg-green-500";
-  case "copper": return "bg-yellow-600";
-  case "dielectric": return "bg-green-200";
-  }
-}
-
 const builder = ref(new Builder());
 function handle_layer_type_change(layer_index: number, ev: Event) {
   ev.preventDefault();
@@ -42,6 +33,14 @@ function handle_signal_type_change(ev: Event) {
   builder.value.set_signal_type(type);
 }
 
+function handle_signal_has_coplanar_ground_change(ev: Event) {
+  ev.preventDefault();
+  const target = ev.target as (HTMLSelectElement | null);
+  if (target === null) return;
+  const has_coplanar_ground = target.value == 'false';
+  builder.value.set_signal_has_coplanar_ground(has_coplanar_ground);
+}
+
 </script>
 
 <template>
@@ -54,7 +53,11 @@ function handle_signal_type_change(ev: Event) {
   </select>
   <template v-if="builder.signal.type != 'broadside_pair'">
     <label for="has_coplanar_ground" class="font-medium">Coplanar ground</label>
-    <input type="checkbox" :true-value="true" :false-value="false" v-model="builder.signal.has_coplanar_ground"/>
+    <input
+      type="checkbox"
+      :true-value="true" :false-value="false"
+      :value="builder.signal.has_coplanar_ground"
+      @change="ev => handle_signal_has_coplanar_ground_change(ev)"/>
   </template>
 </div>
 
@@ -75,7 +78,7 @@ function handle_signal_type_change(ev: Event) {
             </template>
           </select>
         </td>
-        <td class="min-w-[10rem] border-slate-900 border-1 px-1" :class="`${layer_type_to_colour(layer.type)}`">
+        <td>
           <CrossSection :builder="builder" :layer="layer" :index="index"></CrossSection>
         </td>
         <td class="px-1">
