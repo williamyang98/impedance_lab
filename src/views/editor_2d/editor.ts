@@ -45,7 +45,7 @@ export type SignalTrace =
   { type: "coplanar_pair" } & CoplanarDifferentialPair |
   { type: "broadside_pair" } & BroadsideDifferentialPair;
 
-export class Builder {
+export class Editor {
   layer_table: Record<number, Layer> = {};
   layers: Layer[] = [];
   layer_id_gen = new IdGenerator();
