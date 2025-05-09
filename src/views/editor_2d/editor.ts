@@ -8,15 +8,15 @@ export class IdGenerator {
   }
 }
 
-export type LayerType = "soldermask" | "air" | "copper" | "dielectric";
-export const layer_types: LayerType[] = ["soldermask", "air", "copper", "dielectric"];
+export type LayerType = "surface" | "inner" | "copper";
+export const layer_types: LayerType[] = ["surface", "inner", "copper"];
 export type TraceAlignment = "top" | "bottom";
 export const trace_alignments: TraceAlignment[] = ["top", "bottom"];
 
-export interface Layer {
-  id: Id;
-  type: LayerType;
-}
+export type Layer =
+  { type: "surface", id: Id, has_soldermask: boolean } |
+  { type: "inner", id: Id } |
+  { type: "copper", id: Id };
 
 export interface TracePosition {
   layer_id: Id;
@@ -63,7 +63,7 @@ export class Editor {
 
   add_layer(index: number): Layer {
     const id = this.layer_id_gen.get_id();
-    const layer: Layer = { id, type: "dielectric" };
+    const layer: Layer = { id, type: "inner" };
     this.layer_table[id] = layer;
     this.layers.splice(index, 0, layer);
     return layer;
@@ -109,11 +109,11 @@ export class Editor {
     }
   }
 
-  is_valid_layer_type(index: number, type: LayerType): boolean {
+  can_set_layer_type(index: number, type: LayerType): boolean {
     const total_layers = this.layers.length;
     const layer = this.layers[index];
     switch (type) {
-    case "dielectric": return true;
+    case "inner": return true;
     case "copper": {
       // avoid shorting out signal traces
       if (this.is_signal_in_layer(index)) return false;
@@ -121,29 +121,28 @@ export class Editor {
       if ((index < total_layers-1) && this.is_signal_in_layer(index+1, "top")) return false;
       return true;
     }
-    case "air": // @fallthrough
-    case "soldermask": {
+    case "surface": {
       if (total_layers < 2) return false;
       // make sure we aren't forcing broadside signal traces to collapse down into one alignment
-      if (layer.type == "dielectric") {
+      if (layer.type == "inner") {
         if (this.is_signal_in_layer(index, "top") && this.is_signal_in_layer(index, "bottom")) {
           return false;
         }
       }
       // only allow air/soldermask layers on top and bottom of stackup if it is supported by an adjacent dielectric layer
-      if (index == 0) return this.layers[index+1].type == "dielectric";
-      if (index == total_layers-1) return this.layers[index-1].type == "dielectric";
+      if (index == 0) return this.layers[index+1].type == "inner";
+      if (index == total_layers-1) return this.layers[index-1].type == "inner";
       return false;
     }
     }
   }
 
-  set_layer_type(index: number, type: LayerType) {
+  set_layer_type(index: number, type: LayerType, has_soldermask?: boolean) {
     const total_layers = this.layers.length;
     const layer = this.layers[index];
 
     // move signal traces to appropriate alignment
-    if (layer.type == "dielectric" && (type == "air" || type == "soldermask")) {
+    if (layer.type == "inner" && type == "surface") {
       const collapse_alignment = (new_alignment: TraceAlignment) => {
         switch (this.signal.type) {
           case "single": // @fallthrough
@@ -162,23 +161,23 @@ export class Editor {
       if (index == total_layers-1) collapse_alignment("top");
     }
     layer.type = type;
+    if (layer.type == "surface") {
+      layer.has_soldermask = (has_soldermask !== undefined) ? has_soldermask : false;
+    }
   }
 
   can_add_above(): boolean {
     const layer = this.layers[0];
-    return layer.type == 'dielectric';
+    return layer.type == "inner" || layer.type == "copper";
   }
 
   can_add_layer_below(index: number) {
-    const total_layers = this.layers.length;
     const layer = this.layers[index];
-    if (layer.type !== 'dielectric' && index == total_layers-1) {
-      return false;
-    }
-    return true;
+    if (index == 0) return true;
+    return layer.type != "surface";
   }
 
-  is_valid_signal_alignment(index: number, type: TraceAlignment): boolean {
+  can_move_signal(index: number, type: TraceAlignment): boolean {
     const total_layers = this.layers.length;
     const layer = this.layers[index];
     if (layer.type == "copper") return false;
@@ -188,7 +187,7 @@ export class Editor {
     if (index > 0 && type == "top" && this.layers[index-1].type == "copper") return false;
     if (index < total_layers-1 && type == "bottom" && this.layers[index+1].type == "copper") return false;
     // only allow traces on air/soldermask layers to be attached to adjacent layer
-    if (layer.type == "air" || layer.type == "soldermask") {
+    if (layer.type == "surface") {
       if (index == 0) return type == "bottom";
       if (index == total_layers-1) return type == "top";
       console.warn(`Got an air/soldermask layer at an unexpected index=${index}, total_layers=${total_layers}`);
@@ -205,10 +204,10 @@ export class Editor {
     // prevent soldermask/air layer collapsing onto a non-dielectric layer
     const prev_layer = (index-1 >= 0) ? this.layers[index-1] : null;
     const next_layer = (index+1 <= total_layers-1) ? this.layers[index+1] : null;
-    if ((prev_layer?.type == "air" || prev_layer?.type == "soldermask") && next_layer?.type != "dielectric") {
+    if (prev_layer?.type == "surface" && next_layer?.type != "inner") {
       return false;
     }
-    if ((next_layer?.type == "air" || next_layer?.type == "soldermask") && prev_layer?.type != "dielectric") {
+    if (next_layer?.type == "surface" && prev_layer?.type != "inner") {
       return false;
     }
 
@@ -296,10 +295,10 @@ export class Editor {
       if (layer.type == "copper") continue;
       const prev_layer = (i > 0) ? this.layers[i-1] : null;
       const next_layer = (i < total_layers-1) ? this.layers[i+1] : null;
-      if (prev_layer?.type != "copper" && !(prev_layer === null && (layer.type == "air" || layer.type == "soldermask"))) {
+      if (prev_layer?.type != "copper" && !(prev_layer === null && layer.type == "surface")) {
         positions.push({ layer_id: layer.id, alignment: "top" });
       }
-      if (next_layer?.type != "copper" && !(next_layer === null && (layer.type == "air" || layer.type == "soldermask"))) {
+      if (next_layer?.type != "copper" && !(next_layer === null && layer.type == "surface")) {
         positions.push({ layer_id: layer.id, alignment: "bottom" });
       }
       if (positions.length >= max_count) break;

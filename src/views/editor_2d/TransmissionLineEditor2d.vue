@@ -1,19 +1,38 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import {
-  Editor, type SignalType, type LayerType, type SignalTrace, type TraceAlignment,
-  layer_types,
+  Editor, type SignalType, type LayerType, type SignalTrace, type TraceAlignment, type Layer,
 } from "./editor.ts";
 
 import { StackupViewer } from "./index.ts";
 import { type LayoutInfo, type LayoutElement, type LayerInfo, type TraceInfo } from "./layout.ts";
 
-function layer_type_to_string(type: LayerType): string {
-  switch (type) {
-  case "air": return "Unmasked";
-  case "soldermask": return "Soldermask";
+type LayerTemplate = "inner" | "copper" | "soldermask" | "unmasked";
+const layer_templates: LayerTemplate[] = ["inner", "copper", "soldermask", "unmasked"];
+
+
+function layer_to_template(layer: Layer): LayerTemplate {
+  if (layer.type == "copper") return "copper";
+  if (layer.type == "inner") return "inner";
+  if (layer.has_soldermask) return "soldermask";
+  return "unmasked";
+}
+
+function layer_template_to_string(template: LayerTemplate): string {
+  switch (template) {
+  case "inner": return "Inner";
   case "copper": return "Copper";
-  case "dielectric": return "Dielectric";
+  case "soldermask": return "Soldermask";
+  case "unmasked": return "Unmasked";
+  }
+}
+
+function layer_template_to_type(template: LayerTemplate): { type: LayerType, has_soldermask?: boolean } {
+  switch (template) {
+  case "inner": return { type: "inner" };
+  case "copper": return { type: "copper" };
+  case "soldermask": return { type: "surface", has_soldermask: true };
+  case "unmasked": return { type: "surface", has_soldermask: false };
   }
 }
 
@@ -22,8 +41,9 @@ function handle_layer_type_change(layer_index: number, ev: Event) {
   ev.preventDefault();
   const target = ev.target as (HTMLSelectElement | null);
   if (target === null) return;
-  const type = target.value as LayerType;
-  editor.value.set_layer_type(layer_index, type);
+  const template = target.value as LayerTemplate;
+  const type = layer_template_to_type(template);
+  editor.value.set_layer_type(layer_index, type.type, type.has_soldermask);
 }
 
 function handle_signal_type_change(ev: Event) {
@@ -100,7 +120,7 @@ function create_layout_info_from_editor(e: Editor): LayoutInfo {
   };
 
   const can_place_signal_here = (row_index: number, column_index: number, alignment: TraceAlignment): boolean => {
-    return e.is_valid_signal_alignment(row_index, alignment);
+    return e.can_move_signal(row_index, alignment);
   };
 
   const place_signal_here = (row_index: number, column_index: number, alignment: TraceAlignment) => {
@@ -139,10 +159,9 @@ function create_layout_info_from_editor(e: Editor): LayoutInfo {
         layer_infos.push({ type: "copper" });
         break;
       }
-      case "air": // @fallthrough
-      case "soldermask": {
+      case "surface": {
         const alignment: TraceAlignment = (i == 0) ? "bottom" : "top";
-        const has_soldermask = layer.type == "soldermask";
+        const has_soldermask = layer.has_soldermask;
         layer_infos.push({
           type: "surface",
           has_soldermask,
@@ -151,7 +170,7 @@ function create_layout_info_from_editor(e: Editor): LayoutInfo {
         })
         break;
       }
-      case "dielectric": {
+      case "inner": {
         layer_infos.push({
           type: "inner",
           traces: {
@@ -202,10 +221,10 @@ const layout_info = computed<LayoutInfo>(() => create_layout_info_from_editor(ed
       <tr>
         <td class="flex flex-row px-1">
           <b>L{{ index+1 }}:</b>
-          <select :value="layer.type" @change="ev => handle_layer_type_change(index, ev)" class="w-full">
-            <template v-for="type in layer_types" :key="type">
-              <option v-if="editor.is_valid_layer_type(index, type)" :value="type">
-                {{ layer_type_to_string(type) }}
+          <select :value="layer_to_template(layer)" @change="ev => handle_layer_type_change(index, ev)" class="w-full">
+            <template v-for="template in layer_templates" :key="template">
+              <option v-if="editor.can_set_layer_type(index, layer_template_to_type(template).type)" :value="template">
+                {{ layer_template_to_string(template) }}
               </option>
             </template>
           </select>
