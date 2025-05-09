@@ -46,6 +46,7 @@ interface SignalTrace {
 
 interface SizeConfig {
   soldermask_height: number;
+  copper_layer_height: number;
   trace_height: number;
   trace_taper: number;
   signal_trace_width: number;
@@ -74,6 +75,7 @@ function get_default_config(): Config {
   return {
     size: {
       soldermask_height: 5,
+      copper_layer_height: 5,
       trace_height: 10,
       trace_taper: 5,
       signal_trace_width: 15,
@@ -365,7 +367,7 @@ class Stackup {
 
   create_copper_layer() {
     const y_offset = this.viewport_size.y;
-    const layer_height = this.config.size.trace_height;
+    const layer_height = this.config.size.copper_layer_height;
     const layer: Layer = {
       type: "rectangular",
       offset: { x: 0, y: y_offset },
