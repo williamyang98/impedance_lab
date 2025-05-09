@@ -30,32 +30,34 @@ function trace_layout_type_to_string(type: TraceLayoutType): string {
 const editor = ref(new Editor());
 const layout_info = computed(() => get_layout_info_from_editor(editor.value));
 
-function handle_layer_type_change(layer_index: number, ev: Event) {
-  ev.preventDefault();
-  const target = ev.target as (HTMLSelectElement | null);
-  if (target === null) return;
-  const template = target.value as LayerTemplate;
-  const descriptor = layer_template_to_descriptor(layer_index, template);
-  editor.value.change_layer_type(layer_index, descriptor);
-}
+const trace_layout_type = computed<TraceLayoutType>({
+  get() {
+    return editor.value.trace_layout.type;
+  },
+  set(type) {
+    editor.value.change_trace_layout_type(type);
+  }
+});
 
-function handle_signal_type_change(ev: Event) {
-  ev.preventDefault();
-  const target = ev.target as (HTMLSelectElement | null);
-  if (target === null) return;
-  const type = target.value as TraceLayoutType;
-  if (editor.value.trace_layout.type == type) return;
-  editor.value.change_trace_layout_type(type);
-}
-
-function handle_signal_has_coplanar_ground_change(ev: Event) {
-  ev.preventDefault();
-  const target = ev.target as (HTMLSelectElement | null);
-  if (target === null) return;
-  const has_coplanar_ground = target.value == 'false';
-  const layout = editor.value.trace_layout;
-  layout.has_coplanar_ground = has_coplanar_ground;
-}
+const layers = computed(() => editor.value.layers.map((layer, layer_index) => {
+  return {
+    template: computed<LayerTemplate>({
+      get() {
+        const layer = editor.value.layers[layer_index];
+        return layer_descriptor_to_template(layer);
+      },
+      set(template) {
+        const descriptor = layer_template_to_descriptor(layer_index, template);
+        editor.value.change_layer_type(layer_index, descriptor);
+      }
+    }),
+    descriptor: layer,
+    can_set_template(template: LayerTemplate): boolean {
+      const descriptor = layer_template_to_descriptor(layer_index, template);
+      return editor.value.can_change_layer_type(layer_index, descriptor);
+    },
+  }
+}));
 
 </script>
 
@@ -63,7 +65,7 @@ function handle_signal_has_coplanar_ground_change(ev: Event) {
 
 <div class="grid grid-cols-2 gap-x-2 w-fit mb-2">
   <label for="signal_type" class="font-medium">Signal type</label>
-  <select id="signal_type" :value="editor.trace_layout.type" @change="ev => handle_signal_type_change(ev)">
+  <select id="signal_type" v-model="trace_layout_type">
     <template v-for="type in signal_types" :key="type">
       <option :value="type" v-if="editor.can_change_trace_layout(type)">{{ trace_layout_type_to_string(type) }}</option>
     </template>
@@ -72,8 +74,8 @@ function handle_signal_has_coplanar_ground_change(ev: Event) {
   <input
     type="checkbox"
     :true-value="true" :false-value="false"
-    :value="editor.trace_layout.has_coplanar_ground"
-    @change="ev => handle_signal_has_coplanar_ground_change(ev)"/>
+    v-model.number="editor.trace_layout.has_coplanar_ground"
+  />
 </div>
 
 <table>
@@ -81,13 +83,13 @@ function handle_signal_has_coplanar_ground_change(ev: Event) {
     <tr v-if="editor.can_add_above()">
       <td colspan=2><div class="add-button col-span-3" @click="editor.add_layer(0)"></div></td>
     </tr>
-    <template v-for="(layer, index) in editor.layers" :key="layer.id">
+    <template v-for="(layer, index) in layers" :key="layer.descriptor.id">
       <tr>
         <td class="flex flex-row px-1">
           <b>L{{ index+1 }}:</b>
-          <select :value="layer_descriptor_to_template(layer)" @change="ev => handle_layer_type_change(index, ev)" class="w-full">
+          <select v-model="layer.template.value" class="w-full">
             <template v-for="template in layer_templates" :key="template">
-              <option v-if="editor.can_change_layer_type(index, layer_template_to_descriptor(index, template))" :value="template">
+              <option v-if="layer.can_set_template(template)" :value="template">
                 {{ layer_template_to_string(template) }}
               </option>
             </template>
