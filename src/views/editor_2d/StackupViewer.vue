@@ -44,6 +44,10 @@ interface SignalTrace {
   on_click?: () => void;
 }
 
+interface LayoutConfig {
+  stackup_offset: Point;
+}
+
 interface SizeConfig {
   soldermask_height: number;
   copper_layer_height: number;
@@ -67,12 +71,16 @@ interface ColourConfig {
 }
 
 interface Config {
+  layout: LayoutConfig;
   size: SizeConfig;
   colour: ColourConfig;
 }
 
 function get_default_config(): Config {
   return {
+    layout: {
+      stackup_offset: { x: 20, y: 0 },
+    },
     size: {
       soldermask_height: 5,
       copper_layer_height: 5,
@@ -87,16 +95,18 @@ function get_default_config(): Config {
     },
     colour: {
       copper: "#eabb2d",
-      soldermask: "#00aa00",
-      dielectric: "#00ff00",
+      soldermask: "#008800",
+      dielectric: "#00cc00",
       black: "#000000",
       air: "#ffffffff",
-      selectable: "#777777",
+      selectable: "#aaaaaa",
     },
   };
 }
 
 interface Row {
+  offset: Point;
+  height: number;
   layer: Layer;
   traces: SignalTrace[];
 }
@@ -219,11 +229,13 @@ class Stackup {
   rows: Row[] = [];
   config: Config = get_default_config();
   points_traces_template: Point[][];
+  stackup_width: number;
 
   constructor(info: LayoutInfo) {
-    const [traces_points, layer_width] = create_signal_layer_points(this.config.size, info.elements);
+    const [traces_points, stackup_width] = create_signal_layer_points(this.config.size, info.elements);
     this.points_traces_template = traces_points;
-    this.viewport_size.x = layer_width;
+    this.viewport_size.x = stackup_width + this.config.layout.stackup_offset.x;
+    this.stackup_width = stackup_width;
 
     for (const layer_info of info.layers) {
       switch (layer_info.type) {
@@ -252,16 +264,17 @@ class Stackup {
 
   create_surface_layer(info: SurfaceLayerInfo) {
     const layer_height = this.config.size.trace_height + this.config.size.soldermask_height;
-    const y_offset = this.viewport_size.y;
+    const x_offset = this.config.layout.stackup_offset.x;
+    const y_offset = this.viewport_size.y + this.config.layout.stackup_offset.y;
+    const offset: Point = { x: x_offset, y: y_offset };
 
     const to_top_layer = (point: Point): Point => {
-      point = point_offset(point, { x: 0, y: y_offset });
       return point;
     };
 
     const to_bottom_layer = (point: Point): Point => {
       point = point_flip(point);
-      point = point_offset(point, { x: 0, y: y_offset + layer_height });
+      point = point_offset(point, { x: 0, y: layer_height });
       return point;
     };
 
@@ -290,7 +303,7 @@ class Stackup {
 
     const soldermask_points = create_soldermask_points(
       this.config.size.soldermask_height,
-      this.viewport_size.x,
+      this.stackup_width,
       trace_points,
     )
 
@@ -301,25 +314,27 @@ class Stackup {
     } : {
       type: "rectangular",
       offset: { x: 0, y: y_offset },
-      width: this.viewport_size.x,
+      width: this.stackup_width,
       height: layer_height,
       colour: this.config.colour.air,
     };
 
-    this.rows.push({ layer, traces });
+    this.rows.push({ layer, traces, offset, height: layer_height });
     this.viewport_size.y += layer_height;
   }
 
   create_inner_layer(info: InnerLayerInfo) {
     const layer_height = this.config.size.trace_height*2 + this.config.size.broadside_height_separation;
-    const y_offset = this.viewport_size.y;
+    const x_offset = this.config.layout.stackup_offset.x;
+    const y_offset = this.viewport_size.y + this.config.layout.stackup_offset.y;
+    const offset: Point = { x: x_offset, y: y_offset };
+
     const to_top_layer = (point: Point): Point => {
-      point = point_offset(point, { x: 0, y: y_offset });
       return point;
     };
     const to_bottom_layer = (point: Point): Point => {
       point = point_flip(point);
-      point = point_offset(point, { x: 0, y: y_offset + layer_height });
+      point = point_offset(point, { x: 0, y: layer_height });
       return point;
     };
     const get_to_layer = (alignment: TraceAlignment) => {
@@ -355,27 +370,30 @@ class Stackup {
 
     const layer: Layer = {
       type: "rectangular",
-      offset: { x: 0, y: y_offset },
-      width: this.viewport_size.x,
+      offset: { x: 0, y: 0 },
+      width: this.stackup_width,
       height: layer_height,
       colour: this.config.colour.dielectric,
     };
 
-    this.rows.push({ layer, traces });
+    this.rows.push({ layer, traces, offset, height: layer_height });
     this.viewport_size.y += layer_height;
   }
 
   create_copper_layer() {
-    const y_offset = this.viewport_size.y;
+    const x_offset = this.config.layout.stackup_offset.x;
+    const y_offset = this.viewport_size.y + this.config.layout.stackup_offset.y;
+    const offset: Point = { x: x_offset, y: y_offset };
+
     const layer_height = this.config.size.copper_layer_height;
     const layer: Layer = {
       type: "rectangular",
-      offset: { x: 0, y: y_offset },
-      width: this.viewport_size.x,
+      offset: { x: 0, y: 0 },
+      width: this.stackup_width,
       height: layer_height,
       colour: this.config.colour.copper,
     };
-    this.rows.push({ layer, traces: [] });
+    this.rows.push({ layer, traces: [], offset, height: layer_height });
     this.viewport_size.y += layer_height;
   }
 }
@@ -390,33 +408,51 @@ const stackup = computed(() => new Stackup(props.layout_info));
 <template>
 <svg
   version="1.1" xmlns="http://www.w3.org/2000/svg"
-  :viewBox="`0 0 ${stackup.viewport_size.x} ${stackup.viewport_size.y}`"
+  :viewBox="`-1 -1 ${stackup.viewport_size.x+1} ${stackup.viewport_size.y+1}`"
   preserveAspectRatio="xMidYMid meet"
 >
+  <template v-for="(row, index) in stackup.rows.filter(r => r.height > 10)" :key="index">
+    <g :transform="`translate(0,${row.offset.y})`">
+      <line x1="0" :x2="stackup.config.layout.stackup_offset.x" y1="0" y2="0" stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"></line>
+      <line x1="0" :x2="stackup.config.layout.stackup_offset.x" :y1="row.height" :y2="row.height" stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"></line>
+      <text x="0" :y="row.height/2-1" :font-size="10" alignment-baseline="central">{{ `H${index+1}` }}</text>
+      <g :transform="`translate(15,0)`">
+        <line x1="0" x2="0" :y1="5" :y2="row.height-5" stroke="#000000" stroke-width="0.5"></line>
+        <g :transform="`translate(0,${3})`">
+          <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
+        </g>
+        <g :transform="`translate(0,${row.height-3}) scale(1,-1)`">
+          <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
+        </g>
+      </g>
+    </g>
+  </template>
   <template v-for="(row, i) in stackup.rows" :key="i">
-    <!-- Layer background -->
-    <template v-if="row.layer.type == 'rectangular'">
-      <rect
-        :x="row.layer.offset.x" :width="row.layer.width"
-        :y="row.layer.offset.y" :height="row.layer.height"
-        :fill="row.layer.colour"
-        stroke="#000000" stroke-width="0.5"></rect>
-    </template>
-    <template v-else-if="row.layer.type = 'soldermask'">
-      <polygon
-        :points="points_to_string(row.layer.polygon)"
-        :fill="row.layer.colour" stroke="#000000" stroke-width="0.5"
-      />
-    </template>
-    <!-- Traces -->
-    <template v-for="(trace, j) in row.traces" :key="[i,j]">
-      <polygon
-        :class="`${trace.on_click !== undefined ? 'signal-selectable' : ''}`"
-        @click="() => trace.on_click?.()"
-        :points="points_to_string(trace.polygon)"
-        :fill="trace.colour" stroke="#000000" stroke-width="0.5"
-      />
-    </template>
+    <g :transform="`translate(${row.offset.x},${row.offset.y})`">
+      <!-- Layer background -->
+      <template v-if="row.layer.type == 'rectangular'">
+        <rect
+          :x="row.layer.offset.x" :width="row.layer.width"
+          :y="row.layer.offset.y" :height="row.layer.height"
+          :fill="row.layer.colour"
+          stroke="#000000" stroke-width="0.5"></rect>
+      </template>
+      <template v-else-if="row.layer.type = 'soldermask'">
+        <polygon
+          :points="points_to_string(row.layer.polygon)"
+          :fill="row.layer.colour" stroke="#000000" stroke-width="0.5"
+        />
+      </template>
+      <!-- Traces -->
+      <template v-for="(trace, j) in row.traces" :key="[i,j]">
+        <polygon
+          :class="`${trace.on_click !== undefined ? 'signal-selectable' : ''}`"
+          @click="() => trace.on_click?.()"
+          :points="points_to_string(trace.polygon)"
+          :fill="trace.colour" stroke="#000000" stroke-width="0.5"
+        />
+      </template>
+    </g>
   </template>
 </svg>
 </template>
