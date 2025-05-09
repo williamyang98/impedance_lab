@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import {
   type TraceAlignment, trace_alignments,
-} from "./editor.ts";
+} from "./stackup.ts";
 import {
   type LayoutElement, type SurfaceLayerInfo, type InnerLayerInfo, type LayoutInfo,
-} from "./layout.ts";
+} from "./viewer_layout.ts";
 
 import { defineProps, computed } from "vue";
 

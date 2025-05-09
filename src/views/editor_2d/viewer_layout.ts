@@ -1,4 +1,4 @@
-import { type TraceAlignment } from "./editor.ts";
+import { type TraceAlignment } from "./stackup.ts";
 
 export type LayoutElement =
   { type: "spacing", separation: "ground" | "signal" } |

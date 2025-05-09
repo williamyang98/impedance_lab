@@ -1,308 +1,128 @@
-export type Id = number;
+import {
+  type Id, type Layer, type LayerDescriptor,
+  type TraceAlignment, type TraceLayout, type TraceLayoutType,
+  type Stackup, StackupRules,
+} from "./stackup.ts";
 
 export class IdGenerator {
-  curr: Id = 0;
-  get_id(): Id {
-    const id = this.curr++;
+  head: Id = 0;
+  own_id(): Id {
+    const id = this.head;
+    this.head += 1;
     return id;
+  }
+  borrow_id(): Id {
+    return this.head;
   }
 }
 
-export type LayerType = "surface" | "inner" | "copper";
-export const layer_types: LayerType[] = ["surface", "inner", "copper"];
-export type TraceAlignment = "top" | "bottom";
-export const trace_alignments: TraceAlignment[] = ["top", "bottom"];
-
-export type Layer =
-  { type: "surface", id: Id, has_soldermask: boolean } |
-  { type: "inner", id: Id } |
-  { type: "copper", id: Id };
-
-export interface TracePosition {
-  layer_id: Id;
-  alignment: TraceAlignment;
-}
-
-export interface SingleEndedTrace {
-  position: TracePosition;
-  has_coplanar_ground: boolean;
-}
-
-export interface CoplanarDifferentialPair {
-  position: TracePosition;
-  has_coplanar_ground: boolean;
-}
-
-export interface BroadsideDifferentialPair {
-  left_position: TracePosition;
-  right_position: TracePosition;
-}
-
-export type SignalType = "single" | "coplanar_pair" | "broadside_pair";
-export const signal_types: SignalType[] = ["single", "coplanar_pair", "broadside_pair"];
-export type SignalTrace =
-  { type: "single" } & SingleEndedTrace |
-  { type: "coplanar_pair" } & CoplanarDifferentialPair |
-  { type: "broadside_pair" } & BroadsideDifferentialPair;
-
-export class Editor {
-  layer_table: Record<number, Layer> = {};
-  layers: Layer[] = [];
+export class Editor implements Stackup {
   layer_id_gen = new IdGenerator();
-  signal: SignalTrace;
+  layers: Layer[] = [];
+  trace_layout: TraceLayout;
 
   constructor() {
     const layer = this.add_layer(0);
-    const signal: SignalTrace = {
-      type: "single",
+    const trace_layout: TraceLayout = {
+      type: "single_ended",
       position:  { layer_id: layer.id, alignment: "top" },
       has_coplanar_ground: false,
     };
-    this.signal = signal;
+    this.trace_layout = trace_layout;
+  }
+
+  _get_adjacent_layers(layer_index: number): [(Layer | undefined), (Layer | undefined)] {
+    const total_layers = this.layers.length;
+    const prev_layer = (layer_index > 0) ? this.layers[layer_index-1] : undefined;
+    const next_layer = (layer_index < total_layers-1) ? this.layers[layer_index+1] : undefined;
+    return [prev_layer, next_layer];
   }
 
   add_layer(index: number): Layer {
-    const id = this.layer_id_gen.get_id();
-    const layer: Layer = { id, type: "inner" };
-    this.layer_table[id] = layer;
+    const id = this.layer_id_gen.own_id();
+    const layer: Layer = { id, type: "inner", trace_alignments: new Set(["top", "bottom"]) };
     this.layers.splice(index, 0, layer);
     return layer;
   }
 
-  is_signal_in_layer(index: number, alignment?: TraceAlignment): boolean {
-    const layer = this.layers[index];
-    if (layer.type == "copper") return false;
-    switch (this.signal.type) {
-      case "single": // @fallthrough
-      case "coplanar_pair": {
-        const position = this.signal.position;
-        if (position.layer_id != layer.id) return false;
-        if (alignment === undefined) return true;
-        return position.alignment == alignment;
-      }
-      case "broadside_pair": {
-        if (this.signal.left_position.layer_id == layer.id) {
-          const position = this.signal.left_position;
-          if (alignment == undefined) return true;
-          if (position.alignment == alignment) return true;
-        }
-        if (this.signal.right_position.layer_id == layer.id) {
-          const position = this.signal.right_position;
-          if (alignment == undefined) return true;
-          if (position.alignment == alignment) return true;
-        }
-        return false;
-      }
-    }
+  can_change_layer_type(layer_index: number, descriptor: LayerDescriptor): boolean {
+    const [prev_layer, next_layer] = this._get_adjacent_layers(layer_index);
+    const layer = this.layers[layer_index];
+    const new_layer_temp = { id: layer.id, ...descriptor };
+
+    if (prev_layer && StackupRules.is_shorting(this.trace_layout, prev_layer, new_layer_temp)) return false;
+    if (next_layer && StackupRules.is_shorting(this.trace_layout, new_layer_temp, next_layer)) return false;
+    if (StackupRules.is_trace_layout_floating_in_layer(new_layer_temp, this.trace_layout)) return false;
+    if (prev_layer && !StackupRules.can_layer_support_adjacent_layer(new_layer_temp, true)) return false;
+    if (next_layer && !StackupRules.can_layer_support_adjacent_layer(new_layer_temp, false)) return false;
+
+    return true;
   }
 
-  is_broadside_signal_in_layer(index: number, alignment: TraceAlignment, is_left: boolean): boolean {
-    const layer = this.layers[index];
-    if (this.signal.type != "broadside_pair") return false;
-
-    if (is_left) {
-      const position = this.signal.left_position;
-      return position.layer_id == layer.id && position.alignment == alignment;
-    } else {
-      const position = this.signal.right_position;
-      return position.layer_id == layer.id && position.alignment == alignment;
-    }
-  }
-
-  can_set_layer_type(index: number, type: LayerType): boolean {
-    const total_layers = this.layers.length;
-    const layer = this.layers[index];
-    switch (type) {
-    case "inner": return true;
-    case "copper": {
-      // avoid shorting out signal traces
-      if (this.is_signal_in_layer(index)) return false;
-      if ((index > 0) && this.is_signal_in_layer(index-1, "bottom")) return false;
-      if ((index < total_layers-1) && this.is_signal_in_layer(index+1, "top")) return false;
-      return true;
-    }
-    case "surface": {
-      if (total_layers < 2) return false;
-      // make sure we aren't forcing broadside signal traces to collapse down into one alignment
-      if (layer.type == "inner") {
-        if (this.is_signal_in_layer(index, "top") && this.is_signal_in_layer(index, "bottom")) {
-          return false;
-        }
-      }
-      // only allow air/soldermask layers on top and bottom of stackup if it is supported by an adjacent dielectric layer
-      if (index == 0) return this.layers[index+1].type == "inner";
-      if (index == total_layers-1) return this.layers[index-1].type == "inner";
-      return false;
-    }
-    }
-  }
-
-  set_layer_type(index: number, type: LayerType, has_soldermask?: boolean) {
-    const total_layers = this.layers.length;
-    const layer = this.layers[index];
-
-    // move signal traces to appropriate alignment
-    if (layer.type == "inner" && type == "surface") {
-      const collapse_alignment = (new_alignment: TraceAlignment) => {
-        switch (this.signal.type) {
-          case "single": // @fallthrough
-          case "coplanar_pair": {
-            if (this.signal.position.layer_id == layer.id) this.signal.position.alignment = new_alignment;
-            break;
-          }
-          case "broadside_pair": {
-            if (this.signal.left_position.layer_id == layer.id) this.signal.left_position.alignment = new_alignment;
-            if (this.signal.right_position.layer_id == layer.id) this.signal.right_position.alignment = new_alignment;
-            break;
-          }
-        }
-      }
-      if (index == 0) collapse_alignment("bottom");
-      if (index == total_layers-1) collapse_alignment("top");
-    }
-    layer.type = type;
-    if (layer.type == "surface") {
-      layer.has_soldermask = (has_soldermask !== undefined) ? has_soldermask : false;
-    }
+  change_layer_type(layer_index: number, descriptor: LayerDescriptor) {
+    const layer = this.layers[layer_index];
+    const new_layer = { id: layer.id, ...descriptor };
+    this.layers.splice(layer_index, 1, new_layer);
   }
 
   can_add_above(): boolean {
     const layer = this.layers[0];
-    return layer.type == "inner" || layer.type == "copper";
+    return StackupRules.can_layer_support_adjacent_layer(layer, true);
   }
 
-  can_add_layer_below(index: number) {
-    const layer = this.layers[index];
-    if (index == 0) return true;
-    return layer.type != "surface";
+  can_add_layer_below(layer_index: number) {
+    const layer = this.layers[layer_index];
+    return StackupRules.can_layer_support_adjacent_layer(layer, false)
   }
 
-  can_move_signal(index: number, type: TraceAlignment): boolean {
-    const total_layers = this.layers.length;
-    const layer = this.layers[index];
-    if (layer.type == "copper") return false;
-    // prevent shorting to existing signal
-    if (this.is_signal_in_layer(index, type)) return false;
-    // prevent shorts to adjacent copper layers
-    if (index > 0 && type == "top" && this.layers[index-1].type == "copper") return false;
-    if (index < total_layers-1 && type == "bottom" && this.layers[index+1].type == "copper") return false;
-    // only allow traces on air/soldermask layers to be attached to adjacent layer
-    if (layer.type == "surface") {
-      if (index == 0) return type == "bottom";
-      if (index == total_layers-1) return type == "top";
-      console.warn(`Got an air/soldermask layer at an unexpected index=${index}, total_layers=${total_layers}`);
-      return false;
+  can_remove_layer(layer_index: number): boolean {
+    const [prev_layer, next_layer] = this._get_adjacent_layers(layer_index);
+    const layer = this.layers[layer_index];
+    if (this.layers.length <= 1) return false;
+    if (StackupRules.is_trace_layout_in_layer(layer, this.trace_layout, undefined, undefined)) return false;
+    if (prev_layer && next_layer) {
+      if (StackupRules.is_shorting(this.trace_layout, prev_layer, next_layer )) return false;
+      if (!StackupRules.can_layer_support_adjacent_layer(prev_layer, false)) return false;
+      if (!StackupRules.can_layer_support_adjacent_layer(next_layer, true)) return false;
     }
     return true;
   }
 
-  can_remove_layer(index: number): boolean {
-    const total_layers = this.layers.length;
-    if (total_layers == 1) return false;
-    if (this.is_signal_in_layer(index)) return false;
+  remove_layer(layer_index: number) {
+    this.layers.splice(layer_index, 1);
+  }
 
-    // prevent soldermask/air layer collapsing onto a non-dielectric layer
-    const prev_layer = (index-1 >= 0) ? this.layers[index-1] : null;
-    const next_layer = (index+1 <= total_layers-1) ? this.layers[index+1] : null;
-    if (prev_layer?.type == "surface" && next_layer?.type != "inner") {
-      return false;
-    }
-    if (next_layer?.type == "surface" && prev_layer?.type != "inner") {
-      return false;
-    }
+  is_trace_in_layer(layer_index: number, trace_index?: number, alignment?: TraceAlignment): boolean {
+    const layer = this.layers[layer_index];
+    return StackupRules.is_trace_layout_in_layer(layer, this.trace_layout, trace_index, alignment);
+  }
 
-    // prevent removal of layer from shorting a signal
-    const is_top_signal = (index-1) >= 0 && this.is_signal_in_layer(index-1, "bottom");
-    const is_bottom_signal = (index+1) <= total_layers-1 && this.is_signal_in_layer(index+1, "top");
-    // we perform this wierd xor to allow for copper on copper layers
-    if (is_top_signal && (is_bottom_signal || next_layer?.type == "copper")) return false;
-    if (is_bottom_signal && (is_top_signal || prev_layer?.type == "copper")) return false;
+  can_move_trace_here(layer_index: number, trace_index: number, alignment: TraceAlignment): boolean {
+    const [prev_layer, next_layer] = this._get_adjacent_layers(layer_index);
+    const layer = this.layers[layer_index];
+    const new_trace_temp = StackupRules.move_trace_layout(this.trace_layout, layer.id, trace_index, alignment);
+
+    if (StackupRules.is_shorting(new_trace_temp)) return false;
+    if (prev_layer && StackupRules.is_shorting(new_trace_temp, prev_layer, layer)) return false;
+    if (next_layer && StackupRules.is_shorting(new_trace_temp, layer, next_layer)) return false;
+    if (StackupRules.is_trace_layout_floating_in_layer(layer, new_trace_temp)) return false;
     return true;
   }
 
-  remove_layer(index: number) {
-    const layer = this.layers[index];
-    if (this.is_signal_in_layer(index)) {
-      console.error(`Attempted to remove a layer with a signal on it. index=${index}, id=${layer.id}`);
-      return;
-    }
-    delete this.layer_table[layer.id];
-    this.layers.splice(index, 1);
+  move_trace_here(layer_index: number, trace_index: number, alignment: TraceAlignment) {
+    const layer = this.layers[layer_index];
+    const new_trace = StackupRules.move_trace_layout(this.trace_layout, layer.id, trace_index, alignment);
+    this.trace_layout = new_trace;
   }
 
-  move_single_layer_signal(index: number, alignment: TraceAlignment) {
-    const layer = this.layers[index];
-    if (this.signal.type == "broadside_pair") {
-      console.error("Just tried to move a broadside pair to a single layer and alignment");
-      return;
-    }
-    this.signal.position.layer_id = layer.id;
-    this.signal.position.alignment = alignment;
+  can_change_trace_layout(type: TraceLayoutType): boolean {
+    return StackupRules.find_valid_trace_layout(type, this.layers) !== null;
   }
 
-  move_broadside_signal(index: number, alignment: TraceAlignment, is_left: boolean) {
-    const layer = this.layers[index];
-    if (this.signal.type != "broadside_pair") {
-      console.error("Just tried to move a broadside pair to a single layer and alignment");
-      return;
+  change_trace_layout_type(type: TraceLayoutType) {
+    const new_trace_layout = StackupRules.find_valid_trace_layout(type, this.layers);
+    if (new_trace_layout !== null) {
+      this.trace_layout = new_trace_layout;
     }
-    if (is_left) {
-      this.signal.left_position.layer_id = layer.id;
-      this.signal.left_position.alignment = alignment;
-    } else {
-      this.signal.right_position.layer_id = layer.id;
-      this.signal.right_position.alignment = alignment;
-    }
-  }
-
-  set_signal_type(type: SignalType) {
-    if (this.signal.type == type) return;
-    if (type == "single" || type == "coplanar_pair") {
-      // collapse down to single layer and alignment
-      const has_coplanar_ground = this.signal.type == "broadside_pair" ? false : this.signal.has_coplanar_ground;
-      if (this.signal.type == "broadside_pair") {
-        const position = this.signal.left_position;
-        this.signal = { type, position, has_coplanar_ground };
-      } else {
-        const position = this.signal.position;
-        this.signal = { type, position, has_coplanar_ground };
-      }
-    } else {
-      // only do this if it's possible to assign the left and right traces to non-shorting locations
-      const positions = this.get_broadside_pair_possible_locations();
-      if (positions.length >= 2) {
-        const left_position = positions[0];
-        const right_position = positions[1];
-        this.signal = { type, left_position, right_position };
-      } else {
-        console.warn("Failed to find enough layers to convert to broadside pair");
-      }
-    }
-  }
-
-  set_signal_has_coplanar_ground(has_coplanar_ground: boolean) {
-    if (this.signal.type == "broadside_pair") return;
-    this.signal = { ...this.signal, has_coplanar_ground };
-  }
-
-  get_broadside_pair_possible_locations(max_count?: number): TracePosition[] {
-    max_count = max_count ?? 2;
-
-    const positions: TracePosition[] = [];
-    const total_layers = this.layers.length;
-    for (let i = 0; i < total_layers; i++) {
-      const layer = this.layers[i];
-      if (layer.type == "copper") continue;
-      const prev_layer = (i > 0) ? this.layers[i-1] : null;
-      const next_layer = (i < total_layers-1) ? this.layers[i+1] : null;
-      if (prev_layer?.type != "copper" && !(prev_layer === null && layer.type == "surface")) {
-        positions.push({ layer_id: layer.id, alignment: "top" });
-      }
-      if (next_layer?.type != "copper" && !(next_layer === null && layer.type == "surface")) {
-        positions.push({ layer_id: layer.id, alignment: "bottom" });
-      }
-      if (positions.length >= max_count) break;
-    }
-    return positions;
   }
 }
