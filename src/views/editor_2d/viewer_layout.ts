@@ -1,8 +1,22 @@
 import { type TraceAlignment } from "./stackup.ts";
 
+export interface TraceElement {
+  width: "ground" | "signal";
+  annotation?: {
+    width?: string;
+  };
+}
+
+export interface SpacingElement {
+  width: "ground" | "signal";
+  annotation?: {
+    width?: string;
+  };
+}
+
 export type LayoutElement =
-  { type: "spacing", separation: "ground" | "signal" } |
-  { type: "trace", trace: "ground" | "signal" };
+  { type: "spacing" } & SpacingElement |
+  { type: "trace" } & TraceElement;
 
 export type TraceInfo =
   { type: "solid" } |
@@ -13,10 +27,18 @@ export interface SurfaceLayerInfo {
   alignment: TraceAlignment;
   has_soldermask: boolean;
   traces: TraceInfo[];
+  annotation?: {
+    soldermask_height?: string;
+    trace_height?: string;
+  };
 }
 
 export interface InnerLayerInfo {
   traces: Partial<Record<TraceAlignment, TraceInfo[]>>;
+  annotation?: {
+    dielectric_height?: string;
+    trace_heights?: Partial<Record<TraceAlignment, string>>;
+  };
 }
 
 export type LayerInfo =

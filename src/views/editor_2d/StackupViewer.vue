@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import {
-  type TraceAlignment, trace_alignments,
-} from "./stackup.ts";
+import { __wbindgen_export_0 } from "../../wasm/pkg/fdtd_core_bg.wasm";
+import { type TraceAlignment } from "./stackup.ts";
 import {
   type LayoutElement, type SurfaceLayerInfo, type InnerLayerInfo, type LayoutInfo,
 } from "./viewer_layout.ts";
@@ -81,24 +80,24 @@ interface Config {
 function get_default_config(): Config {
   return {
     layout: {
-      y_axis_widget_width: 20,
-      font_size: 7,
+      y_axis_widget_width: 23,
+      font_size: 9,
     },
     size: {
-      soldermask_height: 5,
-      copper_layer_height: 5,
-      trace_height: 10,
-      trace_taper: 5,
-      signal_trace_width: 15,
-      ground_trace_width: 25,
-      signal_width_separation: 10,
-      ground_width_separation: 20,
-      broadside_height_separation: 20,
-      padding_width: 15,
+      soldermask_height: 15,
+      copper_layer_height: 10,
+      trace_height: 20,
+      trace_taper: 15,
+      signal_trace_width: 25,
+      ground_trace_width: 30,
+      signal_width_separation: 20,
+      ground_width_separation: 25,
+      broadside_height_separation: 40,
+      padding_width: 25,
     },
     colour: {
       copper: "#eacc2d",
-      dielectric_soldermask: "#008800",
+      dielectric_soldermask: "#00aa00",
       dielectric_prepreg: "#55cc33",
       dielectric_core: "#88ed44",
       black: "#000000",
@@ -109,8 +108,6 @@ function get_default_config(): Config {
 }
 
 interface Row {
-  y_offset: number;
-  height: number;
   layer: Layer;
   traces: SignalTrace[];
 }
@@ -171,7 +168,7 @@ function create_signal_layer_points(config: SizeConfig, layout: LayoutElement[])
   for (const elem of layout) {
     switch (elem.type) {
       case "spacing": {
-        switch (elem.separation) {
+        switch (elem.width) {
           case "ground": {
             cursor.x += config.ground_width_separation;
             break;
@@ -184,7 +181,7 @@ function create_signal_layer_points(config: SizeConfig, layout: LayoutElement[])
         break;
       }
       case "trace": {
-        switch (elem.trace) {
+        switch (elem.width) {
           case "ground": {
             push_points(ground_trace_points);
             break;
@@ -227,6 +224,13 @@ function create_soldermask_points(height: number, width: number, traces: Point[]
   return all_points;
 }
 
+interface HeightAnnotation {
+  y_offset: number;
+  overhang_top: number;
+  overhang_bottom: number;
+  height: number;
+  text: string;
+}
 
 class Stackup {
   viewport_size: Point = { x: 0, y: 0 };
@@ -234,6 +238,7 @@ class Stackup {
   config: Config = get_default_config();
   points_traces_template: Point[][];
   stackup_width: number;
+  height_annotations: HeightAnnotation[] = [];
 
   constructor(info: LayoutInfo) {
     const [traces_points, stackup_width] = create_signal_layer_points(this.config.size, info.elements);
@@ -268,14 +273,16 @@ class Stackup {
 
   create_surface_layer(info: SurfaceLayerInfo) {
     const layer_height = this.config.size.trace_height + this.config.size.soldermask_height;
+    const y_offset = this.viewport_size.y;
 
     const to_top_layer = (point: Point): Point => {
+      point = point_offset(point, { x: 0, y: y_offset });
       return point;
     };
 
     const to_bottom_layer = (point: Point): Point => {
       point = point_flip(point);
-      point = point_offset(point, { x: 0, y: layer_height });
+      point = point_offset(point, { x: 0, y: y_offset + layer_height });
       return point;
     };
 
@@ -314,26 +321,83 @@ class Stackup {
       colour: this.config.colour.dielectric_soldermask,
     } : {
       type: "rectangular",
-      offset: { x: 0, y: 0 },
+      offset: { x: 0, y: y_offset },
       width: this.stackup_width,
       height: layer_height,
       colour: this.config.colour.air,
     };
 
-    const y_offset = this.viewport_size.y;
-    this.rows.push({ layer, traces, y_offset, height: layer_height });
+    this.rows.push({ layer, traces });
+
+    // annotation
+    const text = info.annotation;
+    let annotation_overhang = 0;
+    if (trace_points.length > 0) {
+      annotation_overhang = trace_points[0][1].x;
+    }
+
+    if (info.alignment == "top") {
+      if (text?.trace_height) {
+        this.height_annotations.push({
+          y_offset,
+          height: this.config.size.trace_height,
+          overhang_top: 0,
+          overhang_bottom: annotation_overhang,
+          text: text.trace_height,
+        });
+      }
+      if (text?.soldermask_height && info.has_soldermask) {
+        this.height_annotations.push({
+          y_offset: y_offset+this.config.size.trace_height,
+          height: this.config.size.soldermask_height,
+          overhang_top: 0,
+          overhang_bottom: annotation_overhang,
+          text: text.soldermask_height,
+        });
+      }
+    } else {
+      if (text?.trace_height) {
+        this.height_annotations.push({
+          y_offset: y_offset+this.config.size.soldermask_height,
+          height: this.config.size.trace_height,
+          overhang_top: annotation_overhang,
+          overhang_bottom: 0,
+          text: text.trace_height,
+        });
+      }
+      if (text?.soldermask_height && info.has_soldermask) {
+        this.height_annotations.push({
+          y_offset: y_offset,
+          height: this.config.size.soldermask_height,
+          overhang_top: annotation_overhang,
+          overhang_bottom: 0,
+          text: text.soldermask_height,
+        });
+      }
+    }
+
     this.viewport_size.y += layer_height;
   }
 
   create_inner_layer(info: InnerLayerInfo) {
-    const layer_height = this.config.size.trace_height*2 + this.config.size.broadside_height_separation;
+    // NOTE: we redeclare this so we control which order will build the stackup
+    const trace_alignments: TraceAlignment[] = ["top", "bottom"];
+    const total_alignments = trace_alignments
+      .map(alignment => info.traces[alignment])
+      .filter(traces => traces !== undefined)
+      .length;
+    const layer_height =
+      this.config.size.trace_height*total_alignments +
+      this.config.size.broadside_height_separation*Math.max(1, total_alignments-1);
+    const y_offset = this.viewport_size.y;
 
     const to_top_layer = (point: Point): Point => {
+      point = point_offset(point, { x: 0, y: y_offset });
       return point;
     };
     const to_bottom_layer = (point: Point): Point => {
       point = point_flip(point);
-      point = point_offset(point, { x: 0, y: layer_height });
+      point = point_offset(point, { x: 0, y: y_offset + layer_height });
       return point;
     };
     const get_to_layer = (alignment: TraceAlignment) => {
@@ -343,12 +407,11 @@ class Stackup {
       }
     }
 
-    const traces = [];
-    let total_alignments = 0;
+    const alignment_traces: Partial<Record<TraceAlignment, SignalTrace[]>> = {};
     for (const alignment of trace_alignments) {
       const traces_info = info.traces[alignment];
       if (traces_info === undefined) continue;
-      total_alignments += 1;
+      const traces: SignalTrace[] = [];
       if (this.points_traces_template.length != traces_info.length) {
         console.warn(`Got mismatching number of traces between template (${this.points_traces_template.length}) and layer trace info (${traces_info.length}) at alignment '${alignment}'`);
       }
@@ -365,35 +428,82 @@ class Stackup {
           colour: this.get_trace_colour(trace_info.type),
           on_click: trace_info.type == "selectable" ? trace_info.on_click : undefined,
         };
-
         traces.push(trace);
+      }
+      alignment_traces[alignment] = traces;
+    }
+
+    // annotations
+    const text = info.annotation;
+    let height_annotation_offset = y_offset;
+    for (let i = 0; i < trace_alignments.length; i++) {
+      const alignment = trace_alignments[i];
+      const traces = alignment_traces[alignment];
+      if (traces !== undefined) {
+        const annotation_overhang = (traces.length > 0) ? traces[0].polygon[1].x : 0;
+        const height = this.config.size.trace_height;
+        const label = text?.trace_heights?.[alignment];
+        if (label) {
+          const overhang_top = (i > 0) ? annotation_overhang : 0;
+          const overhang_bottom = (i < trace_alignments.length-1) ? annotation_overhang : 0;
+          this.height_annotations.push({
+            y_offset: height_annotation_offset,
+            height,
+            overhang_top,
+            overhang_bottom,
+            text: label,
+          });
+        }
+        height_annotation_offset += height;
+      }
+      if (i < trace_alignments.length-1) {
+        const height = this.config.size.broadside_height_separation;
+        if (text?.dielectric_height) {
+          // trace height annotation will handle overhang for us
+          this.height_annotations.push({
+            y_offset: height_annotation_offset,
+            height,
+            overhang_top: 0,
+            overhang_bottom: 0,
+            text: text.dielectric_height,
+          });
+        }
+        height_annotation_offset += height;
       }
     }
 
     const layer: Layer = {
       type: "rectangular",
-      offset: { x: 0, y: 0 },
+      offset: { x: 0, y: y_offset },
       width: this.stackup_width,
       height: layer_height,
       colour: (total_alignments == 0) ? this.config.colour.dielectric_core : this.config.colour.dielectric_prepreg,
     };
 
-    const y_offset = this.viewport_size.y;
-    this.rows.push({ layer, traces, y_offset, height: layer_height });
+    const traces = [];
+    for (const alignment of trace_alignments) {
+      const sub_traces = alignment_traces[alignment];
+      if (sub_traces === undefined) continue;
+      for (const trace of sub_traces) {
+        traces.push(trace);
+      }
+    }
+
+    this.rows.push({ layer, traces });
     this.viewport_size.y += layer_height;
   }
 
   create_copper_layer() {
     const layer_height = this.config.size.copper_layer_height;
+    const y_offset = this.viewport_size.y;
     const layer: Layer = {
       type: "rectangular",
-      offset: { x: 0, y: 0 },
+      offset: { x: 0, y: y_offset },
       width: this.stackup_width,
       height: layer_height,
       colour: this.config.colour.copper,
     };
-    const y_offset = this.viewport_size.y;
-    this.rows.push({ layer, traces: [], y_offset, height: layer_height });
+    this.rows.push({ layer, traces: [] });
     this.viewport_size.y += layer_height;
   }
 }
@@ -412,26 +522,9 @@ const layout = computed(() => stackup.value.config.layout);
   :viewBox="`${-layout.y_axis_widget_width-1} -1 ${stackup.viewport_size.x+1} ${stackup.viewport_size.y+2}`"
   preserveAspectRatio="xMidYMid meet"
 >
-  <template v-for="(row, index) in stackup.rows.filter(r => r.height > 10)" :key="index">
-    <g :transform="`translate(${-layout.y_axis_widget_width},0)`">
-      <g :transform="`translate(0,${row.y_offset})`">
-        <line x1="0" :x2="layout.y_axis_widget_width" y1="0" y2="0" stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"></line>
-        <line x1="0" :x2="layout.y_axis_widget_width" :y1="row.height" :y2="row.height" stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"></line>
-        <text x="1" :y="row.height/2-1" :font-size="layout.font_size" alignment-baseline="central">{{ `H${index+1}` }}</text>
-        <g :transform="`translate(${layout.y_axis_widget_width-5},0)`">
-          <line x1="0" x2="0" :y1="5" :y2="row.height-5" stroke="#000000" stroke-width="0.5"></line>
-          <g :transform="`translate(0,${3})`">
-            <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
-          </g>
-          <g :transform="`translate(0,${row.height-3}) scale(1,-1)`">
-            <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
-          </g>
-        </g>
-      </g>
-    </g>
-  </template>
+  <!-- Stackup -->
   <template v-for="(row, i) in stackup.rows" :key="i">
-    <g :transform="`translate(0,${row.y_offset})`">
+    <g>
       <!-- Layer background -->
       <template v-if="row.layer.type == 'rectangular'">
         <rect
@@ -459,6 +552,33 @@ const layout = computed(() => stackup.value.config.layout);
       </template>
     </g>
   </template>
+  <!-- Height annotations -->
+  <template v-for="(label, index) in stackup.height_annotations" :key="index">
+    <g :transform="`translate(${-layout.y_axis_widget_width},0)`">
+      <g :transform="`translate(0,${label.y_offset})`">
+        <line
+          x1="0" :x2="layout.y_axis_widget_width+label.overhang_top"
+          y1="0" y2="0"
+          stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
+        <line
+          x1="0" :x2="layout.y_axis_widget_width+label.overhang_bottom"
+          :y1="label.height" :y2="label.height"
+          stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
+        <text x="1" :y="label.height/2-1" :font-size="layout.font_size">
+          {{ label.text }}
+        </text>
+        <g :transform="`translate(${layout.y_axis_widget_width-5},0)`">
+          <line x1="0" x2="0" :y1="2" :y2="label.height-2" stroke="#000000" stroke-width="0.5"></line>
+          <g :transform="`translate(0,${2})`">
+            <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
+          </g>
+          <g :transform="`translate(0,${label.height-2}) scale(1,-1)`">
+            <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
+          </g>
+        </g>
+      </g>
+    </g>
+  </template>
 </svg>
 </template>
 
@@ -466,6 +586,11 @@ const layout = computed(() => stackup.value.config.layout);
 svg {
   width: 100%;
   display: block;
+}
+
+text {
+  font-weight: 500;
+  alignment-baseline: central;
 }
 
 .dielectric {

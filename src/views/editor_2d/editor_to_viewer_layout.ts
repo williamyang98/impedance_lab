@@ -7,12 +7,21 @@ export function get_layout_elements_from_traces(traces: TraceType[]): LayoutElem
   for (let i = 0; i < traces.length; i++) {
     const trace = traces[i];
     const next_trace = (i < traces.length-1) ? traces[i+1] : null;
-    elements.push({ type: "trace", trace })
+    switch (trace) {
+      case "ground": {
+        elements.push({ type: "trace", width: "ground", annotation: { width: "CW"} });
+        break;
+      }
+      case "signal": {
+        elements.push({ type: "trace", width: "signal", annotation: { width: "W" } });
+        break;
+      }
+    }
     if (next_trace == null) continue;
     if (trace == "signal" && next_trace == "signal") {
-      elements.push({ type: "spacing", separation: "signal" });
+      elements.push({ type: "spacing", width: "signal", annotation: { width: "CS" } });
     } else {
-      elements.push({ type: "spacing", separation: "ground" });
+      elements.push({ type: "spacing", width: "ground", annotation: { width: "S"} });
     }
   }
   return elements;
@@ -57,17 +66,29 @@ export function get_layout_info_from_editor(editor: Editor): LayoutInfo {
           has_soldermask,
           alignment,
           traces: trace_indices.map(trace_index => create_trace(layer_index, trace_index, alignment)),
+          annotation: {
+            soldermask_height: has_soldermask ? `H${layer_index}` : undefined,
+            trace_height: "T",
+          },
         })
         break;
       }
       case "inner": {
         const traces: Partial<Record<TraceAlignment, TraceInfo[]>> = {};
+        const trace_heights: Partial<Record<TraceAlignment, string>> = {};
         for (const alignment of layer.trace_alignments) {
-          traces[alignment] = trace_indices.map(trace_index => create_trace(layer_index, trace_index, alignment));
+          const trace_infos = trace_indices.map(trace_index => create_trace(layer_index, trace_index, alignment));
+          const has_trace_infos = trace_infos.filter(info => info != null).length > 0;
+          traces[alignment] = has_trace_infos ? trace_infos : undefined;
+          trace_heights[alignment] = "T";
         }
         layer_infos.push({
           type: "inner",
           traces,
+          annotation: {
+            dielectric_height: `H${layer_index}`,
+            trace_heights,
+          },
         });
         break;
       }
