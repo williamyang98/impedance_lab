@@ -63,10 +63,10 @@ export function get_layout_info_from_editor(editor: Editor): LayoutInfo {
       case "inner": {
         layer_infos.push({
           type: "inner",
-          traces: {
+          traces: layer.trace_alignments.size > 0 ? {
             top: trace_indices.map(trace_index => create_trace(layer_index, trace_index, "top")),
             bottom: trace_indices.map(trace_index => create_trace(layer_index, trace_index, "bottom")),
-          }
+          } : undefined,
         });
         break;
       }

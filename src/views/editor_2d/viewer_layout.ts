@@ -16,7 +16,7 @@ export interface SurfaceLayerInfo {
 }
 
 export interface InnerLayerInfo {
-  traces: Record<TraceAlignment, TraceInfo[]>;
+  traces?: Record<TraceAlignment, TraceInfo[]>;
 }
 
 export type LayerInfo =
