@@ -62,52 +62,53 @@ const layers = computed(() => editor.value.layers.map((layer, layer_index) => {
 </script>
 
 <template>
-
-<div class="grid grid-cols-2 gap-x-2 w-fit mb-2">
-  <label for="signal_type" class="font-medium">Signal type</label>
-  <select id="signal_type" v-model="trace_layout_type">
-    <template v-for="type in signal_types" :key="type">
-      <option :value="type" v-if="editor.can_change_trace_layout(type)">{{ trace_layout_type_to_string(type) }}</option>
-    </template>
-  </select>
-  <label for="has_coplanar_ground" class="font-medium">Coplanar ground</label>
-  <input
-    type="checkbox"
-    :true-value="true" :false-value="false"
-    v-model.number="editor.trace_layout.has_coplanar_ground"
-  />
-</div>
-
-<table>
-  <tbody>
-    <tr v-if="editor.can_add_above()">
-      <td colspan=2><div class="add-button col-span-3" @click="editor.add_layer(0)"></div></td>
-    </tr>
-    <template v-for="(layer, index) in layers" :key="layer.descriptor.id">
-      <tr>
-        <td class="flex flex-row px-1">
-          <b>L{{ index+1 }}:</b>
-          <select v-model="layer.template.value" class="w-full">
-            <template v-for="template in layer_templates" :key="template">
-              <option v-if="layer.can_set_template(template)" :value="template">
-                {{ layer_template_to_string(template) }}
-              </option>
-            </template>
-          </select>
-        </td>
-        <td class="px-1">
-          <button @click="editor.remove_layer(index)" :disabled="!editor.can_remove_layer(index)">x</button>
-        </td>
-      </tr>
-      <tr v-if="editor.can_add_layer_below(index)">
-        <td colspan=2><div class="add-button col-span-3" @click="editor.add_layer(index+1)"></div></td>
-      </tr>
-    </template>
-  </tbody>
-</table>
-
-<div class="min-w-[15rem] min-h-[5rem] max-w-[50%] max-h-[50vh] overflow-auto">
-  <StackupViewer :layout_info="layout_info"></StackupViewer>
+<div class="flex flex-row gap-x-2">
+  <div>
+    <div class="grid grid-cols-2 gap-x-2 w-fit mb-2">
+      <label for="signal_type" class="font-medium">Signal type</label>
+      <select id="signal_type" v-model="trace_layout_type">
+        <template v-for="type in signal_types" :key="type">
+          <option :value="type" v-if="editor.can_change_trace_layout(type)">{{ trace_layout_type_to_string(type) }}</option>
+        </template>
+      </select>
+      <label for="has_coplanar_ground" class="font-medium">Coplanar ground</label>
+      <input
+        type="checkbox"
+        :true-value="true" :false-value="false"
+        v-model.number="editor.trace_layout.has_coplanar_ground"
+      />
+    </div>
+    <table>
+      <tbody>
+        <tr v-if="editor.can_add_above()">
+          <td colspan=2><div class="add-button col-span-3" @click="editor.add_layer(0)"></div></td>
+        </tr>
+        <template v-for="(layer, index) in layers" :key="layer.descriptor.id">
+          <tr>
+            <td class="flex flex-row px-1">
+              <b>L{{ index+1 }}:</b>
+              <select v-model="layer.template.value" class="w-full">
+                <template v-for="template in layer_templates" :key="template">
+                  <option v-if="layer.can_set_template(template)" :value="template">
+                    {{ layer_template_to_string(template) }}
+                  </option>
+                </template>
+              </select>
+            </td>
+            <td class="px-1">
+              <button @click="editor.remove_layer(index)" :disabled="!editor.can_remove_layer(index)">x</button>
+            </td>
+          </tr>
+          <tr v-if="editor.can_add_layer_below(index)">
+            <td colspan=2><div class="add-button col-span-3" @click="editor.add_layer(index+1)"></div></td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+  <div class="min-w-[25rem] min-h-[5rem] max-w-[100%] max-h-[75vh] overflow-auto">
+    <StackupViewer :layout_info="layout_info"></StackupViewer>
+  </div>
 </div>
 </template>
 
