@@ -344,28 +344,29 @@ class Stackup {
     }
 
     const traces = [];
-    if (info.traces !== undefined) {
-      for (const alignment of trace_alignments) {
-        const traces_info = info.traces[alignment];
-        if (this.points_traces_template.length != traces_info.length) {
-          console.warn(`Got mismatching number of traces between template (${this.points_traces_template.length}) and layer trace info (${traces_info.length}) at alignment '${alignment}'`);
-        }
-        const total_traces = Math.min(this.points_traces_template.length, traces_info.length);
-        const to_layer = get_to_layer(alignment);
+    let total_alignments = 0;
+    for (const alignment of trace_alignments) {
+      const traces_info = info.traces[alignment];
+      if (traces_info === undefined) continue;
+      total_alignments += 1;
+      if (this.points_traces_template.length != traces_info.length) {
+        console.warn(`Got mismatching number of traces between template (${this.points_traces_template.length}) and layer trace info (${traces_info.length}) at alignment '${alignment}'`);
+      }
+      const total_traces = Math.min(this.points_traces_template.length, traces_info.length);
+      const to_layer = get_to_layer(alignment);
 
-        for (let i = 0; i < total_traces; i++) {
-          const trace_info = traces_info[i];
-          if (trace_info == null) continue;
-          const points = this.points_traces_template[i];
+      for (let i = 0; i < total_traces; i++) {
+        const trace_info = traces_info[i];
+        if (trace_info == null) continue;
+        const points = this.points_traces_template[i];
 
-          const trace: SignalTrace = {
-            polygon: points.map(to_layer),
-            colour: this.get_trace_colour(trace_info.type),
-            on_click: trace_info.type == "selectable" ? trace_info.on_click : undefined,
-          };
+        const trace: SignalTrace = {
+          polygon: points.map(to_layer),
+          colour: this.get_trace_colour(trace_info.type),
+          on_click: trace_info.type == "selectable" ? trace_info.on_click : undefined,
+        };
 
-          traces.push(trace);
-        }
+        traces.push(trace);
       }
     }
 
@@ -374,7 +375,7 @@ class Stackup {
       offset: { x: 0, y: 0 },
       width: this.stackup_width,
       height: layer_height,
-      colour: (info.traces === undefined) ? this.config.colour.dielectric_core : this.config.colour.dielectric_prepreg,
+      colour: (total_alignments == 0) ? this.config.colour.dielectric_core : this.config.colour.dielectric_prepreg,
     };
 
     const y_offset = this.viewport_size.y;

@@ -61,12 +61,13 @@ export function get_layout_info_from_editor(editor: Editor): LayoutInfo {
         break;
       }
       case "inner": {
+        const traces: Partial<Record<TraceAlignment, TraceInfo[]>> = {};
+        for (const alignment of layer.trace_alignments) {
+          traces[alignment] = trace_indices.map(trace_index => create_trace(layer_index, trace_index, alignment));
+        }
         layer_infos.push({
           type: "inner",
-          traces: layer.trace_alignments.size > 0 ? {
-            top: trace_indices.map(trace_index => create_trace(layer_index, trace_index, "top")),
-            bottom: trace_indices.map(trace_index => create_trace(layer_index, trace_index, "bottom")),
-          } : undefined,
+          traces,
         });
         break;
       }
