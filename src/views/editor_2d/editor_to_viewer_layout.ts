@@ -9,19 +9,19 @@ export function get_layout_elements_from_traces(traces: TraceType[]): LayoutElem
     const next_trace = (i < traces.length-1) ? traces[i+1] : null;
     switch (trace) {
       case "ground": {
-        elements.push({ type: "trace", width: "ground", annotation: { width: "CW"} });
+        elements.push({ type: "trace", width: "ground", annotation: { width: "CW", taper: "CW1" } });
         break;
       }
       case "signal": {
-        elements.push({ type: "trace", width: "signal", annotation: { width: "W" } });
+        elements.push({ type: "trace", width: "signal", annotation: { width: "W", taper: "W1" } });
         break;
       }
     }
     if (next_trace == null) continue;
     if (trace == "signal" && next_trace == "signal") {
-      elements.push({ type: "spacing", width: "signal", annotation: { width: "CS" } });
+      elements.push({ type: "spacing", width: "signal", annotation: { width: "S" } });
     } else {
-      elements.push({ type: "spacing", width: "ground", annotation: { width: "S"} });
+      elements.push({ type: "spacing", width: "ground", annotation: { width: "CS"} });
     }
   }
   return elements;

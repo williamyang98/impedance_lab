@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { __wbindgen_export_0 } from "../../wasm/pkg/fdtd_core_bg.wasm";
 import { type TraceAlignment } from "./stackup.ts";
 import {
-  type LayoutElement, type SurfaceLayerInfo, type InnerLayerInfo, type LayoutInfo,
+  type LayoutElement, type SurfaceLayerInfo, type InnerLayerInfo,
+  type LayoutInfo, type TraceInfo,
+  type TraceElement, type SpacingElement,
 } from "./viewer_layout.ts";
 
 import { defineProps, computed } from "vue";
@@ -84,7 +85,7 @@ function get_default_config(): Config {
       font_size: 9,
     },
     size: {
-      soldermask_height: 15,
+      soldermask_height: 17,
       copper_layer_height: 10,
       trace_height: 20,
       trace_taper: 15,
@@ -199,27 +200,42 @@ function create_signal_layer_points(config: SizeConfig, layout: LayoutElement[])
   return [traces, cursor.x];
 }
 
-function create_soldermask_points(height: number, width: number, traces: Point[][]): Point[] {
+function create_soldermask_points(
+  height: number, width: number,
+  y_offset: number, layer_height: number,
+  alignment: TraceAlignment,
+  traces: SignalTrace[],
+): Point[] {
   const all_points: Point[] = [];
 
-  const map_trace_points = (c: Point): Point => {
+  const deposit_above = (c: Point): Point => {
+    c = point_offset(c, { x: 0, y: -height });
+    return c;
+  };
+
+  const deposit_below = (c: Point): Point => {
     c = point_offset(c, { x: 0, y: height });
     return c;
   };
 
+  const deposit_point = (alignment == "bottom") ? deposit_above : deposit_below;
+
   const extend_points = (points: Point[]) => {
-    for (const point of points.map(map_trace_points)) {
+    for (const point of points.map(deposit_point)) {
       all_points.push(point);
     }
   }
 
-  all_points.push({ x: 0, y: 0 });
-  all_points.push({ x: 0, y: height });
-  for (const points of traces) {
-    extend_points(points);
+  const y_base = (alignment == "bottom") ? y_offset+layer_height : y_offset;
+  const y_deposit = (alignment == "bottom") ? y_base-height : y_base+height;
+
+  all_points.push({ x: 0, y: y_base });
+  all_points.push({ x: 0, y: y_deposit });
+  for (const trace of traces) {
+    extend_points(trace.polygon);
   }
-  all_points.push({ x: width, y: height });
-  all_points.push({ x: width, y: 0 });
+  all_points.push({ x: width, y: y_deposit });
+  all_points.push({ x: width, y: y_base });
 
   return all_points;
 }
@@ -232,16 +248,34 @@ interface HeightAnnotation {
   text: string;
 }
 
+interface WidthAnnotation {
+  left_arm_overhang: {
+    top: number,
+    bottom: number,
+  };
+  right_arm_overhang: {
+    top: number,
+    bottom: number,
+  };
+  offset: Point;
+  width: number;
+  y_offset_text: number;
+  text: string;
+}
+
 class Stackup {
+  elements: LayoutElement[];
   viewport_size: Point = { x: 0, y: 0 };
   rows: Row[] = [];
   config: Config = get_default_config();
   points_traces_template: Point[][];
   stackup_width: number;
   height_annotations: HeightAnnotation[] = [];
+  width_annotations: WidthAnnotation[] = [];
 
   constructor(info: LayoutInfo) {
     const [traces_points, stackup_width] = create_signal_layer_points(this.config.size, info.elements);
+    this.elements = info.elements;
     this.points_traces_template = traces_points;
     this.viewport_size.x = stackup_width + this.config.layout.y_axis_widget_width;
     this.stackup_width = stackup_width;
@@ -271,53 +305,170 @@ class Stackup {
     }
   }
 
-  create_surface_layer(info: SurfaceLayerInfo) {
-    const layer_height = this.config.size.trace_height + this.config.size.soldermask_height;
-    const y_offset = this.viewport_size.y;
+  _init_width_annotation(label: WidthAnnotation, drag_up: boolean) {
+    const font_size = this.config.layout.font_size;
+    const drag_overhang = 5;
+    const drag_distance = 5;
+    const text_offset = font_size*0.7;
 
+    if (drag_up) {
+      label.offset.y -= drag_distance;
+      label.left_arm_overhang.bottom = drag_distance;
+      label.right_arm_overhang.bottom = drag_distance;
+      label.left_arm_overhang.top = drag_overhang;
+      label.right_arm_overhang.top = drag_overhang;
+      label.y_offset_text = -text_offset;
+    } else {
+      label.offset.y += drag_distance;
+      label.left_arm_overhang.top = drag_distance;
+      label.right_arm_overhang.top = drag_distance;
+      label.left_arm_overhang.bottom = drag_overhang;
+      label.right_arm_overhang.bottom = drag_overhang;
+      label.y_offset_text = text_offset;
+    }
+  }
+
+  _create_layer_trace(
+    polygon: Point[], trace_info: TraceInfo, trace_element: TraceElement, alignment: TraceAlignment,
+  ): SignalTrace | null {
+    if (trace_info == null) return null;
+
+
+    const trace: SignalTrace = {
+      polygon,
+      colour: this.get_trace_colour(trace_info.type),
+      on_click: trace_info.type == "selectable" ? trace_info.on_click : undefined,
+    };
+
+    // only annotate solid traces
+    const text = trace_element.annotation;
+    if (trace_info.type == "solid" && text) {
+      if (text.width) {
+        const annotation: WidthAnnotation = {
+          offset: { ...polygon[0] },
+          width: polygon[3].x-polygon[0].x,
+          y_offset_text: 0,
+          left_arm_overhang: { top: 0, bottom: 0 },
+          right_arm_overhang: { top: 0, bottom: 0 },
+          text: text.width,
+        };
+        this._init_width_annotation(annotation, alignment == "top");
+        this.width_annotations.push(annotation);
+      }
+      if (text.taper) {
+        const annotation: WidthAnnotation = {
+          offset: { ...polygon[1] },
+          width: polygon[2].x-polygon[1].x,
+          y_offset_text: 0,
+          left_arm_overhang: { top: 0, bottom: 0 },
+          right_arm_overhang: { top: 0, bottom: 0 },
+          text: text.taper,
+        };
+        this._init_width_annotation(annotation, alignment == "bottom");
+        this.width_annotations.push(annotation);
+      }
+    }
+
+    return trace;
+  }
+
+  _create_layer_separation(
+    left_polygon: Point[], right_polygon: Point[],
+    spacing_element: SpacingElement, alignment: TraceAlignment,
+  ) {
+    const text = spacing_element.annotation;
+    if (text === undefined) return;
+    if (text.width) {
+      const width = right_polygon[0].x - left_polygon[3].x;
+      const annotation: WidthAnnotation = {
+        offset: { ...left_polygon[3] },
+        width,
+        y_offset_text: 0,
+        left_arm_overhang: { top: 0, bottom: 0 },
+        right_arm_overhang: { top: 0, bottom: 0 },
+        text: text.width,
+      };
+      this._init_width_annotation(annotation, alignment == "top");
+      this.width_annotations.push(annotation);
+    }
+  }
+
+  _create_layer_traces(
+    y_offset: number, layer_height: number, alignment: TraceAlignment,
+    traces_info: TraceInfo[],
+  ): SignalTrace[] {
     const to_top_layer = (point: Point): Point => {
       point = point_offset(point, { x: 0, y: y_offset });
       return point;
     };
-
     const to_bottom_layer = (point: Point): Point => {
       point = point_flip(point);
       point = point_offset(point, { x: 0, y: y_offset + layer_height });
       return point;
     };
+    const get_to_layer = (alignment: TraceAlignment) => {
+      switch (alignment) {
+      case "top": return to_top_layer;
+      case "bottom": return to_bottom_layer;
+      }
+    }
+    const to_layer = get_to_layer(alignment);
+    const trace_polygons = this.points_traces_template.map(polygon => polygon.map(to_layer));
 
-    const to_layer = (info.alignment == "bottom") ? to_bottom_layer : to_top_layer;
-
-    const trace_points: Point[][] = [];
     const traces: SignalTrace[] = [];
-    if (this.points_traces_template.length != info.traces.length) {
-      console.warn(`Got mismatching number of traces between template (${this.points_traces_template.length}) and layer trace info (${info.traces.length})`);
+    if (this.points_traces_template.length != traces_info.length) {
+      console.warn(`Got mismatching number of traces between template (${this.points_traces_template.length}) and layer trace info (${traces_info.length}) at alignment '${alignment}'`);
     }
-    const total_traces = Math.min(this.points_traces_template.length, info.traces.length);
-    for (let i = 0; i < total_traces; i++) {
-      const trace_info = info.traces[i];
-      if (trace_info == null) continue;
-      const points = this.points_traces_template[i];
+    const total_traces = Math.min(this.points_traces_template.length, traces_info.length);
 
-      const trace: SignalTrace = {
-        polygon: points.map(to_layer),
-        colour: this.get_trace_colour(trace_info.type),
-        on_click: trace_info.type == "selectable" ? trace_info.on_click : undefined,
-      };
-
-      trace_points.push(points);
-      traces.push(trace);
+    let trace_index = 0;
+    for (const element of this.elements) {
+      switch (element.type) {
+        case "trace": {
+          const trace_info = traces_info[trace_index];
+          const trace_polygon = trace_polygons[trace_index];
+          const trace = this._create_layer_trace(trace_polygon, trace_info, element, alignment);
+          if (trace !== null) {
+            traces.push(trace);
+          }
+          trace_index++;
+          break;
+        }
+        case "spacing": {
+          if (trace_index > 0 && trace_index < total_traces) {
+            const is_left_trace = traces_info[trace_index-1]?.type == "solid";
+            const is_right_trace = traces_info[trace_index]?.type == "solid";
+            const left_polygon = trace_polygons[trace_index-1];
+            const right_polygon = trace_polygons[trace_index];
+            if (is_left_trace && is_right_trace) {
+              this._create_layer_separation(left_polygon, right_polygon, element, alignment);
+            }
+          }
+          break;
+        }
+      }
+      if (trace_index == total_traces) {
+        break;
+      }
     }
+    return traces;
+  }
+
+  create_surface_layer(info: SurfaceLayerInfo) {
+    const layer_height = this.config.size.trace_height + this.config.size.soldermask_height;
+    const y_offset = this.viewport_size.y;
+
+    const traces = this._create_layer_traces(y_offset, layer_height, info.alignment, info.traces);
 
     const soldermask_points = create_soldermask_points(
-      this.config.size.soldermask_height,
-      this.stackup_width,
-      trace_points,
-    )
+      this.config.size.soldermask_height, this.stackup_width,
+      y_offset, layer_height, info.alignment,
+      traces,
+    );
 
     const layer: Layer = info.has_soldermask ? {
       type: "soldermask",
-      polygon: soldermask_points.map(to_layer),
+      polygon: soldermask_points,
       colour: this.config.colour.dielectric_soldermask,
     } : {
       type: "rectangular",
@@ -332,10 +483,9 @@ class Stackup {
     // annotation
     const text = info.annotation;
     let annotation_overhang = 0;
-    if (trace_points.length > 0) {
-      annotation_overhang = trace_points[0][1].x;
+    if (traces.length > 0) {
+      annotation_overhang = traces[0].polygon[1].x;
     }
-
     if (info.alignment == "top") {
       if (text?.trace_height) {
         this.height_annotations.push({
@@ -391,45 +541,11 @@ class Stackup {
       this.config.size.broadside_height_separation*Math.max(1, total_alignments-1);
     const y_offset = this.viewport_size.y;
 
-    const to_top_layer = (point: Point): Point => {
-      point = point_offset(point, { x: 0, y: y_offset });
-      return point;
-    };
-    const to_bottom_layer = (point: Point): Point => {
-      point = point_flip(point);
-      point = point_offset(point, { x: 0, y: y_offset + layer_height });
-      return point;
-    };
-    const get_to_layer = (alignment: TraceAlignment) => {
-      switch (alignment) {
-      case "top": return to_top_layer;
-      case "bottom": return to_bottom_layer;
-      }
-    }
-
     const alignment_traces: Partial<Record<TraceAlignment, SignalTrace[]>> = {};
     for (const alignment of trace_alignments) {
       const traces_info = info.traces[alignment];
       if (traces_info === undefined) continue;
-      const traces: SignalTrace[] = [];
-      if (this.points_traces_template.length != traces_info.length) {
-        console.warn(`Got mismatching number of traces between template (${this.points_traces_template.length}) and layer trace info (${traces_info.length}) at alignment '${alignment}'`);
-      }
-      const total_traces = Math.min(this.points_traces_template.length, traces_info.length);
-      const to_layer = get_to_layer(alignment);
-
-      for (let i = 0; i < total_traces; i++) {
-        const trace_info = traces_info[i];
-        if (trace_info == null) continue;
-        const points = this.points_traces_template[i];
-
-        const trace: SignalTrace = {
-          polygon: points.map(to_layer),
-          colour: this.get_trace_colour(trace_info.type),
-          on_click: trace_info.type == "selectable" ? trace_info.on_click : undefined,
-        };
-        traces.push(trace);
-      }
+      const traces = this._create_layer_traces(y_offset, layer_height, alignment, traces_info);
       alignment_traces[alignment] = traces;
     }
 
@@ -519,7 +635,12 @@ const layout = computed(() => stackup.value.config.layout);
 <template>
 <svg
   version="1.1" xmlns="http://www.w3.org/2000/svg"
-  :viewBox="`${-layout.y_axis_widget_width-1} -1 ${stackup.viewport_size.x+1} ${stackup.viewport_size.y+2}`"
+  :viewBox="
+    `${-layout.y_axis_widget_width-1}
+    ${-layout.font_size/2}
+    ${stackup.viewport_size.x+1}
+    ${stackup.viewport_size.y+layout.font_size}
+  `"
   preserveAspectRatio="xMidYMid meet"
 >
   <!-- Stackup -->
@@ -574,6 +695,42 @@ const layout = computed(() => stackup.value.config.layout);
           </g>
           <g :transform="`translate(0,${label.height-2}) scale(1,-1)`">
             <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
+          </g>
+        </g>
+      </g>
+    </g>
+  </template>
+  <!-- Width annotations -->
+  <template v-for="(label, index) in stackup.width_annotations" :key="index">
+    <g :transform="`translate(${label.offset.x}, ${label.offset.y})`">
+      <g :transform="`translate(0,0)`">
+        <line
+          x1="0" x2="0"
+          :y1="label.left_arm_overhang.bottom"
+          :y2="-label.left_arm_overhang.top"
+          stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
+        <line
+          :x1="label.width" :x2="label.width"
+          :y1="label.right_arm_overhang.bottom"
+          :y2="-label.right_arm_overhang.top"
+          stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
+        <text
+          :x="label.width/2" :y="label.y_offset_text"
+          :font-size="layout.font_size"
+          text-anchor="middle"
+        >
+          {{ label.text }}
+        </text>
+        <g>
+          <line
+            x1="0" :x2="label.width"
+            y1="0" y2="0"
+            stroke="#000000" stroke-width="0.5"></line>
+          <g :transform="`translate(${2},0)`">
+            <polygon points="-2,0 2,2 2,-2" fill="#000000"></polygon>
+          </g>
+          <g :transform="`translate(${label.width-2},0) scale(1,-1)`">
+            <polygon points="2,0 -2,2 -2,-2" fill="#000000"></polygon>
           </g>
         </g>
       </g>

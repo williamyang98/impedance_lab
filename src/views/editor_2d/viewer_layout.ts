@@ -4,6 +4,7 @@ export interface TraceElement {
   width: "ground" | "signal";
   annotation?: {
     width?: string;
+    taper?: string;
   };
 }
 
