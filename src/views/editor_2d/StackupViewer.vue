@@ -75,8 +75,6 @@ interface ColourConfig {
   dielectric_soldermask: Colour;
   dielectric_core: Colour;
   dielectric_prepreg: Colour;
-  black: Colour;
-  air: Colour;
   selectable: Colour;
 }
 
@@ -116,15 +114,13 @@ function get_default_config(): Config {
       dielectric_soldermask: "#00aa00",
       dielectric_prepreg: "#55cc33",
       dielectric_core: "#88ed44",
-      black: "#000000",
-      air: "#ffffff66",
       selectable: "#aaaaaa",
     },
   };
 }
 
 interface Row {
-  layer: Layer;
+  layer?: Layer;
   traces: SignalTrace[];
 }
 
@@ -556,7 +552,13 @@ class Stackup {
   }
 
   create_surface_layer(info: SurfaceLayerInfo) {
-    const layer_height = this.config.size.trace_height + this.config.size.soldermask_height;
+    const total_traces = info.traces.filter(trace => trace !== null).length;
+
+    // if there are no traces in the surface layer create a flat soldermask layer
+    const soldermask_height = info.has_soldermask ? this.config.size.soldermask_height : 0;
+    const trace_height = (total_traces > 0) ? this.config.size.trace_height : 0;
+
+    const layer_height = soldermask_height + trace_height;
     const y_offset = this.viewport_size.y;
 
     const traces = this._create_layer_traces(y_offset, layer_height, info.alignment, info.traces);
@@ -567,18 +569,11 @@ class Stackup {
       traces,
     );
 
-    const layer: Layer = info.has_soldermask ? {
+    const layer: (Layer | undefined) = info.has_soldermask ? {
       type: "soldermask",
       polygon: soldermask_points,
       colour: this.config.colour.dielectric_soldermask,
-    } : {
-      type: "rectangular",
-      offset: { x: 0, y: y_offset },
-      width: this.stackup_width,
-      height: layer_height,
-      colour: this.config.colour.air,
-    };
-
+    } : undefined;
     this.rows.push({ layer, traces });
 
     // annotation
@@ -588,53 +583,53 @@ class Stackup {
       annotation_overhang = traces[0].polygon[1].x;
     }
     if (info.alignment == "top") {
-      if (text?.trace_height) {
+      if (text?.trace_height && trace_height > 0) {
         this.height_annotations.push({
           y_offset,
-          height: this.config.size.trace_height,
+          height: trace_height,
           overhang_top: 0,
           overhang_bottom: annotation_overhang,
           text: text.trace_height,
         });
       }
-      if (text?.soldermask_height && info.has_soldermask) {
+      if (text?.soldermask_height && soldermask_height > 0) {
         this.height_annotations.push({
-          y_offset: y_offset+this.config.size.trace_height,
-          height: this.config.size.soldermask_height,
+          y_offset: y_offset+trace_height,
+          height: soldermask_height,
           overhang_top: 0,
           overhang_bottom: annotation_overhang,
           text: text.soldermask_height,
         });
       }
     } else {
-      if (text?.trace_height) {
+      if (text?.trace_height && trace_height > 0) {
         this.height_annotations.push({
-          y_offset: y_offset+this.config.size.soldermask_height,
-          height: this.config.size.trace_height,
+          y_offset: y_offset+soldermask_height,
+          height: trace_height,
           overhang_top: annotation_overhang,
           overhang_bottom: 0,
           text: text.trace_height,
         });
       }
-      if (text?.soldermask_height && info.has_soldermask) {
+      if (text?.soldermask_height && soldermask_height > 0) {
         this.height_annotations.push({
           y_offset: y_offset,
-          height: this.config.size.soldermask_height,
+          height: soldermask_height,
           overhang_top: annotation_overhang,
           overhang_bottom: 0,
           text: text.soldermask_height,
         });
       }
     }
-    if (text?.epsilon) {
+    if (text?.epsilon && soldermask_height > 0) {
       if (info.alignment == "top") {
         this.epsilon_annotations.push({
-          y_offset: y_offset+this.config.size.soldermask_height/2,
+          y_offset: y_offset+soldermask_height/2,
           text: text.epsilon,
         });
       } else {
         this.epsilon_annotations.push({
-          y_offset: y_offset+layer_height-this.config.size.soldermask_height/2,
+          y_offset: y_offset+layer_height-soldermask_height/2,
           text: text.epsilon,
         });
       }
@@ -765,20 +760,22 @@ const layout = computed(() => stackup.value.config.layout);
   <template v-for="(row, i) in stackup.rows" :key="i">
     <g>
       <!-- Layer background -->
-      <template v-if="row.layer.type == 'rectangular'">
-        <rect
-          stroke="#00000066" stroke-width="0.25"
-          :x="row.layer.offset.x" :width="row.layer.width"
-          :y="row.layer.offset.y" :height="row.layer.height"
-          :fill="row.layer.colour"
-          ></rect>
-      </template>
-      <template v-else-if="row.layer.type = 'soldermask'">
-        <polygon
-          stroke="#00000066" stroke-width="0.25"
-          :points="points_to_string(row.layer.polygon)"
-          :fill="row.layer.colour"
-        />
+      <template v-if="row.layer !== undefined">
+        <template v-if="row.layer.type == 'rectangular'">
+          <rect
+            stroke="#00000066" stroke-width="0.25"
+            :x="row.layer.offset.x" :width="row.layer.width"
+            :y="row.layer.offset.y" :height="row.layer.height"
+            :fill="row.layer.colour"
+            ></rect>
+        </template>
+        <template v-else-if="row.layer.type = 'soldermask'">
+          <polygon
+            stroke="#00000066" stroke-width="0.25"
+            :points="points_to_string(row.layer.polygon)"
+            :fill="row.layer.colour"
+          />
+        </template>
       </template>
       <!-- Traces -->
       <template v-for="(trace, j) in row.traces" :key="[i,j]">
