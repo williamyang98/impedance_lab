@@ -2,7 +2,7 @@ import { Editor } from "./editor.ts";
 import { type TraceAlignment, type TraceType, type TraceLayoutType, StackupRules } from "./stackup.ts";
 import { type LayoutInfo, type LayoutElement, type LayerInfo, type TraceInfo } from "./viewer_layout.ts";
 
-export function get_layout_elements_from_traces(traces: TraceType[], type: TraceLayoutType): LayoutElement[] {
+function get_layout_elements_from_traces(traces: TraceType[], type: TraceLayoutType): LayoutElement[] {
   const elements: LayoutElement[] = [];
   for (let i = 0; i < traces.length; i++) {
     const trace = traces[i];
@@ -63,13 +63,12 @@ export function get_layout_info_from_editor(editor: Editor): LayoutInfo {
         break;
       }
       case "surface": {
-        const alignment: TraceAlignment = (layer_index == 0) ? "bottom" : "top";
         const has_soldermask = layer.has_soldermask;
         layer_infos.push({
           type: "surface",
           has_soldermask,
-          alignment,
-          traces: trace_indices.map(trace_index => create_trace(layer_index, trace_index, alignment)),
+          alignment: layer.trace_alignment,
+          traces: trace_indices.map(trace_index => create_trace(layer_index, trace_index, layer.trace_alignment)),
           annotation: {
             soldermask_height: has_soldermask ? `H${layer_index}` : undefined,
             epsilon: `ER${layer_index}`,
