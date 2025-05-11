@@ -381,8 +381,8 @@ class Stackup {
   }
 
   _expand_viewport_to_fit_annotations() {
-    const x_padding = this.config.layout.y_axis_widget_width;
-    this.viewport_offset.x = -x_padding-1;
+    const x_padding = this.config.layout.y_axis_widget_width+1;
+    this.viewport_offset.x = -x_padding;
     this.viewport_size.x += x_padding;
 
     let y_min = 0;
