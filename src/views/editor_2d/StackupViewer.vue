@@ -48,6 +48,9 @@ interface SignalTrace {
 interface LayoutConfig {
   y_axis_widget_width: number;
   font_size: number;
+  epsilon_annotation: {
+    x_offset: number;
+  };
   width_annotation: {
     overhang: number;
     text_offset: number;
@@ -90,6 +93,9 @@ function get_default_config(): Config {
       width_annotation: {
         overhang: 5,
         text_offset: 6,
+      },
+      epsilon_annotation: {
+        x_offset: 5,
       },
       font_size: 9,
     },
@@ -276,6 +282,11 @@ interface WidthAnnotation {
   text: string;
 }
 
+interface EpsilonAnnotation {
+  y_offset: number;
+  text: string;
+}
+
 class Stackup {
   elements: LayoutElement[];
   viewport_offset: Point = { x: 0, y: 0 };
@@ -287,6 +298,7 @@ class Stackup {
   stackup_width: number;
   height_annotations: HeightAnnotation[] = [];
   width_annotations: WidthAnnotation[] = [];
+  epsilon_annotations: EpsilonAnnotation[] = [];
 
   constructor(info: LayoutInfo) {
     const [trace_polygons, stackup_width] = create_trace_polygons(this.config.size, info.elements);
@@ -614,6 +626,19 @@ class Stackup {
         });
       }
     }
+    if (text?.epsilon) {
+      if (info.alignment == "top") {
+        this.epsilon_annotations.push({
+          y_offset: y_offset+this.config.size.soldermask_height/2,
+          text: text.epsilon,
+        });
+      } else {
+        this.epsilon_annotations.push({
+          y_offset: y_offset+layer_height-this.config.size.soldermask_height/2,
+          text: text.epsilon,
+        });
+      }
+    }
 
     this.viewport_size.y += layer_height;
   }
@@ -675,6 +700,12 @@ class Stackup {
         }
         height_annotation_offset += height;
       }
+    }
+    if (text?.epsilon) {
+      this.epsilon_annotations.push({
+        y_offset: y_offset + layer_height/2,
+        text: text.epsilon,
+      });
     }
 
     const layer: Layer = {
@@ -772,7 +803,7 @@ const layout = computed(() => stackup.value.config.layout);
           x1="0" :x2="layout.y_axis_widget_width+label.overhang_bottom"
           :y1="label.height" :y2="label.height"
           stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
-        <text x="1" :y="label.height/2-1" :font-size="layout.font_size">
+        <text x="1" :y="label.height/2" :font-size="layout.font_size">
           {{ label.text }}
         </text>
         <g :transform="`translate(${layout.y_axis_widget_width-5},0)`">
@@ -823,6 +854,12 @@ const layout = computed(() => stackup.value.config.layout);
       </g>
     </g>
   </template>
+  <!-- Epsilon annotations -->
+  <g :transform="`translate(${layout.epsilon_annotation.x_offset},0)`">
+    <template v-for="(label, index) in stackup.epsilon_annotations" :key="index">
+      <text x="0" :y="label.y_offset" :font-size="layout.font_size">{{ label.text }}</text>
+    </template>
+  </g>
 </svg>
 </template>
 

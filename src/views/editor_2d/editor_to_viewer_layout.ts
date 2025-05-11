@@ -72,6 +72,7 @@ export function get_layout_info_from_editor(editor: Editor): LayoutInfo {
           traces: trace_indices.map(trace_index => create_trace(layer_index, trace_index, alignment)),
           annotation: {
             soldermask_height: has_soldermask ? `H${layer_index}` : undefined,
+            epsilon: `ER${layer_index}`,
             trace_height: "T",
           },
         })
@@ -91,6 +92,7 @@ export function get_layout_info_from_editor(editor: Editor): LayoutInfo {
           traces,
           annotation: {
             dielectric_height: `H${layer_index}`,
+            epsilon: `ER${layer_index}`,
             trace_heights,
           },
         });

@@ -31,6 +31,7 @@ export interface SurfaceLayerInfo {
   annotation?: {
     soldermask_height?: string;
     trace_height?: string;
+    epsilon?: string;
   };
 }
 
@@ -38,6 +39,7 @@ export interface InnerLayerInfo {
   traces: Partial<Record<TraceAlignment, TraceInfo[]>>;
   annotation?: {
     dielectric_height?: string;
+    epsilon?: string;
     trace_heights?: Partial<Record<TraceAlignment, string>>;
   };
 }
