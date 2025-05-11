@@ -32,7 +32,7 @@ export class KernelCurrentSource {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = `
+    this.shader_source = /*wgsl*/`
       struct Params {
         grid_size_x: u32,
         grid_size_y: u32,
@@ -166,7 +166,7 @@ export class KernelUpdateElectricField {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = `
+    this.shader_source = /*wgsl*/`
       struct Params {
         size_x: u32,
         size_y: u32,
@@ -339,7 +339,7 @@ export class KernelUpdateMagneticField {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = `
+    this.shader_source = /*wgsl*/`
       struct Params {
         size_x: u32,
         size_y: u32,

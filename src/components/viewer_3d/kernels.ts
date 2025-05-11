@@ -25,7 +25,7 @@ export class KernelCopyToTexture {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = `
+    this.shader_source = /*wgsl*/`
       struct Params {
         size_x: u32,
         size_y: u32,
@@ -174,7 +174,7 @@ export class ShaderRenderTexture {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = `
+    this.shader_source = /*wgsl*/`
       struct Params {
         scale: f32,
         axis: u32,

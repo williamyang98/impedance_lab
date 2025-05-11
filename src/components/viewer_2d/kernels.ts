@@ -35,7 +35,7 @@ class ShaderColourGrid {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = `
+    this.shader_source = /*wgsl*/`
       struct Params {
         scale: f32,
         axis: u32,
@@ -380,7 +380,7 @@ class ShaderQuiverGrid {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = `
+    this.shader_source = /*wgsl*/`
       struct Params {
         scale: f32,
         quiver_count_x: u32,
