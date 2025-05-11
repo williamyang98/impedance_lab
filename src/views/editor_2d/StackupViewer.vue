@@ -767,7 +767,7 @@ const layout = computed(() => stackup.value.config.layout);
       <!-- Layer background -->
       <template v-if="row.layer.type == 'rectangular'">
         <rect
-          class="dielectric"
+          stroke="#00000066" stroke-width="0.25"
           :x="row.layer.offset.x" :width="row.layer.width"
           :y="row.layer.offset.y" :height="row.layer.height"
           :fill="row.layer.colour"
@@ -775,16 +775,22 @@ const layout = computed(() => stackup.value.config.layout);
       </template>
       <template v-else-if="row.layer.type = 'soldermask'">
         <polygon
-          class="dielectric"
+          stroke="#00000066" stroke-width="0.25"
           :points="points_to_string(row.layer.polygon)"
           :fill="row.layer.colour"
         />
       </template>
       <!-- Traces -->
       <template v-for="(trace, j) in row.traces" :key="[i,j]">
-        <polygon
-          :class="`${trace.on_click !== undefined ? 'signal-selectable' : 'signal-solid'}`"
+        <polygon v-if="trace.on_click !== undefined"
+          class="signal-selectable"
           @click="() => trace.on_click?.()"
+          opacity="0.2" stroke="#000000" stroke-width="0.5" cursor="pointer"
+          :points="points_to_string(trace.polygon)"
+          :fill="trace.colour"
+        />
+        <polygon v-else
+          stroke="#00000066" stroke-width="0.25"
           :points="points_to_string(trace.polygon)"
           :fill="trace.colour"
         />
@@ -802,7 +808,12 @@ const layout = computed(() => stackup.value.config.layout);
         x1="0" :x2="layout.y_axis_widget_width+label.overhang_bottom"
         :y1="label.height" :y2="label.height"
         stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
-      <text x="1" :y="label.height/2" :font-size="layout.font_size">
+      <text
+        x="1" :y="label.height/2"
+        :font-size="layout.font_size"
+        font-weight="500"
+        alignment-baseline="central"
+      >
         {{ label.text }}
       </text>
       <g :transform="`translate(${layout.y_axis_widget_width-5},0)`">
@@ -833,6 +844,8 @@ const layout = computed(() => stackup.value.config.layout);
         :x="label.width/2" :y="label.y_offset_text"
         :font-size="layout.font_size"
         text-anchor="middle"
+        font-weight="500"
+        alignment-baseline="central"
       >
         {{ label.text }}
       </text>
@@ -855,6 +868,8 @@ const layout = computed(() => stackup.value.config.layout);
     <text
       :x="layout.epsilon_annotation.x_offset" :y="label.y_offset"
       :font-size="layout.font_size"
+      font-weight="500"
+      alignment-baseline="central"
     >
       {{ label.text }}
     </text>
@@ -868,29 +883,7 @@ svg {
   display: block;
 }
 
-text {
-  font-weight: 500;
-  alignment-baseline: central;
-}
-
-.dielectric {
-  stroke: #00000066;
-  stroke-width: 0.25;
-}
-
-.signal-solid {
-  stroke: #00000066;
-  stroke-width: 0.25;
-}
-
-.signal-selectable {
-  opacity: 0.2;
-  stroke: #000000;
-  stroke-width: 0.5;
-}
-
 .signal-selectable:hover {
   opacity: 1.0;
-  cursor: pointer;
 }
 </style>
