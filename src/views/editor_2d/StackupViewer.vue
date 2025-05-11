@@ -793,27 +793,25 @@ const layout = computed(() => stackup.value.config.layout);
   </template>
   <!-- Height annotations -->
   <template v-for="(label, index) in stackup.height_annotations" :key="index">
-    <g :transform="`translate(${-layout.y_axis_widget_width},0)`">
-      <g :transform="`translate(0,${label.y_offset})`">
-        <line
-          x1="0" :x2="layout.y_axis_widget_width+label.overhang_top"
-          y1="0" y2="0"
-          stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
-        <line
-          x1="0" :x2="layout.y_axis_widget_width+label.overhang_bottom"
-          :y1="label.height" :y2="label.height"
-          stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
-        <text x="1" :y="label.height/2" :font-size="layout.font_size">
-          {{ label.text }}
-        </text>
-        <g :transform="`translate(${layout.y_axis_widget_width-5},0)`">
-          <line x1="0" x2="0" :y1="2" :y2="label.height-2" stroke="#000000" stroke-width="0.5"></line>
-          <g :transform="`translate(0,${2})`">
-            <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
-          </g>
-          <g :transform="`translate(0,${label.height-2}) scale(1,-1)`">
-            <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
-          </g>
+    <g :transform="`translate(${-layout.y_axis_widget_width},${label.y_offset})`">
+      <line
+        x1="0" :x2="layout.y_axis_widget_width+label.overhang_top"
+        y1="0" y2="0"
+        stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <line
+        x1="0" :x2="layout.y_axis_widget_width+label.overhang_bottom"
+        :y1="label.height" :y2="label.height"
+        stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <text x="1" :y="label.height/2" :font-size="layout.font_size">
+        {{ label.text }}
+      </text>
+      <g :transform="`translate(${layout.y_axis_widget_width-5},0)`">
+        <line x1="0" x2="0" :y1="2" :y2="label.height-2" stroke="#000000" stroke-width="0.5"></line>
+        <g :transform="`translate(0,${2})`">
+          <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
+        </g>
+        <g :transform="`translate(0,${label.height-2}) scale(1,-1)`">
+          <polygon points="-2,2 0,-2 2,2" fill="#000000"></polygon>
         </g>
       </g>
     </g>
@@ -821,45 +819,46 @@ const layout = computed(() => stackup.value.config.layout);
   <!-- Width annotations -->
   <template v-for="(label, index) in stackup.width_annotations" :key="index">
     <g :transform="`translate(${label.offset.x}, ${label.offset.y})`">
-      <g :transform="`translate(0,0)`">
+      <line
+        x1="0" x2="0"
+        :y1="label.left_arm_overhang.bottom"
+        :y2="-label.left_arm_overhang.top"
+        stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <line
+        :x1="label.width" :x2="label.width"
+        :y1="label.right_arm_overhang.bottom"
+        :y2="-label.right_arm_overhang.top"
+        stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <text
+        :x="label.width/2" :y="label.y_offset_text"
+        :font-size="layout.font_size"
+        text-anchor="middle"
+      >
+        {{ label.text }}
+      </text>
+      <g>
         <line
-          x1="0" x2="0"
-          :y1="label.left_arm_overhang.bottom"
-          :y2="-label.left_arm_overhang.top"
-          stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
-        <line
-          :x1="label.width" :x2="label.width"
-          :y1="label.right_arm_overhang.bottom"
-          :y2="-label.right_arm_overhang.top"
-          stroke="#000000" stroke-width="0.5" stroke-dasharray="2,2"/>
-        <text
-          :x="label.width/2" :y="label.y_offset_text"
-          :font-size="layout.font_size"
-          text-anchor="middle"
-        >
-          {{ label.text }}
-        </text>
-        <g>
-          <line
-            x1="0" :x2="label.width"
-            y1="0" y2="0"
-            stroke="#000000" stroke-width="0.5"></line>
-          <g :transform="`translate(${2},0)`">
-            <polygon points="-2,0 2,2 2,-2" fill="#000000"></polygon>
-          </g>
-          <g :transform="`translate(${label.width-2},0) scale(1,-1)`">
-            <polygon points="2,0 -2,2 -2,-2" fill="#000000"></polygon>
-          </g>
+          x1="0" :x2="label.width"
+          y1="0" y2="0"
+          stroke="#000000" stroke-width="0.5"></line>
+        <g :transform="`translate(${2},0)`">
+          <polygon points="-2,0 2,2 2,-2" fill="#000000"></polygon>
+        </g>
+        <g :transform="`translate(${label.width-2},0) scale(1,-1)`">
+          <polygon points="2,0 -2,2 -2,-2" fill="#000000"></polygon>
         </g>
       </g>
     </g>
   </template>
   <!-- Epsilon annotations -->
-  <g :transform="`translate(${layout.epsilon_annotation.x_offset},0)`">
-    <template v-for="(label, index) in stackup.epsilon_annotations" :key="index">
-      <text x="0" :y="label.y_offset" :font-size="layout.font_size">{{ label.text }}</text>
-    </template>
-  </g>
+  <template v-for="(label, index) in stackup.epsilon_annotations" :key="index">
+    <text
+      :x="layout.epsilon_annotation.x_offset" :y="label.y_offset"
+      :font-size="layout.font_size"
+    >
+      {{ label.text }}
+    </text>
+  </template>
 </svg>
 </template>
 
