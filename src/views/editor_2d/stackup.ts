@@ -43,7 +43,7 @@ export interface BroadsideDifferentialPair {
 }
 
 export type TraceLayoutType = "single_ended" | "coplanar_pair" | "broadside_pair";
-export const signal_types: TraceLayoutType[] = ["single_ended", "coplanar_pair", "broadside_pair"];
+export const trace_layout_types: TraceLayoutType[] = ["single_ended", "coplanar_pair", "broadside_pair"];
 export type TraceLayout =
   { type: "single_ended" } & SingleEndedTrace |
   { type: "coplanar_pair" } & CoplanarDifferentialPair |
@@ -55,21 +55,61 @@ export interface Stackup {
 }
 
 export type TraceType = "signal" | "ground";
+export type SpacingType = "signal" | "ground" | "broadside";
+export type LayoutItem =
+  { type: "trace", trace: TraceType } |
+  { type: "spacing", spacing: SpacingType };
+
+export function get_layout_items_from_trace_types(trace_types: TraceType[], layout_type: TraceLayoutType): LayoutItem[] {
+  const elements: LayoutItem[] = [];
+  for (let trace_index = 0; trace_index < trace_types.length; trace_index++) {
+    const trace_type = trace_types[trace_index];
+    const next_trace_type = (trace_index < trace_types.length-1) ? trace_types[trace_index+1] : null;
+    // trace
+    elements.push({ type: "trace", trace: trace_type })
+    // spacing
+    if (next_trace_type == null) continue;
+    if (trace_type == "signal" && next_trace_type == "signal") {
+      if (layout_type == "broadside_pair") {
+        elements.push({ type: "spacing", spacing: "broadside" });
+      } else {
+        elements.push({ type: "spacing", spacing: "signal" });
+      }
+    } else {
+      elements.push({ type: "spacing", spacing: "ground" });
+    }
+  }
+  return elements;
+}
 
 export class StackupRules {
+  static get_layout_items_from_trace_layout(layout: TraceLayout): LayoutItem[] {
+    const trace_types = this.get_traces_from_trace_layout(layout);
+    return get_layout_items_from_trace_types(trace_types, layout.type);
+  }
+
   static get_traces_from_trace_layout(layout: TraceLayout): TraceType[] {
     switch (layout.type) {
       case "single_ended": {
-        if (layout.has_coplanar_ground) return ["ground", "signal", "ground"];
-        return ["signal"];
+        let traces: TraceType[] = ["signal"];
+        if (layout.has_coplanar_ground) {
+          traces = ["ground", ...traces, "ground"];
+        }
+        return traces;
       }
       case "coplanar_pair": {
-        if (layout.has_coplanar_ground) return ["ground", "signal", "signal", "ground"];
-        return ["signal", "signal"];
+        let traces: TraceType[] = ["signal", "signal"];
+        if (layout.has_coplanar_ground) {
+          traces = ["ground", ...traces, "ground"];
+        }
+        return traces;
       }
       case "broadside_pair": {
-        if (layout.has_coplanar_ground) return ["ground", "signal", "signal", "ground"];
-        return ["signal", "signal"];
+        let traces: TraceType[] = ["signal", "signal"];
+        if (layout.has_coplanar_ground) {
+          traces = ["ground", ...traces, "ground"];
+        }
+        return traces;
       }
     }
   }

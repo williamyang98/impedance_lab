@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { type TraceAlignment } from "./stackup.ts";
 import {
-  type LayoutElement, type SurfaceLayerInfo, type InnerLayerInfo,
-  type LayoutInfo, type TraceInfo,
-  type TraceElement, type SpacingElement,
+  type LayoutElement, type SurfaceLayerElement, type InnerLayerElement,
+  type ViewerLayout, type TraceElement,
+  type TraceLayoutElement, type SpacingLayoutElement,
 } from "./viewer_layout.ts";
 
 import { defineProps, computed } from "vue";
 
 const props = defineProps<{
-  layout_info: LayoutInfo,
+  viewer_layout: ViewerLayout,
 }>();
 
 type RGB = `rgb(${number}, ${number}, ${number})`;
@@ -38,7 +38,7 @@ type Layer =
   { type: "rectangular" } & RectangularLayer |
   { type: "soldermask" } & SoldermaskLayer;
 
-interface SignalTrace {
+interface Trace {
   // NOTE: this will always be 4 points
   polygon: Point[];
   colour: Colour;
@@ -121,7 +121,7 @@ function get_default_config(): Config {
 
 interface Row {
   layer?: Layer;
-  traces: SignalTrace[];
+  traces: Trace[];
 }
 
 function point_flip(c: Point): Point {
@@ -132,7 +132,7 @@ function point_offset(c: Point, o: Point): Point {
   return { x: c.x+o.x, y: c.y+o.y };
 }
 
-function create_trace_points(taper: number, height: number, width: number): Point[] {
+function create_trace_polygon(taper: number, height: number, width: number): Point[] {
   const points = [];
   const c: Point = { x: 0, y: 0 };
   points.push({ ...c });
@@ -148,31 +148,33 @@ function create_trace_points(taper: number, height: number, width: number): Poin
 }
 
 function create_trace_polygons(config: SizeConfig, layout: LayoutElement[]): [Point[][], number] {
-  const ground_trace_points = create_trace_points(
+  const ground_trace_polygon = create_trace_polygon(
     config.trace_taper,
     config.trace_height,
     config.ground_trace_width,
   );
 
-  const signal_trace_points = create_trace_points(
+  const signal_trace_polygon = create_trace_polygon(
     config.trace_taper,
     config.trace_height,
     config.signal_trace_width,
   );
 
-  const traces: Point[][] = [];
+  const trace_polygons: Point[][] = [];
   const cursor: Point = { x: 0, y: 0 };
-  const map_points = (c: Point): Point => {
+  const map_point = (c: Point): Point => {
     c = point_offset(c, cursor);
     return c;
   };
 
-  const push_points = (points: Point[]) => {
+  const push_polygon = (points: Point[]) => {
     const width = points[points.length-1].x;
-    traces.push(points.map(map_points));
+    trace_polygons.push(points.map(map_point));
     cursor.x += width;
   }
 
+  // Vary the padding width to maintain a sensible aspect ratio for the stackup
+  // otherwise single trace layouts will be very skinny
   const total_traces = layout.filter(elem => elem.type == "trace").length;
   const padding_width = config.padding_width*Math.max(1, 5-total_traces);
 
@@ -199,11 +201,11 @@ function create_trace_polygons(config: SizeConfig, layout: LayoutElement[]): [Po
       case "trace": {
         switch (elem.width) {
           case "ground": {
-            push_points(ground_trace_points);
+            push_polygon(ground_trace_polygon);
             break;
           }
           case "signal": {
-            push_points(signal_trace_points);
+            push_polygon(signal_trace_polygon);
             break;
           }
         }
@@ -212,14 +214,14 @@ function create_trace_polygons(config: SizeConfig, layout: LayoutElement[]): [Po
     }
   }
   cursor.x += padding_width;
-  return [traces, cursor.x];
+  return [trace_polygons, cursor.x];
 }
 
-function create_soldermask_points(
+function create_soldermask_polygon(
   height: number, width: number,
   y_offset: number, layer_height: number,
   alignment: TraceAlignment,
-  traces: SignalTrace[],
+  traces: Trace[],
 ): Point[] {
   const all_points: Point[] = [];
 
@@ -284,33 +286,34 @@ interface EpsilonAnnotation {
 }
 
 class Stackup {
-  elements: LayoutElement[];
+  layout_elements: LayoutElement[];
   viewport_offset: Point = { x: 0, y: 0 };
   viewport_size: Point = { x: 0, y: 0 };
   rows: Row[] = [];
   config: Config = get_default_config();
   trace_polygons_template: Point[][];
-  signal_trace_table: Partial<Record<number, SignalTrace>> = {}; // use to lookup created trace for each trace_index
+  signal_trace_table: Partial<Record<number, Trace>> = {}; // use to lookup created trace for each trace_index
   stackup_width: number;
   height_annotations: HeightAnnotation[] = [];
   width_annotations: WidthAnnotation[] = [];
   epsilon_annotations: EpsilonAnnotation[] = [];
 
-  constructor(info: LayoutInfo) {
-    const [trace_polygons, stackup_width] = create_trace_polygons(this.config.size, info.elements);
-    this.elements = info.elements;
+  constructor(viewer_layout: ViewerLayout) {
+    const { layout_elements, layer_elements } = viewer_layout;
+    const [trace_polygons, stackup_width] = create_trace_polygons(this.config.size, layout_elements);
+    this.layout_elements = viewer_layout.layout_elements;
     this.trace_polygons_template = trace_polygons;
     this.viewport_size.x = stackup_width;
     this.stackup_width = stackup_width;
 
-    for (const layer_info of info.layers) {
-      switch (layer_info.type) {
+    for (const layer_element of layer_elements) {
+      switch (layer_element.type) {
         case "surface": {
-          this.create_surface_layer(layer_info);
+          this.create_surface_layer(layer_element);
           break;
         }
         case "inner": {
-          this.create_inner_layer(layer_info);
+          this.create_inner_layer(layer_element);
           break;
         }
         case "copper": {
@@ -320,13 +323,13 @@ class Stackup {
       }
     }
 
-    this._create_broadside_layer_separation();
-    this._expand_viewport_to_fit_annotations();
+    this.create_broadside_layer_separations();
+    this.expand_viewport_to_fit_annotations();
   }
 
-  _create_broadside_layer_separation() {
+  create_broadside_layer_separations() {
     let trace_index = 0;
-    for (const elem of this.elements) {
+    for (const elem of this.layout_elements) {
       if (elem.type == "trace") {
         trace_index++;
         continue;
@@ -340,7 +343,7 @@ class Stackup {
       const right_trace = this.signal_trace_table[trace_index];
       if (left_trace === undefined || right_trace === undefined) continue;
 
-
+      // determine where to anchor arms
       const y_mid_left = (left_trace.polygon[0].y+left_trace.polygon[1].y)/2;
       const y_mid_right = (right_trace.polygon[0].y+right_trace.polygon[1].y)/2;
       const x_mid_left = (left_trace.polygon[1].x+left_trace.polygon[2].x)/2;
@@ -352,7 +355,9 @@ class Stackup {
       const y_left_overhang = y_offset-y_mid_left;
       const y_right_overhang = y_offset-y_mid_right;
       const y_base_overhang = this.config.layout.width_annotation.overhang;
-      // prevent overhang arm from overlapping existing width annotation on trace
+      // prevent overhang arm from overlapping existing width annotation on trace by shrinking it
+      // this height is calculated based on logic in _create_inline_width_annotation()
+      // TODO: maybe store the height of the entire width annotation to avoid this dodgy recalculation
       const y_overhang_shrink =
         this.config.layout.width_annotation.text_offset +
         2*this.config.layout.width_annotation.overhang +
@@ -376,7 +381,7 @@ class Stackup {
     }
   }
 
-  _expand_viewport_to_fit_annotations() {
+  expand_viewport_to_fit_annotations() {
     const x_padding = this.config.layout.y_axis_widget_width+1;
     this.viewport_offset.x = -x_padding;
     this.viewport_size.x += x_padding;
@@ -386,7 +391,7 @@ class Stackup {
     const font_height = this.config.layout.font_size;
     for (const annotation of this.width_annotations) {
       const y = annotation.offset.y + annotation.y_offset_text;
-      // NOTE: we multiple by this asymmetric ratio because the text vertical alignment
+      // NOTE: we multiply by this asymmetric ratio because the text vertical alignment
       //       isn't actually perfectly centre to the bounding box of the text
       y_min = Math.min(y_min, y-font_height*0.45);
       y_max = Math.max(y_max, y+font_height*0.55);
@@ -403,7 +408,7 @@ class Stackup {
     }
   }
 
-  _create_inline_width_annotation(offset: Point, width: number, text: string, drag_up: boolean): WidthAnnotation {
+  create_inline_width_annotation(offset: Point, width: number, text: string, drag_up: boolean): WidthAnnotation {
     const drag_overhang = this.config.layout.width_annotation.overhang;
     const drag_distance = this.config.layout.width_annotation.overhang;
     const text_offset = this.config.layout.width_annotation.text_offset;
@@ -436,33 +441,32 @@ class Stackup {
     return label;
   }
 
-  _create_layer_trace(
-    polygon: Point[], trace_info: TraceInfo, trace_element: TraceElement, alignment: TraceAlignment,
-  ): SignalTrace | null {
-    if (trace_info == null) return null;
+  create_layer_trace(
+    polygon: Point[], trace_element: TraceElement, trace_layout_element: TraceLayoutElement, alignment: TraceAlignment,
+  ): Trace | null {
+    if (trace_element == null) return null;
 
-
-    const trace: SignalTrace = {
+    const trace: Trace = {
       polygon,
-      colour: this.get_trace_colour(trace_info.type),
-      on_click: trace_info.type == "selectable" ? trace_info.on_click : undefined,
+      colour: this.get_trace_colour(trace_element.type),
+      on_click: trace_element.type == "selectable" ? trace_element.on_click : undefined,
     };
 
     // only annotate solid traces
-    const text = trace_element.annotation;
-    if (trace_info.type == "solid" && text) {
+    const text = trace_layout_element.annotation;
+    if (trace_element.type == "solid" && text) {
       if (text.width) {
         const offset = polygon[0];
         const width = polygon[3].x-polygon[0].x;
         const drag_up = alignment == "top";
-        const annotation = this._create_inline_width_annotation(offset, width, text.width, drag_up);
+        const annotation = this.create_inline_width_annotation(offset, width, text.width, drag_up);
         this.width_annotations.push(annotation);
       }
       if (text.taper) {
         const offset = polygon[1];
         const width = polygon[2].x-polygon[1].x;
         const drag_up = alignment == "bottom";
-        const annotation = this._create_inline_width_annotation(offset, width, text.taper, drag_up);
+        const annotation = this.create_inline_width_annotation(offset, width, text.taper, drag_up);
         this.width_annotations.push(annotation);
       }
     }
@@ -470,9 +474,9 @@ class Stackup {
     return trace;
   }
 
-  _create_inline_layer_separation(
+  create_inline_layer_separation(
     left_polygon: Point[], right_polygon: Point[],
-    spacing_element: SpacingElement, alignment: TraceAlignment,
+    spacing_element: SpacingLayoutElement, alignment: TraceAlignment,
   ) {
     const text = spacing_element.annotation;
     if (text === undefined) return;
@@ -480,15 +484,15 @@ class Stackup {
       const offset = left_polygon[3];
       const width = right_polygon[0].x - left_polygon[3].x;
       const drag_up = alignment == "top";
-      const annotation = this._create_inline_width_annotation(offset, width, text.width, drag_up);
+      const annotation = this.create_inline_width_annotation(offset, width, text.width, drag_up);
       this.width_annotations.push(annotation);
     }
   }
 
-  _create_layer_traces(
+  create_layer_traces(
     y_offset: number, layer_height: number, alignment: TraceAlignment,
-    traces_info: TraceInfo[],
-  ): SignalTrace[] {
+    trace_elements: TraceElement[],
+  ): Trace[] {
     const to_top_layer = (point: Point): Point => {
       point = point_offset(point, { x: 0, y: y_offset });
       return point;
@@ -507,22 +511,22 @@ class Stackup {
     const to_layer = get_to_layer(alignment);
     const trace_polygons = this.trace_polygons_template.map(polygon => polygon.map(to_layer));
 
-    const traces: SignalTrace[] = [];
-    if (this.trace_polygons_template.length != traces_info.length) {
-      console.warn(`Got mismatching number of traces between template (${this.trace_polygons_template.length}) and layer trace info (${traces_info.length}) at alignment '${alignment}'`);
+    const traces: Trace[] = [];
+    if (this.trace_polygons_template.length != trace_elements.length) {
+      console.warn(`Got mismatching number of traces between template (${this.trace_polygons_template.length}) and layer trace elements (${trace_elements.length}) at alignment '${alignment}'`);
     }
-    const total_traces = Math.min(this.trace_polygons_template.length, traces_info.length);
+    const total_traces = Math.min(this.trace_polygons_template.length, trace_elements.length);
 
     let trace_index = 0;
-    for (const element of this.elements) {
-      switch (element.type) {
+    for (const layout_element of this.layout_elements) {
+      switch (layout_element.type) {
         case "trace": {
-          const trace_info: TraceInfo = traces_info[trace_index];
+          const trace_element: TraceElement = trace_elements[trace_index];
           const trace_polygon = trace_polygons[trace_index];
-          const trace = this._create_layer_trace(trace_polygon, trace_info, element, alignment);
+          const trace = this.create_layer_trace(trace_polygon, trace_element, layout_element, alignment);
           if (trace !== null) {
             traces.push(trace);
-            if (trace_info?.type == "solid") {
+            if (trace_element?.type == "solid") {
               this.signal_trace_table[trace_index] = trace;
             }
           }
@@ -530,14 +534,14 @@ class Stackup {
           break;
         }
         case "spacing": {
-          if (element.width != "broadside") {
+          if (layout_element.width != "broadside") {
             if (trace_index > 0 && trace_index < total_traces) {
-              const is_left_trace = traces_info[trace_index-1]?.type == "solid";
-              const is_right_trace = traces_info[trace_index]?.type == "solid";
+              const is_left_trace = trace_elements[trace_index-1]?.type == "solid";
+              const is_right_trace = trace_elements[trace_index]?.type == "solid";
               const left_polygon = trace_polygons[trace_index-1];
               const right_polygon = trace_polygons[trace_index];
               if (is_left_trace && is_right_trace) {
-                this._create_inline_layer_separation(left_polygon, right_polygon, element, alignment);
+                this.create_inline_layer_separation(left_polygon, right_polygon, layout_element, alignment);
               }
             }
           }
@@ -551,25 +555,23 @@ class Stackup {
     return traces;
   }
 
-  create_surface_layer(info: SurfaceLayerInfo) {
-    const total_traces = info.traces.filter(trace => trace !== null).length;
-
+  create_surface_layer(layer_element: SurfaceLayerElement) {
+    const { trace_elements, has_soldermask, alignment, annotation } = layer_element;
+    const total_traces = trace_elements.filter(trace => trace !== null).length;
     // if there are no traces in the surface layer create a flat soldermask layer
-    const soldermask_height = info.has_soldermask ? this.config.size.soldermask_height : 0;
+    const soldermask_height = has_soldermask ? this.config.size.soldermask_height : 0;
     const trace_height = (total_traces > 0) ? this.config.size.trace_height : 0;
-
     const layer_height = soldermask_height + trace_height;
     const y_offset = this.viewport_size.y;
 
-    const traces = this._create_layer_traces(y_offset, layer_height, info.alignment, info.traces);
-
-    const soldermask_points = create_soldermask_points(
+    const traces = this.create_layer_traces(y_offset, layer_height, alignment, trace_elements);
+    const soldermask_points = create_soldermask_polygon(
       this.config.size.soldermask_height, this.stackup_width,
-      y_offset, layer_height, info.alignment,
+      y_offset, layer_height, alignment,
       traces,
     );
 
-    const layer: (Layer | undefined) = info.has_soldermask ? {
+    const layer: (Layer | undefined) = has_soldermask ? {
       type: "soldermask",
       polygon: soldermask_points,
       colour: this.config.colour.dielectric_soldermask,
@@ -577,60 +579,59 @@ class Stackup {
     this.rows.push({ layer, traces });
 
     // annotation
-    const text = info.annotation;
     let annotation_overhang = 0;
     if (traces.length > 0) {
       annotation_overhang = traces[0].polygon[1].x;
     }
-    if (info.alignment == "top") {
-      if (text?.trace_height && trace_height > 0) {
+    if (layer_element.alignment == "top") {
+      if (annotation?.trace_height && trace_height > 0) {
         this.height_annotations.push({
           y_offset,
           height: trace_height,
           overhang_top: 0,
           overhang_bottom: annotation_overhang,
-          text: text.trace_height,
+          text: annotation.trace_height,
         });
       }
-      if (text?.soldermask_height && soldermask_height > 0) {
+      if (annotation?.soldermask_height && soldermask_height > 0) {
         this.height_annotations.push({
           y_offset: y_offset+trace_height,
           height: soldermask_height,
           overhang_top: 0,
           overhang_bottom: annotation_overhang,
-          text: text.soldermask_height,
+          text: annotation.soldermask_height,
         });
       }
     } else {
-      if (text?.trace_height && trace_height > 0) {
+      if (annotation?.trace_height && trace_height > 0) {
         this.height_annotations.push({
           y_offset: y_offset+soldermask_height,
           height: trace_height,
           overhang_top: annotation_overhang,
           overhang_bottom: 0,
-          text: text.trace_height,
+          text: annotation.trace_height,
         });
       }
-      if (text?.soldermask_height && soldermask_height > 0) {
+      if (annotation?.soldermask_height && soldermask_height > 0) {
         this.height_annotations.push({
           y_offset: y_offset,
           height: soldermask_height,
           overhang_top: annotation_overhang,
           overhang_bottom: 0,
-          text: text.soldermask_height,
+          text: annotation.soldermask_height,
         });
       }
     }
-    if (text?.epsilon && soldermask_height > 0) {
-      if (info.alignment == "top") {
+    if (annotation?.epsilon && soldermask_height > 0) {
+      if (layer_element.alignment == "top") {
         this.epsilon_annotations.push({
           y_offset: y_offset+soldermask_height/2,
-          text: text.epsilon,
+          text: annotation.epsilon,
         });
       } else {
         this.epsilon_annotations.push({
           y_offset: y_offset+layer_height-soldermask_height/2,
-          text: text.epsilon,
+          text: annotation.epsilon,
         });
       }
     }
@@ -638,36 +639,35 @@ class Stackup {
     this.viewport_size.y += layer_height;
   }
 
-  create_inner_layer(info: InnerLayerInfo) {
+  create_inner_layer(layer_element: InnerLayerElement) {
+    const { trace_elements, annotation } = layer_element;
     // NOTE: we redeclare this so we control which order will build the stackup
     const trace_alignments: TraceAlignment[] = ["top", "bottom"];
     const total_alignments = trace_alignments
-      .map(alignment => info.traces[alignment])
-      .filter(traces => traces !== undefined)
+      .filter(alignment => trace_elements[alignment] !== undefined)
       .length;
     const layer_height =
       this.config.size.trace_height*total_alignments +
       this.config.size.broadside_height_separation*Math.max(1, total_alignments-1);
     const y_offset = this.viewport_size.y;
 
-    const alignment_traces: Partial<Record<TraceAlignment, SignalTrace[]>> = {};
+    const traces: Partial<Record<TraceAlignment, Trace[]>> = {};
     for (const alignment of trace_alignments) {
-      const traces_info = info.traces[alignment];
-      if (traces_info === undefined) continue;
-      const traces = this._create_layer_traces(y_offset, layer_height, alignment, traces_info);
-      alignment_traces[alignment] = traces;
+      const alignment_trace_elements = trace_elements[alignment];
+      if (alignment_trace_elements === undefined) continue;
+      const alignment_traces = this.create_layer_traces(y_offset, layer_height, alignment, alignment_trace_elements);
+      traces[alignment] = alignment_traces;
     }
 
     // annotations
-    const text = info.annotation;
     let height_annotation_offset = y_offset;
     for (let i = 0; i < trace_alignments.length; i++) {
       const alignment = trace_alignments[i];
-      const traces = alignment_traces[alignment];
-      if (traces !== undefined) {
-        const annotation_overhang = (traces.length > 0) ? traces[0].polygon[1].x : 0;
+      const alignment_traces = traces[alignment];
+      if (alignment_traces !== undefined) {
+        const annotation_overhang = (alignment_traces.length > 0) ? alignment_traces[0].polygon[1].x : 0;
         const height = this.config.size.trace_height;
-        const label = text?.trace_heights?.[alignment];
+        const label = annotation?.trace_heights?.[alignment];
         if (label) {
           const overhang_top = (i > 0) ? annotation_overhang : 0;
           const overhang_bottom = (i < trace_alignments.length-1) ? annotation_overhang : 0;
@@ -683,23 +683,23 @@ class Stackup {
       }
       if (i < trace_alignments.length-1) {
         const height = this.config.size.broadside_height_separation;
-        if (text?.dielectric_height) {
+        if (annotation?.dielectric_height) {
           // trace height annotation will handle overhang for us
           this.height_annotations.push({
             y_offset: height_annotation_offset,
             height,
             overhang_top: 0,
             overhang_bottom: 0,
-            text: text.dielectric_height,
+            text: annotation.dielectric_height,
           });
         }
         height_annotation_offset += height;
       }
     }
-    if (text?.epsilon) {
+    if (annotation?.epsilon) {
       this.epsilon_annotations.push({
         y_offset: y_offset + layer_height/2,
-        text: text.epsilon,
+        text: annotation.epsilon,
       });
     }
 
@@ -711,16 +711,16 @@ class Stackup {
       colour: (total_alignments == 0) ? this.config.colour.dielectric_core : this.config.colour.dielectric_prepreg,
     };
 
-    const traces = [];
+    const flattened_traces = [];
     for (const alignment of trace_alignments) {
-      const sub_traces = alignment_traces[alignment];
-      if (sub_traces === undefined) continue;
-      for (const trace of sub_traces) {
-        traces.push(trace);
+      const alignment_traces = traces[alignment];
+      if (alignment_traces === undefined) continue;
+      for (const trace of alignment_traces) {
+        flattened_traces.push(trace);
       }
     }
 
-    this.rows.push({ layer, traces });
+    this.rows.push({ layer, traces: flattened_traces });
     this.viewport_size.y += layer_height;
   }
 
@@ -743,7 +743,7 @@ function points_to_string(points: Point[]): string {
   return points.map((p) => `${p.x},${p.y}`).join(' ');
 }
 
-const stackup = computed(() => new Stackup(props.layout_info));
+const stackup = computed(() => new Stackup(props.viewer_layout));
 const layout = computed(() => stackup.value.config.layout);
 </script>
 

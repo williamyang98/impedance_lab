@@ -1,33 +1,35 @@
-import { type TraceAlignment } from "./stackup.ts";
+import {
+  type TraceAlignment, type TraceType, type SpacingType,
+} from "./stackup.ts";
 
-export interface TraceElement {
-  width: "ground" | "signal";
+export interface TraceLayoutElement {
+  width: TraceType;
   annotation?: {
     width?: string;
     taper?: string;
   };
 }
 
-export interface SpacingElement {
-  width: "ground" | "signal" | "broadside";
+export interface SpacingLayoutElement {
+  width: SpacingType;
   annotation?: {
     width?: string;
   };
 }
 
 export type LayoutElement =
-  { type: "spacing" } & SpacingElement |
-  { type: "trace" } & TraceElement;
+  { type: "trace" } & TraceLayoutElement |
+  { type: "spacing" } & SpacingLayoutElement;
 
-export type TraceInfo =
+export type TraceElement =
   { type: "solid" } |
   { type: "selectable", on_click: () => void } |
   null;
 
-export interface SurfaceLayerInfo {
+export interface SurfaceLayerElement {
   alignment: TraceAlignment;
   has_soldermask: boolean;
-  traces: TraceInfo[];
+  trace_elements: TraceElement[];
   annotation?: {
     soldermask_height?: string;
     trace_height?: string;
@@ -35,8 +37,8 @@ export interface SurfaceLayerInfo {
   };
 }
 
-export interface InnerLayerInfo {
-  traces: Partial<Record<TraceAlignment, TraceInfo[]>>;
+export interface InnerLayerElement {
+  trace_elements: Partial<Record<TraceAlignment, TraceElement[]>>;
   annotation?: {
     dielectric_height?: string;
     epsilon?: string;
@@ -44,12 +46,12 @@ export interface InnerLayerInfo {
   };
 }
 
-export type LayerInfo =
-  { type: "surface" } & SurfaceLayerInfo |
-  { type: "inner" } & InnerLayerInfo |
+export type LayerElement =
+  { type: "surface" } & SurfaceLayerElement |
+  { type: "inner" } & InnerLayerElement |
   { type: "copper" };
 
-export interface LayoutInfo {
-  elements: LayoutElement[];
-  layers: LayerInfo[];
+export interface ViewerLayout {
+  layout_elements: LayoutElement[];
+  layer_elements: LayerElement[];
 }

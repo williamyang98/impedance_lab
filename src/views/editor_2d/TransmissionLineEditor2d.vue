@@ -5,9 +5,13 @@ import {
   type LayerTemplate,
   layer_templates, layer_descriptor_to_template, layer_template_to_descriptor,
 } from "./layer_templates.ts";
-import { type TraceLayoutType, signal_types } from "./stackup.ts";
+import { type TraceLayoutType, type Stackup, trace_layout_types } from "./stackup.ts";
 import { StackupViewer } from "./index.ts";
-import { get_layout_info_from_editor } from "./editor_to_viewer_layout.ts";
+import {
+  get_viewer_layout_from_editor,
+  get_viewer_layout_from_stackup,
+  get_default_annotation_config,
+} from "./stackup_to_viewer_layout.ts";
 
 function layer_template_to_string(template: LayerTemplate): string {
   switch (template) {
@@ -28,7 +32,8 @@ function trace_layout_type_to_string(type: TraceLayoutType): string {
 }
 
 const editor = ref(new Editor());
-const layout_info = computed(() => get_layout_info_from_editor(editor.value));
+const annotation_config = get_default_annotation_config();
+const viewer_layout = computed(() => get_viewer_layout_from_editor(editor.value, annotation_config));
 
 const trace_layout_type = computed<TraceLayoutType>({
   get() {
@@ -59,6 +64,41 @@ const layers = computed(() => editor.value.layers.map((layer, layer_index) => {
   }
 }));
 
+function create_basic_stackup(): Stackup {
+  const stackup: Stackup = {
+    trace_layout: {
+      type: "coplanar_pair",
+      has_coplanar_ground: true,
+      position: {
+        layer_id: 0,
+        alignment: "bottom",
+      },
+    },
+    layers: [
+      {
+        id: 0,
+        type: "surface",
+        trace_alignment: "bottom",
+        has_soldermask: true,
+      },
+      {
+        id: 1,
+        type: "inner",
+        trace_alignments: new Set(["top"]),
+      },
+      {
+        id: 2,
+        type: "copper",
+      },
+    ],
+  }
+
+  return stackup;
+}
+
+const basic_stackup = create_basic_stackup();
+const basic_viewer_layout = get_viewer_layout_from_stackup(basic_stackup, annotation_config);
+
 </script>
 
 <template>
@@ -67,7 +107,7 @@ const layers = computed(() => editor.value.layers.map((layer, layer_index) => {
     <div class="grid grid-cols-2 gap-x-2 w-fit mb-2">
       <label for="signal_type" class="font-medium">Signal type</label>
       <select id="signal_type" v-model="trace_layout_type">
-        <template v-for="type in signal_types" :key="type">
+        <template v-for="type in trace_layout_types" :key="type">
           <option :value="type" v-if="editor.can_change_trace_layout(type)">{{ trace_layout_type_to_string(type) }}</option>
         </template>
       </select>
@@ -107,8 +147,12 @@ const layers = computed(() => editor.value.layers.map((layer, layer_index) => {
     </table>
   </div>
   <div class="min-w-[25rem] min-h-[5rem] max-w-[100%] max-h-[75vh] overflow-auto">
-    <StackupViewer :layout_info="layout_info"></StackupViewer>
+    <StackupViewer :viewer_layout="viewer_layout"></StackupViewer>
   </div>
+</div>
+
+<div class="max-w-[50%] mt-3">
+  <StackupViewer :viewer_layout="basic_viewer_layout"></StackupViewer>
 </div>
 </template>
 
