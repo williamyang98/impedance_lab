@@ -1,8 +1,8 @@
 import { Editor } from "./editor.ts";
-import { type TraceAlignment, type TraceType, StackupRules } from "./stackup.ts";
+import { type TraceAlignment, type TraceType, type TraceLayoutType, StackupRules } from "./stackup.ts";
 import { type LayoutInfo, type LayoutElement, type LayerInfo, type TraceInfo } from "./viewer_layout.ts";
 
-export function get_layout_elements_from_traces(traces: TraceType[]): LayoutElement[] {
+export function get_layout_elements_from_traces(traces: TraceType[], type: TraceLayoutType): LayoutElement[] {
   const elements: LayoutElement[] = [];
   for (let i = 0; i < traces.length; i++) {
     const trace = traces[i];
@@ -19,7 +19,11 @@ export function get_layout_elements_from_traces(traces: TraceType[]): LayoutElem
     }
     if (next_trace == null) continue;
     if (trace == "signal" && next_trace == "signal") {
-      elements.push({ type: "spacing", width: "signal", annotation: { width: "S" } });
+      if (type != "broadside_pair") {
+        elements.push({ type: "spacing", width: "signal", annotation: { width: "S" } });
+      } else {
+        elements.push({ type: "spacing", width: "broadside", annotation: { width: "S" } });
+      }
     } else {
       elements.push({ type: "spacing", width: "ground", annotation: { width: "CS"} });
     }
@@ -95,7 +99,8 @@ export function get_layout_info_from_editor(editor: Editor): LayoutInfo {
     }
   }
 
-  const layout_elements = get_layout_elements_from_traces(traces);
+  const layout_type = editor.trace_layout.type;
+  const layout_elements = get_layout_elements_from_traces(traces, layout_type);
   return {
     elements: layout_elements,
     layers: layer_infos,

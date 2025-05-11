@@ -9,7 +9,7 @@ export interface TraceElement {
 }
 
 export interface SpacingElement {
-  width: "ground" | "signal";
+  width: "ground" | "signal" | "broadside";
   annotation?: {
     width?: string;
   };

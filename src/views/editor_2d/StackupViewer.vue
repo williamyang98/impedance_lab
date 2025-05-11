@@ -39,6 +39,7 @@ type Layer =
   { type: "soldermask" } & SoldermaskLayer;
 
 interface SignalTrace {
+  // NOTE: this will always be 4 points
   polygon: Point[];
   colour: Colour;
   on_click?: () => void;
@@ -47,6 +48,10 @@ interface SignalTrace {
 interface LayoutConfig {
   y_axis_widget_width: number;
   font_size: number;
+  width_annotation: {
+    overhang: number;
+    text_offset: number;
+  };
 }
 
 interface SizeConfig {
@@ -82,6 +87,10 @@ function get_default_config(): Config {
   return {
     layout: {
       y_axis_widget_width: 23,
+      width_annotation: {
+        overhang: 5,
+        text_offset: 6,
+      },
       font_size: 9,
     },
     size: {
@@ -93,7 +102,7 @@ function get_default_config(): Config {
       ground_trace_width: 30,
       signal_width_separation: 20,
       ground_width_separation: 25,
-      broadside_height_separation: 40,
+      broadside_height_separation: 45,
       padding_width: 25,
     },
     colour: {
@@ -136,7 +145,7 @@ function create_trace_points(taper: number, height: number, width: number): Poin
   return points;
 }
 
-function create_signal_layer_points(config: SizeConfig, layout: LayoutElement[]): [Point[][], number] {
+function create_trace_polygons(config: SizeConfig, layout: LayoutElement[]): [Point[][], number] {
   const ground_trace_points = create_trace_points(
     config.trace_taper,
     config.trace_height,
@@ -178,6 +187,10 @@ function create_signal_layer_points(config: SizeConfig, layout: LayoutElement[])
             cursor.x += config.signal_width_separation;
             break;
           }
+          case "broadside": {
+            cursor.x += config.signal_width_separation;
+            break;
+          };
         }
         break;
       }
@@ -250,12 +263,12 @@ interface HeightAnnotation {
 
 interface WidthAnnotation {
   left_arm_overhang: {
-    top: number,
-    bottom: number,
+    top: number;
+    bottom: number;
   };
   right_arm_overhang: {
-    top: number,
-    bottom: number,
+    top: number;
+    bottom: number;
   };
   offset: Point;
   width: number;
@@ -265,19 +278,21 @@ interface WidthAnnotation {
 
 class Stackup {
   elements: LayoutElement[];
+  viewport_offset: Point = { x: 0, y: 0 };
   viewport_size: Point = { x: 0, y: 0 };
   rows: Row[] = [];
   config: Config = get_default_config();
-  points_traces_template: Point[][];
+  trace_polygons_template: Point[][];
+  signal_trace_table: Partial<Record<number, SignalTrace>> = {}; // use to lookup created trace for each trace_index
   stackup_width: number;
   height_annotations: HeightAnnotation[] = [];
   width_annotations: WidthAnnotation[] = [];
 
   constructor(info: LayoutInfo) {
-    const [traces_points, stackup_width] = create_signal_layer_points(this.config.size, info.elements);
+    const [trace_polygons, stackup_width] = create_trace_polygons(this.config.size, info.elements);
     this.elements = info.elements;
-    this.points_traces_template = traces_points;
-    this.viewport_size.x = stackup_width + this.config.layout.y_axis_widget_width;
+    this.trace_polygons_template = trace_polygons;
+    this.viewport_size.x = stackup_width;
     this.stackup_width = stackup_width;
 
     for (const layer_info of info.layers) {
@@ -296,6 +311,81 @@ class Stackup {
         }
       }
     }
+
+    this._create_broadside_layer_separation();
+    this._expand_viewport_to_fit_annotations();
+  }
+
+  _create_broadside_layer_separation() {
+    let trace_index = 0;
+    for (const elem of this.elements) {
+      if (elem.type == "trace") {
+        trace_index++;
+        continue;
+      }
+      if (elem.type != "spacing") continue;
+      if (elem.width != "broadside") continue;
+      const text = elem.annotation?.width;
+      if (text === undefined) continue;
+
+      const left_trace = this.signal_trace_table[trace_index-1];
+      const right_trace = this.signal_trace_table[trace_index];
+      if (left_trace === undefined || right_trace === undefined) continue;
+
+
+      const y_mid_left = (left_trace.polygon[0].y+left_trace.polygon[1].y)/2;
+      const y_mid_right = (right_trace.polygon[0].y+right_trace.polygon[1].y)/2;
+      const x_mid_left = (left_trace.polygon[1].x+left_trace.polygon[2].x)/2;
+      const x_mid_right = (right_trace.polygon[1].x+right_trace.polygon[2].x)/2;
+      const y_offset = (y_mid_left+y_mid_right)/2;
+      const width = x_mid_right-x_mid_left;
+      const offset: Point = { x: x_mid_left, y: y_offset };
+
+      const y_left_overhang = y_offset-y_mid_left;
+      const y_right_overhang = y_offset-y_mid_right;
+      const y_base_overhang = this.config.layout.width_annotation.overhang;
+      // prevent overhang arm from overlapping existing width annotation on trace
+      const y_overhang_shrink =
+        this.config.layout.width_annotation.text_offset +
+        2*this.config.layout.width_annotation.overhang +
+        this.config.size.trace_height/2;
+
+      const annotation: WidthAnnotation = {
+        left_arm_overhang: {
+          top: Math.max(y_base_overhang, y_left_overhang-y_overhang_shrink),
+          bottom: Math.max(y_base_overhang, -y_left_overhang-y_overhang_shrink),
+        },
+        right_arm_overhang: {
+          top: Math.max(y_base_overhang, y_right_overhang-y_overhang_shrink),
+          bottom: Math.max(y_base_overhang, -y_right_overhang-y_overhang_shrink),
+        },
+        offset,
+        width,
+        y_offset_text: this.config.layout.width_annotation.text_offset,
+        text,
+      };
+      this.width_annotations.push(annotation);
+    }
+  }
+
+  _expand_viewport_to_fit_annotations() {
+    const x_padding = this.config.layout.y_axis_widget_width;
+    this.viewport_offset.x = -x_padding-1;
+    this.viewport_size.x += x_padding;
+
+    let y_min = 0;
+    let y_max = this.viewport_size.y;
+    const font_height = this.config.layout.font_size;
+    for (const annotation of this.width_annotations) {
+      const y = annotation.offset.y + annotation.y_offset_text;
+      // NOTE: we multiple by this asymmetric ratio because the text vertical alignment
+      //       isn't actually perfectly centre to the bounding box of the text
+      y_min = Math.min(y_min, y-font_height*0.45);
+      y_max = Math.max(y_max, y+font_height*0.55);
+    }
+    const viewport_height = y_max-y_min;
+    this.viewport_offset.y = y_min;
+    this.viewport_size.y = viewport_height;
   }
 
   get_trace_colour(type: "solid" | "selectable"): Colour {
@@ -305,11 +395,19 @@ class Stackup {
     }
   }
 
-  _init_width_annotation(label: WidthAnnotation, drag_up: boolean) {
-    const font_size = this.config.layout.font_size;
-    const drag_overhang = 5;
-    const drag_distance = 5;
-    const text_offset = font_size*0.7;
+  _create_inline_width_annotation(offset: Point, width: number, text: string, drag_up: boolean): WidthAnnotation {
+    const drag_overhang = this.config.layout.width_annotation.overhang;
+    const drag_distance = this.config.layout.width_annotation.overhang;
+    const text_offset = this.config.layout.width_annotation.text_offset;
+
+    const label: WidthAnnotation = {
+      offset: { ...offset },
+      width,
+      y_offset_text: 0,
+      left_arm_overhang: { top: 0, bottom: 0 },
+      right_arm_overhang: { top: 0, bottom: 0 },
+      text,
+    };
 
     if (drag_up) {
       label.offset.y -= drag_distance;
@@ -326,6 +424,8 @@ class Stackup {
       label.right_arm_overhang.bottom = drag_overhang;
       label.y_offset_text = text_offset;
     }
+
+    return label;
   }
 
   _create_layer_trace(
@@ -344,27 +444,17 @@ class Stackup {
     const text = trace_element.annotation;
     if (trace_info.type == "solid" && text) {
       if (text.width) {
-        const annotation: WidthAnnotation = {
-          offset: { ...polygon[0] },
-          width: polygon[3].x-polygon[0].x,
-          y_offset_text: 0,
-          left_arm_overhang: { top: 0, bottom: 0 },
-          right_arm_overhang: { top: 0, bottom: 0 },
-          text: text.width,
-        };
-        this._init_width_annotation(annotation, alignment == "top");
+        const offset = polygon[0];
+        const width = polygon[3].x-polygon[0].x;
+        const drag_up = alignment == "top";
+        const annotation = this._create_inline_width_annotation(offset, width, text.width, drag_up);
         this.width_annotations.push(annotation);
       }
       if (text.taper) {
-        const annotation: WidthAnnotation = {
-          offset: { ...polygon[1] },
-          width: polygon[2].x-polygon[1].x,
-          y_offset_text: 0,
-          left_arm_overhang: { top: 0, bottom: 0 },
-          right_arm_overhang: { top: 0, bottom: 0 },
-          text: text.taper,
-        };
-        this._init_width_annotation(annotation, alignment == "bottom");
+        const offset = polygon[1];
+        const width = polygon[2].x-polygon[1].x;
+        const drag_up = alignment == "bottom";
+        const annotation = this._create_inline_width_annotation(offset, width, text.taper, drag_up);
         this.width_annotations.push(annotation);
       }
     }
@@ -372,23 +462,17 @@ class Stackup {
     return trace;
   }
 
-  _create_layer_separation(
+  _create_inline_layer_separation(
     left_polygon: Point[], right_polygon: Point[],
     spacing_element: SpacingElement, alignment: TraceAlignment,
   ) {
     const text = spacing_element.annotation;
     if (text === undefined) return;
     if (text.width) {
+      const offset = left_polygon[3];
       const width = right_polygon[0].x - left_polygon[3].x;
-      const annotation: WidthAnnotation = {
-        offset: { ...left_polygon[3] },
-        width,
-        y_offset_text: 0,
-        left_arm_overhang: { top: 0, bottom: 0 },
-        right_arm_overhang: { top: 0, bottom: 0 },
-        text: text.width,
-      };
-      this._init_width_annotation(annotation, alignment == "top");
+      const drag_up = alignment == "top";
+      const annotation = this._create_inline_width_annotation(offset, width, text.width, drag_up);
       this.width_annotations.push(annotation);
     }
   }
@@ -413,35 +497,40 @@ class Stackup {
       }
     }
     const to_layer = get_to_layer(alignment);
-    const trace_polygons = this.points_traces_template.map(polygon => polygon.map(to_layer));
+    const trace_polygons = this.trace_polygons_template.map(polygon => polygon.map(to_layer));
 
     const traces: SignalTrace[] = [];
-    if (this.points_traces_template.length != traces_info.length) {
-      console.warn(`Got mismatching number of traces between template (${this.points_traces_template.length}) and layer trace info (${traces_info.length}) at alignment '${alignment}'`);
+    if (this.trace_polygons_template.length != traces_info.length) {
+      console.warn(`Got mismatching number of traces between template (${this.trace_polygons_template.length}) and layer trace info (${traces_info.length}) at alignment '${alignment}'`);
     }
-    const total_traces = Math.min(this.points_traces_template.length, traces_info.length);
+    const total_traces = Math.min(this.trace_polygons_template.length, traces_info.length);
 
     let trace_index = 0;
     for (const element of this.elements) {
       switch (element.type) {
         case "trace": {
-          const trace_info = traces_info[trace_index];
+          const trace_info: TraceInfo = traces_info[trace_index];
           const trace_polygon = trace_polygons[trace_index];
           const trace = this._create_layer_trace(trace_polygon, trace_info, element, alignment);
           if (trace !== null) {
             traces.push(trace);
+            if (trace_info?.type == "solid") {
+              this.signal_trace_table[trace_index] = trace;
+            }
           }
           trace_index++;
           break;
         }
         case "spacing": {
-          if (trace_index > 0 && trace_index < total_traces) {
-            const is_left_trace = traces_info[trace_index-1]?.type == "solid";
-            const is_right_trace = traces_info[trace_index]?.type == "solid";
-            const left_polygon = trace_polygons[trace_index-1];
-            const right_polygon = trace_polygons[trace_index];
-            if (is_left_trace && is_right_trace) {
-              this._create_layer_separation(left_polygon, right_polygon, element, alignment);
+          if (element.width != "broadside") {
+            if (trace_index > 0 && trace_index < total_traces) {
+              const is_left_trace = traces_info[trace_index-1]?.type == "solid";
+              const is_right_trace = traces_info[trace_index]?.type == "solid";
+              const left_polygon = trace_polygons[trace_index-1];
+              const right_polygon = trace_polygons[trace_index];
+              if (is_left_trace && is_right_trace) {
+                this._create_inline_layer_separation(left_polygon, right_polygon, element, alignment);
+              }
             }
           }
           break;
@@ -635,11 +724,9 @@ const layout = computed(() => stackup.value.config.layout);
 <template>
 <svg
   version="1.1" xmlns="http://www.w3.org/2000/svg"
-  :viewBox="
-    `${-layout.y_axis_widget_width-1}
-    ${-layout.font_size/2}
-    ${stackup.viewport_size.x+1}
-    ${stackup.viewport_size.y+layout.font_size}
+  :viewBox="`
+    ${stackup.viewport_offset.x} ${stackup.viewport_offset.y}
+    ${stackup.viewport_size.x} ${stackup.viewport_size.y}
   `"
   preserveAspectRatio="xMidYMid meet"
 >
