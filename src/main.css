@@ -3,6 +3,7 @@
   themes: light --default, dark --prefersdark;
 }
 
+/* Avoid adding a scrollbar when sidebar is open which causes layout shift */
 :where(:root:has(.drawer:not(.drawer-open) > .drawer-toggle:checked )) {
   scrollbar-gutter: initial;
 }
