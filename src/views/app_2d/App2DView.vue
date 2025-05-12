@@ -315,15 +315,15 @@ watch(search_option, (new_value, _old_value) => {
           <div class="tab-content bg-base-100 border-base-300">
             <Viewer2D ref="viewer_2d"></Viewer2D>
           </div>
-          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Parameter Search" checked/>
+          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Parameter Search"/>
           <div class="tab-content bg-base-100 border-base-300">
             <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
           </div>
-          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="X Grid" checked/>
+          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="X Grid"/>
           <div class="tab-content bg-base-100 border-base-300">
             <LineChart ref="dx_chart" class="w-[100%] h-[100%]"></LineChart>
           </div>
-          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Y Grid" checked/>
+          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Y Grid"/>
           <div class="tab-content bg-base-100 border-base-300">
             <LineChart ref="dy_chart" class="w-[100%] h-[100%]"></LineChart>
           </div>
