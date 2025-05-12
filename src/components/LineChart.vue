@@ -1,5 +1,5 @@
-<script lang="ts">
-import { defineComponent } from "vue";
+<script setup lang="ts">
+import { ref, useTemplateRef, onMounted, defineExpose } from "vue";
 import Chart from 'chart.js/auto';
 
 interface LineChart {
@@ -66,39 +66,41 @@ function create_line_chart(canvas: HTMLCanvasElement): LineChart {
   }
 }
 
-interface ComponentData {
-  chart?: LineChart;
+const chart = ref<LineChart>();
+
+function set_data(data: { x: number, y: number }[]) {
+  chart.value?.set_data(data);
 }
 
-export default defineComponent({
-  data(): ComponentData {
-    return {
-      chart: undefined,
-    }
-  },
-  methods: {
-    set_data(data: { x: number, y: number }[]) {
-      this.chart?.set_data(data);
-    },
-    set_xlabel(label: string) {
-      this.chart?.set_xlabel(label);
-    },
-    set_ylabel(label: string) {
-      this.chart?.set_ylabel(label);
-    },
-    update() {
-      this.chart?.update();
-    }
-  },
-  mounted() {
-    this.chart?.destroy();
-    if (this.$refs.canvas) {
-      this.chart = create_line_chart(this.$refs.canvas as HTMLCanvasElement);
-    }
+function set_xlabel(label: string) {
+  chart.value?.set_xlabel(label);
+}
+
+function set_ylabel(label: string) {
+  chart.value?.set_ylabel(label);
+}
+
+function update() {
+  chart.value?.update();
+}
+
+const canvas = useTemplateRef<HTMLCanvasElement>("line-canvas");
+
+onMounted(() => {
+  chart.value?.destroy();
+  if (canvas.value !== null) {
+    chart.value = create_line_chart(canvas.value);
   }
 })
+
+defineExpose({
+  set_data,
+  set_xlabel,
+  set_ylabel,
+  update,
+});
 </script>
 
 <template>
-  <canvas ref="canvas" v-bind="$attrs"></canvas>
+  <canvas ref="line-canvas" v-bind="$attrs"></canvas>
 </template>

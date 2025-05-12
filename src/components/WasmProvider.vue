@@ -1,38 +1,27 @@
-<script lang="ts">
-import { defineComponent } from "vue";
+<script setup lang="ts">
+import { ref, onMounted } from "vue";
 import init_wasm_module from "../wasm/pkg/fdtd_core.js";
 
 type LoadState = "loading" | "failed" | "finished";
-interface ProviderData {
-  state: LoadState;
-  error_message?: string;
+const state = ref<LoadState>("loading");
+const error_message = ref<string>();
+
+async function init() {
+  try {
+    await init_wasm_module();
+    state.value = "finished";
+  } catch (error) {
+    if (error instanceof Error) {
+      error_message.value = error.message;
+    } else {
+      error_message.value = String(error);
+    }
+    state.value = "failed";
+  }
 }
 
-export default defineComponent({
-  data(): ProviderData {
-    return {
-      state: "loading",
-      error_message: undefined,
-    }
-  },
-  methods: {
-    async init() {
-      try {
-        await init_wasm_module();
-        this.state = "finished";
-      } catch (error) {
-        if (error instanceof Error) {
-          this.error_message = error.message;
-        } else {
-          this.error_message = String(error);
-        }
-        this.state = "failed";
-      }
-    },
-  },
-  mounted() {
-    void this.init();
-  },
+onMounted(async () => {
+  await init();
 });
 </script>
 

@@ -1,21 +1,5 @@
 <script setup lang="ts">
-
-// https://stackoverflow.com/a/68841834
-// this.$ref.viewer_2d will return a { __v_skip: True } instead of the child component
-// since the child component has a <script setup> tag
-import { defineExpose, ref, useId } from "vue";
-const viewer_2d = ref(null);
-defineExpose({
-  viewer_2d
-});
-
-const id_tab_result = useId();
-const id_tab_viewer = useId();
-
-</script>
-
-<script lang="ts">
-import { defineComponent } from "vue";
+import { ref, useTemplateRef, useId, watch, onMounted } from "vue";
 import { Ndarray } from "../../utility/ndarray.ts";
 import {
   Setup,
@@ -25,6 +9,14 @@ import {
 import LineChart from "../../components/LineChart.vue";
 import { Viewer2D } from "../../components/viewer_2d";
 import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
+
+const viewer_2d = useTemplateRef<typeof Viewer2D>("viewer_2d");
+const dx_chart = useTemplateRef<typeof LineChart>("dx_chart");
+const dy_chart = useTemplateRef<typeof LineChart>("dy_chart");
+const param_chart = useTemplateRef<typeof LineChart>("param_chart");
+
+const id_tab_result = useId();
+const id_tab_viewer = useId();
 
 type SearchOption = "er0" | "er1" | "er0+er1" | "h0" | "h1" | "h0+h1" | "w" | "s" | "t";
 interface ParameterConfig {
@@ -57,147 +49,128 @@ function get_parameter_config(option: SearchOption): ParameterConfig {
   }
 }
 
-interface ComponentData {
-  setup: Setup;
-  params: TransmissionLineParameters;
-  run_result?: RunResult;
-  impedance_result?: ImpedanceResult;
-  energy_threshold: number;
-  search_option: SearchOption;
-  search_options: SearchOption[];
-  search_config: ParameterSearchConfig;
+const setup = ref(new Setup());
+
+const params = ref<TransmissionLineParameters>({
+  dielectric_bottom_epsilon: 4.1,
+  dielectric_bottom_height: 0.0994,
+  signal_separation: 0.15,
+  signal_width: 0.1334,
+  signal_height: 0.0152,
+  dielectric_top_epsilon: 4.36,
+  dielectric_top_height: 0.45,
+});
+
+const run_result = ref<RunResult>();
+const impedance_result = ref<ImpedanceResult>();
+
+const energy_threshold = ref<number>(-2.3);
+const search_option = ref<SearchOption>("w");
+const search_config = ref<ParameterSearchConfig>({
+  Z0_target: 85,
+  ...get_parameter_config("w"),
+  error_tolerance: 1e-2,
+  early_stop_threshold: 1e-2,
+  plateau_count: 5,
+});
+
+function update_params() {
+  reset();
+  setup.value.update_params(params.value);
+  update_charts();
+  run();
 }
 
-export default defineComponent({
-  components: {
-    Viewer2D,
-    LineChart,
-  },
-  data(): ComponentData {
-    return {
-      setup: new Setup(),
-      params: {
-        dielectric_bottom_epsilon: 4.1,
-        dielectric_bottom_height: 0.0994,
-        signal_separation: 0.15,
-        signal_width: 0.1334,
-        signal_height: 0.0152,
-        dielectric_top_epsilon: 4.36,
-        dielectric_top_height: 0.45,
-      },
-      energy_threshold: -2.3,
-      run_result: undefined,
-      impedance_result: undefined,
-      search_option: "w",
-      search_options: ["er0", "er1", "er0+er1", "h0", "h1", "h0+h1", "w", "s", "t"],
-      search_config: {
-        Z0_target: 85,
-        ...get_parameter_config("w"),
-        error_tolerance: 1e-2,
-        early_stop_threshold: 1e-2,
-        plateau_count: 5,
-      },
-    };
-  },
-  methods: {
-    update_params() {
-      this.reset();
-      this.setup.update_params(this.params);
-      this.update_charts();
-      this.run();
-    },
-    run() {
-      const grid = this.setup.grid;
-      if (grid === undefined) return;
-      const threshold = 10**this.energy_threshold;
-      this.run_result = grid.run(threshold);
-      this.impedance_result = grid.calculate_impedance();
-      void this.refresh_viewer();
-    },
-    async refresh_viewer() {
-      if (this.$refs.viewer_2d === null) return;
-      const viewer = this.$refs.viewer_2d as typeof Viewer2D;
-      const grid = this.setup.grid;
-      if (grid === undefined) return;
-      viewer.upload_grid(grid);
-      await viewer.refresh_canvas();
-    },
-    reset() {
-      this.setup.reset();
-    },
-    update_charts() {
-      function create_markers(arr: Ndarray): { x: number, y: number }[] {
-        return Array.from(arr.data).map((e,i) => {
-          return { x: i, y: e }
-        });
-      }
-      const grid = this.setup.grid;
-      if (grid === undefined) return;
-      if (this.$refs.dx_chart) {
-        const chart = this.$refs.dx_chart as typeof LineChart;
-        chart.set_data(create_markers(grid.dx));
-        chart.set_ylabel("dx");
-        chart.update();
-      }
-      if (this.$refs.dy_chart) {
-        const chart = this.$refs.dy_chart as typeof LineChart;
-        chart.set_data(create_markers(grid.dy));
-        chart.set_ylabel("dy");
-        chart.update();
-      }
-    },
-    async run_parameter_search() {
-      const param_config = get_parameter_config(this.search_option);
-      const energy_threshold = 10**this.energy_threshold;
-      const search_results: ParameterSearchResults = await perform_parameter_search(
-        (value: number) => param_config.getter(this.params, value),
-        this.setup,
-        this.search_config,
-        energy_threshold,
-      );
-      const result = search_results.results[search_results.best_step];
-      this.params = result.params;
-      this.run_result = result.run_result;
-      this.impedance_result = result.impedance_result;
-      const xy_data = search_results.results.map((e) => {
-        const Z0 = e.impedance_result.Z0;
-        const value = e.value;
-        return {
-          x: value,
-          y: Z0,
-        };
-      });
-      xy_data.sort((a,b) => a.x-b.x);
-      if (this.$refs.param_chart) {
-        const chart = this.$refs.param_chart as typeof LineChart;
-        chart.set_data(xy_data);
-        chart.set_xlabel(this.search_option);
-        chart.set_ylabel("Z0");
-        chart.update();
-      }
-      this.update_params();
-    },
-  },
-  mounted() {
-    this.update_params();
-  },
-  beforeUnmount() {
+function run() {
+  const grid = setup.value.grid;
+  if (grid === undefined) return;
+  const threshold = 10**energy_threshold.value;
+  run_result.value = grid.run(threshold);
+  impedance_result.value = grid.calculate_impedance();
+  void refresh_viewer();
+}
 
-  },
-  watch: {
-    search_option(new_value, _old_value) {
-      const param_config = get_parameter_config(new_value);
-      this.search_config.v_lower = param_config.v_lower;
-      this.search_config.v_upper = param_config.v_upper;
-      this.search_config.is_positive_correlation = param_config.is_positive_correlation;
-    },
-  },
+async function refresh_viewer() {
+  if (viewer_2d.value === null) return;
+  const viewer = viewer_2d.value;
+  const grid = setup.value.grid;
+  if (grid === undefined) return;
+  viewer.upload_grid(grid);
+  await viewer.refresh_canvas();
+}
+
+function reset() {
+  setup.value.reset();
+}
+
+function update_charts() {
+  function create_markers(arr: Ndarray): { x: number, y: number }[] {
+    return Array.from(arr.data).map((e,i) => {
+      return { x: i, y: e }
+    });
+  }
+  const grid = setup.value.grid;
+  if (grid === undefined) return;
+  if (dx_chart.value !== null) {
+    const chart = dx_chart.value;
+    chart.set_data(create_markers(grid.dx));
+    chart.set_ylabel("dx");
+    chart.update();
+  }
+  if (dy_chart.value !== null) {
+    const chart = dy_chart.value;
+    chart.set_data(create_markers(grid.dy));
+    chart.set_ylabel("dy");
+    chart.update();
+  }
+}
+
+async function run_parameter_search() {
+  const param_config = get_parameter_config(search_option.value);
+  const search_results: ParameterSearchResults = await perform_parameter_search(
+    (value: number) => param_config.getter(params.value, value),
+    setup.value,
+    search_config.value,
+    10**energy_threshold.value,
+  );
+  const result = search_results.results[search_results.best_step];
+  params.value = result.params;
+  run_result.value = result.run_result;
+  impedance_result.value = result.impedance_result;
+  const xy_data = search_results.results.map((e) => {
+    const Z0 = e.impedance_result.Z0;
+    const value = e.value;
+    return {
+      x: value,
+      y: Z0,
+    };
+  });
+  xy_data.sort((a,b) => a.x-b.x);
+  if (param_chart.value !== null) {
+    const chart = param_chart.value;
+    chart.set_data(xy_data);
+    chart.set_xlabel(search_option.value);
+    chart.set_ylabel("Z0");
+    chart.update();
+  }
+  update_params();
+}
+
+onMounted(() => {
+  update_params();
+});
+
+watch(search_option, (new_value, _old_value) => {
+  const param_config = get_parameter_config(new_value);
+  search_config.value.v_lower = param_config.v_lower;
+  search_config.value.v_upper = param_config.v_upper;
+  search_config.value.is_positive_correlation = param_config.is_positive_correlation;
 });
 </script>
 
 <template>
 <div class="grid grid-flow-row grid-cols-3 gap-2">
-  <div class="card card-border shadow">
+  <div class="card card-border bg-base-100">
     <div class="card-body">
       <h2 class="card-title">Parameters</h2>
       <form class="grid grid-cols-[auto_auto] gap-y-1 gap-x-2">
@@ -221,7 +194,7 @@ export default defineComponent({
       </div>
     </div>
   </div>
-  <div class="card card-border shadow">
+  <div class="card card-border bg-base-100">
     <div class="card-body">
       <h2 class="card-title">Parameter Search</h2>
       <form class="grid grid-cols-[auto_auto] gap-y-1 gap-x-2">
@@ -255,7 +228,7 @@ export default defineComponent({
       </div>
     </div>
   </div>
-  <div class="card card-border shadow">
+  <div class="card card-border bg-base-100">
     <div class="card-body">
       <h2 class="card-title">Results Search</h2>
       <div>
@@ -334,7 +307,7 @@ export default defineComponent({
       </div>
     </div>
   </div>
-  <div class="card card-border shadow col-span-3">
+  <div class="card card-border bg-base-100 col-span-3">
     <div class="card-body">
       <div>
         <div class="tabs tabs-lift">

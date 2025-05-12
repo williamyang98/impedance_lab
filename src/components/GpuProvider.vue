@@ -1,53 +1,37 @@
-<script lang="ts">
-import { defineComponent, computed } from "vue";
+<script setup lang="ts">
+import { computed, ref, provide, onMounted } from "vue";
 
 type LoadState = "loading" | "failed" | "finished";
-interface ProviderData {
-  state: LoadState;
-  adapter?: GPUAdapter;
-  device?: GPUDevice;
-  error_message?: string;
+const state = ref<LoadState>("loading");
+const adapter = ref<GPUAdapter>();
+const device = ref<GPUDevice>();
+const error_message = ref<string>();
+
+provide("gpu_adapter", computed(() => adapter.value));
+provide("gpu_device", computed(() => device.value));
+
+async function create_gpu_instance() {
+  if (!navigator.gpu) {
+    error_message.value = "WebGPU not available in this browser";
+    state.value = "failed";
+    return;
+  }
+
+  const requested_adapter = await navigator.gpu.requestAdapter();
+  if (!requested_adapter) {
+    error_message.value = "Couldn't request WebGPU adapter";
+    state.value = "failed";
+    return;
+  }
+
+  const requested_device = await requested_adapter.requestDevice();
+  adapter.value = requested_adapter;
+  device.value = requested_device;
+  state.value = "finished";
 }
 
-export default defineComponent({
-  data(): ProviderData {
-    return {
-      state: "loading",
-      adapter: undefined,
-      device: undefined,
-      error_message: undefined,
-    }
-  },
-  provide() {
-    return {
-      gpu_adapter: computed(() => this.adapter),
-      gpu_device: computed(() => this.device),
-    }
-  },
-  methods: {
-    async create_gpu_instance() {
-      if (!navigator.gpu) {
-        this.error_message = "WebGPU not available in this browser";
-        this.state = "failed";
-        return;
-      }
-
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) {
-        this.error_message = "Couldn't request WebGPU adapter";
-        this.state = "failed";
-        return;
-      }
-
-      const device = await adapter.requestDevice();
-      this.adapter = adapter;
-      this.device = device;
-      this.state = "finished";
-    },
-  },
-  mounted() {
-    void this.create_gpu_instance();
-  },
+onMounted(async () => {
+  await create_gpu_instance();
 });
 </script>
 

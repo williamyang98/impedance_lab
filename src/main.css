@@ -7,3 +7,11 @@
 :where(:root:has(.drawer:not(.drawer-open) > .drawer-toggle:checked )) {
   scrollbar-gutter: initial;
 }
+
+.card:where(.card-border) {
+  border: var(--border) solid var(--color-neutral-content);
+}
+
+.drawer-side {
+  transition: opacity 0.05s ease-out 0.05s allow-discrete, visibility 0.05s ease-out 0.05s allow-discrete;
+}

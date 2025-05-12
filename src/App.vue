@@ -4,14 +4,6 @@ import AppSidebar from "./AppSidebar.vue";
 import GpuProvider from "./components/GpuProvider.vue";
 import WasmProvider from "./components/WasmProvider.vue";
 import { Moon, Sun, MenuIcon } from 'lucide-vue-next';
-
-</script>
-
-<script lang="ts">
-import { defineComponent } from "vue";
-export default defineComponent({
-
-});
 </script>
 
 <template>

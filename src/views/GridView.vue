@@ -185,7 +185,7 @@ watch(viewer_2d_elem, async (elem) => {
 
 <template>
   <div class="grid grid-flow-row grid-cols-5 gap-2">
-    <div class="card card-border shadow col-span-2" >
+    <div class="card card-border bg-base-100 col-span-2" >
       <div class="card-body">
         <div>
           <div class="tabs tabs-lift">
@@ -262,7 +262,7 @@ watch(viewer_2d_elem, async (elem) => {
         </div>
       </div>
     </div>
-    <div class="card card-border shadow col-span-3">
+    <div class="card card-border bg-base-100 col-span-3">
       <div class="card-body inline">
         <div>
           <div class="tabs tabs-lift">
@@ -336,7 +336,7 @@ watch(viewer_2d_elem, async (elem) => {
         </div>
       </div>
     </div>
-    <div class="card card-border shadow col-span-5">
+    <div class="card card-border bg-base-100 col-span-5">
       <div class="card-body">
         <div>
           <div class="tabs tabs-lift">
