@@ -13,7 +13,6 @@ export default defineConfigWithVueTs(
     '**/dist-ssr/**',
     '**/coverage/**',
     'src/wasm/pkg/**',
-    'src/@/**'
   ]),
   {
     name: 'app/files-to-lint',

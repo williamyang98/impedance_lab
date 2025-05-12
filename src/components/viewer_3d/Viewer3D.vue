@@ -1,14 +1,4 @@
 <script setup lang="ts">
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select"
-
 import { type GridDisplayMode, type FieldDisplayMode, Renderer } from "./renderer.ts";
 import { GpuGrid } from "../../engine/fdtd_3d.ts";
 
@@ -114,33 +104,31 @@ defineExpose({
 </script>
 
 <template>
-  <form class="grid grid-cols-8 gap-x-3">
-    <Label for="slice">Z-index</Label>
-    <Input id="slice" type="number" v-model.number="copy_z" min="0" :max="max_z" step="1"/>
-    <Label for="scale">Scale</Label>
-    <Input id="scale" type="number" v-model.number="scale_db" min="-4" max="4" step="0.1"/>
-    <Label for="axis">Axis</Label>
-    <Select id="axis" v-model="axis_mode">
-      <SelectTrigger class="w-auto">
-        <SelectValue/>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem :value="'x'">Ex</SelectItem>
-        <SelectItem :value="'y'">Ey</SelectItem>
-        <SelectItem :value="'z'">Ez</SelectItem>
-        <SelectItem :value="'mag'">Magnitude</SelectItem>
-      </SelectContent>
-    </Select>
-    <Label for="field">Field</Label>
-    <Select id="field" v-model="field_mode">
-      <SelectTrigger class="w-auto">
-        <SelectValue/>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem :value="'e_field'">Electric</SelectItem>
-        <SelectItem :value="'h_field'">Magnetic</SelectItem>
-      </SelectContent>
-    </Select>
+  <form class="grid grid-cols-4 gap-x-2 px-4 my-2">
+    <fieldset class="fieldset">
+      <legend for="slice" class="fieldset-legend">Z-index</legend>
+      <input id="slice" type="range" class="range" v-model.number="copy_z" min="0" :max="max_z" step="1"/>
+    </fieldset>
+    <fieldset class="fieldset">
+      <legend for="scale" class="fieldset-legend">Scale</legend>
+      <input id="scale" type="range" class="range" v-model.number="scale_db" min="-4" max="4" step="0.1"/>
+    </fieldset>
+    <fieldset class="fieldset">
+      <legend for="axis" class="fieldset-legend">Axis</legend>
+      <select id="axis" class="select" v-model="axis_mode">
+        <option :value="'x'">Ex</option>
+        <option :value="'y'">Ey</option>
+        <option :value="'z'">Ez</option>
+        <option :value="'mag'">Magnitude</option>
+      </select>
+    </fieldset>
+    <fieldset class="fieldset">
+      <legend for="field" class="fieldset-legend">Field</legend>
+      <select id="field" class="select" v-model="field_mode">
+        <option :value="'e_field'">Electric</option>
+        <option :value="'h_field'">Magnetic</option>
+      </select>
+    </fieldset>
   </form>
   <canvas ref="field-canvas" class="w-[100%] pt-2"></canvas>
 </template>

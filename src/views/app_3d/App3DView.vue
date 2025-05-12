@@ -1,12 +1,5 @@
 <script setup lang="ts">
 import { Viewer3D } from "../../components/viewer_3d";
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-} from '@/components/ui/table';
 
 import { create_simulation_setup } from "./app_3d.ts";
 import { GpuGrid, GpuEngine } from "../../engine/fdtd_3d.ts";
@@ -134,41 +127,41 @@ onBeforeUnmount(() => {
 <template>
   <div class="flex flex-col gap-y-1 max-w-[750px]">
     <Viewer3D ref="viewer_3d"></Viewer3D>
-    <div class="rounded-sm w-[100%] h-[2.0rem] bg-slate-300">
+    <div class="rounded-sm w-full h-[2.0rem] bg-slate-300 border-1 border-slate-300 border-sm">
       <div
-        class="rounded-sm h-[100%] bg-green-400 text-center"
+        class="rounded-sm h-full bg-green-400 text-center"
         :style="{ width: `${progress_percentage.toFixed(2)}%` }"
       >
         <span class="align-middle px-2 font-medium">{{ curr_step }}/{{ max_timesteps }}</span>
       </div>
     </div>
     <div class="flex flex-row gap-x-1">
-      <Button @click="start_loop()" :disabled="is_running">Restart</Button>
-      <Button @click="resume_loop()" v-if="!is_running">Resume</Button>
-      <Button @click="stop_loop()" v-if="is_running">Pause</Button>
-      <Button @click="tick_loop()" :disabled="is_running">Tick</Button>
+      <button class="btn" @click="start_loop()" :disabled="is_running">Restart</button>
+      <button class="btn" @click="resume_loop()" v-if="!is_running">Resume</button>
+      <button class="btn" @click="stop_loop()" v-if="is_running">Pause</button>
+      <button class="btn" @click="tick_loop()" :disabled="is_running">Tick</button>
     </div>
     <div>
-      <Table>
-        <TableBody>
-          <TableRow>
-            <TableCell class="font-medium">Total steps</TableCell>
-            <TableCell>{{ curr_step }}/{{ max_timesteps }}</TableCell>
-          </TableRow>
-          <TableRow>
-            <TableCell class="font-medium">Time taken</TableCell>
-            <TableCell>{{ `${time_taken.toFixed(2)} s` }}</TableCell>
-          </TableRow>
-          <TableRow>
-            <TableCell class="font-medium">Step rate</TableCell>
-            <TableCell>{{ `${step_rate.toFixed(2)} steps/s` }}</TableCell>
-          </TableRow>
-          <TableRow>
-            <TableCell class="font-medium">Cell rate</TableCell>
-            <TableCell>{{ `${(cell_rate*1e-6).toFixed(2)} Mcells/s` }}</TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+      <table class="table">
+        <tbody>
+          <tr>
+            <td class="font-medium">Total steps</td>
+            <td>{{ curr_step }}/{{ max_timesteps }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium">Time taken</td>
+            <td>{{ `${time_taken.toFixed(2)} s` }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium">Step rate</td>
+            <td>{{ `${step_rate.toFixed(2)} steps/s` }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium">Cell rate</td>
+            <td>{{ `${(cell_rate*1e-6).toFixed(2)} Mcells/s` }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>

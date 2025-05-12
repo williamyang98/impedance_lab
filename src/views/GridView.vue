@@ -1,28 +1,4 @@
 <script setup lang="ts">
-import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  // TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-import {
-  Card,
-  // CardHeader,
-  // CardTitle,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
-
 import Chart from "chart.js/auto";
 import { Viewer2D } from "../components/viewer_2d";
 import {
@@ -32,7 +8,7 @@ import {
 } from "../engine/transmission_line_2d.ts";
 import { type RunResult, type ImpedanceResult } from "../engine/electrostatic_2d.ts";
 
-import { ref, useTemplateRef, onMounted, watch } from "vue";
+import { ref, useTemplateRef, onMounted, watch, useId } from "vue";
 
 const grid_canvas_elem = useTemplateRef<HTMLCanvasElement>("grid-canvas");
 const viewer_2d_elem = useTemplateRef<typeof Viewer2D>("viewer-2d");
@@ -191,6 +167,10 @@ async function update_grid_viewer() {
   await viewer.refresh_canvas();
 }
 
+const id_tab_result = useId();
+const id_tab_grid = useId();
+const id_tab_viewer = useId();
+
 onMounted(async () => {
   await run();
   update_chart();
@@ -205,169 +185,175 @@ watch(viewer_2d_elem, async (elem) => {
 
 <template>
   <div class="grid grid-flow-row grid-cols-5 gap-2">
-    <Card class="gap-3 col-span-2">
-      <CardContent>
-        <Tabs default-value="impedance" class="w-[100%]" :unmount-on-hide="false">
-          <TabsList class="grid w-full grid-cols-2">
-            <TabsTrigger value="impedance">Impedance</TabsTrigger>
-            <TabsTrigger value="simulation">Simulation</TabsTrigger>
-          </TabsList>
-          <TabsContent value="impedance" v-if="impedance_result">
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell class="font-medium">Z0</TableCell>
-                  <TableCell>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Cih</TableCell>
-                  <TableCell>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Lh</TableCell>
-                  <TableCell>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Speed</TableCell>
-                  <TableCell>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Delay</TableCell>
-                  <TableCell>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TabsContent>
-          <TabsContent value="simulation" v-if="run_result">
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell class="font-medium">Total steps</TableCell>
-                  <TableCell>{{ run_result.total_steps }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Time taken</TableCell>
-                  <TableCell>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Step rate</TableCell>
-                  <TableCell>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Cell rate</TableCell>
-                  <TableCell>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Total cells</TableCell>
-                  <TableCell>{{ run_result.total_cells }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Total columns</TableCell>
-                  <TableCell>{{ region_grid.grid.dx.shape[0] }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Total rows</TableCell>
-                  <TableCell>{{ region_grid.grid.dy.shape[0] }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-      <CardFooter class="flex justify-end mt-auto">
-        <Button @click="run()" :disabled="is_running">Run</Button>
-      </CardFooter>
-    </Card>
-    <Card class="gap-3 col-span-3">
-      <CardContent>
-        <Tabs default-value="x-grid" class="w-full" :unmount-on-hide="false">
-          <TabsList class="grid w-full grid-cols-2">
-            <TabsTrigger value="x-grid">x grid</TabsTrigger>
-            <TabsTrigger value="y-grid">y grid</TabsTrigger>
-          </TabsList>
-          <TabsContent value="x-grid">
-            <div class="max-h-65 overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead></TableHead>
-                    <TableHead>a</TableHead>
-                    <TableHead>n</TableHead>
-                    <TableHead>r</TableHead>
-                    <TableHead>|1-r|</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="({ type, grid }, index) in region_grid.x_grid_regions" :key="index">
-                    <TableCell class="font-medium">{{ index }}</TableCell>
-                    <template v-if="type == 'asymmetric'">
-                      <TableCell>[{{ grid.a0.toPrecision(2) }}, {{ grid.a1.toPrecision(2) }}]</TableCell>
-                      <TableCell>[{{ grid.n0 }}, {{ grid.n1 }}]</TableCell>
-                      <TableCell>[{{ grid.r0.toFixed(2) }}, {{ grid.r1.toFixed(2) }}]</TableCell>
-                      <TableCell>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</TableCell>
-                    </template>
-                    <template v-if="type == 'symmetric'">
-                      <TableCell>{{ grid.a.toPrecision(2) }}</TableCell>
-                      <TableCell>{{ grid.n.toPrecision(2) }}</TableCell>
-                      <TableCell>{{ grid.r.toFixed(2) }}</TableCell>
-                      <TableCell>{{ Math.abs(1-grid.r).toPrecision(2) }}</TableCell>
-                    </template>
-                  </TableRow>
-                </TableBody>
-              </Table>
+    <div class="card card-border shadow col-span-2" >
+      <div class="card-body">
+        <div>
+          <div class="tabs tabs-lift">
+            <template v-if="impedance_result">
+              <input type="radio" :name="id_tab_result" class="tab" aria-label="Impedance" checked/>
+              <div class="tab-content bg-base-100 border-base-300">
+                <table class="table">
+                  <tbody>
+                    <tr>
+                      <td class="font-medium">Z0</td>
+                      <td>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Cih</td>
+                      <td>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Lh</td>
+                      <td>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Speed</td>
+                      <td>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Delay</td>
+                      <td>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+            <template v-if="run_result">
+              <input type="radio" :name="id_tab_result" class="tab" aria-label="Simulation"/>
+              <div class="tab-content bg-base-100 border-base-300">
+                <table class="table">
+                  <tbody>
+                    <tr>
+                      <td class="font-medium">Total steps</td>
+                      <td>{{ run_result.total_steps }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Time taken</td>
+                      <td>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Step rate</td>
+                      <td>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Cell rate</td>
+                      <td>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Total cells</td>
+                      <td>{{ run_result.total_cells }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Total columns</td>
+                      <td>{{ region_grid.grid.dx.shape[0] }}</td>
+                    </tr>
+                    <tr>
+                      <td class="font-medium">Total rows</td>
+                      <td>{{ region_grid.grid.dy.shape[0] }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </template>
+          </div>
+        </div>
+        <div class="card-actions justify-end">
+          <button class="btn" @click="run()" :disabled="is_running">Run</button>
+        </div>
+      </div>
+    </div>
+    <div class="card card-border shadow col-span-3">
+      <div class="card-body inline">
+        <div>
+          <div class="tabs tabs-lift">
+            <input type="radio" :name="id_tab_grid" class="tab" aria-label="x grid" checked/>
+            <div class="tab-content bg-base-100 border-base-300">
+              <div class="overflow-y-auto">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>a</th>
+                      <th>n</th>
+                      <th>r</th>
+                      <th>|1-r|</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="({ type, grid }, index) in region_grid.x_grid_regions" :key="index">
+                      <td class="font-medium">{{ index }}</td>
+                      <template v-if="type == 'asymmetric'">
+                        <td>[{{ grid.a0.toPrecision(2) }}, {{ grid.a1.toPrecision(2) }}]</td>
+                        <td>[{{ grid.n0 }}, {{ grid.n1 }}]</td>
+                        <td>[{{ grid.r0.toFixed(2) }}, {{ grid.r1.toFixed(2) }}]</td>
+                        <td>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</td>
+                      </template>
+                      <template v-if="type == 'symmetric'">
+                        <td>{{ grid.a.toPrecision(2) }}</td>
+                        <td>{{ grid.n.toPrecision(2) }}</td>
+                        <td>{{ grid.r.toFixed(2) }}</td>
+                        <td>{{ Math.abs(1-grid.r).toPrecision(2) }}</td>
+                      </template>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </TabsContent>
-          <TabsContent value="y-grid">
-            <div class="max-h-65 overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead></TableHead>
-                    <TableHead>a</TableHead>
-                    <TableHead>n</TableHead>
-                    <TableHead>r</TableHead>
-                    <TableHead>|1-r|</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow v-for="({ type, grid }, index) in region_grid.y_grid_regions" :key="index">
-                    <TableCell class="font-medium">{{ index }}</TableCell>
-                    <template v-if="type == 'asymmetric'">
-                      <TableCell>[{{ grid.a0.toPrecision(2) }}, {{ grid.a1.toPrecision(2) }}]</TableCell>
-                      <TableCell>[{{ grid.n0 }}, {{ grid.n1 }}]</TableCell>
-                      <TableCell>[{{ grid.r0.toFixed(2) }}, {{ grid.r1.toFixed(2) }}]</TableCell>
-                      <TableCell>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</TableCell>
-                    </template>
-                    <template v-if="type == 'symmetric'">
-                      <TableCell>{{ grid.a.toPrecision(2) }}</TableCell>
-                      <TableCell>{{ grid.n.toPrecision(2) }}</TableCell>
-                      <TableCell>{{ grid.r.toFixed(2) }}</TableCell>
-                      <TableCell>{{ Math.abs(1-grid.r).toPrecision(2) }}</TableCell>
-                    </template>
-                  </TableRow>
-                </TableBody>
-              </Table>
+            <input type="radio" :name="id_tab_grid" class="tab" aria-label="y grid"/>
+            <div class="tab-content bg-base-100 border-base-300">
+              <div class="overflow-y-auto">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th></th>
+                      <th>a</th>
+                      <th>n</th>
+                      <th>r</th>
+                      <th>|1-r|</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="({ type, grid }, index) in region_grid.y_grid_regions" :key="index">
+                      <td class="font-medium">{{ index }}</td>
+                      <template v-if="type == 'asymmetric'">
+                        <td>[{{ grid.a0.toPrecision(2) }}, {{ grid.a1.toPrecision(2) }}]</td>
+                        <td>[{{ grid.n0 }}, {{ grid.n1 }}]</td>
+                        <td>[{{ grid.r0.toFixed(2) }}, {{ grid.r1.toFixed(2) }}]</td>
+                        <td>{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</td>
+                      </template>
+                      <template v-if="type == 'symmetric'">
+                        <td>{{ grid.a.toPrecision(2) }}</td>
+                        <td>{{ grid.n.toPrecision(2) }}</td>
+                        <td>{{ grid.r.toFixed(2) }}</td>
+                        <td>{{ Math.abs(1-grid.r).toPrecision(2) }}</td>
+                      </template>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
-    <Card class="gap-3 col-span-5">
-      <CardContent>
-        <Tabs default-value="viewer" class="w-full" :unmount-on-hide="false">
-          <TabsList class="grid w-full grid-cols-2">
-            <TabsTrigger value="grid">Grid</TabsTrigger>
-            <TabsTrigger value="viewer">Viewer</TabsTrigger>
-          </TabsList>
-          <TabsContent value="grid">
-            <canvas ref="grid-canvas" class="w-[100%] max-h-[300px]"></canvas>
-          </TabsContent>
-          <TabsContent value="viewer">
-            <Viewer2D ref="viewer-2d"></Viewer2D>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card card-border shadow col-span-5">
+      <div class="card-body">
+        <div>
+          <div class="tabs tabs-lift">
+            <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Grid" checked/>
+            <div class="tab-content bg-base-100 border-base-300">
+              <div class="m-2">
+                <canvas ref="grid-canvas" class="w-[100%] max-h-[300px]"></canvas>
+              </div>
+            </div>
+            <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Viewer"/>
+            <div class="tab-content bg-base-100 border-base-300">
+              <Viewer2D ref="viewer-2d"></Viewer2D>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

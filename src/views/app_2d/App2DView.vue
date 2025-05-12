@@ -1,47 +1,17 @@
 <script setup lang="ts">
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  // SelectGroup,
-  // SelectLabel,
-  SelectItem,
-} from "@/components/ui/select"
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  // TableCaption,
-  TableCell,
-  // TableHead,
-  // TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 
 // https://stackoverflow.com/a/68841834
 // this.$ref.viewer_2d will return a { __v_skip: True } instead of the child component
 // since the child component has a <script setup> tag
-import { defineExpose, ref } from "vue";
+import { defineExpose, ref, useId } from "vue";
 const viewer_2d = ref(null);
 defineExpose({
   viewer_2d
 });
+
+const id_tab_result = useId();
+const id_tab_viewer = useId();
+
 </script>
 
 <script lang="ts">
@@ -226,177 +196,169 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="grid grid-flow-row grid-cols-3 gap-2">
-    <Card class="gap-3 row-span-2">
-      <CardHeader>
-        <CardTitle>Transmission line parameters</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form class="grid grid-cols-[auto_auto] gap-y-1 gap-x-2">
-          <Label for="er0">εr bottom</Label>
-          <Input id="er0" type="number" v-model.number="params.dielectric_bottom_epsilon"/>
-          <Label for="er1">εr top</Label>
-          <Input id="er1" type="number" v-model.number="params.dielectric_top_epsilon"/>
-          <Label for="h0">Height bottom</Label>
-          <Input id="h0" type="number" v-model.number="params.dielectric_bottom_height"/>
-          <Label for="h1">Height top</Label>
-          <Input id="h1" type="number" v-model.number="params.dielectric_top_height"/>
-          <Label for="w">Trace width</Label>
-          <Input id="w" type="number" v-model.number="params.signal_width"/>
-          <Label for="s">Trace separation</Label>
-          <Input id="s" type="number" v-model.number="params.signal_separation"/>
-          <Label for="t">Trace thickness</Label>
-          <Input id="t" type="number" v-model.number="params.signal_height"/>
-        </form>
-      </CardContent>
-      <CardFooter class="flex justify-end mt-auto">
-        <Button @click="update_params()">Calculate Impedance</Button>
-      </CardFooter>
-    </Card>
-    <Card class="gap-3 row-span-2">
-      <CardHeader>
-        <CardTitle>Parameter search</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form class="grid grid-cols-[auto_auto] gap-y-1 gap-x-2">
-          <Label for="search_option">Parameter</Label>
-          <Select id="search_option" v-model="search_option">
-            <SelectTrigger class="w-auto">
-              <SelectValue/>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem :value="'er0'">εr bottom</SelectItem>
-              <SelectItem :value="'er1'">εr top</SelectItem>
-              <SelectItem :value="'er0+er1'">εr both</SelectItem>
-              <SelectItem :value="'h0'">Height bottom</SelectItem>
-              <SelectItem :value="'h1'">Height top</SelectItem>
-              <SelectItem :value="'h0+h1'">Height both</SelectItem>
-              <SelectItem :value="'w'">Trace width</SelectItem>
-              <SelectItem :value="'s'">Trace separation</SelectItem>
-              <SelectItem :value="'t'">Trace thickness</SelectItem>
-            </SelectContent>
-          </Select>
-          <Label for="z0">Z0 target</Label>
-          <Input id="z0" type="number" v-model.number="search_config.Z0_target"/>
-          <Label for="v_lower">Lower bound</Label>
-          <Input id="v_lower" type="number" v-model.number="search_config.v_lower"/>
-          <Label for="v_upper">Upper bound</Label>
-          <Input id="v_upper" type="number" v-model.number="search_config.v_upper"/>
-          <Label for="error_tolerance">Error tolerance</Label>
-          <Input id="error_tolerance" type="number" v-model.number="search_config.error_tolerance"/>
-          <Label for="early_stop_threshold">Early stop threshold</Label>
-          <Input id="early_stop_threshold" type="number" v-model.number="search_config.early_stop_threshold"/>
-          <Label for="plateau_count">Plateau count</Label>
-          <Input id="plateau_count" type="number" v-model.number="search_config.plateau_count"/>
-        </form>
-      </CardContent>
-      <CardFooter class="flex justify-end mt-auto">
-        <Button @click="run_parameter_search()">Search</Button>
-      </CardFooter>
-    </Card>
-    <Card class="gap-3 row-span-2">
-      <CardHeader>
-        <CardTitle>Results</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs default-value="impedance" class="w-[100%]" :unmount-on-hide="false">
-          <TabsList class="grid w-full grid-cols-2">
-            <TabsTrigger value="impedance">Impedance</TabsTrigger>
-            <TabsTrigger value="simulation">Simulation</TabsTrigger>
-          </TabsList>
-          <TabsContent value="impedance" v-if="impedance_result">
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell class="font-medium">Z0</TableCell>
-                  <TableCell>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Cih</TableCell>
-                  <TableCell>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Lh</TableCell>
-                  <TableCell>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Propagation speed</TableCell>
-                  <TableCell>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Propagation delay</TableCell>
-                  <TableCell>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TabsContent>
-          <TabsContent value="simulation" v-if="run_result">
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableCell class="font-medium">Total steps</TableCell>
-                  <TableCell>{{ run_result.total_steps }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Time taken</TableCell>
-                  <TableCell>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Step rate</TableCell>
-                  <TableCell>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Cell rate</TableCell>
-                  <TableCell>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell class="font-medium">Total cells</TableCell>
-                  <TableCell>{{ run_result.total_cells }}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-            <div class="mt-1">
-              <form class="grid grid-cols-[8rem_auto] gap-y-1 gap-x-1">
-                <Label for="threshold">Settling threshold</Label>
-                <Input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
-              </form>
-              <div class="flex justify-end gap-x-2 mt-3">
-                <Button @click="reset()" variant="outline">Reset</Button>
-                <Button @click="run()">Run</Button>
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
-    <Card class="gap-3 col-span-3 row-span-1">
-      <CardHeader>
-        <CardTitle>Debug charts</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs default-value="field" class="w-[100%]" :unmount-on-hide="false">
-          <TabsList class="grid w-full grid-cols-4">
-            <TabsTrigger value="field">Field</TabsTrigger>
-            <TabsTrigger value="param_search">Parameter Search</TabsTrigger>
-            <TabsTrigger value="dx">dx</TabsTrigger>
-            <TabsTrigger value="dy">dy</TabsTrigger>
-          </TabsList>
-          <TabsContent value="field">
-            <Viewer2D ref="viewer_2d"></Viewer2D>
-          </TabsContent>
-          <TabsContent value="param_search">
-            <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
-          </TabsContent>
-          <TabsContent value="dx">
-            <LineChart ref="dx_chart" class="w-[100%] h-[100%]"></LineChart>
-          </TabsContent>
-          <TabsContent value="dy">
-            <LineChart ref="dy_chart" class="w-[100%] h-[100%]"></LineChart>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+<div class="grid grid-flow-row grid-cols-3 gap-2">
+  <div class="card card-border shadow">
+    <div class="card-body">
+      <h2 class="card-title">Parameters</h2>
+      <form class="grid grid-cols-[auto_auto] gap-y-1 gap-x-2">
+        <label for="er0">εr bottom</label>
+        <input id="er0" type="number" v-model.number="params.dielectric_bottom_epsilon"/>
+        <label for="er1">εr top</label>
+        <input id="er1" type="number" v-model.number="params.dielectric_top_epsilon"/>
+        <label for="h0">Height bottom</label>
+        <input id="h0" type="number" v-model.number="params.dielectric_bottom_height"/>
+        <label for="h1">Height top</label>
+        <input id="h1" type="number" v-model.number="params.dielectric_top_height"/>
+        <label for="w">Trace width</label>
+        <input id="w" type="number" v-model.number="params.signal_width"/>
+        <label for="s">Trace separation</label>
+        <input id="s" type="number" v-model.number="params.signal_separation"/>
+        <label for="t">Trace thickness</label>
+        <input id="t" type="number" v-model.number="params.signal_height"/>
+      </form>
+      <div class="card-actions justify-end">
+        <button class="btn" @click="update_params()">Calculate Impedance</button>
+      </div>
+    </div>
   </div>
+  <div class="card card-border shadow">
+    <div class="card-body">
+      <h2 class="card-title">Parameter Search</h2>
+      <form class="grid grid-cols-[auto_auto] gap-y-1 gap-x-2">
+        <label for="search_option">Parameter</label>
+        <select class="select" id="search_option" v-model="search_option">
+          <option :value="'er0'">εr bottom</option>
+          <option :value="'er1'">εr top</option>
+          <option :value="'er0+er1'">εr both</option>
+          <option :value="'h0'">Height bottom</option>
+          <option :value="'h1'">Height top</option>
+          <option :value="'h0+h1'">Height both</option>
+          <option :value="'w'">Trace width</option>
+          <option :value="'s'">Trace separation</option>
+          <option :value="'t'">Trace thickness</option>
+        </select>
+        <label for="z0">Z0 target</label>
+        <input id="z0" type="number" v-model.number="search_config.Z0_target"/>
+        <label for="v_lower">Lower bound</label>
+        <input id="v_lower" type="number" v-model.number="search_config.v_lower"/>
+        <label for="v_upper">Upper bound</label>
+        <input id="v_upper" type="number" v-model.number="search_config.v_upper"/>
+        <label for="error_tolerance">Error tolerance</label>
+        <input id="error_tolerance" type="number" v-model.number="search_config.error_tolerance"/>
+        <label for="early_stop_threshold">Early stop threshold</label>
+        <input id="early_stop_threshold" type="number" v-model.number="search_config.early_stop_threshold"/>
+        <label for="plateau_count">Plateau count</label>
+        <input id="plateau_count" type="number" v-model.number="search_config.plateau_count"/>
+      </form>
+      <div class="card-actions justify-end">
+        <button class="btn" @click="run_parameter_search()">Search</button>
+      </div>
+    </div>
+  </div>
+  <div class="card card-border shadow">
+    <div class="card-body">
+      <h2 class="card-title">Results Search</h2>
+      <div>
+        <div class="tabs tabs-lift">
+          <template v-if="impedance_result">
+            <input type="radio" :name="id_tab_result" class="tab" aria-label="Impedance" checked/>
+            <div class="tab-content bg-base-100 border-base-300">
+              <table class="table">
+                <tbody>
+                  <tr>
+                    <td class="font-medium">Z0</td>
+                    <td>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Cih</td>
+                    <td>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Lh</td>
+                    <td>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Propagation speed</td>
+                    <td>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Propagation delay</td>
+                    <td>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+          <template v-if="run_result">
+            <input type="radio" :name="id_tab_result" class="tab" aria-label="Simulation"/>
+            <div class="tab-content bg-base-100 border-base-300">
+              <table class="table">
+                <tbody>
+                  <tr>
+                    <td class="font-medium">Total steps</td>
+                    <td>{{ run_result.total_steps }}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Time taken</td>
+                    <td>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Step rate</td>
+                    <td>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Cell rate</td>
+                    <td>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</td>
+                  </tr>
+                  <tr>
+                    <td class="font-medium">Total cells</td>
+                    <td>{{ run_result.total_cells }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
+      </div>
+      <div class="card-actions justify-end">
+        <div class="mt-1">
+          <form class="grid grid-cols-[8rem_auto] gap-y-1 gap-x-1">
+            <label for="threshold">Settling threshold</label>
+            <input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
+          </form>
+          <div class="flex justify-end gap-x-2 mt-3">
+            <button class="btn" @click="reset()" variant="outline">Reset</button>
+            <button class="btn" @click="run()">Run</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card card-border shadow col-span-3">
+    <div class="card-body">
+      <div>
+        <div class="tabs tabs-lift">
+          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Field" checked/>
+          <div class="tab-content bg-base-100 border-base-300">
+            <Viewer2D ref="viewer_2d"></Viewer2D>
+          </div>
+          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Parameter Search" checked/>
+          <div class="tab-content bg-base-100 border-base-300">
+            <LineChart ref="param_chart" class="w-[100%] h-[100%]"></LineChart>
+          </div>
+          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="X Grid" checked/>
+          <div class="tab-content bg-base-100 border-base-300">
+            <LineChart ref="dx_chart" class="w-[100%] h-[100%]"></LineChart>
+          </div>
+          <input type="radio" :name="id_tab_viewer" class="tab" aria-label="Y Grid" checked/>
+          <div class="tab-content bg-base-100 border-base-300">
+            <LineChart ref="dy_chart" class="w-[100%] h-[100%]"></LineChart>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 </template>
 
 <style scoped>

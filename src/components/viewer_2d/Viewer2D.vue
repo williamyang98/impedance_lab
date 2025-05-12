@@ -1,14 +1,4 @@
 <script setup lang="ts">
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select"
-
 import { Renderer } from "./renderer.ts";
 import { type Axis } from "./kernels.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
@@ -114,27 +104,28 @@ defineExpose({
 </script>
 
 <template>
-  <form class="grid grid-cols-4 gap-x-3">
-    <Label for="display_scale">Display scale</Label>
-    <Input id="display_scale" type="number" v-model.number="display_scale" min="0" max="10" step="0.1"/>
-    <Label for="display_axis">Axis</Label>
-    <Select id="display_axis" v-model="display_axis">
-      <SelectTrigger class="w-auto">
-        <SelectValue/>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem :value="'voltage'">V</SelectItem>
-        <SelectItem :value="'electric_x'">Ex</SelectItem>
-        <SelectItem :value="'electric_y'">Ey</SelectItem>
-        <SelectItem :value="'electric_mag'">|E|</SelectItem>
-        <SelectItem :value="'electric_vec'">Ê</SelectItem>
-        <SelectItem :value="'energy'">Energy</SelectItem>
-        <SelectItem :value="'force'">Force</SelectItem>
-        <SelectItem :value="'electric_quiver'">Ê (quiver)</SelectItem>
-      </SelectContent>
-    </Select>
+<div>
+  <form class="grid grid-cols-2 gap-x-2 px-4 my-2">
+    <fieldset class="fieldset">
+      <legend for="scale" class="fieldset-legend">Scale</legend>
+      <input id="scale" class="range" type="range" v-model.number="display_scale" min="0" max="10" step="0.1"/>
+    </fieldset>
+    <fieldset class="fieldset">
+      <legend for="axis" class="fieldset-legend">Axis</legend>
+      <select id="axis" class="select" v-model="display_axis">
+        <option :value="'voltage'">V</option>
+        <option :value="'electric_x'">Ex</option>
+        <option :value="'electric_y'">Ey</option>
+        <option :value="'electric_mag'">|E|</option>
+        <option :value="'electric_vec'">Ê</option>
+        <option :value="'energy'">Energy</option>
+        <option :value="'force'">Force</option>
+        <option :value="'electric_quiver'">Ê (quiver)</option>
+      </select>
+    </fieldset>
   </form>
-  <canvas ref="field-canvas" class="grid-view w-[100%] h-[100%] mt-2 rounded-sm border-1 border-slate-300"></canvas>
+  <canvas ref="field-canvas" class="grid-view w-[100%] h-[100%] border-1 border-slate-300"></canvas>
+</div>
 </template>
 
 <style scoped>

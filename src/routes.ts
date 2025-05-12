@@ -33,7 +33,7 @@ export const routes: CustomRoute[] = [
     icon_component: Grid2x2,
   },
   {
-    name: "editor_2d",
+    name: "Editor 2d",
     path: "/editor_2d",
     view_component: Editor,
     icon_component: Pencil,
