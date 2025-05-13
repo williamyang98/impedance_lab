@@ -14,6 +14,7 @@ import {
   get_stackup_parameters_from_stackup,
   get_annotation_config_from_stackup_parameters,
 } from "./stackup_parameters.ts";
+import StackupParameterForm from "./StackupParameterForm.vue";
 
 function layer_template_to_string(template: LayerTemplate): string {
   switch (template) {
@@ -125,72 +126,8 @@ const layers = computed(() => editor.value.layers.map((layer, layer_index) => {
 <br>
 
 <h1 class="text-2xl">Parameters</h1>
-<form>
-  <div class="flex flex-row">
-    <table class="table table-xs w-fit">
-      <tbody>
-        <template v-for="(params, i) in stackup_parameters.layer_parameters" :key="i">
-          <template v-for="(param, j) in [params.epsilon, params.height, params.trace_height]" :key="j">
-            <template v-if="param">
-              <tr>
-                <td><label :for="param.label" class="font-medium">{{ param.label }}</label></td>
-                <td>
-                  <input
-                    type="number" class="input validator" step="0.1" required
-                    :id="param.label" :placeholder="param.label"
-                    v-model.number="param.value" :min="param.min" :max="param.max"
-                  />
-                </td>
-              </tr>
-            </template>
-          </template>
-        </template>
-      </tbody>
-    </table>
-    <table class="table table-xs w-fit h-fit">
-      <tbody>
-        <template
-          v-for="(param, i) in [
-            stackup_parameters.trace_parameters.signal_width,
-            stackup_parameters.trace_parameters.signal_separation,
-            stackup_parameters.trace_parameters.coplanar_width,
-            stackup_parameters.trace_parameters.coplanar_separation,
-          ]"
-          :key="i"
-        >
-          <template v-if="param">
-            <tr>
-              <td><label :for="param.label" class="font-medium">{{ param.label }}</label></td>
-              <td>
-                <input
-                  type="number" class="input validator" step="0.1" required
-                  :id="param.label" :placeholder="param.label"
-                  v-model.number="param.value" :min="param.min" :max="param.max"
-                />
-              </td>
-            </tr>
-          </template>
-        </template>
-        <template v-for="(params, i) in stackup_parameters.layer_parameters" :key="i">
-          <template v-for="(param, j) in [params.trace_taper]" :key="j">
-            <template v-if="param">
-              <tr>
-                <td><label :for="param.label" class="font-medium">{{ param.label }}</label></td>
-                <td>
-                  <input
-                    type="number" class="input validator" step="0.1" required
-                    :id="param.label" :placeholder="param.label"
-                    v-model.number="param.value" :min="param.min" :max="param.max"
-                  />
-                </td>
-              </tr>
-            </template>
-          </template>
-        </template>
-      </tbody>
-    </table>
-  </div>
-</form>
+<StackupParameterForm :params="stackup_parameters"></StackupParameterForm>
+
 </template>
 
 <style scoped>
