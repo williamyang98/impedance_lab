@@ -40,7 +40,7 @@ export interface StackupParameters {
   taper_ids: Partial<Record<Id, number>>;
 }
 
-export function get_stackup_parameters_from_stackup(stackup: Stackup): StackupParameters {
+export function get_stackup_parameters_from_stackup(stackup: Stackup, include_missing_traces?: boolean): StackupParameters {
   const { trace_layout, layers } = stackup;
 
   const taper_ids: Partial<Record<Id, number>> = {};
@@ -70,11 +70,9 @@ export function get_stackup_parameters_from_stackup(stackup: Stackup): StackupPa
         min: 1,
       };
     }
-    if (StackupRules.is_trace_layout_in_layer(layer, trace_layout)) {
-      params.trace_height = {
-        label: `T${layer_id}`,
-        min: 0,
-      };
+
+    const has_trace = StackupRules.is_trace_layout_in_layer(layer, trace_layout);
+    if (has_trace) {
       taper_id++;
       params.trace_taper = {
         label: `dW${taper_id}`,
@@ -83,6 +81,19 @@ export function get_stackup_parameters_from_stackup(stackup: Stackup): StackupPa
       };
       taper_ids[layer.id] = taper_id;
     }
+
+    // inner dielectric material with trace positions should include trace height parameters
+    const has_trace_height =
+      has_trace ||
+      (layer.type == "inner" && layer.trace_alignments.size > 0) ||
+      include_missing_traces;
+    if (has_trace_height) {
+      params.trace_height = {
+        label: `T${layer_id}`,
+        min: 0,
+      };
+    }
+
     layer_parameters.push(params);
   }
 
