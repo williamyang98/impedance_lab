@@ -10,45 +10,12 @@ import {
 import { Editor } from "./editor.ts";
 
 export interface AnnotationConfig {
-  trace_width: (index: number, type: TraceType) => string;
-  trace_taper: (index: number, type: TraceType) => string;
-  separation_width: (index: number, type: SpacingType) => string;
-  layer_dielectric_height: (layer_index: number) => string;
-  layer_epsilon: (layer_index: number) => string;
-  layer_trace_height: (layer_index: number, alignment: TraceAlignment) => string;
-}
-
-export function get_default_annotation_config(): AnnotationConfig {
-  return {
-    trace_width(_index: number, type: TraceType): string {
-      switch (type) {
-        case "signal": return "W";
-        case "ground": return "CW";
-      }
-    },
-    trace_taper(_index: number, type: TraceType): string {
-      switch (type) {
-        case "signal": return "W1";
-        case "ground": return "CW1";
-      }
-    },
-    separation_width(_index: number, type: SpacingType): string {
-      switch (type) {
-        case "signal": return "S";
-        case "ground": return "CS";
-        case "broadside": return "S";
-      }
-    },
-    layer_dielectric_height(layer_index: number): string {
-      return `H${layer_index+1}`;
-    },
-    layer_epsilon(layer_index: number): string {
-      return `ER${layer_index+1}`;
-    },
-    layer_trace_height(_layer_index: number, _alignment: TraceAlignment): string {
-      return "T";
-    },
-  }
+  trace_width: (trace_index: number, type: TraceType) => string | undefined;
+  trace_taper: (trace_index: number, type: TraceType) => string | undefined;
+  separation_width: (trace_index: number, type: SpacingType) => string | undefined;
+  layer_dielectric_height: (layer_index: number) => string | undefined;
+  layer_epsilon: (layer_index: number) => string | undefined;
+  layer_trace_height: (layer_index: number, alignment: TraceAlignment) => string | undefined;
 }
 
 export function get_layout_elements_from_layout_items(

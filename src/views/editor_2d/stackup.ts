@@ -188,7 +188,35 @@ export class StackupRules {
     }
   }
 
+  // maps 1 to 1 against get_traces_from_trace_layout()
   static get_layout_trace_positions(layout: TraceLayout): TracePosition[] {
+    switch (layout.type) {
+      case "single_ended": {
+        let positions = [layout.position];
+        if (layout.has_coplanar_ground) {
+          positions = [layout.position, ...positions, layout.position];
+        }
+        return positions;
+      }
+      case "coplanar_pair": {
+        let positions = [layout.position, layout.position];
+        if (layout.has_coplanar_ground) {
+          positions = [layout.position, ...positions, layout.position];
+        }
+        return positions;
+      }
+      case "broadside_pair": {
+        let positions = [layout.left_position, layout.right_position];
+        if (layout.has_coplanar_ground) {
+          positions = [layout.left_position, ...positions, layout.right_position];
+        }
+        return positions;
+      }
+    }
+  }
+
+  // like get_layout_trace_positions but only distinctly different locations
+  static get_layout_trace_unique_positions(layout: TraceLayout): TracePosition[] {
     switch (layout.type) {
       case "single_ended": return [layout.position];
       case "coplanar_pair": return [layout.position];
@@ -197,7 +225,7 @@ export class StackupRules {
   }
 
   static is_trace_layout_floating_in_layer(layer: Layer, layout: TraceLayout): boolean {
-    const positions = StackupRules.get_layout_trace_positions(layout);
+    const positions = StackupRules.get_layout_trace_unique_positions(layout);
     for (const position of positions) {
       if (position.layer_id != layer.id) continue;
       if (!StackupRules.is_trace_alignment_in_layer(layer, position.alignment)) return true;

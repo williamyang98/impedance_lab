@@ -101,7 +101,7 @@ function get_default_config(): Config {
       soldermask_height: 17,
       copper_layer_height: 10,
       trace_height: 20,
-      trace_taper: 15,
+      trace_taper: 12,
       signal_trace_width: 25,
       ground_trace_width: 30,
       signal_width_separation: 20,
