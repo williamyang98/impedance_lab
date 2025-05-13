@@ -16,19 +16,51 @@ export class IdGenerator {
   }
 }
 
+const default_stackup: Stackup = {
+  layers: [
+    {
+      id: 0,
+      type: "surface",
+      trace_alignment: "bottom",
+      has_soldermask: true,
+    },
+    {
+      id: 1,
+      type: "inner",
+      trace_alignments: new Set(),
+    },
+    {
+      id: 2,
+      type: "surface",
+      trace_alignment: "top",
+      has_soldermask: true,
+    },
+  ],
+  trace_layout: {
+    type: "coplanar_pair",
+    position:  { layer_id: 0, alignment: "bottom" },
+    has_coplanar_ground: true,
+  },
+};
+
 export class Editor implements Stackup {
   layer_id_gen = new IdGenerator();
   layers: Layer[] = [];
   trace_layout: TraceLayout;
 
-  constructor() {
-    const layer = this.add_layer(0);
-    const trace_layout: TraceLayout = {
-      type: "single_ended",
-      position:  { layer_id: layer.id, alignment: "top" },
-      has_coplanar_ground: false,
-    };
+  constructor(stackup?: Stackup) {
+    if (stackup === undefined) {
+      stackup = structuredClone(default_stackup);
+    }
+
+    const { trace_layout, layers } = stackup;
+    this.layers = layers;
     this.trace_layout = trace_layout;
+    // find a unique id for future edits
+    this.layer_id_gen.head = this.layers
+      .map(layer => layer.id)
+      .reduce((a,b) => Math.max(a,b), 0)
+      +1;
   }
 
   _get_adjacent_layers(layer_index: number): [(Layer | undefined), (Layer | undefined)] {
