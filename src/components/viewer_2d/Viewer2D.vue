@@ -120,6 +120,7 @@ defineExpose({
         <option :value="'electric_vec'">Ê</option>
         <option :value="'energy'">Energy</option>
         <option :value="'force'">Force</option>
+        <option :value="'epsilon'">Epsilon</option>
         <option :value="'electric_quiver'">Ê (quiver)</option>
       </select>
     </fieldset>

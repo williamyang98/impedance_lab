@@ -10,6 +10,7 @@ export class Renderer {
   v_force_texture?: GPUTexture;
   v_field_texture?: GPUTexture;
   e_field_texture?: GPUTexture;
+  epsilon_texture?: GPUTexture;
   spline_dx_texture?: GPUTexture;
   spline_dy_texture?: GPUTexture;
   shader_render_texture: ShaderRenderTexture;
@@ -27,6 +28,7 @@ export class Renderer {
     this._upload_e_field(grid.e_field);
     this._upload_dx_spline(grid.dx);
     this._upload_dy_spline(grid.dy);
+    this._upload_epsilon(grid.epsilon_k);
   }
 
   _upload_v_force(v_force: Ndarray, v_table: Ndarray) {
@@ -102,6 +104,38 @@ export class Renderer {
     convert_f32_to_f16(f32_data, f16_data);
     this.device.queue.writeTexture(
       { texture: this.v_field_texture },
+      f16_data,
+      { bytesPerRow: width*2 },
+      { width, height },
+    );
+  }
+
+  _upload_epsilon(epsilon: Ndarray) {
+    const shape = epsilon.shape;
+    if (shape.length != 2) {
+      throw Error(`Tried to update grid 2d renderer with non 2d array: (${shape.join(',')})`);
+    }
+    const [height, width] = shape;
+    if (
+      this.epsilon_texture === undefined ||
+      this.epsilon_texture.width != width ||
+      this.epsilon_texture.height != height
+    ) {
+      this.epsilon_texture = this.device.createTexture({
+        dimension: "2d",
+        format: "r16float",
+        mipLevelCount: 1,
+        sampleCount: 1,
+        size: [width, height, 1],
+        usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+      });
+    }
+    const N = width*height;
+    const f32_data = epsilon.cast(Float32Array);
+    const f16_data = new Uint16Array(N);
+    convert_f32_to_f16(f32_data, f16_data);
+    this.device.queue.writeTexture(
+      { texture: this.epsilon_texture },
       f16_data,
       { bytesPerRow: width*2 },
       { width, height },
@@ -214,6 +248,7 @@ export class Renderer {
     if (this.spline_dx_texture === undefined) return;
     if (this.spline_dy_texture === undefined) return;
     if (this.v_force_texture === undefined) return;
+    if (this.epsilon_texture === undefined) return;
 
     canvas_context.configure({
       device: this.device,
@@ -229,9 +264,10 @@ export class Renderer {
     const spline_dx_view = this.spline_dx_texture.createView({ dimension: "2d" });
     const spline_dy_view = this.spline_dy_texture.createView({ dimension: "2d" });
     const v_force_view = this.v_force_texture.createView({ dimension: "2d" });
+    const epsilon_view = this.epsilon_texture.createView({ dimension: "2d" });
     this.shader_render_texture.create_pass(
       command_encoder,
-      canvas_texture_view, v_field_view, e_field_view, spline_dx_view, spline_dy_view, v_force_view,
+      canvas_texture_view, v_field_view, e_field_view, spline_dx_view, spline_dy_view, v_force_view, epsilon_view,
       this.grid_size, canvas_size, scale, axis,
     );
     this.device.queue.submit([command_encoder.finish()]);

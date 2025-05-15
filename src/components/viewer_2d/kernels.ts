@@ -3,7 +3,7 @@ import { StructView } from "../../utility/cstyle_struct.ts";
 export type Axis =
   "voltage" |
   "electric_x" | "electric_y" | "electric_mag" | "electric_vec" |
-  "energy" | "force" |
+  "energy" | "force" | "epsilon" |
   "electric_quiver";
 
 class ShaderColourGrid {
@@ -49,6 +49,7 @@ class ShaderColourGrid {
       @group(0) @binding(5) var spline_dx: texture_2d<f32>;
       @group(0) @binding(6) var spline_dy: texture_2d<f32>;
       @group(0) @binding(7) var v_force: texture_2d<f32>;
+      @group(0) @binding(8) var epsilon_field: texture_2d<f32>;
 
       struct VertexOut {
         @builtin(position) vertex_position : vec4f,
@@ -70,6 +71,7 @@ class ShaderColourGrid {
         let dx = textureSampleLevel(spline_dx, spline_sampler, vec2<f32>(vertex.frag_position.x, 0.0), 0.0).r;
         let dy = textureSampleLevel(spline_dy, spline_sampler, vec2<f32>(vertex.frag_position.y, 0.0), 0.0).r;
         let V_force = textureSampleLevel(v_force, grid_sampler, vertex.frag_position, 0.0).rg;
+        let epsilon = textureSampleLevel(epsilon_field, grid_sampler, vertex.frag_position, 0.0).r;
         let alpha_scale: f32 = 100.0;
 
         var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
@@ -103,6 +105,9 @@ class ShaderColourGrid {
           let V_beta = V_force.g;
           let cmap = red_green_cmap(V_input);
           color = vec4f(cmap, V_beta);
+        } else if (params.axis == 7) {
+          let value = epsilon*params.scale;
+          color = vec4f(-value, value, 0.0, abs(value)*alpha_scale);
         }
 
         return color;
@@ -220,6 +225,13 @@ class ShaderColourGrid {
             viewDimension: "2d",
           },
         },
+        {
+          binding: 8,
+          visibility: GPUShaderStage.FRAGMENT,
+          texture: {
+            viewDimension: "2d",
+          },
+        },
       ],
     });
     this.pipeline_layout = device.createPipelineLayout({
@@ -279,6 +291,7 @@ class ShaderColourGrid {
     spline_dx_view: GPUTextureView,
     spline_dy_view: GPUTextureView,
     v_force_view: GPUTextureView,
+    epsilon_view: GPUTextureView,
     canvas_size: [number, number],
     scale: number, axis_id: number,
   ) {
@@ -321,6 +334,10 @@ class ShaderColourGrid {
         {
           binding: 7,
           resource: v_force_view,
+        },
+        {
+          binding: 8,
+          resource: epsilon_view,
         },
       ],
     });
@@ -692,7 +709,7 @@ export class ShaderRenderTexture {
     command_encoder: GPUCommandEncoder, output_texture_view: GPUTextureView,
     v_field_view: GPUTextureView, e_field_view: GPUTextureView,
     spline_dx_view: GPUTextureView, spline_dy_view: GPUTextureView,
-    v_force_view: GPUTextureView,
+    v_force_view: GPUTextureView, epsilon_view: GPUTextureView,
     grid_size: [number, number],
     canvas_size: [number, number],
     scale: number, axis: Axis,
@@ -707,6 +724,7 @@ export class ShaderRenderTexture {
       case "electric_vec":    return 4;
       case "energy":          return 5;
       case "force":           return 6;
+      case "epsilon":         return 7;
       case "electric_quiver": return null;
       }
     }
@@ -717,7 +735,7 @@ export class ShaderRenderTexture {
         command_encoder, output_texture_view,
         v_field_view, e_field_view,
         spline_dx_view, spline_dy_view,
-        v_force_view,
+        v_force_view, epsilon_view,
         canvas_size, scale, axis_id,
       );
     } else {
