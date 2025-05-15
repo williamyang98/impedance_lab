@@ -134,5 +134,6 @@ canvas.grid-view {
   image-rendering: auto;
   aspect-ratio: 2 / 1;
   display: block;
+  scale: 100% -100%;
 }
 </style>
