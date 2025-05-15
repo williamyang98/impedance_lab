@@ -64,10 +64,12 @@ export function get_stackup_parameters_from_stackup(stackup: Stackup, include_mi
       params.height = {
         label: `H${layer_id}`,
         min: 0,
+        value: 0.15,
       };
       params.epsilon = {
         label: `ER${layer_id}`,
         min: 1,
+        value: 4.1,
       };
     }
 
@@ -91,6 +93,7 @@ export function get_stackup_parameters_from_stackup(stackup: Stackup, include_mi
       params.trace_height = {
         label: `T${layer_id}`,
         min: 0,
+        value: 0.035,
       };
     }
 
@@ -98,17 +101,6 @@ export function get_stackup_parameters_from_stackup(stackup: Stackup, include_mi
   }
 
   const trace_parameters: TraceParameters = {};
-  if (trace_layout.has_coplanar_ground) {
-    trace_parameters.coplanar_width = {
-      label: "CW",
-      min: 0,
-    };
-    trace_parameters.coplanar_separation = {
-      label: "CS",
-      min: 0,
-    };
-  }
-
   const items = StackupRules.get_layout_items_from_trace_layout(trace_layout);
   function filter_one(filter: (item: LayoutItem) => boolean) {
     for (const item of items)  {
@@ -120,24 +112,28 @@ export function get_stackup_parameters_from_stackup(stackup: Stackup, include_mi
     trace_parameters.signal_width = {
       label: "W",
       min: 0,
+      value: 0.15,
     };
   }
   if (filter_one(item => item.type == "trace" && item.trace == "ground")) {
     trace_parameters.coplanar_width = {
       label: "CW",
       min: 0,
+      value: 0.5,
     };
   }
   if (filter_one(item => item.type == "spacing" && (item.spacing == "signal" || item.spacing == "broadside"))) {
     trace_parameters.signal_separation = {
       label: "S",
       min: 0,
+      value: 0.2,
     };
   }
   if (filter_one(item => item.type == "spacing" && item.spacing == "ground")) {
     trace_parameters.coplanar_separation = {
       label: "CS",
       min: 0,
+      value: 0.25,
     };
   }
 

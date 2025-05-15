@@ -1,37 +1,18 @@
 import { NdarrayView } from "../utility/ndarray.ts";
-import {
-  type GridRegion,
-  generate_asymmetric_geometric_grid,
-  generate_geometric_grid,
-} from "./mesher.ts";
+import { type GridRegion, GridRegionUtility } from "./mesher.ts";
 import { Grid } from "./electrostatic_2d.ts";
 
 function generate_grid_deltas(deltas: NdarrayView, grids: GridRegion[]) {
   let offset = 0;
   for (let i = 0; i < grids.length; i++) {
-    const { type, grid } = grids[i];
-    switch (type) {
-      case "asymmetric": {
-        const delta = grid.n0+grid.n1;
-        const view = deltas.lo([offset]).hi([delta]);
-        const subdivisions = generate_asymmetric_geometric_grid(grid);
-        for (let j = 0; j < subdivisions.length; j++) {
-          view.set([j], subdivisions[j]);
-        }
-        offset += delta;
-        break;
-      }
-      case "symmetric": {
-        const delta = grid.n;
-        const view = deltas.lo([offset]).hi([delta]);
-        const subdivisions = generate_geometric_grid(grid);
-        for (let j = 0; j < subdivisions.length; j++) {
-          view.set([j], subdivisions[j]);
-        }
-        offset += delta;
-        break;
-      }
+    const region = grids[i];
+    const delta = GridRegionUtility.get_total_grid_lines(region);
+    const view = deltas.lo([offset]).hi([delta]);
+    const subdivisions = GridRegionUtility.generate_grid(region);
+    for (let j = 0; j < subdivisions.length; j++) {
+      view.set([j], subdivisions[j]);
     }
+    offset += delta;
   }
 }
 
@@ -167,16 +148,8 @@ export class RegionGrid {
 
   constructor(x_grid_regions: GridRegion[], y_grid_regions: GridRegion[]) {
     // Map (My,Mx) regions to (Ny,Nx) grid
-
-    function get_grid_length({ type, grid }: GridRegion) {
-      switch (type) {
-      case "asymmetric": return grid.n0 + grid.n1;
-      case "symmetric": return grid.n;
-      }
-    }
-
-    const x_grid_widths = x_grid_regions.map(get_grid_length);
-    const y_grid_heights = y_grid_regions.map(get_grid_length);
+    const x_grid_widths = x_grid_regions.map(region => GridRegionUtility.get_total_grid_lines(region));
+    const y_grid_heights = y_grid_regions.map(region => GridRegionUtility.get_total_grid_lines(region));
 
     const Nx = x_grid_widths.reduce((a,b) => a+b, 0);
     const Ny = y_grid_heights.reduce((a,b) => a+b, 0);
@@ -264,53 +237,6 @@ export class RegionGrid {
     return new RegionView(this, this.grid.epsilon_k);
   }
 
-}
-
-export function normalise_regions(x_regions: number[], y_regions: number[], target_ratio?: number): number {
-  target_ratio = target_ratio ?? 0.5;
-  const x_region_min = x_regions.reduce((a,b) => Math.min(a,b), Infinity);
-  const y_region_min = y_regions.reduce((a,b) => Math.min(a,b), Infinity);
-  const region_min = Math.min(x_region_min, y_region_min);
-  const rescale = target_ratio/region_min;
-  for (let i = 0; i < x_regions.length; i++) {
-    x_regions[i] *= rescale;
-  }
-  for (let i = 0; i < y_regions.length; i++) {
-    y_regions[i] *= rescale;
-  }
-  return rescale;
-}
-
-export const sdf_slope_top_left = (x: number, y: number) => (y > x) ? 1.0 : 0.0;
-export const sdf_slope_top_right = (x: number, y: number) => (y > 1-x) ? 1.0 : 0.0;
-export const sdf_slope_bottom_left = (x: number, y: number) => (y < 1-x) ? 1.0 : 0.0;
-export const sdf_slope_bottom_right = (x: number, y: number) => (y < x) ? 1.0 : 0.0;
-
-export function get_voltage_transform(sdf: (x: number, y: number) => number, voltage_index: number) {
-  const My = 2;
-  const Mx = 2;
-  const total_samples = My*Mx;
-  function transform(
-    _value: number,
-    [y_start, x_start]: [number, number],
-    [y_size, x_size]: [number, number]): number
-  {
-    // multisampling
-    let total_beta = 0;
-    for (let my = 0; my < My; my++) {
-      const ey = (my+0.5)/My;
-      const y_norm = y_start + y_size*ey;
-      for (let mx = 0; mx < Mx; mx++) {
-        const ex = (mx+0.5)/Mx;
-        const x_norm = x_start + x_size*ex;
-        total_beta += sdf(x_norm, y_norm);
-      }
-    }
-    const beta = total_beta/total_samples;
-    const beta_quantised = Math.floor(0xFFFF*beta);
-    return (voltage_index << 16) | beta_quantised;
-  }
-  return transform;
 }
 
 export class GridLines {

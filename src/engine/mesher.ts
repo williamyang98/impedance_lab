@@ -4,7 +4,7 @@ export interface GeometricGrid {
   a: number;
   r: number;
   n: number;
-  direction: "right" | "left";
+  is_reversed: boolean;
 }
 
 export function generate_geometric_grid(grid: GeometricGrid): number[] {
@@ -14,7 +14,7 @@ export function generate_geometric_grid(grid: GeometricGrid): number[] {
     arr[i] = s;
     s *= grid.r;
   }
-  if (grid.direction == "left") {
+  if (grid.is_reversed) {
     arr.reverse();
   }
   return arr;
@@ -124,53 +124,73 @@ function find_best_asymmetric_geometric_grid(
 }
 
 export type GridRegion =
-  { type: "symmetric", grid: GeometricGrid } |
-  { type: "asymmetric", grid: AsymmetricGeometricGrid };
+  { type: "linear", a: number, n: number } |
+  { type: "symmetric" } & GeometricGrid |
+  { type: "asymmetric" } & AsymmetricGeometricGrid;
+
+export class GridRegionUtility {
+  static generate_grid(region: GridRegion): number[] {
+    switch (region.type) {
+      case "linear": return new Array(region.n).fill(region.a);
+      case "asymmetric": return generate_asymmetric_geometric_grid(region);
+      case "symmetric": return generate_geometric_grid(region);
+    }
+  }
+
+  static get_total_grid_lines(region: GridRegion): number {
+    switch (region.type) {
+      case "linear": return region.n;
+      case "asymmetric": return region.n0+region.n1;
+      case "symmetric": return region.n;
+    }
+  }
+}
 
 export function calculate_grid_regions(
-  regions: number[],
-  min_region_subdivisions?: number,
-  max_ratio?: number,
+  regions: (number | null)[],
+  min_region_subdivisions?: number, max_ratio?: number,
 ): GridRegion[] {
-  const min_region = regions.reduce((a,b) => Math.min(a,b), Infinity);
   min_region_subdivisions = min_region_subdivisions ?? 3;
   max_ratio = max_ratio ?? 0.5;
 
-  const min_grid_resolution = regions
-    .map((region) => region/min_region_subdivisions)
-    .reduce((a,b) => Math.min(a,b), Infinity);
+  // a = min grid size used as the initial value for geometric growing/shrinking grid spacing
   const a_estimate = regions.map((region) => {
-    const size_scale = region/min_region;
-    return Math.sqrt(size_scale)*min_grid_resolution;
+    if (region === null) return null;
+    return region / min_region_subdivisions;
   });
   const grids: GridRegion[] = [];
   const N = regions.length;
   for (let i = 0; i < N; i++) {
-    const a = a_estimate[i];
-    const a_left = (i > 0) ? a_estimate[i-1] : a;
-    const a_right = (i < (N-1)) ? a_estimate[i+1] : a;
-    const a0 = Math.min(a_left, a);
-    const a1 = Math.min(a_right, a);
+    const a_mid = a_estimate[i];
+    const a_left = (i > 0) ? a_estimate[i-1] : null;
+    const a_right = (i < (N-1)) ? a_estimate[i+1] : null;
 
-    const A = regions[i];
-    if (i == 0) {
+    const a0 = (a_left !== null && a_mid !== null) ? Math.min(a_left, a_mid) : null;
+    const a1 = (a_right !== null && a_mid !== null) ? Math.min(a_right, a_mid) : null;
+
+    // if the region size is not provided default to a numerical stable default
+    const A = regions[i] || 1.0;
+
+    if (a0 === null && a1 === null) {
+      grids.push({ type: "linear", a: 1, n: 2 });
+    } else if (a0 === null && a1 !== null) {
       const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a1));
       const n = Math.max(min_region_subdivisions, n_estimate);
       const r = get_geometric_r(A, a1, n);
-      const grid: GeometricGrid = { a: a1, r, n, direction: "left" };
-      grids.push({ type: "symmetric", grid });
-    } else if (i == (N-1)) {
+      const grid: GeometricGrid = { a: a1, r, n, is_reversed: true };
+      grids.push({ type: "symmetric", ...grid });
+    } else if (a0 !== null && a1 === null) {
       const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a0));
       const n = Math.max(min_region_subdivisions, n_estimate);
       const r = get_geometric_r(A, a0, n);
-      const grid: GeometricGrid = { a: a0, r, n, direction: "right" };
-      grids.push({ type: "symmetric", grid });
-    } else {
+      const grid: GeometricGrid = { a: a0, r, n, is_reversed: false };
+      grids.push({ type: "symmetric", ...grid });
+    } else if (a0 !== null && a1 !== null) {
       const n_lower = min_region_subdivisions-1;
       const n_upper_estimate = Math.ceil(get_geometric_n(A/2, 1.0+max_ratio, Math.min(a0,a1))*2);
       const n_upper = Math.max(min_region_subdivisions, n_upper_estimate);
       const grid = find_best_asymmetric_geometric_grid(A, a0, a1, n_lower, n_upper);
-      grids.push({ type: "asymmetric", grid });
+      grids.push({ type: "asymmetric", ...grid });
     }
   }
   return grids;
