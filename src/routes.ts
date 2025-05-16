@@ -3,6 +3,7 @@ import { type RouteComponent } from 'vue-router';
 import { Cuboid, Pencil } from 'lucide-vue-next';
 import { App3DView } from './views/app_3d';
 import { Editor } from './views/editor_2d';
+import StackupRefactor from './views/stackup_refactor/StackupRefactor.vue';
 
 export interface CustomRoute {
   name: string;
@@ -22,6 +23,12 @@ export const routes: CustomRoute[] = [
     name: "Editor 2d",
     path: "/editor_2d",
     view_component: Editor,
+    icon_component: Pencil,
+  },
+  {
+    name: "Stackup Refactor",
+    path: "/stackup_refactor",
+    view_component: StackupRefactor,
     icon_component: Pencil,
   },
 ];
