@@ -38,6 +38,8 @@ const stroke = {
   arm_colour: "#000000",
   arm_width: 0.25,
   arm_dash_array: "2,2",
+  line_colour: "#000000",
+  line_width: 0.5,
 };
 
 const viewport_padding = 0.5;
@@ -153,10 +155,22 @@ const viewport_padding = 0.5;
         {{ label.text }}
       </text>
       <g>
-        <line
-          x1="0" :x2="label.width"
-          y1="0" y2="0"
-          stroke="#000000" stroke-width="0.5"></line>
+        <template v-if="label.mask_out_width">
+          <line
+            x1="0" :x2="label.width/2-label.mask_out_width/2"
+            y1="0" y2="0"
+            :stroke="stroke.line_colour" :stroke-width="stroke.line_width"></line>
+          <line
+            :x1="label.width/2+label.mask_out_width/2" :x2="label.width"
+            y1="0" y2="0"
+            :stroke="stroke.line_colour" :stroke-width="stroke.line_width"></line>
+        </template>
+        <template v-else>
+          <line
+            x1="0" :x2="label.width"
+            y1="0" y2="0"
+            :stroke="stroke.line_colour" :stroke-width="stroke.line_width"></line>
+        </template>
         <g :transform="`translate(${2},0)`">
           <polygon points="-2,0 2,2 2,-2" fill="#000000"></polygon>
         </g>

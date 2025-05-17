@@ -51,6 +51,7 @@ export interface WidthLabel {
   };
   offset: Position;
   width: number;
+  mask_out_width?: number;
   y_offset_text: number;
   text: string;
 }
@@ -303,6 +304,8 @@ export class Viewer {
       label.left_arm_overhang.top = width_label_config.min_arm_overhang;
       label.right_arm_overhang.top = width_label_config.min_arm_overhang;
       label.y_offset_text = -width_label_config.text_offset;
+      // label.mask_out_width = text.length*font_size;
+      // label.y_offset_text = 0;
     } else {
       label.offset.y += width_label_config.min_arm_overhang;
       label.left_arm_overhang.top = width_label_config.min_arm_overhang;
@@ -310,6 +313,8 @@ export class Viewer {
       label.left_arm_overhang.bottom = width_label_config.min_arm_overhang;
       label.right_arm_overhang.bottom = width_label_config.min_arm_overhang;
       label.y_offset_text = width_label_config.text_offset;
+      // label.mask_out_width = text.length*font_size;
+      // label.y_offset_text = 0;
     }
     return label;
   }
@@ -370,7 +375,9 @@ export class Viewer {
           this.width_labels.push({
             offset: { x: left.x, y: y_mid },
             width: right.x-left.x,
-            y_offset_text: width_label_config.text_offset,
+            // y_offset_text: width_label_config.text_offset,
+            mask_out_width: text.length*font_size,
+            y_offset_text: 0,
             left_arm_overhang: {
               top: Math.max(left_overhang-left_arm_shrink, width_label_config.min_arm_overhang),
               bottom: Math.max(-left_overhang-left_arm_shrink, width_label_config.min_arm_overhang),
