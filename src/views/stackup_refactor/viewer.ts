@@ -61,6 +61,14 @@ export interface EpsilonLabel {
   text: string;
 }
 
+function get_name(param?: { name?: string }): string | undefined {
+  return param?.name;
+}
+
+function get_taper_suffix(param?: { taper_suffix?: string }): string | undefined {
+  return param?.taper_suffix;
+}
+
 export class Viewer {
   layout: StackupLayout;
   viewport: {
@@ -156,7 +164,7 @@ export class Viewer {
       switch (layer_layout.type) {
         case "unmasked": {
           const layer = layer_layout.parent;
-          const text = layer.trace_height.name;
+          const text = get_name(layer.trace_height);
           const height = layer_layout.bounding_box.height;
           const is_copper_plane = layer_layout.is_copper_plane;
           if (height > 0 && !is_copper_plane && text) {
@@ -175,61 +183,62 @@ export class Viewer {
           const layer = layer_layout.parent;
           if (layer_layout.mask) {
             const soldermask_height = layer_layout.mask.surface.height;
+            const soldermask_height_name = get_name(layer.soldermask_height);
             // label both trace height and soldermask height
             if (layer_layout.mask.traces.length > 0) {
               const trace = layer_layout.mask.traces[0];
               const trace_height = Math.abs(trace.y_base-trace.y_taper);
-              const overhang = get_layer_label_overhang(layer.id, layer.orientation);
+              const trace_height_name = get_name(layer.trace_height);
+              const y_start = layer_layout.bounding_box.y_start;
+              const arm_overhang = get_layer_label_overhang(layer.id, layer.orientation);
               if (layer.orientation == "down") {
-                const y_start = layer_layout.bounding_box.y_start;
-                if (layer.soldermask_height.name) {
+                if (soldermask_height_name) {
                   this.height_labels.push({
                     y_offset: y_start,
                     height: soldermask_height,
-                    overhang_top: overhang,
-                    overhang_bottom: overhang,
-                    text: layer.soldermask_height.name,
+                    overhang_top: arm_overhang,
+                    overhang_bottom: arm_overhang,
+                    text: soldermask_height_name,
                   });
                 }
-                if (layer.trace_height.name) {
+                if (trace_height_name) {
                   this.height_labels.push({
                     y_offset: y_start+soldermask_height,
                     height: trace_height,
-                    overhang_top: overhang,
+                    overhang_top: arm_overhang,
                     overhang_bottom: 0,
-                    text: layer.trace_height.name,
+                    text: trace_height_name,
                   });
                 }
               } else {
-                const y_start = layer_layout.bounding_box.y_start;
-                if (layer.trace_height.name) {
+                if (trace_height_name) {
                   this.height_labels.push({
                     y_offset: y_start,
                     height: trace_height,
-                    overhang_top: overhang,
+                    overhang_top: arm_overhang,
                     overhang_bottom: 0,
-                    text: layer.trace_height.name,
+                    text: trace_height_name,
                   });
                 }
-                if (layer.soldermask_height.name) {
+                if (soldermask_height_name) {
                   this.height_labels.push({
                     y_offset: y_start+trace_height,
                     height: soldermask_height,
-                    overhang_top: overhang,
-                    overhang_bottom: overhang,
-                    text: layer.soldermask_height.name,
+                    overhang_top: arm_overhang,
+                    overhang_bottom: arm_overhang,
+                    text: soldermask_height_name,
                   });
                 }
               }
             // label just the soldermask height
             } else {
-              if (layer.soldermask_height.name) {
+              if (soldermask_height_name) {
                 this.height_labels.push({
                   y_offset: layer_layout.mask.surface.y_start,
                   height: soldermask_height,
                   overhang_top: 0,
                   overhang_bottom: 0,
-                  text: layer.soldermask_height.name,
+                  text: soldermask_height_name,
                 });
               }
             }
@@ -238,7 +247,7 @@ export class Viewer {
         }
         case "core": {
           const layer = layer_layout.parent;
-          const text = layer.height.name;
+          const text = get_name(layer.height);
           const height = layer_layout.bounding_box.height;
           if (height > 0 && text) {
             this.height_labels.push({
@@ -253,33 +262,35 @@ export class Viewer {
         }
         case "prepreg": {
           const layer = layer_layout.parent;
-          if (!layer_layout.top.is_copper_plane && layer.trace_height.name) {
-            const overhang = get_layer_label_overhang(layer.id, "up");
+          const trace_height_name = get_name(layer.trace_height);
+          const layer_height_name = get_name(layer.height);
+          if (!layer_layout.top.is_copper_plane && trace_height_name) {
+            const arm_overhang = get_layer_label_overhang(layer.id, "up");
             this.height_labels.push({
               y_offset: layer_layout.top.shape.y_start,
               height: layer_layout.top.shape.height,
               overhang_top: 0,
-              overhang_bottom: overhang,
-              text: layer.trace_height.name,
+              overhang_bottom: arm_overhang,
+              text: trace_height_name,
             })
           }
-          if (layer.height.name) {
+          if (layer_height_name) {
             this.height_labels.push({
               y_offset: layer_layout.middle_shape.y_start,
               height: layer_layout.middle_shape.height,
               overhang_top: 0,
               overhang_bottom: 0,
-              text: layer.height.name,
+              text: layer_height_name,
             })
           }
-          if (!layer_layout.bottom.is_copper_plane && layer.trace_height.name) {
-            const overhang = get_layer_label_overhang(layer.id, "down");
+          if (!layer_layout.bottom.is_copper_plane && trace_height_name) {
+            const arm_overhang = get_layer_label_overhang(layer.id, "down");
             this.height_labels.push({
               y_offset: layer_layout.bottom.shape.y_start,
               height: layer_layout.bottom.shape.height,
-              overhang_top: overhang,
+              overhang_top: arm_overhang,
               overhang_bottom: 0,
-              text: layer.trace_height.name,
+              text: trace_height_name,
             })
           }
           break;
@@ -320,23 +331,39 @@ export class Viewer {
   }
 
   create_trace_width_labels() {
+    const trace_taper_suffixes: Partial<Record<LayerId, string>> = {};
+    for (const layer_layout of this.layout.layers) {
+      switch (layer_layout.type) {
+        case "core": break;
+        case "soldermask": // @fallthrough
+        case "prepreg": // @fallthrough
+        case "unmasked": {
+          const layer = layer_layout.parent;
+          const trace_taper_name = get_taper_suffix(layer.trace_taper);
+          trace_taper_suffixes[layer.id] = trace_taper_name;
+          break;
+        }
+      }
+    }
+
     for (const trace_layout of this.layout.conductors.filter(conductor => conductor.type == "trace")) {
       const shape = trace_layout.shape;
       const trace = trace_layout.parent;
-      const text = trace.width.name;
-      if (text) {
+      const trace_width_name = get_name(trace.width);
+      if (trace_width_name) {
         {
           const offset: Position = { x: shape.x_left, y: shape.y_base }
           const width = shape.x_right-shape.x_left;
           const drag_up = shape.y_base < shape.y_taper;
-          const label = this.create_inline_width_label(offset, width, text, drag_up);
+          const label = this.create_inline_width_label(offset, width, trace_width_name, drag_up);
           this.width_labels.push(label);
         }
-        {
+        const trace_taper_suffix = trace_taper_suffixes[trace.layer_id];
+        if (trace_taper_suffix) {
           const offset: Position = { x: shape.x_left_taper, y: shape.y_taper };
           const width = shape.x_right_taper-shape.x_left_taper;
           const drag_up = shape.y_base > shape.y_taper;
-          const label = this.create_inline_width_label(offset, width, `${text}1`, drag_up);
+          const label = this.create_inline_width_label(offset, width, `${trace_width_name}${trace_taper_suffix}`, drag_up);
           this.width_labels.push(label);
         }
       }
@@ -352,7 +379,7 @@ export class Viewer {
 
     for (const spacing_layout of this.layout.spacings) {
       const spacing = spacing_layout.parent;
-      const text = spacing.width.name;
+      const text = get_name(spacing.width);
       if (text) {
         const y_mid = spacing_layout.y_mid;
         const left = spacing_layout.left_anchor;
@@ -401,7 +428,7 @@ export class Viewer {
         }
         case "soldermask": {
           const surface_mask = layer_layout.mask?.surface;
-          const text = layer_layout.parent.epsilon?.name;
+          const text = get_name(layer_layout.parent.epsilon);
           if (surface_mask && text) {
             const y_start = surface_mask.y_start;
             const y_end = y_start+surface_mask.height;
@@ -413,7 +440,7 @@ export class Viewer {
         case "core": // @fallthrough
         case "prepreg": {
           const bbox = layer_layout.bounding_box;
-          const text = layer_layout.parent.epsilon?.name;
+          const text = get_name(layer_layout.parent.epsilon);
           if (text) {
             const y_start = bbox.y_start;
             const y_end = y_start+bbox.height;

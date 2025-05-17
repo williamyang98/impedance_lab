@@ -1,18 +1,19 @@
 // types of parameters
-export interface SizeParameter {
+export interface Parameter {
   name?: string;
   description?: string;
   value?: number;
   min?: number;
   max?: number;
-  error?: number;
+  error?: string;
+}
+
+export interface SizeParameter extends Parameter {
   placeholder_value: number;
 }
 
-export interface EpsilonParameter {
-  name?: string;
-  description?: string;
-  value?: number;
+export interface TaperSizeParameter extends SizeParameter {
+  taper_suffix?: string;
 }
 
 export type Orientation = "up" | "down";
@@ -55,31 +56,31 @@ export interface HorizontalSpacing {
 export interface UnmaskedLayer {
   id: LayerId;
   trace_height: SizeParameter;
-  trace_taper: SizeParameter;
+  trace_taper: TaperSizeParameter;
   orientation: Orientation;
 }
 
 export interface SoldermaskLayer {
   id: LayerId;
   trace_height: SizeParameter;
-  trace_taper: SizeParameter;
+  trace_taper: TaperSizeParameter;
   soldermask_height: SizeParameter;
-  epsilon: EpsilonParameter;
+  epsilon: Parameter;
   orientation: Orientation;
 }
 
 export interface CoreLayer {
   id: LayerId;
   height: SizeParameter;
-  epsilon: EpsilonParameter;
+  epsilon: Parameter;
 }
 
 export interface PrepregLayer {
   id: LayerId;
   height: SizeParameter;
   trace_height: SizeParameter;
-  trace_taper: SizeParameter;
-  epsilon: EpsilonParameter;
+  trace_taper: TaperSizeParameter;
+  epsilon: Parameter;
 }
 
 export type Layer =

@@ -3,18 +3,28 @@ import { type Stackup } from "./stackup.ts";
 import StackupViewer from "./StackupViewer.vue";
 import { sizes } from "./viewer.ts";
 
-const size_params = {
+const params = {
+  // layer 1
   T1: { name: "T1", placeholder_value: sizes.trace_height },
-  dW1: { name: "dW1", placeholder_value: sizes.trace_taper },
+  dW1: { name: "dW1", placeholder_value: sizes.trace_taper, taper_suffix: '1' },
   H1: { name: "H1", placeholder_value: sizes.soldermask_height },
+  ER1: { name: "ER1" },
+  // layer 2
   H2: { name: "H2", placeholder_value: sizes.core_height },
+  ER2: { name: "ER2" },
+  // layer 3
   T3: { name: "T3", placeholder_value: sizes.trace_height },
   H3: { name: "H3", placeholder_value: sizes.core_height },
-  dW3: { name: "dW3", placeholder_value: sizes.trace_taper },
+  dW3: { name: "dW3", placeholder_value: sizes.trace_taper, taper_suffix: '3' },
+  ER3: { name: "ER3" },
+  // layer 4
   H4: { name: "H4", placeholder_value: sizes.core_height },
+  ER4: { name: "ER4" },
+  // layer 5
   T5: { name: "T5", placeholder_value: sizes.trace_height },
   H5: { name: "H5", placeholder_value: sizes.core_height },
-  dW5: { name: "dW5", placeholder_value: sizes.trace_taper },
+  dW5: { name: "dW5", placeholder_value: sizes.trace_taper, taper_suffix: '5' },
+  // spacing
   W: { name: "W", placeholder_value: sizes.signal_trace_width },
   CW: { name: "CW", placeholder_value: sizes.ground_trace_width },
   S: { name: "S", placeholder_value: sizes.signal_width_separation },
@@ -22,49 +32,42 @@ const size_params = {
   CS: { name: "CS", placeholder_value: sizes.ground_width_separation },
 }
 
-const epsilon_params = {
-  ER1: { name: "ER1" },
-  ER2: { name: "ER2" },
-  ER3: { name: "ER3" },
-  ER4: { name: "ER3" },
-};
-
 const stackup: Stackup = {
   layers: [
     {
       type: "soldermask",
       id: 0,
-      trace_height: size_params.T1,
-      trace_taper: size_params.dW1,
-      soldermask_height: size_params.H1,
-      epsilon: epsilon_params.ER1,
+      trace_height: params.T1,
+      trace_taper: params.dW1,
+      soldermask_height: params.H1,
+      epsilon: params.ER1,
       orientation: "down",
     },
     {
       type: "core",
       id: 1,
-      height: size_params.H2,
-      epsilon: epsilon_params.ER2,
+      height: params.H2,
+      epsilon: params.ER2,
     },
     {
       type: "prepreg",
       id: 4,
-      trace_height: size_params.T3,
-      trace_taper: size_params.dW3,
-      height: size_params.H3,
-      epsilon: epsilon_params.ER3,
+      trace_height: params.T3,
+      trace_taper: params.dW3,
+      height: params.H3,
+      epsilon: params.ER3,
     },
     {
       type: "core",
       id: 3,
-      height: size_params.H4,
-      epsilon: epsilon_params.ER4,
+      height: params.H4,
+      epsilon: params.ER4,
     },
     {
       type: "unmasked",
       id: 2,
-      trace_height: size_params.T5,
-      trace_taper: size_params.dW5,
+      trace_height: params.T5,
+      trace_taper: params.dW5,
       orientation: "up",
     },
   ],
@@ -74,35 +77,35 @@ const stackup: Stackup = {
       id: 0,
       layer_id: 4,
       orientation: "up",
-      width: size_params.W,
+      width: params.W,
     },
     {
       type: "trace",
       id: 1,
       layer_id: 4,
       orientation: "down",
-      width: size_params.W,
+      width: params.W,
     },
     {
       type: "trace",
       id: 3,
       layer_id: 4,
       orientation: "up",
-      width: size_params.CW,
+      width: params.CW,
     },
     {
       type: "trace",
       id: 4,
       layer_id: 2,
       orientation: "up",
-      width: size_params.CW,
+      width: params.CW,
     },
     {
       type: "trace",
       id: 5,
       layer_id: 0,
       orientation: "down",
-      width: size_params.W,
+      width: params.W,
     },
     // {
     //   type: "plane",
@@ -121,7 +124,7 @@ const stackup: Stackup = {
         id: 1,
         attach: "center",
       },
-      width: size_params.B,
+      width: params.B,
     },
     {
       left_trace: {
@@ -132,7 +135,7 @@ const stackup: Stackup = {
         id: 0,
         attach: "left",
       },
-      width: size_params.CS,
+      width: params.CS,
     },
     {
       left_trace: {
@@ -143,7 +146,7 @@ const stackup: Stackup = {
         id: 4,
         attach: "left",
       },
-      width: size_params.CS,
+      width: params.CS,
     },
     {
       left_trace: {
@@ -154,7 +157,7 @@ const stackup: Stackup = {
         id: 5,
         attach: "left",
       },
-      width: size_params.S,
+      width: params.S,
     },
   ],
 };

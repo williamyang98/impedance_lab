@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineProps, computed } from "vue";
-import { type Stackup } from "./stackup.ts";
+import { type Stackup, type SizeParameter } from "./stackup.ts";
 import { create_layout_from_stackup, type TrapezoidShape } from "./layout.ts";
 import { Viewer, font_size } from "./viewer.ts";
 
@@ -9,7 +9,10 @@ const props = defineProps<{
 }>();
 
 const viewer = computed(() => {
-  const layout = create_layout_from_stackup(props.stackup, (param) => param.placeholder_value);
+  const get_size = (param: SizeParameter): number => {
+    return param.placeholder_value;
+  };
+  const layout = create_layout_from_stackup(props.stackup, get_size);
   const viewer = new Viewer(layout);
   return viewer;
 });
