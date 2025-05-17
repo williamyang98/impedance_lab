@@ -139,6 +139,8 @@ export class Viewer {
     const layer_trace_x_min_table: Partial<Record<LayerId, Partial<Record<Orientation, number>>>> = {};
     for (const trace_layout of this.layout.conductors.filter(conductor => conductor.type == "trace")) {
       const trace = trace_layout.parent;
+      if (trace.viewer?.display === "none") continue;
+
       const x_min = trace_layout.shape.x_left_taper;
       let orientations = layer_trace_x_min_table[trace.layer_id];
       if (orientations === undefined) {
@@ -349,6 +351,8 @@ export class Viewer {
     for (const trace_layout of this.layout.conductors.filter(conductor => conductor.type == "trace")) {
       const shape = trace_layout.shape;
       const trace = trace_layout.parent;
+      if (trace.viewer?.display === "none") continue;
+
       const trace_width_name = get_name(trace.width);
       if (trace_width_name) {
         {
@@ -379,6 +383,7 @@ export class Viewer {
 
     for (const spacing_layout of this.layout.spacings) {
       const spacing = spacing_layout.parent;
+      if (spacing.viewer?.is_display === false) continue;
       const text = get_name(spacing.width);
       if (text) {
         const y_mid = spacing_layout.y_mid;

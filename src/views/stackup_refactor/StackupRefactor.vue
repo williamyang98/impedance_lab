@@ -78,6 +78,9 @@ const stackup: Stackup = {
       layer_id: 4,
       orientation: "up",
       width: params.W,
+      viewer: {
+        on_click: () => console.log("Clicked on trace 0"),
+      },
     },
     {
       type: "trace",
@@ -85,6 +88,10 @@ const stackup: Stackup = {
       layer_id: 4,
       orientation: "down",
       width: params.W,
+      viewer: {
+        display: "selectable",
+        on_click: () => console.log("Clicked on trace 1"),
+      },
     },
     {
       type: "trace",
@@ -92,6 +99,9 @@ const stackup: Stackup = {
       layer_id: 4,
       orientation: "up",
       width: params.CW,
+      viewer: {
+        display: "none",
+      },
     },
     {
       type: "trace",
@@ -158,6 +168,9 @@ const stackup: Stackup = {
         attach: "left",
       },
       width: params.S,
+      viewer: {
+        is_display: false,
+      },
     },
   ],
 };

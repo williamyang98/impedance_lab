@@ -26,6 +26,10 @@ export interface CopperTrace {
   width: SizeParameter;
   orientation: Orientation;
   layer_id: LayerId;
+  viewer?: {
+    display?: "none" | "solid" | "selectable",
+    on_click?: () => void;
+  };
 }
 
 export interface CopperPlane {
@@ -50,6 +54,9 @@ export interface HorizontalSpacing {
     attach: AttachPoint;
   };
   width: SizeParameter;
+  viewer?: {
+    is_display?: boolean;
+  }
 }
 
 // layers

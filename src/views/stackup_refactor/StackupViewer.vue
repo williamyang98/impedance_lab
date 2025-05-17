@@ -59,6 +59,7 @@ const viewport_padding = 0.5;
   preserveAspectRatio="xMidYMid meet"
   class="w-full"
 >
+  <!--Layers-->
   <template v-for="(layer, index) in viewer.layout.layers" :key="index">
     <template v-if="layer.type == 'soldermask'">
       <template v-if="layer.mask">
@@ -90,12 +91,21 @@ const viewport_padding = 0.5;
       ></rect>
     </template>
   </template>
+  <!--Conductors-->
   <template v-for="(conductor, index) in viewer.layout.conductors" :key="index">
     <template v-if="conductor.type == 'trace'">
-      <polygon
-        :points="trapezoid_shape_to_points(conductor.shape)"
-        :fill="colours.copper" :stroke="stroke.outline_colour" :stroke-width="stroke.outline_width"
-      />
+      <template v-if="conductor.parent.viewer?.display !== 'none'">
+        <polygon
+          :points="trapezoid_shape_to_points(conductor.shape)"
+          :class="`
+            ${conductor.parent.viewer?.display === 'selectable' ? 'trace-selectable' : ''}
+            ${conductor.parent.viewer?.on_click ? 'trace-clickable' : '' }
+          `"
+          :fill="colours.copper"
+          :stroke="stroke.outline_colour" :stroke-width="stroke.outline_width"
+          @click="() => conductor.parent.viewer?.on_click?.()"
+        />
+      </template>
     </template>
     <template v-else-if="conductor.type == 'plane'">
       <rect
@@ -196,3 +206,19 @@ const viewport_padding = 0.5;
   </template>
 </svg>
 </template>
+
+<style scoped>
+.trace-selectable {
+  opacity: 0.4;
+  stroke-width: 1;
+}
+
+.trace-selectable:hover {
+  opacity: 1.0;
+}
+
+.trace-clickable {
+  cursor: pointer;
+  user-select: none;
+}
+</style>
