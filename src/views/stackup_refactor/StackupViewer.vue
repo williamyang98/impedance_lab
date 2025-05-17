@@ -92,22 +92,20 @@ const viewport_padding = 0.5;
     </template>
   </template>
   <!--Conductors-->
+  <template v-for="(trace, index) in viewer.traces" :key="index">
+    <polygon
+      :points="trapezoid_shape_to_points(trace.shape)"
+      :class="`
+        ${trace.is_selectable ? 'trace-selectable' : ''}
+        ${trace.on_click ? 'trace-clickable' : '' }
+      `"
+      :fill="colours.copper"
+      :stroke="stroke.outline_colour" :stroke-width="stroke.outline_width"
+      @click="() => trace.on_click?.()"
+    />
+  </template>
   <template v-for="(conductor, index) in viewer.layout.conductors" :key="index">
-    <template v-if="conductor.type == 'trace'">
-      <template v-if="conductor.parent.viewer?.display !== 'none'">
-        <polygon
-          :points="trapezoid_shape_to_points(conductor.shape)"
-          :class="`
-            ${conductor.parent.viewer?.display === 'selectable' ? 'trace-selectable' : ''}
-            ${conductor.parent.viewer?.on_click ? 'trace-clickable' : '' }
-          `"
-          :fill="colours.copper"
-          :stroke="stroke.outline_colour" :stroke-width="stroke.outline_width"
-          @click="() => conductor.parent.viewer?.on_click?.()"
-        />
-      </template>
-    </template>
-    <template v-else-if="conductor.type == 'plane'">
+    <template v-if="conductor.type == 'plane'">
       <rect
         :x="viewer.stackup.x_min" :y="conductor.shape.y_start"
         :width="viewer.stackup.width" :height="conductor.shape.height"

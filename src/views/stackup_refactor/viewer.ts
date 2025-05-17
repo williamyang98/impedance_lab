@@ -1,5 +1,5 @@
 import { type Orientation, type LayerId, type TraceId } from "./stackup.ts";
-import { type StackupLayout } from "./layout.ts";
+import { type StackupLayout, type TrapezoidShape } from "./layout.ts";
 
 export const font_size = 9;
 
@@ -61,6 +61,13 @@ export interface EpsilonLabel {
   text: string;
 }
 
+export interface Trace {
+  id: TraceId;
+  shape: TrapezoidShape;
+  is_selectable: boolean;
+  on_click?: () => void;
+}
+
 function get_name(param?: { name?: string }): string | undefined {
   return param?.name;
 }
@@ -91,6 +98,7 @@ export class Viewer {
     x_min: number;
     width: number;
   };
+  traces: Trace[] = [];
 
   constructor(layout: StackupLayout) {
 
@@ -129,7 +137,7 @@ export class Viewer {
     };
 
     this.create_height_labels();
-    this.create_trace_width_labels();
+    this.create_traces();
     this.create_spacing_labels();
     this.create_epsilon_labels();
     this.fit_viewport_to_labels();
@@ -332,7 +340,7 @@ export class Viewer {
     return label;
   }
 
-  create_trace_width_labels() {
+  create_traces() {
     const trace_taper_suffixes: Partial<Record<LayerId, string>> = {};
     for (const layer_layout of this.layout.layers) {
       switch (layer_layout.type) {
@@ -351,8 +359,16 @@ export class Viewer {
     for (const trace_layout of this.layout.conductors.filter(conductor => conductor.type == "trace")) {
       const shape = trace_layout.shape;
       const trace = trace_layout.parent;
-      if (trace.viewer?.display === "none") continue;
-
+      const display_type = trace.viewer?.display || "solid";
+      if (display_type === "none") continue;
+      // trace shape
+      this.traces.push({
+        id: trace.id,
+        shape: trace_layout.shape,
+        is_selectable: display_type == "selectable",
+        on_click: trace.viewer?.on_click,
+      });
+      // trace labels
       const trace_width_name = get_name(trace.width);
       if (trace_width_name) {
         {
@@ -381,46 +397,55 @@ export class Viewer {
       trace_orientations[trace.id] = trace.orientation;
     }
 
+    const displayed_trace_ids = new Set(this.traces.map(trace => trace.id));
+
     for (const spacing_layout of this.layout.spacings) {
       const spacing = spacing_layout.parent;
       if (spacing.viewer?.is_display === false) continue;
+
+      // avoid showing label if one of the traces is missing
+      const left_trace_id = spacing.left_trace.id;
+      const right_trace_id = spacing.right_trace.id;
+      if (!displayed_trace_ids.has(left_trace_id)) continue;
+      if (!displayed_trace_ids.has(right_trace_id)) continue;
+
       const text = get_name(spacing.width);
-      if (text) {
-        const y_mid = spacing_layout.y_mid;
-        const left = spacing_layout.left_anchor;
-        const right = spacing_layout.right_anchor;
-        const delta_y = Math.abs(left.y-right.y);
-        // coplanar separator
-        if (delta_y < 1e-3) {
-          const orientation = trace_orientations[spacing.left_trace.id];
-          const drag_up = orientation == "up";
-          const offset = { x: left.x, y: y_mid };
-          const width = right.x-left.x;
-          const label = this.create_inline_width_label(offset, width, text, drag_up);
-          this.width_labels.push(label);
-        // vertical separator
-        } else {
-          const left_overhang = y_mid-left.y;
-          const right_overhang = y_mid-right.y;
-          const left_arm_shrink = spacing.left_trace.attach == "center" ? width_label_config.center_overhang_margin : 0;
-          const right_arm_shrink = spacing.right_trace.attach == "center" ? width_label_config.center_overhang_margin : 0;
-          this.width_labels.push({
-            offset: { x: left.x, y: y_mid },
-            width: right.x-left.x,
-            // y_offset_text: width_label_config.text_offset,
-            mask_out_width: text.length*font_size,
-            y_offset_text: 0,
-            left_arm_overhang: {
-              top: Math.max(left_overhang-left_arm_shrink, width_label_config.min_arm_overhang),
-              bottom: Math.max(-left_overhang-left_arm_shrink, width_label_config.min_arm_overhang),
-            },
-            right_arm_overhang: {
-              top: Math.max(right_overhang-right_arm_shrink, width_label_config.min_arm_overhang),
-              bottom: Math.max(-right_overhang-right_arm_shrink, width_label_config.min_arm_overhang),
-            },
-            text,
-          });
-        }
+      if (!text) continue;
+
+      const y_mid = spacing_layout.y_mid;
+      const left = spacing_layout.left_anchor;
+      const right = spacing_layout.right_anchor;
+      const delta_y = Math.abs(left.y-right.y);
+      // coplanar separator
+      if (delta_y < 1e-3) {
+        const orientation = trace_orientations[left_trace_id];
+        const drag_up = orientation == "up";
+        const offset = { x: left.x, y: y_mid };
+        const width = right.x-left.x;
+        const label = this.create_inline_width_label(offset, width, text, drag_up);
+        this.width_labels.push(label);
+      // vertical separator
+      } else {
+        const left_overhang = y_mid-left.y;
+        const right_overhang = y_mid-right.y;
+        const left_arm_shrink = spacing.left_trace.attach == "center" ? width_label_config.center_overhang_margin : 0;
+        const right_arm_shrink = spacing.right_trace.attach == "center" ? width_label_config.center_overhang_margin : 0;
+        this.width_labels.push({
+          offset: { x: left.x, y: y_mid },
+          width: right.x-left.x,
+          // y_offset_text: width_label_config.text_offset,
+          mask_out_width: text.length*font_size,
+          y_offset_text: 0,
+          left_arm_overhang: {
+            top: Math.max(left_overhang-left_arm_shrink, width_label_config.min_arm_overhang),
+            bottom: Math.max(-left_overhang-left_arm_shrink, width_label_config.min_arm_overhang),
+          },
+          right_arm_overhang: {
+            top: Math.max(right_overhang-right_arm_shrink, width_label_config.min_arm_overhang),
+            bottom: Math.max(-right_overhang-right_arm_shrink, width_label_config.min_arm_overhang),
+          },
+          text,
+        });
       }
     }
   }
