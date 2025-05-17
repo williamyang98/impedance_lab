@@ -37,7 +37,7 @@ const colours = {
 
 const stroke = {
   outline_colour: "#00000040",
-  outline_width: 0.2,
+  outline_width: 0.5,
   arm_colour: "#000000",
   arm_width: 0.5,
   arm_dash_array: "2,2",
@@ -212,7 +212,6 @@ const viewport_padding = 0.5;
 <style scoped>
 .trace-selectable {
   opacity: 0.4;
-  stroke-width: 1;
 }
 
 .trace-selectable:hover {
