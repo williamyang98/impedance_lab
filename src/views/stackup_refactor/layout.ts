@@ -252,7 +252,7 @@ export function create_layout_from_stackup(
       }
       orientations.add(conductor.orientation);
     }
-    if (conductor.type == "plane") {
+    if (conductor.type == "plane" && conductor.layout?.shrink_trace_layer !== false) {
       let orientations = plane_in_layer_table[layer_id];
       if (orientations === undefined) {
         orientations = {};

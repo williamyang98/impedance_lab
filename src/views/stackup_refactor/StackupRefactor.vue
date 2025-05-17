@@ -118,12 +118,21 @@ const stackup: Stackup = {
       orientation: "down",
       width: params.W,
     },
-    // {
-    //   type: "plane",
-    //   layer_id: 2,
-    //   orientation: "up",
-    //   height: { placeholder_value: config.copper_layer_height }
-    // },
+    {
+      type: "plane",
+      layer_id: 4,
+      orientation: "up",
+      height: { placeholder_value: sizes.copper_layer_height },
+      layout: {
+        shrink_trace_layer: false,
+      },
+      viewer: {
+        display: "selectable",
+        is_labeled: false,
+        on_click: () => console.log("Clicked on plane 4"),
+        z_offset: -1,
+      },
+    },
   ],
   spacings: [
     {

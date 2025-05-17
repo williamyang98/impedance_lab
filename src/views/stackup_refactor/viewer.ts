@@ -1,5 +1,5 @@
 import { type Orientation, type LayerId, type TraceId } from "./stackup.ts";
-import { type StackupLayout, type TrapezoidShape } from "./layout.ts";
+import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 
 export const font_size = 9;
 
@@ -61,13 +61,25 @@ export interface EpsilonLabel {
   text: string;
 }
 
-export interface Trace {
+export interface CopperTrace {
   id: TraceId;
   shape: TrapezoidShape;
   is_selectable: boolean;
   is_labeled: boolean;
   on_click?: () => void;
+  z_offset: number;
 }
+
+export interface CopperPlane {
+  shape: InfinitePlaneShape;
+  is_selectable: boolean;
+  on_click?: () => void;
+  z_offset: number;
+}
+
+export type Conductor =
+  { type: "trace" } & CopperTrace |
+  { type: "plane" } & CopperPlane;
 
 function get_name(param?: { name?: string }): string | undefined {
   return param?.name;
@@ -99,7 +111,7 @@ export class Viewer {
     x_min: number;
     width: number;
   };
-  traces: Trace[] = [];
+  conductors: Conductor[] = [];
 
   constructor(layout: StackupLayout) {
 
@@ -138,7 +150,9 @@ export class Viewer {
     };
 
     this.create_height_labels();
-    this.create_traces();
+    this.create_copper_traces();
+    this.create_copper_planes();
+    this.conductors.sort((a,b) => a.z_offset - b.z_offset);
     this.create_spacing_labels();
     this.create_epsilon_labels();
     this.fit_viewport_to_labels();
@@ -341,7 +355,7 @@ export class Viewer {
     return label;
   }
 
-  create_traces() {
+  create_copper_traces() {
     const trace_taper_suffixes: Partial<Record<LayerId, string>> = {};
     for (const layer_layout of this.layout.layers) {
       switch (layer_layout.type) {
@@ -361,6 +375,7 @@ export class Viewer {
       const shape = trace_layout.shape;
       const trace = trace_layout.parent;
       const display_type = trace.viewer?.display || "solid";
+      const z_offset = (trace.viewer?.z_offset !== undefined) ? trace.viewer?.z_offset : 0;
       if (display_type === "none") continue;
       // trace labels
       const trace_width_name = get_name(trace.width);
@@ -384,12 +399,30 @@ export class Viewer {
         }
       }
       // trace shape
-      this.traces.push({
+      this.conductors.push({
+        type: "trace",
         id: trace.id,
         shape: trace_layout.shape,
         is_selectable: display_type == "selectable",
         is_labeled,
         on_click: trace.viewer?.on_click,
+        z_offset,
+      });
+    }
+  }
+
+  create_copper_planes() {
+    for (const plane_layout of this.layout.conductors.filter(conductor => conductor.type == "plane")) {
+      const plane = plane_layout.parent;
+      const display_type = plane.viewer?.display || "solid";
+      const z_offset = (plane.viewer?.z_offset !== undefined) ? plane.viewer?.z_offset : 0;
+      if (display_type === "none") continue;
+      this.conductors.push({
+        type: "plane",
+        shape: plane_layout.shape,
+        on_click: plane.viewer?.on_click,
+        is_selectable: display_type === "selectable",
+        z_offset,
       });
     }
   }
@@ -401,8 +434,8 @@ export class Viewer {
       trace_orientations[trace.id] = trace.orientation;
     }
 
-    const viewer_traces: Partial<Record<TraceId, Trace>> = {};
-    for (const trace of this.traces) {
+    const viewer_traces: Partial<Record<TraceId, CopperTrace>> = {};
+    for (const trace of this.conductors.filter(conductor => conductor.type == "trace")) {
       viewer_traces[trace.id] = trace;
     }
 

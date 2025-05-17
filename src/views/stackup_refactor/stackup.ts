@@ -30,6 +30,7 @@ export interface CopperTrace {
     display?: "none" | "solid" | "selectable",
     is_labeled?: boolean,
     on_click?: () => void;
+    z_offset?: number;
   };
 }
 
@@ -37,6 +38,15 @@ export interface CopperPlane {
   height: SizeParameter;
   orientation: Orientation;
   layer_id: LayerId;
+  layout?: {
+    shrink_trace_layer?: boolean;
+  };
+  viewer?: {
+    display?: "none" | "solid" | "selectable",
+    is_labeled?: boolean,
+    on_click?: () => void;
+    z_offset?: number;
+  };
 }
 
 export type Conductor =
