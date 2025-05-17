@@ -175,10 +175,10 @@ export function create_layout_from_stackup(
     let running_count_unmarked = 0;
     let running_count_marked = 0;
     while (true) {
-      if (running_count_marked == spacings.length) {
+      if (running_count_marked >= spacings.length) {
         break;
       }
-      if (running_count_unmarked == spacings.length) {
+      if (running_count_unmarked >= spacings.length) {
         throw Error(`Failed to layout traces horizontally since not all spacings were resolved`);
       }
 
@@ -186,8 +186,19 @@ export function create_layout_from_stackup(
       const spacing = spacings[curr_index_spacing];
       index_spacing = (index_spacing+1) % spacings.length;
 
-      const left_region = trace_x_region_table[spacing.left_trace.id];
-      const right_region = trace_x_region_table[spacing.right_trace.id];
+      const left_trace_id = spacing.left_trace.id;
+      const right_trace_id = spacing.right_trace.id;
+      const left_trace = trace_table[left_trace_id];
+      const right_trace = trace_table[right_trace_id];
+      const left_region = trace_x_region_table[left_trace_id];
+      const right_region = trace_x_region_table[right_trace_id];
+      if (!left_trace) {
+        throw Error(`Spacing referenced non existence left trace id ${left_trace_id}`);
+      }
+      if (!right_trace) {
+        throw Error(`Spacing referenced non existence right trace id ${right_trace_id}`);
+      }
+
       if (left_region === undefined && right_region === undefined) {
         running_count_unmarked++;
         running_count_marked = 0;
@@ -195,27 +206,27 @@ export function create_layout_from_stackup(
       }
       if (left_region === undefined && right_region !== undefined) {
         const spacing_width = get_size(spacing.width);
-        const left_trace = trace_table[spacing.left_trace.id];
-        if (left_trace === undefined) throw Error(`Invalid trace id ${spacing.left_trace.id}`);
         const left_trace_width = get_size(left_trace.width);
         const x_anchor_right = get_anchor_in_x_region(right_region, spacing.right_trace.attach);
         const x_anchor_left = x_anchor_right-spacing_width;
         const new_left_region = get_x_region_from_anchor(spacing.left_trace.attach, left_trace_width, x_anchor_left);
         push_trace_x_region({ id: spacing.left_trace.id, ...new_left_region });
         push_spacing_x_region(curr_index_spacing, { x_left: x_anchor_left, x_right: x_anchor_right });
+        running_count_unmarked = 0;
+        running_count_marked++;
       } else if (left_region !== undefined && right_region === undefined) {
         const spacing_width = get_size(spacing.width);
-        const right_trace = trace_table[spacing.right_trace.id];
-        if (right_trace === undefined) throw Error(`Invalid trace id ${spacing.right_trace.id}`);
         const right_trace_width = get_size(right_trace.width);
         const x_anchor_left = get_anchor_in_x_region(left_region, spacing.left_trace.attach);
         const x_anchor_right = x_anchor_left+spacing_width;
         const new_right_region = get_x_region_from_anchor(spacing.right_trace.attach, right_trace_width, x_anchor_right);
         push_trace_x_region({ id: spacing.right_trace.id, ...new_right_region });
         push_spacing_x_region(curr_index_spacing, { x_left: x_anchor_left, x_right: x_anchor_right });
+        running_count_unmarked = 0;
+        running_count_marked++;
+      } else {
+        running_count_marked++;
       }
-      running_count_unmarked = 0;
-      running_count_marked++;
     }
     if (trace_x_regions.length != traces.length) {
       throw Error(`Failed to find x position of all traces. Found ${trace_x_regions.length} but needed ${traces.length}`);
