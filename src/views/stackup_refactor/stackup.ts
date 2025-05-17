@@ -28,6 +28,7 @@ export interface CopperTrace {
   layer_id: LayerId;
   viewer?: {
     display?: "none" | "solid" | "selectable",
+    is_labeled?: boolean,
     on_click?: () => void;
   };
 }

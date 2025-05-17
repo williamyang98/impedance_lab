@@ -65,6 +65,7 @@ export interface Trace {
   id: TraceId;
   shape: TrapezoidShape;
   is_selectable: boolean;
+  is_labeled: boolean;
   on_click?: () => void;
 }
 
@@ -361,16 +362,11 @@ export class Viewer {
       const trace = trace_layout.parent;
       const display_type = trace.viewer?.display || "solid";
       if (display_type === "none") continue;
-      // trace shape
-      this.traces.push({
-        id: trace.id,
-        shape: trace_layout.shape,
-        is_selectable: display_type == "selectable",
-        on_click: trace.viewer?.on_click,
-      });
       // trace labels
       const trace_width_name = get_name(trace.width);
-      if (trace_width_name) {
+      let is_labeled = false;
+      if (trace_width_name && trace.viewer?.is_labeled !== false) {
+        is_labeled = true;
         {
           const offset: Position = { x: shape.x_left, y: shape.y_base }
           const width = shape.x_right-shape.x_left;
@@ -387,6 +383,14 @@ export class Viewer {
           this.width_labels.push(label);
         }
       }
+      // trace shape
+      this.traces.push({
+        id: trace.id,
+        shape: trace_layout.shape,
+        is_selectable: display_type == "selectable",
+        is_labeled,
+        on_click: trace.viewer?.on_click,
+      });
     }
   }
 
@@ -397,7 +401,10 @@ export class Viewer {
       trace_orientations[trace.id] = trace.orientation;
     }
 
-    const displayed_trace_ids = new Set(this.traces.map(trace => trace.id));
+    const viewer_traces: Partial<Record<TraceId, Trace>> = {};
+    for (const trace of this.traces) {
+      viewer_traces[trace.id] = trace;
+    }
 
     for (const spacing_layout of this.layout.spacings) {
       const spacing = spacing_layout.parent;
@@ -406,8 +413,10 @@ export class Viewer {
       // avoid showing label if one of the traces is missing
       const left_trace_id = spacing.left_trace.id;
       const right_trace_id = spacing.right_trace.id;
-      if (!displayed_trace_ids.has(left_trace_id)) continue;
-      if (!displayed_trace_ids.has(right_trace_id)) continue;
+      const left_viewer_trace = viewer_traces[left_trace_id];
+      const right_viewer_trace = viewer_traces[right_trace_id];
+      if (!left_viewer_trace) continue;
+      if (!right_viewer_trace) continue;
 
       const text = get_name(spacing.width);
       if (!text) continue;
@@ -428,8 +437,12 @@ export class Viewer {
       } else {
         const left_overhang = y_mid-left.y;
         const right_overhang = y_mid-right.y;
-        const left_arm_shrink = spacing.left_trace.attach == "center" ? width_label_config.center_overhang_margin : 0;
-        const right_arm_shrink = spacing.right_trace.attach == "center" ? width_label_config.center_overhang_margin : 0;
+        const left_arm_shrink =
+          (spacing.left_trace.attach == "center" && left_viewer_trace.is_labeled) ?
+          width_label_config.center_overhang_margin : 0;
+        const right_arm_shrink =
+          (spacing.right_trace.attach == "center" && right_viewer_trace.is_labeled) ?
+          width_label_config.center_overhang_margin : 0;
         this.width_labels.push({
           offset: { x: left.x, y: y_mid },
           width: right.x-left.x,

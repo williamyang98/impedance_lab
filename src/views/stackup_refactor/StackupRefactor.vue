@@ -90,6 +90,7 @@ const stackup: Stackup = {
       width: params.W,
       viewer: {
         display: "selectable",
+        is_labeled: false,
         on_click: () => console.log("Clicked on trace 1"),
       },
     },
