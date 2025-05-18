@@ -208,7 +208,7 @@ export class Viewer {
           const layer = layer_layout.parent;
           if (layer_layout.mask) {
             const soldermask_height = layer_layout.mask.surface.height;
-            const soldermask_height_name = get_name(layer.soldermask_height);
+            const soldermask_height_name = get_name(layer.height);
             // label both trace height and soldermask height
             if (layer_layout.mask.traces.length > 0) {
               const trace = layer_layout.mask.traces[0];

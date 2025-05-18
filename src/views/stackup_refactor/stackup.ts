@@ -26,6 +26,7 @@ export interface CopperTrace {
   width: SizeParameter;
   orientation: Orientation;
   layer_id: LayerId;
+  voltage: number;
   viewer?: {
     display?: "none" | "solid" | "selectable",
     is_labeled?: boolean,
@@ -38,6 +39,7 @@ export interface CopperPlane {
   height: SizeParameter;
   orientation: Orientation;
   layer_id: LayerId;
+  voltage: number;
   layout?: {
     shrink_trace_layer?: boolean;
   };
@@ -46,6 +48,9 @@ export interface CopperPlane {
     is_labeled?: boolean,
     on_click?: () => void;
     z_offset?: number;
+  };
+  grid?: {
+    override_total_divisions?: number;
   };
 }
 
@@ -82,7 +87,7 @@ export interface SoldermaskLayer {
   id: LayerId;
   trace_height: SizeParameter;
   trace_taper: TaperSizeParameter;
-  soldermask_height: SizeParameter;
+  height: SizeParameter;
   epsilon: Parameter;
   orientation: Orientation;
 }

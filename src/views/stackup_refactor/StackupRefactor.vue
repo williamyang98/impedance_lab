@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { type Stackup } from "./stackup.ts";
+import { type Stackup, type SizeParameter } from "./stackup.ts";
 import StackupViewer from "./StackupViewer.vue";
 import { sizes } from "./viewer.ts";
+import { type StackupLayout, create_layout_from_stackup } from "./layout.ts";
+import { type StackupGrid, get_stackup_grid_from_stackup_layout } from "./grid.ts";
+import RegionGridViewer from "../editor_2d/RegionGridViewer.vue";
+import { ref } from "vue";
 
 const params = {
   // layer 1
@@ -32,6 +36,12 @@ const params = {
   CS: { name: "CS", placeholder_value: sizes.ground_width_separation },
 }
 
+const voltage = {
+  ground: 0,
+  positive: 1,
+  negative: -1,
+};
+
 const stackup: Stackup = {
   layers: [
     {
@@ -39,7 +49,7 @@ const stackup: Stackup = {
       id: 0,
       trace_height: params.T1,
       trace_taper: params.dW1,
-      soldermask_height: params.H1,
+      height: params.H1,
       epsilon: params.ER1,
       orientation: "down",
     },
@@ -78,6 +88,7 @@ const stackup: Stackup = {
       layer_id: 4,
       orientation: "up",
       width: params.W,
+      voltage: voltage.positive,
       viewer: {
         on_click: () => console.log("Clicked on trace 0"),
       },
@@ -88,6 +99,7 @@ const stackup: Stackup = {
       layer_id: 4,
       orientation: "down",
       width: params.W,
+      voltage: voltage.negative,
       viewer: {
         display: "selectable",
         is_labeled: false,
@@ -100,6 +112,7 @@ const stackup: Stackup = {
       layer_id: 4,
       orientation: "up",
       width: params.CW,
+      voltage: voltage.ground,
       viewer: {
         display: "none",
       },
@@ -110,6 +123,7 @@ const stackup: Stackup = {
       layer_id: 2,
       orientation: "up",
       width: params.CW,
+      voltage: voltage.ground,
     },
     {
       type: "trace",
@@ -117,12 +131,14 @@ const stackup: Stackup = {
       layer_id: 0,
       orientation: "down",
       width: params.W,
+      voltage: voltage.ground,
     },
     {
       type: "plane",
       layer_id: 4,
       orientation: "up",
-      height: { placeholder_value: sizes.copper_layer_height },
+      height: { value: 1, placeholder_value: sizes.copper_layer_height },
+      voltage: voltage.ground,
       layout: {
         shrink_trace_layer: false,
       },
@@ -185,12 +201,77 @@ const stackup: Stackup = {
   ],
 };
 
+const stackup_grid = ref<StackupGrid | undefined>(undefined);
+
+function update_grid() {
+  const get_size = (param: SizeParameter): number => {
+    const size = param.value;
+    if (size === undefined) {
+      param.error = "Field is required";
+      throw Error("Missing size field");
+    }
+    return size;
+  };
+  try {
+    const layout = create_layout_from_stackup(stackup, get_size);
+    const grid = get_stackup_grid_from_stackup_layout(layout);
+    stackup_grid.value = grid;
+  } catch (error) {
+    console.error(error);
+  }
+
+}
+
 </script>
 
 <template>
 <div class="w-[30rem]">
   <StackupViewer :stackup="stackup"/>
 </div>
+
+<button class="btn" @click="update_grid()">Update grid</button>
+
+<div>
+  <div class="flex flex-row">
+    <form>
+      <div class="grid grid-cols-[auto_auto] w-fit gap-x-2 gap-y-1">
+        <template v-for="(trace, index) in stackup.conductors.filter(conductor => conductor.type == 'trace')" :key="index">
+          <label class="label">{{  trace.width.name }}</label>
+          <input class="input input-sm" type="number" :min="trace.width.min" :max="trace.width.max" v-model.number="trace.width.value"/>
+        </template>
+        <template v-for="(spacing, index) in stackup.spacings" :key="index">
+          <label class="label">{{  spacing.width.name }}</label>
+          <input class="input input-sm" type="number" :min="spacing.width.min" :max="spacing.width.max" v-model.number="spacing.width.value"/>
+        </template>
+      </div>
+    </form>
+    <form>
+      <div class="grid grid-cols-[auto_auto] w-fit gap-x-2 gap-y-1">
+        <template v-for="(layer, index) in stackup.layers" :key="index">
+          <template v-if="layer.type == 'core' || layer.type == 'prepreg' || layer.type == 'soldermask'">
+            <label class="label">{{  layer.epsilon.name }}</label>
+            <input class="input input-sm" type="number" :min="layer.epsilon.min" :max="layer.epsilon.max" v-model.number="layer.epsilon.value"/>
+          </template>
+          <template v-if="layer.type == 'core' || layer.type == 'prepreg' || layer.type == 'soldermask'">
+            <label class="label">{{  layer.height.name }}</label>
+            <input class="input input-sm" type="number" :min="layer.height.min" :max="layer.height.max" v-model.number="layer.height.value"/>
+          </template>
+          <template v-if="layer.type == 'prepreg' || layer.type == 'soldermask' || layer.type == 'unmasked'">
+            <label class="label">{{  layer.trace_taper.name }}</label>
+            <input class="input input-sm" type="number" :min="layer.trace_taper.min" :max="layer.trace_taper.max" v-model.number="layer.trace_taper.value"/>
+            <label class="label">{{  layer.trace_height.name }}</label>
+            <input class="input input-sm" type="number" :min="layer.trace_height.min" :max="layer.trace_height.max" v-model.number="layer.trace_height.value"/>
+          </template>
+        </template>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div v-if="stackup_grid">
+  <RegionGridViewer :region_grid="stackup_grid.region_grid"></RegionGridViewer>
+</div>
+
 </template>
 
 <style scoped>

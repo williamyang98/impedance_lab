@@ -317,7 +317,7 @@ export function create_layout_from_stackup(
           if (plane) {
             y_offset += get_size(plane.height);
           } else {
-            const soldermask_height = get_size(layer.soldermask_height);
+            const soldermask_height = get_size(layer.height);
             has_surface_mask = true;
             if (is_conductor_here(layer.id, layer.orientation)) {
               const trace_height = get_size(layer.trace_height);
@@ -338,7 +338,7 @@ export function create_layout_from_stackup(
           // determine location of soldermask base
           let surface_mask: InfinitePlaneShape | undefined = undefined;
           if (has_surface_mask) {
-            const soldermask_height = get_size(layer.soldermask_height);
+            const soldermask_height = get_size(layer.height);
             if (layer.orientation == "up") {
               surface_mask = {
                 y_start,
@@ -599,7 +599,7 @@ export function create_layout_from_stackup(
     const layer = soldermask_layout.parent;
     const trace_layouts = layer_trace_layout_table[layer.id]?.[layer.orientation];
     if (trace_layouts === undefined) continue;
-    const soldermask_height = get_size(layer.soldermask_height);
+    const soldermask_height = get_size(layer.height);
     const y_shift = layer.orientation == "up" ? soldermask_height : -soldermask_height;
     for (const trace_layout of trace_layouts) {
       const shape = trace_layout.shape;
