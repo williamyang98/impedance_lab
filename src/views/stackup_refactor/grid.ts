@@ -1,5 +1,6 @@
 import { type Parameter } from "./stackup.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
+import { Ndarray } from "../../utility/ndarray.ts";
 
 import {
   GridLines, RegionGrid,
@@ -230,6 +231,33 @@ export function get_stackup_grid_from_stackup_layout(layout: StackupLayout): Sta
     }
   }
 
+  // pad simulation grid to include far field
+  const x_min = x_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
+  const x_max = x_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+  const y_min = y_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
+  const y_max = y_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+  const stackup_width = x_max-x_min;
+  const stackup_height = y_max-y_min;
+  const padding_size = Math.max(stackup_width, stackup_height);
+  x_grid_lines.push(x_min-padding_size);
+  x_grid_lines.push(x_max+padding_size);
+  // only pad y-axis if copper planes don't exist at the ends
+  const y_plane_min = conductor_regions
+    .filter(conductor => conductor.type == "plane")
+    .map(plane => y_grid_lines.get_line(plane.region.iy_start))
+    .reduce((a,b) => Math.min(a,b), Infinity);
+  const y_plane_max = conductor_regions
+    .filter(conductor => conductor.type == "plane")
+    .map(plane => y_grid_lines.get_line(plane.region.iy_end))
+    .reduce((a,b) => Math.max(a,b), -Infinity);
+  if (y_plane_min > y_min) {
+    y_grid_lines.push(y_min-padding_size);
+  }
+  if (y_plane_max < y_max) {
+    y_grid_lines.push(y_max+padding_size);
+  }
+
+  // create regions
   const x_region_sizes = x_grid_lines.to_regions();
   const y_region_sizes = y_grid_lines.to_regions();
   const x_max_ratio = 0.7;
@@ -427,6 +455,22 @@ export function get_stackup_grid_from_stackup_layout(layout: StackupLayout): Sta
       }
     }
   }
+
+  // setup voltage lookup table
+  const grid = region_grid.grid;
+  if (voltages.length > 0) {
+    const voltage_min = voltages.reduce((a,b) => Math.min(a,b), Infinity);
+    const voltage_max = voltages.reduce((a,b) => Math.max(a,b), -Infinity);
+    const voltage_delta = voltage_max-voltage_min;
+    grid.v_input = voltage_delta;
+    grid.v_table = Ndarray.create_zeros([voltages.length], "f32");
+    for (let i = 0; i < voltages.length; i++) {
+      grid.v_table.set([i], voltages[i]);
+    }
+  } else {
+    grid.v_input = 0;
+  }
+  grid.bake();
 
   return {
     layout,

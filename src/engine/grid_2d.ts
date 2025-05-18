@@ -265,7 +265,7 @@ export class GridLines {
     }
 
     const id = this.lines.length;
-    if (id > 0 && this.lines[id-1] > line) {
+    if (id > 0 && this.is_sorted && this.lines[id-1] > line) {
       this.is_sorted = false;
     }
     this.lines.push(line);
