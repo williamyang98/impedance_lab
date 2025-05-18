@@ -146,33 +146,36 @@ export class GridRegionUtility {
   }
 }
 
+export interface RegionSpecification {
+  size: number;
+  total_grid_lines?: number;
+}
+
 export function calculate_grid_regions(
-  regions: (number | null)[],
+  regions: RegionSpecification[],
   min_region_subdivisions?: number, max_ratio?: number,
 ): GridRegion[] {
   min_region_subdivisions = min_region_subdivisions ?? 3;
   max_ratio = max_ratio ?? 0.5;
 
-  // a = min grid size used as the initial value for geometric growing/shrinking grid spacing
-  const a_estimate = regions.map((region) => {
-    if (region === null) return null;
-    return region / min_region_subdivisions;
-  });
   const grids: GridRegion[] = [];
   const N = regions.length;
   for (let i = 0; i < N; i++) {
-    const a_mid = a_estimate[i];
-    const a_left = (i > 0) ? a_estimate[i-1] : null;
-    const a_right = (i < (N-1)) ? a_estimate[i+1] : null;
+    const region = regions[i];
+    const a_mid = region.size/min_region_subdivisions;
+    const a_left = (i > 0) ? regions[i-1].size : null;
+    const a_right = (i < (N-1)) ? regions[i+1].size : null;
 
     const a0 = (a_left !== null && a_mid !== null) ? Math.min(a_left, a_mid) : null;
     const a1 = (a_right !== null && a_mid !== null) ? Math.min(a_right, a_mid) : null;
 
-    // if the region size is not provided default to a numerical stable default
-    const A = regions[i] || 1.0;
+    const A = region.size;
+    const total_grid_lines = region.total_grid_lines;
 
-    if (a0 === null && a1 === null) {
-      grids.push({ type: "linear", a: 1, n: 2 });
+    if ((a0 === null && a1 === null) || (total_grid_lines !== undefined)) {
+      const n = total_grid_lines || min_region_subdivisions;
+      const a = A/n;
+      grids.push({ type: "linear", a, n });
     } else if (a0 === null && a1 !== null) {
       const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a1));
       const n = Math.max(min_region_subdivisions, n_estimate);

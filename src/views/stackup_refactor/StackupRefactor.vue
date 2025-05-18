@@ -2,38 +2,38 @@
 import { type Stackup, type SizeParameter } from "./stackup.ts";
 import StackupViewer from "./StackupViewer.vue";
 import { sizes } from "./viewer.ts";
-import { type StackupLayout, create_layout_from_stackup } from "./layout.ts";
+import { create_layout_from_stackup } from "./layout.ts";
 import { type StackupGrid, get_stackup_grid_from_stackup_layout } from "./grid.ts";
 import RegionGridViewer from "../editor_2d/RegionGridViewer.vue";
 import { ref } from "vue";
 
 const params = {
   // layer 1
-  T1: { name: "T1", placeholder_value: sizes.trace_height },
-  dW1: { name: "dW1", placeholder_value: sizes.trace_taper, taper_suffix: '1' },
-  H1: { name: "H1", placeholder_value: sizes.soldermask_height },
-  ER1: { name: "ER1" },
+  T1: { name: "T1", min: 0, value: 0.035, placeholder_value: sizes.trace_height },
+  dW1: { name: "dW1", min: 0, value: 0.05, placeholder_value: sizes.trace_taper, taper_suffix: '1' },
+  H1: { name: "H1", min: 0, value: 0.05, placeholder_value: sizes.soldermask_height },
+  ER1: { name: "ER1", min: 1, value: 4.1 },
   // layer 2
-  H2: { name: "H2", placeholder_value: sizes.core_height },
-  ER2: { name: "ER2" },
+  H2: { name: "H2", min: 0, value: 0.25, placeholder_value: sizes.core_height },
+  ER2: { name: "ER2", min: 1, value: 4.1 },
   // layer 3
-  T3: { name: "T3", placeholder_value: sizes.trace_height },
-  H3: { name: "H3", placeholder_value: sizes.core_height },
-  dW3: { name: "dW3", placeholder_value: sizes.trace_taper, taper_suffix: '3' },
-  ER3: { name: "ER3" },
+  T3: { name: "T3", min: 0, value: 0.035, placeholder_value: sizes.trace_height },
+  H3: { name: "H3", min: 0, value: 0.25, placeholder_value: sizes.core_height },
+  dW3: { name: "dW3", min: 0, value: 0.05, placeholder_value: sizes.trace_taper, taper_suffix: '3' },
+  ER3: { name: "ER3", min: 1, value: 4.1 },
   // layer 4
-  H4: { name: "H4", placeholder_value: sizes.core_height },
-  ER4: { name: "ER4" },
+  H4: { name: "H4", min: 0, value: 0.25, placeholder_value: sizes.core_height },
+  ER4: { name: "ER4", min: 1, value: 4.1 },
   // layer 5
-  T5: { name: "T5", placeholder_value: sizes.trace_height },
-  H5: { name: "H5", placeholder_value: sizes.core_height },
-  dW5: { name: "dW5", placeholder_value: sizes.trace_taper, taper_suffix: '5' },
+  T5: { name: "T5", min: 0, value: 0.035, placeholder_value: sizes.trace_height },
+  H5: { name: "H5", min: 0, value: 0.25, placeholder_value: sizes.core_height },
+  dW5: { name: "dW5", min: 0, value: 0.05, placeholder_value: sizes.trace_taper, taper_suffix: '5' },
   // spacing
-  W: { name: "W", placeholder_value: sizes.signal_trace_width },
-  CW: { name: "CW", placeholder_value: sizes.ground_trace_width },
-  S: { name: "S", placeholder_value: sizes.signal_width_separation },
-  B: { name: "S", placeholder_value: sizes.broadside_width_separation },
-  CS: { name: "CS", placeholder_value: sizes.ground_width_separation },
+  W: { name: "W", min: 0, value: 0.15, placeholder_value: sizes.signal_trace_width },
+  CW: { name: "CW", min: 0, value: 0.25, placeholder_value: sizes.ground_trace_width },
+  S: { name: "S", min: 0, value: 0.20, placeholder_value: sizes.signal_width_separation },
+  B: { name: "S", min: 0, value: 0.25, placeholder_value: sizes.broadside_width_separation },
+  CS: { name: "CS", min: 0, value: 0.30, placeholder_value: sizes.ground_width_separation },
 }
 
 const voltage = {
@@ -137,10 +137,10 @@ const stackup: Stackup = {
       type: "plane",
       layer_id: 4,
       orientation: "up",
-      height: { value: 1, placeholder_value: sizes.copper_layer_height },
+      height: { value: 0.01, placeholder_value: sizes.copper_layer_height },
       voltage: voltage.ground,
       layout: {
-        shrink_trace_layer: false,
+        shrink_trace_layer: true,
       },
       viewer: {
         display: "selectable",

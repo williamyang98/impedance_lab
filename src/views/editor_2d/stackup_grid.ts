@@ -2,7 +2,7 @@ import {
   GridLines, RegionGrid,
 } from "../../engine/grid_2d.ts";
 
-import { calculate_grid_regions } from "../../engine/mesher.ts";
+import { calculate_grid_regions, type RegionSpecification } from "../../engine/mesher.ts";
 import {
   type TraceAlignment, type Stackup, type Id, StackupRules,
   type Layer,
@@ -487,23 +487,26 @@ export function create_stackup_grid_from_stackup_parameters(params: StackupParam
   }
 
   // create regions
-  const x_regions: (number | null)[] = x_grid_lines.to_regions();
-  const y_regions: (number | null)[] = y_grid_lines.to_regions();
+  const x_region_sizes = x_grid_lines.to_regions();
+  const y_region_sizes = y_grid_lines.to_regions();
   // copper regions have an indeterminate that we don't care about
+  const x_region_specs: RegionSpecification[] = x_region_sizes.map(size => { return { size }; });
+  const y_region_specs: RegionSpecification[] = y_region_sizes.map(size => { return { size }; });
   for (const layer of layer_regions) {
     if (layer.type != "copper") continue;
     const ry_start = y_grid_lines.get_index(layer.iy_start);
     const ry_end = y_grid_lines.get_index(layer.iy_end);
-    const size = ry_end-ry_start;
-    y_regions.splice(ry_start, size, ...new Array(size).fill(null));
+    for (let i = ry_start; i < ry_end; i++) {
+      y_region_specs[i].total_grid_lines = 2;
+    }
   }
 
   const x_max_ratio = 0.7;
   const y_max_ratio = 0.7;
   const x_min_subdivisions = 5;
   const y_min_subdivisions = 5;
-  const x_region_grids = calculate_grid_regions(x_regions, x_min_subdivisions, x_max_ratio);
-  const y_region_grids = calculate_grid_regions(y_regions, y_min_subdivisions, y_max_ratio);
+  const x_region_grids = calculate_grid_regions(x_region_specs, x_min_subdivisions, x_max_ratio);
+  const y_region_grids = calculate_grid_regions(y_region_specs, y_min_subdivisions, y_max_ratio);
 
   const region_grid = new RegionGrid(x_region_grids, y_region_grids);
   const er0 = 1.0;
