@@ -158,13 +158,15 @@ export function calculate_grid_regions(
   min_region_subdivisions = min_region_subdivisions ?? 3;
   max_ratio = max_ratio ?? 0.5;
 
+  const a_min = regions.map(region => region.size/min_region_subdivisions);
+
   const grids: GridRegion[] = [];
   const N = regions.length;
   for (let i = 0; i < N; i++) {
     const region = regions[i];
-    const a_mid = region.size/min_region_subdivisions;
-    const a_left = (i > 0) ? regions[i-1].size : null;
-    const a_right = (i < (N-1)) ? regions[i+1].size : null;
+    const a_mid = a_min[i];
+    const a_left = (i > 0) ? a_min[i-1] : null;
+    const a_right = (i < (N-1)) ? a_min[i+1] : null;
 
     const a0 = (a_left !== null && a_mid !== null) ? Math.min(a_left, a_mid) : null;
     const a1 = (a_right !== null && a_mid !== null) ? Math.min(a_right, a_mid) : null;
