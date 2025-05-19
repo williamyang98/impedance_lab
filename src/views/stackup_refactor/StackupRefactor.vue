@@ -4,11 +4,14 @@ import StackupViewer from "./StackupViewer.vue";
 import { sizes } from "./viewer.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { type StackupGrid, get_stackup_grid_from_stackup_layout } from "./grid.ts";
-import RegionGridViewer from "../editor_2d/RegionGridViewer.vue";
 import { ref, useId, useTemplateRef } from "vue";
 import ParameterForm from "./ParameterForm.vue";
 import { Viewer2D } from "../../components/viewer_2d";
 import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
+import ImpedanceResultTable from "./ImpedanceResultTable.vue";
+import RunResultTable from "./RunResultTable.vue";
+import GridRegionTable from "./GridRegionTable.vue";
+import MeshViewer from "./MeshViewer.vue";
 
 const common = {
   T: { name: "T", min: 0, value: 0.035, placeholder_value: sizes.trace_height },
@@ -239,6 +242,7 @@ const stackup: Stackup = {
 
 const viewer_2d = useTemplateRef<typeof Viewer2D>("viewer_2d");
 const id_tab_result = useId();
+const id_tab_region_grid = useId();
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const is_running = ref<boolean>(false);
 const run_result = ref<RunResult | undefined>(undefined);
@@ -301,107 +305,88 @@ async function run(reset?: boolean) {
   is_running.value = false;
   await refresh_viewer();
 }
-
 </script>
 
 <template>
-<div class="w-[30rem]">
-  <StackupViewer :stackup="stackup"/>
-</div>
-
-<div>
-  <ParameterForm :stackup="stackup"></ParameterForm>
-  <button class="btn" @click="update_region_grid()">Update grid</button>
-</div>
-
-<div v-if="stackup_grid">
-  <RegionGridViewer :region_grid="stackup_grid.region_grid"></RegionGridViewer>
-</div>
-
-<div class="card card-border bg-base-100">
-  <div class="card-body">
-    <h2 class="card-title">Results Search</h2>
-    <div>
-      <div class="tabs tabs-lift">
-        <template v-if="impedance_result">
-          <input type="radio" :name="id_tab_result" class="tab" aria-label="Impedance" checked/>
+<div class="grid grid-cols-4 gap-x-2">
+  <div class="w-full card card-border bg-base-100">
+    <div class="card-body">
+      <h2 class="card-title">Stackup</h2>
+      <StackupViewer :stackup="stackup"/>
+    </div>
+  </div>
+  <div class="w-full card card-border bg-base-100">
+    <div class="card-body">
+      <h2 class="card-title">Parameters</h2>
+      <ParameterForm :stackup="stackup"></ParameterForm>
+      <div class="card-footer flex flex-row justify-end">
+        <button class="btn" @click="update_region_grid()">Update grid</button>
+      </div>
+    </div>
+  </div>
+  <div v-if="stackup_grid" class="w-full card card-border bg-base-100">
+    <div class="card-body">
+      <h2 class="card-title">Region grid</h2>
+      <div>
+        <div class="tabs tabs-lift">
+          <input type="radio" :name="id_tab_region_grid" class="tab" aria-label="Mesh" checked/>
           <div class="tab-content bg-base-100 border-base-300">
-            <table class="table">
-              <tbody>
-                <tr>
-                  <td class="font-medium">Z0</td>
-                  <td>{{ `${impedance_result.Z0.toFixed(2)} Ω` }}</td>
-                </tr>
-                <tr>
-                  <td class="font-medium">Cih</td>
-                  <td>{{ `${(impedance_result.Cih*1e12/100).toFixed(2)} pF/cm` }}</td>
-                </tr>
-                <tr>
-                  <td class="font-medium">Lh</td>
-                  <td>{{ `${(impedance_result.Lh*1e9/100).toFixed(2)} nH/cm` }}</td>
-                </tr>
-                <tr>
-                  <td class="font-medium">Propagation speed</td>
-                  <td>{{ `${(impedance_result.propagation_speed/3e8*100).toFixed(2)}%` }}</td>
-                </tr>
-                <tr>
-                  <td class="font-medium">Propagation delay</td>
-                  <td>{{ `${(impedance_result.propagation_delay*1e12/100).toFixed(2)} ps/cm` }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <MeshViewer :region_grid="stackup_grid.region_grid"></MeshViewer>
           </div>
-        </template>
-        <template v-if="run_result">
-          <input type="radio" :name="id_tab_result" class="tab" aria-label="Simulation"/>
+          <input type="radio" :name="id_tab_region_grid" class="tab" aria-label="X"/>
           <div class="tab-content bg-base-100 border-base-300">
-            <table class="table">
-              <tbody>
-                <tr>
-                  <td class="font-medium">Total steps</td>
-                  <td>{{ run_result.total_steps }}</td>
-                </tr>
-                <tr>
-                  <td class="font-medium">Time taken</td>
-                  <td>{{ `${(run_result.time_taken*1e3).toFixed(2)} ms` }}</td>
-                </tr>
-                <tr>
-                  <td class="font-medium">Step rate</td>
-                  <td>{{ `${run_result.step_rate.toFixed(2)} steps/s` }}</td>
-                </tr>
-                <tr>
-                  <td class="font-medium">Cell rate</td>
-                  <td>{{ `${(run_result.cell_rate*1e-6).toFixed(2)} Mcells/s` }}</td>
-                </tr>
-                <tr>
-                  <td class="font-medium">Total cells</td>
-                  <td>{{ run_result.total_cells }}</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="w-full max-h-[25rem] overflow-scroll">
+              <GridRegionTable :grid_regions="stackup_grid.region_grid.x_grid_regions"></GridRegionTable>
+            </div>
           </div>
-        </template>
-        <input type="radio" :name="id_tab_result" class="tab" aria-label="Viewer"/>
-        <div class="tab-content bg-base-100 border-base-300">
-          <Viewer2D ref="viewer_2d"></Viewer2D>
+          <input type="radio" :name="id_tab_region_grid" class="tab" aria-label="Y"/>
+          <div class="tab-content bg-base-100 border-base-300">
+            <div class="w-full max-h-[25rem] overflow-scroll">
+              <GridRegionTable :grid_regions="stackup_grid.region_grid.y_grid_regions"></GridRegionTable>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    <div class="card-actions justify-end">
-      <div class="mt-1">
-        <form class="grid grid-cols-[8rem_auto] gap-y-1 gap-x-1">
-          <label for="threshold">Settling threshold</label>
-          <input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
-        </form>
-        <div class="flex justify-end gap-x-2 mt-3">
-          <button class="btn" @click="reset()" variant="outline">Reset</button>
-          <button class="btn" @click="run()">Run</button>
+  </div>
+  <div class="card card-border bg-base-100">
+    <div class="card-body">
+      <h2 class="card-title">Results</h2>
+      <div>
+        <div class="tabs tabs-lift">
+          <template v-if="impedance_result">
+            <input type="radio" :name="id_tab_result" class="tab" aria-label="Impedance" checked/>
+            <div class="tab-content bg-base-100 border-base-300">
+              <ImpedanceResultTable :result="impedance_result"></ImpedanceResultTable>
+            </div>
+          </template>
+          <template v-if="run_result">
+            <input type="radio" :name="id_tab_result" class="tab" aria-label="Simulation"/>
+            <div class="tab-content bg-base-100 border-base-300">
+              <RunResultTable :result="run_result"></RunResultTable>
+            </div>
+          </template>
+          <input type="radio" :name="id_tab_result" class="tab" aria-label="Viewer"/>
+          <div class="tab-content bg-base-100 border-base-300">
+            <Viewer2D ref="viewer_2d"></Viewer2D>
+          </div>
+        </div>
+      </div>
+      <div class="card-actions justify-end">
+        <div class="mt-1">
+          <form class="grid grid-cols-[8rem_auto] gap-y-1 gap-x-1">
+            <label for="threshold">Settling threshold</label>
+            <input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
+          </form>
+          <div class="flex justify-end gap-x-2 mt-3">
+            <button class="btn" @click="reset()" variant="outline">Reset</button>
+            <button class="btn" @click="run()">Run</button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
-
 </template>
 
 <style scoped>
