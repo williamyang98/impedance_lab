@@ -540,12 +540,14 @@ export class Viewer {
       const x_right = x_left + label.width;
       const y_top = label.offset.y + Math.max(label.left_arm_overhang.top, label.right_arm_overhang.top);
       const y_bottom = label.offset.y + Math.max(label.left_arm_overhang.bottom, label.right_arm_overhang.bottom);
-      const y_text = label.offset.y + label.y_offset_text + font_size*0.5;
+      const y_text = label.offset.y + label.y_offset_text;
+      const y_text_min = y_text - font_size*0.5;
+      const y_text_max = y_text + font_size*0.5;
 
       x_min = Math.min(x_min, x_left, x_right);
       x_max = Math.max(x_max, x_left, x_right);
-      y_min = Math.min(y_min, y_top, y_bottom, y_text);
-      y_max = Math.max(y_max, y_top, y_bottom, y_text);
+      y_min = Math.min(y_min, y_top, y_bottom, y_text_min);
+      y_max = Math.max(y_max, y_top, y_bottom, y_text_max);
     }
 
     this.fit_viewport_to_bounds(x_min, x_max, y_min, y_max);
