@@ -627,12 +627,14 @@ class ShaderQuiverGrid {
   ) {
     const [grid_size_y, grid_size_x] = grid_size;
     const [canvas_height, canvas_width] = canvas_size;
-    const subsampling_ratio = 1.5;
+    const min_pixels_per_cell = 15;
+    const subsampling_ratio = Math.max(1.0, grid_size_y*min_pixels_per_cell/canvas_height, grid_size_x*min_pixels_per_cell/canvas_width);
     const aspect_ratio = canvas_width/canvas_height;
     const aspect_x = (aspect_ratio > 1.0) ? 1.0 : 1.0/aspect_ratio;
     const aspect_y = (aspect_ratio > 1.0) ? 1.0/aspect_ratio : 1.0;
-    const quiver_count_x = Math.max(Math.ceil(grid_size_x/subsampling_ratio*aspect_x), 2);
-    const quiver_count_y = Math.max(Math.ceil(grid_size_y/subsampling_ratio*aspect_y), 2);
+    const grid_size_max = Math.max(grid_size_x, grid_size_y);
+    const quiver_count_x = Math.max(Math.ceil(grid_size_max/subsampling_ratio*aspect_x), 2);
+    const quiver_count_y = Math.max(Math.ceil(grid_size_max/subsampling_ratio*aspect_y), 2);
     const quiver_count = quiver_count_x*quiver_count_y;
     this.params.set("scale", scale);
     this.params.set("quiver_count_x", quiver_count_x);
