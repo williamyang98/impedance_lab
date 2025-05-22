@@ -6,16 +6,14 @@ const props = defineProps<{
   stackup: Stackup,
 }>();
 
-interface Form {
-  layer_params: Set<Parameter>;
-  trace_params: Set<Parameter>;
-}
+type Form = ({ name: string, params: Set<Parameter> })[];
 
 const form = computed<Form>(() => {
   const stackup = props.stackup;
 
   const layer_params = new Set<Parameter>();
   const trace_params = new Set<Parameter>();
+  const separation_params = new Set<Parameter>();
 
   for (const layer of stackup.layers) {
     const T = layer.type;
@@ -30,7 +28,7 @@ const form = computed<Form>(() => {
   }
 
   for (const spacing of stackup.spacings) {
-    trace_params.add(spacing.width);
+    separation_params.add(spacing.width);
   }
 
   for (const layer of stackup.layers) {
@@ -41,33 +39,34 @@ const form = computed<Form>(() => {
     }
   }
 
-  return {
-    layer_params: layer_params,
-    trace_params: trace_params,
-  };
+  return [
+    { name: "Layers", params: layer_params, },
+    { name: "Traces", params: trace_params, },
+    { name: "Separations", params: separation_params, },
+  ];
 });
+
+const valid_form = computed(() => {
+  return form.value.filter(column => column.params.size > 0);
+})
 
 </script>
 
 <template>
-<div class="flex flex-row gap-x-4">
-  <form>
-    <h2 class="text-xl mb-2">Layers</h2>
+<div class="grid gap-x-2" :class="`grid-cols-${valid_form.length}`">
+  <div v-for="({name, params}, col_index) in valid_form" :key="col_index">
+    <h2 class="font-medium mb-2">{{ name }}</h2>
     <div class="grid grid-cols-[auto_auto] w-fit gap-x-2 gap-y-1">
-      <template v-for="(param, index) in form.layer_params" :key="index">
+      <template v-for="(param, index) in params" :key="index">
         <label class="label">{{  param.name }}</label>
-        <input class="input input-sm" type="number" :min="param.min" :max="param.max" v-model.number="param.value"/>
+        <input
+          class="input input-sm"
+          type="number"
+          :min="param.min" :max="param.max" v-model.number="param.value"
+          :placeholder="param.description"
+        />
       </template>
     </div>
-  </form>
-  <form>
-    <h2 class="text-xl mb-2">Traces</h2>
-    <div class="grid grid-cols-[auto_auto] w-fit gap-x-2 gap-y-1">
-      <template v-for="(param, index) in form.trace_params" :key="index">
-        <label class="label">{{  param.name }}</label>
-        <input class="input input-sm" type="number" :min="param.min" :max="param.max" v-model.number="param.value"/>
-      </template>
-    </div>
-  </form>
+  </div>
 </div>
 </template>
