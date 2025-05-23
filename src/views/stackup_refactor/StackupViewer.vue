@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { defineProps, computed } from "vue";
 import { type Stackup, type SizeParameter } from "./stackup.ts";
-import { create_layout_from_stackup, type TrapezoidShape } from "./layout.ts";
+import { create_layout_from_stackup, type TrapezoidShape, type SoldermaskLayerLayout, type Position } from "./layout.ts";
 import { Viewer, font_size } from "./viewer.ts";
 
 const props = defineProps<{
@@ -17,14 +17,18 @@ const viewer = computed(() => {
   return viewer;
 });
 
-function trapezoid_shape_to_points(shape: TrapezoidShape): string {
-  const points = [
-    [shape.x_left, shape.y_base],
-    [shape.x_left_taper, shape.y_taper],
-    [shape.x_right_taper, shape.y_taper],
-    [shape.x_right, shape.y_base],
-  ]
-  return points.map(([x,y]) => `${x},${y}`).join(' ');
+function points_to_string(points: Position[]): string {
+  return points.map(({x,y}) => `${x},${y}`).join(' ');
+}
+
+function trapezoid_shape_to_points(shape: TrapezoidShape): Position[] {
+  const points: Position[] = [
+    { x: shape.x_left, y: shape.y_base },
+    { x: shape.x_left_taper, y: shape.y_taper },
+    { x: shape.x_right_taper, y: shape.y_taper },
+    { x: shape.x_right, y: shape.y_base },
+  ];
+  return points;
 }
 
 const colours = {
@@ -47,6 +51,39 @@ const stroke = {
 
 const viewport_padding = 0.5;
 
+const soldermask_layer_layout_to_points = (layout: SoldermaskLayerLayout): Position[] => {
+  const mask = layout.mask;
+  const points: Position[] = [];
+  if (mask === undefined) {
+    return points;
+  }
+  const orientation = layout.parent.orientation;
+
+  const y0 = mask.surface.y_start;
+  const y1 = y0 + mask.surface.height;
+  const y_start = (orientation == "up") ? y1 : y0;
+  const y_end = (orientation == "up") ? y0 : y1;
+
+  // base layer
+  const x_start = viewer.value.stackup.x_min;
+  const x_end = x_start + viewer.value.stackup.width;
+  points.push({ x: x_start, y: y_end  });
+  points.push({ x: x_start, y: y_start });
+  // trace polygons
+  const traces = [...mask.traces];
+  traces.sort((a,b) => a.x_left-b.x_left)
+  for (const trace of traces) {
+    const trace_points = trapezoid_shape_to_points(trace);
+    for (const point of trace_points) {
+      points.push(point);
+    }
+  }
+  // base layer
+  points.push({ x: x_end, y: y_start });
+  points.push({ x: x_end, y: y_end  });
+  return points;
+}
+
 </script>
 
 <template>
@@ -63,17 +100,10 @@ const viewport_padding = 0.5;
   <template v-for="(layer, index) in viewer.layout.layers" :key="index">
     <template v-if="layer.type == 'soldermask'">
       <template v-if="layer.mask">
-        <template v-for="(trace_mask, trace_index) in layer.mask.traces" :key="trace_index">
-          <polygon
-            :points="trapezoid_shape_to_points(trace_mask)"
-            :fill="colours.dielectric_soldermask" :stroke="stroke.outline_colour" :stroke-width="stroke.outline_width"
-          />
-        </template>
-        <rect
-          :x="viewer.stackup.x_min" :y="layer.mask.surface.y_start"
-          :width="viewer.stackup.width" :height="layer.mask.surface.height"
+        <polygon
+          :points="points_to_string(soldermask_layer_layout_to_points(layer))"
           :fill="colours.dielectric_soldermask" :stroke="stroke.outline_colour" :stroke-width="stroke.outline_width"
-        ></rect>
+        />
       </template>
     </template>
     <template v-if="layer.type == 'core'">
@@ -99,7 +129,7 @@ const viewport_padding = 0.5;
           ${conductor.is_selectable ? 'trace-selectable' : ''}
           ${conductor.on_click ? 'trace-clickable' : '' }
         `"
-        :points="trapezoid_shape_to_points(conductor.shape)"
+        :points="points_to_string(trapezoid_shape_to_points(conductor.shape))"
         :fill="colours.copper" :stroke="stroke.outline_colour" :stroke-width="stroke.outline_width"
         @click="() => conductor.on_click?.()"
       />
