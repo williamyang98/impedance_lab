@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { type SizeParameter } from "./stackup.ts";
-import StackupViewer from "./StackupViewer.vue";
+import EditorControls from "./EditorControls.vue";
 import { create_layout_from_stackup } from "./layout.ts";
 import { type StackupGrid, get_stackup_grid_from_stackup_layout } from "./grid.ts";
 import { computed, ref, useId, useTemplateRef } from "vue";
@@ -11,10 +11,15 @@ import ImpedanceResultTable from "./ImpedanceResultTable.vue";
 import RunResultTable from "./RunResultTable.vue";
 import GridRegionTable from "./GridRegionTable.vue";
 import MeshViewer from "./MeshViewer.vue";
-import { stackup } from "./stackup_templates.ts";
+import {
+  // CoplanarDifferentialPairEditor,
+  // DifferentialPairEditor,
+  CoplanarSingleEndedEditor,
+  // SingleEndedEditor, // this is shagged because of layout starting with spacings not traces
+} from "./stackup_templates.ts";
 
-const viewer_stackup = computed(() => stackup);
-const grid_stackup = computed(() => stackup);
+const editor = ref(new CoplanarSingleEndedEditor());
+const grid_stackup = computed(() => editor.value.get_simulation_stackup());
 
 const viewer_2d = useTemplateRef<typeof Viewer2D>("viewer_2d");
 const uid = {
@@ -34,8 +39,25 @@ async function update_region_grid() {
     const size = param.value;
     if (size === undefined) {
       param.error = "Field is required";
-      throw Error("Missing size field");
+      throw Error(`Missing field value for ${param.name}`);
     }
+    if (typeof(size) !== 'number') {
+      param.error = "Field is requried";
+      throw Error(`Non number field value for ${param.name}`);
+    }
+    if (Number.isNaN(size)) {
+      param.error = "Field is requried";
+      throw Error(`NaN field value for ${param.name}`);
+    }
+    if (param.min !== undefined && size < param.min) {
+      param.error = `Value must be greater than ${param.min}`;
+      throw Error(`Violated minimum value for ${param.name}`);
+    }
+    if (param.max !== undefined && size > param.max) {
+      param.error = `Value must be less than ${param.max}`;
+      throw Error(`Violated maximum value for ${param.name}`);
+    }
+    param.error = undefined;
     return size;
   };
   try {
@@ -92,17 +114,16 @@ async function run(reset?: boolean) {
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Impedance" checked/>
   <div class="tab-content bg-base-100 border-base-300 p-1">
     <div class="grid grid-cols-7 gap-x-2">
-      <div class="w-full card card-border bg-base-100 col-span-5">
+      <div class="w-full card card-border bg-base-100 col-span-3">
+        <div class="card-body">
+          <h2 class="card-title">Stackup</h2>
+          <EditorControls :editor="editor"></EditorControls>
+        </div>
+      </div>
+      <div class="w-full card card-border bg-base-100 col-span-2">
         <div class="card-body">
           <h2 class="card-title">Parameters</h2>
-          <div class="w-full flex flex-row flex-wrap gap-x-2 justify-center">
-            <div class="w-full max-w-[35rem] min-w-[rem]">
-              <StackupViewer :stackup="viewer_stackup"/>
-            </div>
-            <div class="w-fit flex justify-center">
-              <ParameterForm :stackup="grid_stackup"></ParameterForm>
-            </div>
-          </div>
+          <ParameterForm :stackup="grid_stackup"></ParameterForm>
         </div>
       </div>
       <div class="w-full card card-border bg-base-100 col-span-2">
@@ -199,12 +220,4 @@ async function run(reset?: boolean) {
 </template>
 
 <style scoped>
-svg {
-  width: 100%;
-  display: block;
-}
-
-.signal-selectable:hover {
-  opacity: 1.0;
-}
 </style>
