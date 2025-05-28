@@ -162,14 +162,10 @@ export function create_layout_from_stackup(
     spacing_x_region_table[index] = region;
   };
 
+  // NOTE: If a spacing has left and right traces with unspecified locations, we set the left trace to x=0
   {
     const spacings = stackup.spacings;
-    // seed position of at least one trace
-    if (traces.length > 0) {
-      const trace = traces[0];
-      const trace_width = get_size(trace.width);
-      push_trace_x_region({ id: trace.id, x_left: 0, x_right: trace_width });
-    }
+    // TODO: perform layout without spacings (single ended trace)
     // continuously sweep spacings until they are all created
     let index_spacing = 0;
     let running_count_unmarked = 0;
@@ -200,11 +196,20 @@ export function create_layout_from_stackup(
       }
 
       if (left_region === undefined && right_region === undefined) {
-        running_count_unmarked++;
-        running_count_marked = 0;
-        continue;
-      }
-      if (left_region === undefined && right_region !== undefined) {
+        const trace_width = get_size(left_trace.width);
+        const seed_left_region = { id: left_trace.id, x_left: 0, x_right: trace_width };
+        push_trace_x_region(seed_left_region);
+
+        const spacing_width = get_size(spacing.width);
+        const right_trace_width = get_size(right_trace.width);
+        const x_anchor_left = get_anchor_in_x_region(seed_left_region, spacing.left_trace.attach);
+        const x_anchor_right = x_anchor_left+spacing_width;
+        const new_right_region = get_x_region_from_anchor(spacing.right_trace.attach, right_trace_width, x_anchor_right);
+        push_trace_x_region({ id: spacing.right_trace.id, ...new_right_region });
+        push_spacing_x_region(curr_index_spacing, { x_left: x_anchor_left, x_right: x_anchor_right });
+        running_count_unmarked = 0;
+        running_count_marked++;
+      } else if (left_region === undefined && right_region !== undefined) {
         const spacing_width = get_size(spacing.width);
         const left_trace_width = get_size(left_trace.width);
         const x_anchor_right = get_anchor_in_x_region(right_region, spacing.right_trace.attach);
