@@ -240,8 +240,8 @@ export class Viewer {
                   this.height_labels.push({
                     y_offset: y_start,
                     height: trace_height,
-                    overhang_top: arm_overhang,
-                    overhang_bottom: 0,
+                    overhang_top: 0,
+                    overhang_bottom: arm_overhang,
                     text: trace_height_name,
                   });
                 }
