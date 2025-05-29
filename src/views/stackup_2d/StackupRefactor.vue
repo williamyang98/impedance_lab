@@ -5,7 +5,7 @@ import { create_layout_from_stackup } from "./layout.ts";
 import { type StackupGrid, get_stackup_grid_from_stackup_layout } from "./grid.ts";
 import { computed, ref, useId, useTemplateRef } from "vue";
 import ParameterForm from "./ParameterForm.vue";
-import { Viewer2D } from "../../components/viewer_2d";
+import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
 import ImpedanceResultTable from "./ImpedanceResultTable.vue";
 import RunResultTable from "./RunResultTable.vue";
