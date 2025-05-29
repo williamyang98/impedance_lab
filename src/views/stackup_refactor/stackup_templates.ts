@@ -852,7 +852,6 @@ export abstract class BroadsideSignalEditor extends VerticalStackupEditor {
 
     const viewer_trace_ids = new BumpIdStore();
     viewer_trace_ids.curr_head = this.trace_ids.borrow();
-    console.log(viewer_trace_ids.curr_head);
 
     const orientations: Orientation[] = ["up", "down"];
     for (let layer_index = 0; layer_index < this.layers.length; layer_index++) {
