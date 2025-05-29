@@ -14,11 +14,17 @@ import MeshViewer from "./MeshViewer.vue";
 import {
   // CoplanarDifferentialPairEditor,
   // DifferentialPairEditor,
-  CoplanarSingleEndedEditor,
-  // SingleEndedEditor, // this is shagged because of layout starting with spacings not traces
+  // CoplanarSingleEndedEditor,
+  // SingleEndedEditor,
+  BroadsideCoplanarDifferentialPairEditor,
+  // BroadsideDifferentialPairEditor,
 } from "./stackup_templates.ts";
 
-const editor = ref(new CoplanarSingleEndedEditor());
+const editor = ref(new BroadsideCoplanarDifferentialPairEditor());
+// const editor = ref(new CoplanarDifferentialPairEditor());
+// const editor = ref(new SingleEndedEditor());
+// const editor = ref(new BroadsideDifferentialPairEditor());
+
 const grid_stackup = computed(() => editor.value.get_simulation_stackup());
 
 const viewer_2d = useTemplateRef<typeof Viewer2D>("viewer_2d");

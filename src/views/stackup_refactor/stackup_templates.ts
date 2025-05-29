@@ -29,7 +29,11 @@ class ParameterCache<K, V> {
   }
 }
 
-class IdStore {
+interface IdStore {
+  own(id?: number): number;
+}
+
+class ArenaIdStore {
   occupied: Set<number> = new Set();
   curr_head: number = 0;
 
@@ -51,7 +55,8 @@ class IdStore {
     }
     this.occupied.add(this.curr_head);
     id = this.curr_head;
-    this.curr_head += 1;
+    this.curr_head += 1; // skip redundant check
+    this.forward_head();
     return id;
   }
 
@@ -60,6 +65,20 @@ class IdStore {
     this.occupied.delete(id);
     this.curr_head = Math.min(this.curr_head, id);
     return true;
+  }
+}
+
+class BumpIdStore {
+  curr_head: number = 0;
+
+  own(id?: number): number {
+    if (id !== undefined) {
+      this.curr_head = Math.max(id, this.curr_head);
+      return id;
+    }
+    id = this.curr_head;
+    this.curr_head += 1;
+    return id;
   }
 }
 
@@ -228,7 +247,7 @@ function create_conductor_parameters() {
 
 export abstract class VerticalStackupEditor {
   layers: Layer[] = [];
-  layer_id = new IdStore();
+  layer_id = new ArenaIdStore();
   layer_parameters_cache = create_layer_parameters_cache();
 
   constructor() {}
@@ -338,51 +357,51 @@ export abstract class VerticalStackupEditor {
   abstract get_viewer_stackup(): Stackup;
 }
 
+type TraceConductor = Conductor & { type: "trace" };
+type PlaneConductor = Conductor & { type: "plane" };
+
+interface ColinearTrace {
+  layer_id: LayerId;
+  orientation: Orientation;
+  conductors: TraceConductor[];
+  spacings: HorizontalSpacing[];
+}
+
 export abstract class ColinearSignalEditor extends VerticalStackupEditor {
   conductor_parameters = create_conductor_parameters();
-  sim_trace_id: number = 0;
-  viewer_trace_id: number = 0;
-  trace_conductors: Conductor[];
-  trace_spacings: HorizontalSpacing[];
-  plane_conductors: Conductor[];
+  trace_ids: ArenaIdStore = new ArenaIdStore();
+  trace: ColinearTrace;
+  plane_conductors: PlaneConductor[];
 
   constructor() {
     super();
     const trace_layer_id = this.layer_id.own();
     this.layers.push(this.create_layer("soldermask", trace_layer_id, "down"));
     this.layers.push(this.create_layer("core", this.layer_id.own(), "down"));
-    this.layers.push(this.create_layer("core", this.layer_id.own(), "down"));
     const plane_layer_id = this.layer_id.own();
     this.layers.push(this.create_layer("unmasked", plane_layer_id, "up"));
 
     {
-      const {
-        conductors: trace_conductors,
-        spacings: trace_spacings,
-      } = this.create_trace_conductors_with_spacing(trace_layer_id, "down", true);
+      const trace = this.create_colinear_traces(trace_layer_id, "down", this.trace_ids);
       const plane = this.create_ground_plane_conductor(plane_layer_id, "up");
       plane.viewer = {
         on_click: () => this.remove_plane(plane),
       }
-      this.trace_conductors = trace_conductors;
-      this.trace_spacings = trace_spacings;
+      this.trace = trace;
       this.plane_conductors = [plane];
     }
   }
 
-  remove_plane(plane: Conductor) {
+  remove_plane(plane: PlaneConductor) {
     const index = this.plane_conductors.indexOf(plane);
     if (index >= 0) {
       this.plane_conductors.splice(index, 1);
     }
   }
 
-  abstract create_trace_conductors_with_spacing(layer_id: LayerId, orientation: Orientation, is_sim?: boolean): {
-    conductors: Conductor[],
-    spacings: HorizontalSpacing[],
-  };
+  abstract create_colinear_traces(layer_id: LayerId, orientation: Orientation, ids: IdStore): ColinearTrace;
 
-  create_ground_plane_conductor(layer_id: LayerId, orientation: Orientation): Conductor & { type: "plane"} {
+  create_ground_plane_conductor(layer_id: LayerId, orientation: Orientation): PlaneConductor {
     return {
       type: "plane",
       layer_id,
@@ -393,11 +412,11 @@ export abstract class ColinearSignalEditor extends VerticalStackupEditor {
   }
 
   override get_sim_conductors(): Conductor[] {
-    return [...this.trace_conductors, ...this.plane_conductors];
+    return [...this.trace.conductors, ...this.plane_conductors];
   }
 
   get_sim_spacings(): HorizontalSpacing[] {
-    return this.trace_spacings;
+    return this.trace.spacings;
   }
 
   override get_simulation_stackup(): Stackup {
@@ -410,29 +429,351 @@ export abstract class ColinearSignalEditor extends VerticalStackupEditor {
     }
   }
 
-  make_trace_conductors_selectable(conductors: Conductor[], spacings: HorizontalSpacing[]) {
-    for (const conductor of conductors) {
+  hide_spacings(spacings: HorizontalSpacing[]) {
+    for (const spacing of spacings) {
+      if (spacing.viewer === undefined) spacing.viewer = {};
+      spacing.viewer.is_display = false;
+    }
+  }
+
+  make_trace_conductors_selectable(trace: ColinearTrace) {
+    for (const conductor of trace.conductors) {
       let viewer = conductor.viewer ?? {};
       viewer = {
         is_labeled: false,
         display: "selectable",
         on_click: () => {
-          this.sim_trace_id = 0;
-          const {
-            conductors: new_conductors,
-            spacings: new_spacings,
-          } = this.create_trace_conductors_with_spacing(conductor.layer_id, conductor.orientation, true);
-          this.trace_conductors = new_conductors;
-          this.trace_spacings = new_spacings;
+          for (const old_conductor of this.trace.conductors) {
+            this.trace_ids.free(old_conductor.id)
+          }
+          const sim_trace = this.create_colinear_traces(conductor.layer_id, conductor.orientation, this.trace_ids);
+          this.trace = sim_trace;
         },
         ...viewer,
       };
       conductor.viewer = viewer;
     }
+
+    this.hide_spacings(trace.spacings);
+  }
+
+  make_plane_conductor_selectable(plane: PlaneConductor) {
+    plane.viewer = {
+      is_labeled: false,
+      display: "selectable",
+      on_click: () => {
+        const sim_plane = this.create_ground_plane_conductor(plane.layer_id, plane.orientation);
+        sim_plane.grid = {
+          override_total_divisions: 3,
+        };
+        sim_plane.viewer = {
+          on_click: () => this.remove_plane(sim_plane),
+        };
+        this.plane_conductors.push(sim_plane);
+      },
+    };
+    plane.layout = {
+      shrink_trace_layer: false,
+    };
+  }
+
+  create_parallel_spacing(left: TraceId, right: TraceId): HorizontalSpacing {
+    return {
+      left_trace: { id: left, attach: "left" },
+      right_trace: { id: right, attach: "left" },
+      width: {
+        placeholder_value: 0,
+      },
+    }
+  }
+
+  override get_viewer_stackup(): Stackup {
+    const sim_conductors = this.get_sim_conductors();
+    const sim_spacings = this.get_sim_spacings();
+    const viewer_conductors = [];
+    const viewer_spacings = [];
+
+    const occupied_locations: Partial<Record<LayerId, Set<Orientation>>> = {};
+    for (const conductor of sim_conductors) {
+      const { layer_id, orientation } = conductor;
+      let orientations = occupied_locations[layer_id];
+      if (orientations === undefined) {
+        orientations = new Set<Orientation>();
+        occupied_locations[layer_id] = orientations;
+      }
+      orientations.add(orientation);
+    }
+    const is_location_occupied = (layer_id: LayerId, orientation: Orientation): boolean => {
+      const orientations = occupied_locations[layer_id]
+      if (orientations === undefined) return false;
+      return orientations.has(orientation);
+    };
+
+    const viewer_trace_ids = new BumpIdStore();
+    viewer_trace_ids.curr_head = this.trace_ids.borrow();
+
+    const orientations: Orientation[] = ["up", "down"];
+    for (let layer_index = 0; layer_index < this.layers.length; layer_index++) {
+      const layer = this.layers[layer_index];
+      const [prev_layer, next_layer] = this.get_adjacent_layers(layer_index);
+      const is_shorting = (new_conductors: Conductor[]): boolean => {
+        return CommonRules.is_shorting(new_conductors, prev_layer, layer) ||
+          CommonRules.is_shorting(new_conductors, layer, next_layer);
+      };
+
+      for (const orientation of orientations) {
+        if (is_location_occupied(layer.id, orientation)) continue;
+        if (!CommonRules.can_layer_contain_conductor_orientation(layer, orientation)) continue;
+
+        // add regular traces
+        const new_trace = this.create_colinear_traces(layer.id, orientation, viewer_trace_ids);
+        if (!is_shorting([...new_trace.conductors, ...this.plane_conductors])) {
+          this.make_trace_conductors_selectable(new_trace);
+          for (const conductor of new_trace.conductors) {
+            viewer_conductors.push(conductor);
+          }
+          for (const spacing of new_trace.spacings) {
+            viewer_spacings.push(spacing);
+          }
+          const parallel_spacing = this.create_parallel_spacing(this.trace.conductors[0].id, new_trace.conductors[0].id);
+          this.hide_spacings([parallel_spacing]);
+          viewer_spacings.push(parallel_spacing);
+        }
+
+        // add ground plane
+        const new_plane = this.create_ground_plane_conductor(layer.id, orientation);
+        if (!is_shorting([...sim_conductors, new_plane])) {
+          this.make_plane_conductor_selectable(new_plane);
+          viewer_conductors.push(new_plane);
+        }
+      }
+    }
+
+    return {
+      layers: this.layers,
+      conductors: [...sim_conductors, ...viewer_conductors],
+      spacings: [...sim_spacings, ...viewer_spacings],
+    }
+  }
+}
+
+export class CoplanarDifferentialPairEditor extends ColinearSignalEditor {
+  constructor() {
+    super();
+  }
+
+  override create_colinear_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): ColinearTrace {
+    const ids = Array.from({ length: 4 }, (_) => id_store.own());
+    const p = this.conductor_parameters;
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: 0 },
+      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: 1 },
+      { type: "trace", id: ids[2], layer_id, orientation, width: p.W, voltage: -1 },
+      { type: "trace", id: ids[3], layer_id, orientation, width: p.CW, voltage: 0 },
+    ];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
+      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: p.S },
+      { left_trace: { id: ids[2], attach: "right" }, right_trace: { id: ids[3], attach: "left" }, width: p.CS },
+    ];
+    return { layer_id, orientation, conductors, spacings };
+  }
+}
+
+export class DifferentialPairEditor extends ColinearSignalEditor {
+  constructor() {
+    super();
+  }
+
+  override create_colinear_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): ColinearTrace {
+    const ids = Array.from({ length: 2 }, (_) => id_store.own());
+    const p = this.conductor_parameters;
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: 1 },
+      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: -1 },
+    ];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.S },
+    ];
+    return { layer_id, orientation, conductors, spacings };
+  }
+}
+
+export class SingleEndedEditor extends ColinearSignalEditor {
+  constructor() {
+    super();
+  }
+
+  override create_colinear_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): ColinearTrace {
+    const ids = Array.from({ length: 1 }, (_) => id_store.own());
+    const p = this.conductor_parameters;
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: 1 },
+    ];
+    const spacings: HorizontalSpacing[] = [];
+    return { layer_id, orientation, conductors, spacings };
+  }
+}
+
+export class CoplanarSingleEndedEditor extends ColinearSignalEditor {
+  constructor() {
+    super();
+  }
+
+  override create_colinear_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): ColinearTrace {
+    const ids = Array.from({ length: 3 }, (_) => id_store.own());
+    const p = this.conductor_parameters;
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: 0 },
+      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: 1 },
+      { type: "trace", id: ids[2], layer_id, orientation, width: p.CW, voltage: 0 },
+    ];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
+      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: p.CS },
+    ];
+    return { layer_id, orientation, conductors, spacings };
+  }
+}
+
+interface BroadsideTrace {
+  layer_id: LayerId;
+  orientation: Orientation;
+  conductors: TraceConductor[],
+  root: TraceConductor,
+  spacings: HorizontalSpacing[],
+}
+
+export abstract class BroadsideSignalEditor extends VerticalStackupEditor {
+  conductor_parameters = create_conductor_parameters();
+  trace_ids: ArenaIdStore = new ArenaIdStore();
+  left: BroadsideTrace;
+  right: BroadsideTrace;
+  broadside_spacing: HorizontalSpacing;
+  plane_conductors: Conductor[];
+
+  constructor() {
+    super();
+
+    const left_id = this.layer_id.own();
+    this.layers.push(this.create_layer("soldermask", left_id, "down"));
+    this.layers.push(this.create_layer("core", this.layer_id.own(), "down"));
+    const right_id = this.layer_id.own();
+    this.layers.push(this.create_layer("soldermask", right_id, "up"));
+
+    const left = this.create_left_traces(left_id, "down", this.trace_ids);
+    const right = this.create_right_traces(right_id, "up", this.trace_ids);
+    const broadside_spacing = this.create_broadside_spacing(left.root.id, right.root.id);
+    this.left = left;
+    this.right = right;
+    this.broadside_spacing = broadside_spacing;
+    this.plane_conductors = [];
+  }
+
+  remove_plane(plane: Conductor) {
+    const index = this.plane_conductors.indexOf(plane);
+    if (index >= 0) {
+      this.plane_conductors.splice(index, 1);
+    }
+  }
+
+  abstract create_left_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace;
+
+  abstract create_right_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace;
+
+  create_broadside_spacing(left_id: TraceId, right_id: TraceId): HorizontalSpacing {
+    return {
+      left_trace: {
+        id: left_id,
+        attach: "center",
+      },
+      right_trace: {
+        id: right_id,
+        attach: "center",
+      },
+      width: this.conductor_parameters.B,
+    }
+  }
+
+  create_ground_plane_conductor(layer_id: LayerId, orientation: Orientation): Conductor & { type: "plane"} {
+    return {
+      type: "plane",
+      layer_id,
+      orientation,
+      height: this.conductor_parameters.PH,
+      voltage: 0,
+    }
+  }
+
+  override get_sim_conductors(): Conductor[] {
+    return [...this.left.conductors, ...this.right.conductors, ...this.plane_conductors];
+  }
+
+  get_sim_spacings(): HorizontalSpacing[] {
+    return [...this.left.spacings, this.broadside_spacing, ...this.right.spacings];
+  }
+
+  override get_simulation_stackup(): Stackup {
+    const conductors = this.get_sim_conductors();
+    const spacings = this.get_sim_spacings();
+    return {
+      layers: this.layers,
+      spacings,
+      conductors,
+    }
+  }
+
+  hide_spacings(spacings: HorizontalSpacing[]) {
     for (const spacing of spacings) {
       if (spacing.viewer === undefined) spacing.viewer = {};
       spacing.viewer.is_display = false;
     }
+  }
+
+  make_left_trace_selectable(left: BroadsideTrace) {
+    for (const conductor of left.conductors) {
+      let viewer = conductor.viewer ?? {};
+      viewer = {
+        is_labeled: false,
+        display: "selectable",
+        on_click: () => {
+          for (const trace of this.left.conductors) {
+            this.trace_ids.free(trace.id);
+          }
+          const sim_left = this.create_left_traces(left.layer_id, left.orientation, this.trace_ids);
+          const sim_spacing = this.create_broadside_spacing(sim_left.root.id, this.right.root.id);
+          this.left = sim_left;
+          this.broadside_spacing = sim_spacing;
+        },
+        ...viewer,
+      };
+      conductor.viewer = viewer;
+    }
+
+    this.hide_spacings(left.spacings);
+  }
+
+  make_right_trace_selectable(right: BroadsideTrace) {
+    for (const conductor of right.conductors) {
+      let viewer = conductor.viewer ?? {};
+      viewer = {
+        is_labeled: false,
+        display: "selectable",
+        on_click: () => {
+          for (const trace of this.right.conductors) {
+            this.trace_ids.free(trace.id);
+          }
+          const sim_right = this.create_right_traces(right.layer_id, right.orientation, this.trace_ids);
+          const sim_spacing = this.create_broadside_spacing(this.left.root.id, sim_right.root.id);
+          this.right = sim_right;
+          this.broadside_spacing = sim_spacing;
+        },
+        ...viewer,
+      };
+      conductor.viewer = viewer;
+    }
+
+    this.hide_spacings(right.spacings);
   }
 
   make_plane_conductor_selectable(plane: Conductor & { type: "plane"}) {
@@ -477,7 +818,10 @@ export abstract class ColinearSignalEditor extends VerticalStackupEditor {
       return orientations.has(orientation);
     };
 
-    this.viewer_trace_id = 0;
+    const viewer_trace_ids = new BumpIdStore();
+    viewer_trace_ids.curr_head = this.trace_ids.borrow();
+    console.log(viewer_trace_ids.curr_head);
+
     const orientations: Orientation[] = ["up", "down"];
     for (let layer_index = 0; layer_index < this.layers.length; layer_index++) {
       const layer = this.layers[layer_index];
@@ -491,19 +835,34 @@ export abstract class ColinearSignalEditor extends VerticalStackupEditor {
         if (is_location_occupied(layer.id, orientation)) continue;
         if (!CommonRules.can_layer_contain_conductor_orientation(layer, orientation)) continue;
 
-        // add regular traces
-        const {
-          conductors: new_trace_conductors,
-          spacings: new_trace_spacings,
-        } = this.create_trace_conductors_with_spacing(layer.id, orientation, false);
-        if (!is_shorting([...new_trace_conductors, ...this.plane_conductors])) {
-          this.make_trace_conductors_selectable(new_trace_conductors, new_trace_spacings);
-          for (const conductor of new_trace_conductors) {
+        // // left traces
+        const new_left = this.create_left_traces(layer.id, orientation, viewer_trace_ids);
+        if (!is_shorting([...new_left.conductors, ...this.right.conductors, ...this.plane_conductors])) {
+          this.make_left_trace_selectable(new_left);
+          for (const conductor of new_left.conductors) {
             viewer_conductors.push(conductor);
           }
-          for (const spacing of new_trace_spacings) {
+          for (const spacing of new_left.spacings) {
             viewer_spacings.push(spacing);
           }
+          const broadside_spacing = this.create_broadside_spacing(new_left.root.id, this.right.root.id);
+          this.hide_spacings([broadside_spacing]);
+          viewer_spacings.push(broadside_spacing);
+        }
+
+        // right traces
+        const new_right = this.create_right_traces(layer.id, orientation, viewer_trace_ids);
+        if (!is_shorting([...new_right.conductors, ...this.left.conductors, ...this.plane_conductors])) {
+          this.make_right_trace_selectable(new_right);
+          for (const conductor of new_right.conductors) {
+            viewer_conductors.push(conductor);
+          }
+          for (const spacing of new_right.spacings) {
+            viewer_spacings.push(spacing);
+          }
+          const broadside_spacing = this.create_broadside_spacing(this.left.root.id, new_right.root.id);
+          this.hide_spacings([broadside_spacing]);
+          viewer_spacings.push(broadside_spacing);
         }
 
         // add ground plane
@@ -521,104 +880,59 @@ export abstract class ColinearSignalEditor extends VerticalStackupEditor {
       spacings: [...sim_spacings, ...viewer_spacings],
     }
   }
-
-  get_ids(count: number, is_sim?: boolean): TraceId[] {
-    is_sim = is_sim ?? false;
-    if (is_sim) {
-      this.sim_trace_id = 0;
-    }
-    const get_id = is_sim ? () => {
-      const id = this.sim_trace_id;
-      this.sim_trace_id++;
-      return id;
-    } : () => {
-      const id = this.viewer_trace_id;
-      this.viewer_trace_id++;
-      return id+this.sim_trace_id;
-    };
-    const ids = [];
-    for (let i = 0; i < count; i++) {
-      ids.push(get_id());
-    }
-    return ids;
-  }
 }
 
-export class CoplanarDifferentialPairEditor extends ColinearSignalEditor {
+export class BroadsideCoplanarDifferentialPairEditor extends BroadsideSignalEditor {
   constructor() {
     super();
   }
 
-  override create_trace_conductors_with_spacing(layer_id: LayerId, orientation: Orientation, is_sim?: boolean) {
-    const ids = this.get_ids(4, is_sim);
+  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: number, id_store: IdStore): BroadsideTrace {
+    const ids = Array.from({ length: 3 }, (_) => id_store.own());
     const p = this.conductor_parameters;
-    const conductors: Conductor[] = [
+    const conductors: TraceConductor[] = [
       { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: 0 },
-      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: 1 },
-      { type: "trace", id: ids[2], layer_id, orientation, width: p.W, voltage: -1 },
-      { type: "trace", id: ids[3], layer_id, orientation, width: p.CW, voltage: 0 },
-    ];
-    const spacings: HorizontalSpacing[] = [
-      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
-      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: p.S },
-      { left_trace: { id: ids[2], attach: "right" }, right_trace: { id: ids[3], attach: "left" }, width: p.CS },
-    ];
-    return { conductors, spacings };
-  }
-}
-
-export class DifferentialPairEditor extends ColinearSignalEditor {
-  constructor() {
-    super();
-  }
-
-  override create_trace_conductors_with_spacing(layer_id: LayerId, orientation: Orientation, is_sim?: boolean) {
-    const ids = this.get_ids(2, is_sim);
-    const p = this.conductor_parameters;
-    const conductors: Conductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: 1 },
-      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: -1 },
-    ];
-    const spacings: HorizontalSpacing[] = [
-      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.S },
-    ];
-    return { conductors, spacings };
-  }
-}
-
-export class SingleEndedEditor extends ColinearSignalEditor {
-  constructor() {
-    super();
-  }
-
-  override create_trace_conductors_with_spacing(layer_id: LayerId, orientation: Orientation, is_sim?: boolean) {
-    const ids = this.get_ids(1, is_sim);
-    const p = this.conductor_parameters;
-    const conductors: Conductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: 1 },
-    ];
-    const spacings: HorizontalSpacing[] = [];
-    return { conductors, spacings };
-  }
-}
-
-export class CoplanarSingleEndedEditor extends ColinearSignalEditor {
-  constructor() {
-    super();
-  }
-
-  override create_trace_conductors_with_spacing(layer_id: LayerId, orientation: Orientation, is_sim?: boolean) {
-    const ids = this.get_ids(3, is_sim);
-    const p = this.conductor_parameters;
-    const conductors: Conductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: 0 },
-      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: 1 },
+      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: signal_voltage },
       { type: "trace", id: ids[2], layer_id, orientation, width: p.CW, voltage: 0 },
     ];
+    const root = conductors[1];
     const spacings: HorizontalSpacing[] = [
       { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
       { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: p.CS },
     ];
-    return { conductors, spacings };
+    return { layer_id, orientation, root, conductors, spacings };
+  }
+
+  override create_left_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(layer_id, orientation, 1, id_store);
+  }
+
+  override create_right_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(layer_id, orientation, -1, id_store);
+  }
+}
+
+export class BroadsideDifferentialPairEditor extends BroadsideSignalEditor {
+  constructor() {
+    super();
+  }
+
+  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: number, id_store: IdStore): BroadsideTrace {
+    const ids = Array.from({ length: 1 }, (_) => id_store.own());
+    const p = this.conductor_parameters;
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: signal_voltage },
+    ];
+    const root = conductors[0];
+    const spacings: HorizontalSpacing[] = [];
+    return { layer_id, orientation, root, conductors, spacings };
+  }
+
+  override create_left_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(layer_id, orientation, 1, id_store);
+  }
+
+  override create_right_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(layer_id, orientation, -1, id_store);
   }
 }
