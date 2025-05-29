@@ -10,7 +10,7 @@ export const sizes = {
   trace_taper: 15,
   signal_trace_width: 40,
   ground_trace_width: 50,
-  core_height: 40,
+  core_height: 45,
   broadside_width_separation: 30+40,
   signal_width_separation: 30,
   ground_width_separation: 40,
