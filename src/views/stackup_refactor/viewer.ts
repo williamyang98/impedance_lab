@@ -114,8 +114,9 @@ export class Viewer {
   conductors: Conductor[] = [];
 
   constructor(layout: StackupLayout) {
-
-    const stackup_x_padding = 25;
+    const stackup_minimum_width = 150;
+    const stackup_minimum_x_padding = 25;
+    const stackup_x_padding = Math.max(stackup_minimum_x_padding, stackup_minimum_width-layout.total_width);
     const stackup_x_min = layout.x_min-stackup_x_padding;
     const stackup_x_max = layout.x_max+stackup_x_padding;
     const stackup_width = stackup_x_max-stackup_x_min;
