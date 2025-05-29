@@ -150,15 +150,26 @@ const CommonRules = {
 };
 
 function create_layer_parameters_cache() {
+  const id_to_index: Partial<Record<LayerId, number>> = {};
+  const get_index = (id: LayerId): number => {
+    const index  = id_to_index[id];
+    if (index === undefined) {
+      throw Error(`Failed to get layer index of layer id ${id}`);
+    }
+    return index;
+  }
+
   return {
+    id_to_index,
     dW: new ParameterCache(
       (i: number) => i,
       (i: number) => {
         return {
-          name: `dW${i}`,
+          get name() { return `dW${get_index(i)}`; },
           description: "Trace taper",
-          taper_suffix: `${i}`,
+          get taper_suffix() { return `${get_index(i)}`; },
           min: 0,
+          value: 0,
           placeholder_value: sizes.trace_taper,
         };
       },
@@ -167,9 +178,10 @@ function create_layer_parameters_cache() {
       (i: number) => i,
       (i: number) => {
         return {
-          name: `T${i}`,
+          get name() { return `T${get_index(i)}`; },
           description: "Trace thickness",
           min: 0,
+          value: 0.035,
           placeholder_value: sizes.trace_height,
         };
       },
@@ -178,9 +190,10 @@ function create_layer_parameters_cache() {
       (i: number) => i,
       (i: number) => {
         return {
-          name: `H${i}`,
+          get name() { return `H${get_index(i)}` },
           description: "Soldermask thickness",
           min: 0,
+          value: 0.0152,
           placeholder_value: sizes.soldermask_height,
         };
       },
@@ -189,9 +202,10 @@ function create_layer_parameters_cache() {
       (i: number) => i,
       (i: number) => {
         return {
-          name: `H${i}`,
+          get name() { return `H${get_index(i)}`; },
           description: "Dielectric height",
           min: 0,
+          value: 0.15,
           placeholder_value: sizes.core_height,
         };
       },
@@ -200,9 +214,10 @@ function create_layer_parameters_cache() {
       (i: number) => i,
       (i: number) => {
         return {
-          name: `ER${i}`,
+          get name() { return `ER${get_index(i)}`; },
           description: "Dielectric constant",
           min: 1,
+          value: 4.1,
         };
       },
     ),
@@ -216,30 +231,35 @@ function create_conductor_parameters() {
         name: "W",
         description: "Trace width",
         min: 0,
+        value: 0.25,
         placeholder_value: sizes.signal_trace_width,
     },
     CW: {
       name: "CW",
       description: "Coplanar ground width",
       min: 0,
+      value: 0.25,
       placeholder_value: sizes.ground_trace_width,
     },
     S: {
       name: "S",
       description: "Signal separation",
       min: 0,
+      value: 0.25,
       placeholder_value: sizes.signal_width_separation,
     },
     B: {
       name: "S",
       description: "Broadside separation",
       min: 0,
+      value: 0,
       placeholder_value: sizes.broadside_width_separation,
     },
     CS: {
       name: "CS",
       description: "Coplanar ground separation",
       min: 0,
+      value: 0.25,
       placeholder_value: sizes.ground_width_separation,
     },
   }
@@ -259,6 +279,13 @@ export abstract class VerticalStackupEditor {
     const prev_layer = (layer_index > 0) ? this.layers[layer_index-1] : undefined;
     const next_layer = (layer_index < total_layers-1) ? this.layers[layer_index+1] : undefined;
     return [prev_layer, next_layer];
+  }
+
+  regenerate_layer_id_to_index() {
+    for (let layer_index = 0; layer_index < this.layers.length; layer_index++) {
+      const layer = this.layers[layer_index];
+      this.layer_parameters_cache.id_to_index[layer.id] = layer_index;
+    }
   }
 
   create_layer(type: LayerType, layer_id: LayerId, orientation: Orientation): Layer {
@@ -314,6 +341,7 @@ export abstract class VerticalStackupEditor {
     return () => {
       this.layers.splice(layer_index, 0, new_layer_temp);
       this.layer_id.own(new_layer_temp.id);
+      this.regenerate_layer_id_to_index();
     };
   }
 
@@ -333,6 +361,7 @@ export abstract class VerticalStackupEditor {
 
     return () => {
       this.layers.splice(layer_index, 1, new_layer_temp);
+      this.regenerate_layer_id_to_index();
     };
   }
 
@@ -350,6 +379,7 @@ export abstract class VerticalStackupEditor {
     return () => {
       this.layers.splice(layer_index, 1);
       this.layer_id.free(layer.id);
+      this.regenerate_layer_id_to_index();
     }
   }
 
@@ -380,6 +410,7 @@ export abstract class ColinearSignalEditor extends VerticalStackupEditor {
     this.layers.push(this.create_layer("core", this.layer_id.own(), "down"));
     const plane_layer_id = this.layer_id.own();
     this.layers.push(this.create_layer("unmasked", plane_layer_id, "up"));
+    this.regenerate_layer_id_to_index();
 
     {
       const trace = this.create_colinear_traces(trace_layer_id, "down", this.trace_ids);
@@ -660,6 +691,7 @@ export abstract class BroadsideSignalEditor extends VerticalStackupEditor {
     this.layers.push(this.create_layer("core", this.layer_id.own(), "down"));
     const right_id = this.layer_id.own();
     this.layers.push(this.create_layer("soldermask", right_id, "up"));
+    this.regenerate_layer_id_to_index();
 
     const left = this.create_left_traces(left_id, "down", this.trace_ids);
     const right = this.create_right_traces(right_id, "up", this.trace_ids);

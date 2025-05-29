@@ -53,9 +53,9 @@ const append_layer_to_end = computed(() => editor.try_add_prepreg_layer(editor.l
   <!--Layer editor-->
   <div class="bg-base-100 border-base-300 border-sm border-1">
     <div class="grid grid-cols-[1.25rem_auto_1.5rem] gap-x-1">
-      <template v-for="layer in layers" :key="layer.id">
+      <template v-for="(layer, layer_index) in layers" :key="layer.id">
         <div v-if="layer.add_above" class="add-button col-span-3" @click="layer.add_above()"></div>
-        <b>L{{ layer.id }}:</b>
+        <b>L{{ layer_index }}:</b>
         <select v-model="layer.type.value" class="w-full min-w-[7rem]">
           <template v-for="(type, index) in layer.valid_types" :key="index">
             <option :value="type">{{ type }}</option>
