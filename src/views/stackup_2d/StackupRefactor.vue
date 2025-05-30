@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { type SizeParameter } from "./stackup.ts";
-import EditorControls from "./EditorControls.vue";
-import { create_layout_from_stackup } from "./layout.ts";
-import { type StackupGrid, get_stackup_grid_from_stackup_layout } from "./grid.ts";
 import { computed, ref, useId, useTemplateRef } from "vue";
-import ParameterForm from "./ParameterForm.vue";
-import { Viewer2D } from "../../components/viewer_2d/index.ts";
-import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
+import EditorControls from "./EditorControls.vue";
+import StackupViewer from "./StackupViewer.vue";
 import ImpedanceResultTable from "./ImpedanceResultTable.vue";
 import RunResultTable from "./RunResultTable.vue";
 import GridRegionTable from "./GridRegionTable.vue";
 import MeshViewer from "./MeshViewer.vue";
+
+import { type SizeParameter } from "./stackup.ts";
+import { create_layout_from_stackup } from "./layout.ts";
+import { type StackupGrid, get_stackup_grid_from_stackup_layout } from "./grid.ts";
+import ParameterForm from "./ParameterForm.vue";
+import { Viewer2D } from "../../components/viewer_2d/index.ts";
+import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
 import {
   // CoplanarDifferentialPairEditor,
   // DifferentialPairEditor,
@@ -26,6 +28,14 @@ const editor = ref(new BroadsideCoplanarDifferentialPairEditor());
 // const editor = ref(new BroadsideDifferentialPairEditor());
 
 const grid_stackup = computed(() => editor.value.get_simulation_stackup());
+const is_viewer_hover = ref<boolean>(false);
+const viewer_stackup = computed(() => {
+  if (is_viewer_hover.value) {
+    return editor.value.get_viewer_stackup();
+  } else {
+    return editor.value.get_simulation_stackup();
+  }
+});
 
 const viewer_2d = useTemplateRef<typeof Viewer2D>("viewer_2d");
 const uid = {
@@ -123,7 +133,18 @@ async function run(reset?: boolean) {
       <div class="w-full card card-border bg-base-100 col-span-3">
         <div class="card-body">
           <h2 class="card-title">Stackup</h2>
-          <EditorControls :editor="editor"></EditorControls>
+          <div class="bg-base-100 border-base-300 border-sm border-1">
+            <div class="grid grid-cols-6 gap-x-2">
+              <div class="col-span-2">
+                <EditorControls :editor="editor"></EditorControls>
+              </div>
+              <div
+                class="col-span-4 w-full h-full"
+                @mouseenter="is_viewer_hover = true" @mouseleave="is_viewer_hover = false">
+                <StackupViewer :stackup="viewer_stackup"/>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="w-full card card-border bg-base-100 col-span-2">

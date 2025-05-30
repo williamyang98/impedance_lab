@@ -1,19 +1,10 @@
 <script setup lang="ts">
 import { VerticalStackupEditor, type LayerType } from "./stackup_templates.ts";
-import StackupViewer from "./StackupViewer.vue";
-import { computed, ref, defineProps } from "vue";
+import { computed, defineProps } from "vue";
 
 const { editor } = defineProps<{
   editor: VerticalStackupEditor,
 }>();
-const is_hover = ref<boolean>(false);
-const viewer_stackup = computed(() => {
-  if (is_hover.value) {
-    return editor.get_viewer_stackup();
-  } else {
-    return editor.get_simulation_stackup();
-  }
-});
 
 const layers = computed(() => editor.layers.map((layer, index) => {
   const change_type: Partial<Record<LayerType, (() => void)>> = {};
@@ -49,29 +40,23 @@ const append_layer_to_end = computed(() => editor.try_add_prepreg_layer(editor.l
 </script>
 
 <template>
-<div class="grid grid-cols-2">
-  <!--Layer editor-->
-  <div class="bg-base-100 border-base-300 border-sm border-1">
-    <div class="grid grid-cols-[1.25rem_auto_1.5rem] gap-x-1">
-      <template v-for="(layer, layer_index) in layers" :key="layer.id">
-        <div v-if="layer.add_above" class="add-button col-span-3" @click="layer.add_above()"></div>
-        <b>L{{ layer_index }}:</b>
+  <div class="grid grid-cols-[1.25rem_auto_1.5rem] gap-x-1 gap-y-0">
+    <template v-for="(layer, layer_index) in layers" :key="layer.id">
+      <div v-if="layer.add_above" class="add-button col-span-3" @click="layer.add_above()"></div>
+      <div><b>L{{ layer_index }}:</b></div>
+      <div>
         <select v-model="layer.type.value" class="w-full min-w-[7rem]">
           <template v-for="(type, index) in layer.valid_types" :key="index">
             <option :value="type">{{ type }}</option>
           </template>
         </select>
-        <div class="w-full">
-          <button v-if="layer.delete" class="btn btn-xs btn-outline btn-error" @click="layer.delete()">x</button>
-        </div>
-      </template>
-      <div v-if="append_layer_to_end" class="add-button col-span-3" @click="append_layer_to_end()"></div>
-    </div>
+      </div>
+      <div>
+        <button v-if="layer.delete" class="btn btn-xs btn-outline btn-error" @click="layer.delete()">x</button>
+      </div>
+    </template>
+    <div v-if="append_layer_to_end" class="add-button col-span-3" @click="append_layer_to_end()"></div>
   </div>
-  <div class="w-full h-full" @mouseenter="is_hover = true" @mouseleave="is_hover = false">
-    <StackupViewer :stackup="viewer_stackup"/>
-  </div>
-</div>
 </template>
 
 <style scoped>
