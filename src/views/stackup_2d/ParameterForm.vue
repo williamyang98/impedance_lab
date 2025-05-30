@@ -103,16 +103,17 @@ function get_input_class(param: Parameter): string {
  @NOTE: We need the actual class string somewhere in the source code for tailwindcss to compile it
  grid-cols-1 grid-cols-2 grid-cols-3
 -->
-<div :class="`grid grid-cols-${valid_form.length} gap-x-2`">
+<form :class="`grid grid-cols-${valid_form.length} gap-x-2`">
   <div v-for="({name, params}, col_index) in valid_form" :key="col_index">
     <h2 class="font-medium mb-2">{{ name }}</h2>
     <div class="grid grid-cols-[auto_auto] w-fit gap-x-2 gap-y-1">
       <template v-for="(param, index) in params" :key="index">
         <div class="h-full mt-1">
-          <label class="label">{{  param.name }}</label>
+          <label :for="param.name" class="label">{{  param.name }}</label>
         </div>
         <div class="w-full">
           <input
+            :id="param.name"
             :class="get_input_class(param)"
             class="input input-sm"
             type="number"
@@ -127,5 +128,6 @@ function get_input_class(param: Parameter): string {
       </template>
     </div>
   </div>
-</div>
+</form>
+
 </template>
