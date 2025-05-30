@@ -14,18 +14,57 @@ import ParameterForm from "./ParameterForm.vue";
 import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
 import {
-  // CoplanarDifferentialPairEditor,
-  // DifferentialPairEditor,
-  // CoplanarSingleEndedEditor,
-  // SingleEndedEditor,
+  type VerticalStackupEditor,
+  CoplanarDifferentialPairEditor,
+  DifferentialPairEditor,
+  CoplanarSingleEndedEditor,
+  SingleEndedEditor,
   BroadsideCoplanarDifferentialPairEditor,
-  // BroadsideDifferentialPairEditor,
+  BroadsideDifferentialPairEditor,
 } from "./stackup_templates.ts";
 
-const editor = ref(new BroadsideCoplanarDifferentialPairEditor());
-// const editor = ref(new CoplanarDifferentialPairEditor());
-// const editor = ref(new SingleEndedEditor());
-// const editor = ref(new BroadsideDifferentialPairEditor());
+interface Editors {
+  coplanar_diff: CoplanarDifferentialPairEditor,
+  diff: DifferentialPairEditor,
+  coplanar_single: CoplanarSingleEndedEditor,
+  single: SingleEndedEditor,
+  broadside_diff: BroadsideDifferentialPairEditor,
+  broadside_coplanar_diff: BroadsideCoplanarDifferentialPairEditor,
+}
+type EditorKey = keyof Editors;
+const editor_keys: EditorKey[] = [
+  "coplanar_diff",
+  "diff",
+  "coplanar_single",
+  "single",
+  "broadside_diff",
+  "broadside_coplanar_diff",
+];
+
+function editor_key_to_name(key: EditorKey): string {
+  switch (key) {
+    case "coplanar_diff": return "Coplanar Diffpair";
+    case "diff": return "Diffpair";
+    case "coplanar_single": return "Coplanar Single Ended";
+    case "single": return "Single Ended";
+    case "broadside_diff": return "Broadside Diffpair";
+    case "broadside_coplanar_diff": return "Broadside Coplanar Diffpair";
+  }
+}
+
+const editors = ref<Editors>({
+  coplanar_diff: new CoplanarDifferentialPairEditor(),
+  diff: new DifferentialPairEditor(),
+  coplanar_single: new CoplanarSingleEndedEditor(),
+  single: new SingleEndedEditor(),
+  broadside_diff: new BroadsideDifferentialPairEditor(),
+  broadside_coplanar_diff: new BroadsideCoplanarDifferentialPairEditor(),
+});
+
+const selected_editor = ref<EditorKey>("coplanar_diff");
+const editor = computed<VerticalStackupEditor>(() => {
+  return editors.value[selected_editor.value];
+});
 
 const grid_stackup = computed(() => editor.value.get_simulation_stackup());
 const is_viewer_hover = ref<boolean>(false);
@@ -136,6 +175,14 @@ async function run(reset?: boolean) {
           <div class="bg-base-100 border-base-300 border-sm border-1">
             <div class="grid grid-cols-6 gap-x-2">
               <div class="col-span-2">
+                <div class="mb-2 w-full flex flex-row">
+                  <div><b>Layout: </b></div>
+                  <select v-model="selected_editor">
+                    <option v-for="option in editor_keys" :value="option" :key="option">
+                      {{ editor_key_to_name(option) }}
+                    </option>
+                  </select>
+                </div>
                 <EditorControls :editor="editor"></EditorControls>
               </div>
               <div
