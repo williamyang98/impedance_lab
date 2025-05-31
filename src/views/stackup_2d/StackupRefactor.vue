@@ -19,17 +19,21 @@ import {
   DifferentialPairEditor,
   CoplanarSingleEndedEditor,
   SingleEndedEditor,
-  BroadsideCoplanarDifferentialPairEditor,
-  BroadsideDifferentialPairEditor,
+  BroadsideCoplanarPairEditor,
+  BroadsidePairEditor,
+  BroadsideMirroredPairEditor,
+  BroadsideMirroredCoplanarPairEditor,
 } from "./stackup_templates.ts";
 
-interface Editors {
-  coplanar_diff: CoplanarDifferentialPairEditor,
-  diff: DifferentialPairEditor,
-  coplanar_single: CoplanarSingleEndedEditor,
-  single: SingleEndedEditor,
-  broadside_diff: BroadsideDifferentialPairEditor,
-  broadside_coplanar_diff: BroadsideCoplanarDifferentialPairEditor,
+class Editors {
+  coplanar_diff = new CoplanarDifferentialPairEditor();
+  diff = new DifferentialPairEditor();
+  coplanar_single = new CoplanarSingleEndedEditor();
+  single = new SingleEndedEditor();
+  broadside_diff = new BroadsidePairEditor();
+  broadside_coplanar_diff = new BroadsideCoplanarPairEditor();
+  broadside_mirrored_diff = new BroadsideMirroredPairEditor();
+  broadside_mirrored_coplanar_diff = new BroadsideMirroredCoplanarPairEditor();
 }
 type EditorKey = keyof Editors;
 const editor_keys: EditorKey[] = [
@@ -39,6 +43,8 @@ const editor_keys: EditorKey[] = [
   "single",
   "broadside_diff",
   "broadside_coplanar_diff",
+  "broadside_mirrored_diff",
+  "broadside_mirrored_coplanar_diff",
 ];
 
 function editor_key_to_name(key: EditorKey): string {
@@ -47,19 +53,14 @@ function editor_key_to_name(key: EditorKey): string {
     case "diff": return "Diffpair";
     case "coplanar_single": return "Coplanar Single Ended";
     case "single": return "Single Ended";
-    case "broadside_diff": return "Broadside Diffpair";
-    case "broadside_coplanar_diff": return "Broadside Coplanar Diffpair";
+    case "broadside_diff": return "Broadside Pair";
+    case "broadside_coplanar_diff": return "Broadside Coplanar Pair";
+    case "broadside_mirrored_diff": return "Broadside Mirrored Pair";
+    case "broadside_mirrored_coplanar_diff": return "Broadside Mirrored Coplanar Pair";
   }
 }
 
-const editors = ref<Editors>({
-  coplanar_diff: new CoplanarDifferentialPairEditor(),
-  diff: new DifferentialPairEditor(),
-  coplanar_single: new CoplanarSingleEndedEditor(),
-  single: new SingleEndedEditor(),
-  broadside_diff: new BroadsideDifferentialPairEditor(),
-  broadside_coplanar_diff: new BroadsideCoplanarDifferentialPairEditor(),
-});
+const editors = ref(new Editors());
 
 const selected_editor = ref<EditorKey>("coplanar_diff");
 const editor = computed<VerticalStackupEditor>(() => {
@@ -173,8 +174,8 @@ async function run(reset?: boolean) {
         <div class="card-body">
           <h2 class="card-title">Stackup</h2>
           <div class="bg-base-100 border-base-300 border-sm border-1">
-            <div class="grid grid-cols-6 gap-x-2">
-              <div class="col-span-2">
+            <div class="flex flex-row gap-x-2">
+              <div class="min-w-[18rem]">
                 <div class="mb-2 w-full flex flex-row">
                   <div><b>Layout: </b></div>
                   <select v-model="selected_editor">
@@ -186,7 +187,7 @@ async function run(reset?: boolean) {
                 <EditorControls :editor="editor"></EditorControls>
               </div>
               <div
-                class="col-span-4 w-full h-full"
+                class="w-full h-full"
                 @mouseenter="is_viewer_hover = true" @mouseleave="is_viewer_hover = false">
                 <StackupViewer :stackup="viewer_stackup"/>
               </div>
@@ -214,7 +215,7 @@ async function run(reset?: boolean) {
             </template>
           </div>
           <div class="card-actions justify-end">
-            <button class="btn" @click="update_region_grid()">Calculate</button>
+            <button class="btn" @click="update_region_grid()" :disabled="is_running">Calculate</button>
           </div>
         </div>
       </div>
@@ -272,8 +273,8 @@ async function run(reset?: boolean) {
                 <input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
               </form>
               <div class="flex justify-end gap-x-2 mt-3">
-                <button class="btn" @click="reset()" variant="outline">Reset</button>
-                <button class="btn" @click="run()">Run</button>
+                <button class="btn" @click="reset()" variant="outline" :disabled="is_running">Reset</button>
+                <button class="btn" @click="run()" :disabled="is_running">Run</button>
               </div>
             </div>
           </div>
