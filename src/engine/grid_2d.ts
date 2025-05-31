@@ -249,12 +249,14 @@ export class GridLines {
   }
 
   push(line: number): number {
-    const id = this.lines.length;
-    if (id > 0 && this.is_sorted && this.lines[id-1] > line) {
+    const id = this.id_to_index.length;
+    const N = this.lines.length;
+    if (N > 0 && this.is_sorted && this.lines[N-1] > line) {
       this.is_sorted = false;
     }
+    const index = this.lines.length;
     this.lines.push(line);
-    this.id_to_index.push(id);
+    this.id_to_index.push(index);
     return id;
   }
 
