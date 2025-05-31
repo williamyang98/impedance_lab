@@ -7,7 +7,7 @@ import {
 } from "../../engine/grid_2d.ts";
 import { calculate_grid_regions, type RegionSpecification } from "../../engine/mesher.ts";
 
-function _get_log_median(dims: number[]): number {
+function get_log_median(dims: number[]): number {
   const log_dims = dims.map(x => Math.log10(x));
   log_dims.sort();
   const median_log_dim =
@@ -232,41 +232,57 @@ export function get_stackup_grid_from_stackup_layout(layout: StackupLayout): Sta
   }
 
   // pad simulation grid to include far field
-  const x_min = x_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
-  const x_max = x_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
-  const y_min = y_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
-  const y_max = y_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
-  const stackup_width = x_max-x_min;
-  const stackup_height = y_max-y_min;
-  const padding_size = Math.max(stackup_width, stackup_height);
-  x_grid_lines.push(x_min-padding_size);
-  x_grid_lines.push(x_max+padding_size);
-  // only pad y-axis if copper planes don't exist at the ends
-  const y_plane_min = conductor_regions
-    .filter(conductor => conductor.type == "plane")
-    .map(plane => y_grid_lines.get_line(plane.region.iy_start))
-    .reduce((a,b) => Math.min(a,b), Infinity);
-  const y_plane_max = conductor_regions
-    .filter(conductor => conductor.type == "plane")
-    .map(plane => y_grid_lines.get_line(plane.region.iy_end))
-    .reduce((a,b) => Math.max(a,b), -Infinity);
-  if (y_plane_min > y_min) {
-    y_grid_lines.push(y_min-padding_size);
+  {
+    const x_min = x_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
+    const x_max = x_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+    const y_min = y_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
+    const y_max = y_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+    const stackup_width = x_max-x_min;
+    const stackup_height = y_max-y_min;
+    const padding_size = Math.max(stackup_width, stackup_height);
+    x_grid_lines.push(x_min-padding_size);
+    x_grid_lines.push(x_max+padding_size);
+    // only pad y-axis if copper planes don't exist at the ends
+    const y_plane_min = conductor_regions
+      .filter(conductor => conductor.type == "plane")
+      .map(plane => y_grid_lines.get_line(plane.region.iy_start))
+      .reduce((a,b) => Math.min(a,b), Infinity);
+    const y_plane_max = conductor_regions
+      .filter(conductor => conductor.type == "plane")
+      .map(plane => y_grid_lines.get_line(plane.region.iy_end))
+      .reduce((a,b) => Math.max(a,b), -Infinity);
+    if (y_plane_min > y_min) {
+      y_grid_lines.push(y_min-padding_size);
+    }
+    if (y_plane_max < y_max) {
+      y_grid_lines.push(y_max+padding_size);
+    }
   }
-  if (y_plane_max < y_max) {
-    y_grid_lines.push(y_max+padding_size);
+
+  // merge nearby region lines
+  {
+    const x_region_sizes = x_grid_lines.to_regions();
+    const y_region_sizes = y_grid_lines.to_regions();
+    const region_sizes = [...x_region_sizes, ...y_region_sizes]
+      .filter(size => size > 0); // avoid normalising to 0 which causes infinities
+    const log_mean = get_log_median(region_sizes);
+    const merge_threshold = log_mean*1e-3;
+    x_grid_lines.merge(merge_threshold);
+    y_grid_lines.merge(merge_threshold);
+    x_grid_lines.scale(1.0/log_mean);
+    y_grid_lines.scale(1.0/log_mean);
   }
 
   // create regions
+  const size_to_region_spec = (size: number): RegionSpecification => {
+    return {
+      size,
+    };
+  };
   const x_region_sizes = x_grid_lines.to_regions();
   const y_region_sizes = y_grid_lines.to_regions();
-  const x_max_ratio = 0.7;
-  const y_max_ratio = 0.7;
-  const x_min_subdivisions = 5;
-  const y_min_subdivisions = 5;
-
-  const x_region_specs: RegionSpecification[] = x_region_sizes.map(size => { return { size }; });
-  const y_region_specs: RegionSpecification[] = y_region_sizes.map(size => { return { size }; });
+  const x_region_specs: RegionSpecification[] = x_region_sizes.map(size_to_region_spec);
+  const y_region_specs: RegionSpecification[] = y_region_sizes.map(size_to_region_spec);
 
   // NOTE: copper planes don't need to be divided fancily to avoid numerical errors
   //       just used a fixed number of divisions since it gives the same result and is faster to compute
@@ -280,6 +296,10 @@ export function get_stackup_grid_from_stackup_layout(layout: StackupLayout): Sta
   }
 
   // create region grid
+  const x_max_ratio = 0.7;
+  const y_max_ratio = 0.7;
+  const x_min_subdivisions = 5;
+  const y_min_subdivisions = 5;
   const x_region_grids = calculate_grid_regions(x_region_specs, x_min_subdivisions, x_max_ratio);
   const y_region_grids = calculate_grid_regions(y_region_specs, y_min_subdivisions, y_max_ratio);
   const region_grid = new RegionGrid(x_region_grids, y_region_grids);

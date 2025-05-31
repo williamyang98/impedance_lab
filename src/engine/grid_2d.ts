@@ -248,22 +248,7 @@ export class GridLines {
     return this.id_to_index.length;
   }
 
-  push(line: number, threshold?: number): number {
-    threshold = threshold ?? 1e-6;
-    // check if line already exists
-    const N = this.lines.length;
-    for (let i = 0; i < N; i++) {
-      const other_line = this.lines[i];
-      const dist = Math.abs(other_line-line);
-      if (dist < threshold) {
-        for (let id = 0; id < N; id++) {
-          if (this.id_to_index[id] === i) {
-            return id;
-          }
-        }
-      }
-    }
-
+  push(line: number): number {
     const id = this.lines.length;
     if (id > 0 && this.is_sorted && this.lines[id-1] > line) {
       this.is_sorted = false;
@@ -274,6 +259,7 @@ export class GridLines {
   }
 
   sort() {
+    if (this.is_sorted) return;
     const N = this.lines.length;
     const sort_indices: number[] = new Array(N);
     for (let i = 0; i < N; i++) {
@@ -301,13 +287,48 @@ export class GridLines {
   }
 
   to_regions(): number[] {
-    if (!this.is_sorted) this.sort();
-    const N = this.id_to_index.length;
+    this.sort();
+    const N = this.lines.length;
     if (N < 2) throw Error(`Need at least 2 grid lines for a region`);
     const regions = new Array(N-1);
     for (let i = 0; i < (N-1); i++) {
       regions[i] = this.lines[i+1]-this.lines[i];
     }
     return regions;
+  }
+
+  merge(threshold: number) {
+    this.sort();
+
+    const N = this.lines.length;
+    const merged_lines: number[] = [];
+    const index_to_merged_index: number[] = Array.from({ length: N }, (_) => 0);
+    let merge_line: number = -Infinity;
+    for (let i = 0; i < N; i++) {
+      const line = this.lines[i];
+      const dist = Math.abs(line-merge_line);
+      if (dist > threshold) {
+        merge_line = line;
+        merged_lines.push(merge_line);
+      }
+      const merge_index = merged_lines.length-1;
+      if (merge_index < 0) {
+        throw Error(`No merge lines to map to. Did you push -Infinity to the grid?`);
+      }
+      index_to_merged_index[i] = merge_index;
+    }
+
+    this.lines = merged_lines;
+    for (let id = 0; id < this.id_to_index.length; id++) {
+      const index = this.id_to_index[id];
+      const merged_index = index_to_merged_index[index];
+      this.id_to_index[id] = merged_index;
+    }
+  }
+
+  scale(scale: number) {
+    for (let i = 0; i < this.lines.length; i++) {
+      this.lines[i] *= scale;
+    }
   }
 }
