@@ -71,7 +71,7 @@ class ShaderColourGrid {
         let dx = textureSampleLevel(spline_dx, spline_sampler, vec2<f32>(vertex.frag_position.x, 0.0), 0.0).r;
         let dy = textureSampleLevel(spline_dy, spline_sampler, vec2<f32>(vertex.frag_position.y, 0.0), 0.0).r;
         let V_force = textureSampleLevel(v_force, grid_sampler, vertex.frag_position, 0.0).rg;
-        let epsilon = textureSampleLevel(epsilon_field, grid_sampler, vertex.frag_position, 0.0).r;
+        let epsilon = textureSampleLevel(epsilon_field, grid_sampler, vertex.frag_position, 0.0).rg;
         let alpha_scale: f32 = 100.0;
 
         var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
@@ -106,7 +106,11 @@ class ShaderColourGrid {
           let cmap = red_green_cmap(V_input);
           color = vec4f(cmap, V_beta);
         } else if (params.axis == 7) {
-          let value = epsilon*params.scale;
+          let er1 = epsilon.r;
+          let beta = epsilon.g;
+          let er0 = 1.0;
+          let erk = (1.0-beta)*er0 + beta*er1;
+          let value = erk*params.scale;
           color = vec4f(-value, value, 0.0, abs(value)*alpha_scale);
         }
 

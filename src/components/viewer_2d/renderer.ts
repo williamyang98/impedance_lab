@@ -23,16 +23,16 @@ export class Renderer {
 
   upload_grid(grid: Grid) {
     this.grid_size = grid.size;
-    this._upload_v_force(grid.v_force, grid.v_table);
+    this._upload_v_force(grid.v_table, grid.v_index_beta);
     this._upload_v_field(grid.v_field);
     this._upload_e_field(grid.e_field);
     this._upload_dx_spline(grid.dx);
     this._upload_dy_spline(grid.dy);
-    this._upload_epsilon(grid.epsilon_k);
+    this._upload_epsilon(grid.ek_table, grid.ek_index_beta);
   }
 
-  _upload_v_force(v_force: Ndarray, v_table: Ndarray) {
-    const shape = v_force.shape;
+  _upload_v_force(v_table: Ndarray, v_index_beta: Ndarray) {
+    const shape = v_index_beta.shape;
     if (shape.length != 2) {
       throw Error(`Tried to update grid 2d renderer with non 2d array: (${shape.join(',')})`);
     }
@@ -59,12 +59,10 @@ export class Renderer {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const i = [y,x];
-        const data = v_force.get(i);
-        const v_index = (data >> 16) & 0xFFFF;
-        const v_beta = (data & 0xFFFF) / 0xFFFF;
-        const v_value = v_table.get([v_index]);
+        const { index, beta } = Grid.unpack_index_beta(v_index_beta.get(i));
+        const v_value = v_table.get([index]);
         voltage.set([...i, 0], v_value);
-        voltage.set([...i, 1], v_beta);
+        voltage.set([...i, 1], beta);
       }
     }
     const f32_data = voltage.cast(Float32Array);
@@ -110,8 +108,8 @@ export class Renderer {
     );
   }
 
-  _upload_epsilon(epsilon: Ndarray) {
-    const shape = epsilon.shape;
+  _upload_epsilon(ek_table: Ndarray, ek_index_beta: Ndarray) {
+    const shape = ek_index_beta.shape;
     if (shape.length != 2) {
       throw Error(`Tried to update grid 2d renderer with non 2d array: (${shape.join(',')})`);
     }
@@ -123,21 +121,31 @@ export class Renderer {
     ) {
       this.epsilon_texture = this.device.createTexture({
         dimension: "2d",
-        format: "r16float",
+        format: "rg16float",
         mipLevelCount: 1,
         sampleCount: 1,
         size: [width, height, 1],
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const N = width*height;
+    const epsilon = Ndarray.create_zeros([...shape, 2], "f32");
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = [y,x];
+        const { index, beta } = Grid.unpack_index_beta(ek_index_beta.get(i));
+        const er_value = ek_table.get([index]);
+        epsilon.set([...i, 0], er_value);
+        epsilon.set([...i, 1], beta);
+      }
+    }
+    const N = width*height*2;
     const f32_data = epsilon.cast(Float32Array);
     const f16_data = new Uint16Array(N);
     convert_f32_to_f16(f32_data, f16_data);
     this.device.queue.writeTexture(
       { texture: this.epsilon_texture },
       f16_data,
-      { bytesPerRow: width*2 },
+      { bytesPerRow: width*2*2 },
       { width, height },
     );
   }
