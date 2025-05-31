@@ -96,16 +96,11 @@ type ConductorRegion =
   { type: "trace", region: TrapezoidRegion, voltage: Voltage } |
   { type: "plane", region: InfinitePlaneRegion, voltage: Voltage, total_divisions: number };
 
-function push_table_value(value: number, values: number[], epsilon?: number): number {
-  epsilon = epsilon ?? 1e-3;
-  for (let i = 0; i < values.length; i++) {
-    const other_value = values[i];
-    const delta = Math.abs(other_value-value);
-    if (delta < epsilon) return i;
-  }
-  const index = values.length;
-  values.push(value);
-  return index;
+type EpsilonCategory = "soldermask" | "core";
+
+interface EpsilonValue {
+  category: EpsilonCategory;
+  value: number;
 }
 
 export class StackupGrid {
@@ -115,7 +110,7 @@ export class StackupGrid {
     v_set: Set<Voltage>,
   };
   epsilon_indexes: {
-    ek_table: number[];
+    ek_table: EpsilonValue[];
     soldermask_indices: Set<number>;
   };
   conductor_regions: ConductorRegion[];
@@ -327,8 +322,21 @@ export class StackupGrid {
     return region_grid;
   }
 
-  push_epsilon(epsilon_k: number): number {
-    return push_table_value(epsilon_k, this.epsilon_indexes.ek_table);
+  push_epsilon(epsilon_k: number, category: EpsilonCategory, threshold?: number): number {
+    threshold = threshold ?? 1e-3;
+    const ek_table = this.epsilon_indexes.ek_table;
+    for (let i = 0; i < ek_table.length; i++) {
+      const elem = ek_table[i];
+      if (elem.category != category) continue;
+      const delta = Math.abs(elem.value-epsilon_k);
+      if (delta < threshold) return i;
+    }
+    const index = ek_table.length;
+    ek_table.push({
+      category,
+      value: epsilon_k,
+    });
+    return index;
   }
 
   fill_dielectric_plane(region: InfinitePlaneRegion, ek_index: number) {
@@ -394,19 +402,20 @@ export class StackupGrid {
 
   setup_fill_dielectric_regions() {
     const er0 = 1.0; // dielectric of vacuum
-    const index_er0 = this.push_epsilon(er0);
+    const index_er0 = this.push_epsilon(er0, "core");
     this.region_grid.grid.ek_index_beta.fill(Grid.pack_index_beta(index_er0, 1.0));
 
     for (const dielectric_region of this.dielectric_regions) {
-      const ek_index = this.push_epsilon(dielectric_region.epsilon);
       switch (dielectric_region.type) {
         case "plane": {
           const { region } = dielectric_region;
+          const ek_index = this.push_epsilon(dielectric_region.epsilon, "core");
           this.fill_dielectric_plane(region, ek_index);
           break;
         };
         case "soldermask": {
           // @NOTE: we do this so we can toggle it on and off for mask/unmasked impedance calculation
+          const ek_index = this.push_epsilon(dielectric_region.epsilon, "soldermask");
           this.epsilon_indexes.soldermask_indices.add(ek_index);
           const { base_region, trace_regions } = dielectric_region;
           this.fill_dielectric_plane(base_region, ek_index);
@@ -557,7 +566,7 @@ export class StackupGrid {
     const ek_table = this.epsilon_indexes.ek_table;
     for (let i = 0; i < ek_table.length; i++) {
       const ek = ek_table[i];
-      grid.ek_table.set([i], ek);
+      grid.ek_table.set([i], ek.value);
     }
   }
 
@@ -565,9 +574,9 @@ export class StackupGrid {
     const grid = this.region_grid.grid;
     const ek_table = this.epsilon_indexes.ek_table;
     const soldermask_indices = this.epsilon_indexes.soldermask_indices;
-    const er0 = ek_table[0];
+    const er0 = ek_table[0].value;
     for (let i = 0; i < ek_table.length; i++) {
-      const ek = soldermask_indices.has(i) ? er0 : ek_table[i];
+      const ek = soldermask_indices.has(i) ? er0 : ek_table[i].value;
       grid.ek_table.set([i], ek);
     }
   }
