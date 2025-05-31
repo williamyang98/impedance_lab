@@ -1,87 +1,78 @@
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-pub unsafe fn bake_2d(
-    dx: &[f32], dy: &[f32],
-    dx_mid: &mut [f32], dy_mid: &mut [f32],
-    dxy_norm: &mut [f32],
-) {
-    let nx: usize = dx.len();
-    let ny: usize = dy.len();
-    assert!(dx_mid.len() == nx-1);
-    assert!(dy_mid.len() == ny-1);
-    assert!(dxy_norm.len() == (nx-1)*(ny-1));
-
-    for i in 0..nx-1 {
-        dx_mid[i] = (dx[i]+dx[i+1])/2.0;
-    }
-    for i in 0..ny-1 {
-        dy_mid[i] = (dy[i]+dy[i+1])/2.0;
-    }
-    for y in 0..ny-1 {
-        for x in 0..nx-1 {
-            let i = x + y*(nx-1);
-            dxy_norm[i] = (1.0/dx[x] + 1.0/dx[x+1])/dx_mid[x] + (1.0/dy[y] + 1.0/dy[y+1])/dy_mid[y];
-        }
-    }
-}
+pub fn unpack_data(packed_data: u32) -> (usize, f32) {
+    let index = (packed_data >> 16) as usize;
+    let beta: f32 = (packed_data & 0xFFFF) as f32 / (0xFFFF as f32);
+    return (index, beta);
+} 
 
 #[wasm_bindgen]
 pub unsafe fn iterate_solver_2d(
     v: &mut [f32], e: &mut [f32],
     dx: &[f32], dy: &[f32],
-    dx_mid: &[f32], dy_mid: &[f32], dxy_norm: &[f32],
-    v_force: &[u32], v_table: &[f32],
+    v_table: &[f32], v_index_beta: &[u32],
     total_steps: usize,
 ) {
     let nx: usize = dx.len();
     let ny: usize = dy.len();
-    let total_cells: usize = nx*ny;
-
-    // create forcing potential
-    let mut v_beta = vec![0.0; total_cells];
-    let mut v_source = vec![0.0; total_cells];
-    for (i, &data) in v_force.iter().enumerate() {
-        let index = (data >> 16) as usize;
-        let beta: f32 = (data & 0xFFFF) as f32 / (0xFFFF as f32);
-        let voltage = v_table[index];
-        v_beta[i] = beta;
-        v_source[i] = voltage;
-    }
+    let total_voltages = (nx+1)*(ny+1);
+    assert!(v.len() == total_voltages);
 
     for _ in 0..total_steps {
         // enforce voltage potential
-        for i in 0..total_cells {
-            v[i] += v_beta[i]*(v_source[i] - v[i]);
+        for i in 0..total_voltages {
+            let packed_data = v_index_beta[i];
+            let (index, beta) = unpack_data(packed_data);
+            let voltage = v_table[index];
+            v[i] += beta*(voltage - v[i]);
         }
 
-        // update e
+        // calculate Ex = dV/dx, Ey = dV/dy
         const E_DIMS: usize = 2;
-        for y in 0..ny-1 {
-            for x in 0..nx-1 {
-                let iv = x + y*nx;
-                let iv_dx = (x+1) + y*nx;
-                let iv_dy = x + (y+1)*nx;
+        for y in 0..ny {
+            for x in 0..nx {
+                let iv = x + y*(nx+1);
+                let iv_dx = (x+1) + y*(nx+1);
+                let iv_dy = x + (y+1)*(nx+1);
 
-                let ie = E_DIMS*iv;
+                let ie = E_DIMS*(x + y*nx);
                 e[ie+0] = (v[iv]-v[iv_dx])/dx[x];
                 e[ie+1] = (v[iv]-v[iv_dy])/dy[y];
             }
         }
 
-        // update v
+        // Update V so that it satisfies ∇E = 0
+        // ∇E = (Ex[x]-Ex[x-1])/(dx[x]+dx[x-1]) + (Ey[y]-E[y-1])/(dy[y]+dy[y-1])
+        // ∇E = dEx[x]/(dx[x]+dx[x-1]) + dEy[y]/(dy[y]+dy[y-1])
+        // Consider for an interval L ---> R
+        // - increasing point R by dV gives dE = dV/dr
+        // - increasing point L by dV gives dE = -dV/dr
+        // ∇E - d∇E = ∇E - (dV/dx[x]+dV/dx[x-1])/(dx[x]+dx[x-1]) - (dV/dy[y]+dV/dy[y-1])/(dy[y]+dy[y-1])
+        // Goal is to have ∇E - d∇E = 0, d∇E = ∇E
+        // d∇E = dV*((1/dx[x]+1/dx[x-1])/(dx[x]+dx[x+1]) + (1/dy[y]+1/dy[y-1])/(dy[y]+dy[y-1]))
+        //     = dV*(1/(dx[x]*dx[x-1]) + 1/(dy[y]+dy[y-1]))
+        // d∇E = dV*norm = ∇E, norm = 1/(dx[x]*dx[x-1]) + 1/(dy[y]+dy[y-1])
+        // dV = ∇E/norm
         for y in 1..ny {
+            let dyi_1 = dy[y-1];
+            let dyi = dy[y];
+
             for x in 1..nx {
+                let dxi_1 = dx[x-1];
+                let dxi = dx[x];
+
                 let ie = E_DIMS*(x + y*nx);
                 let ie_dy = E_DIMS*(x + (y-1)*nx);
                 let ie_dx = E_DIMS*((x-1) + y*nx);
 
-                let dex = (e[ie_dx+0]-e[ie+0])/dx_mid[x-1];
-                let dey = (e[ie_dy+1]-e[ie+1])/dy_mid[y-1];
+                let dex = e[ie_dx+0]-e[ie+0];
+                let dey = e[ie_dy+1]-e[ie+1];
+                let div_e = dex/(dxi+dxi_1) + dey/(dyi+dyi_1);
+                let norm = 1.0/(dxi*dxi_1) + 1.0/(dyi*dyi_1);
+                let dv = div_e/norm;
 
-                let iv = x + y*nx;
-                let inorm = (x-1) + (y-1)*(nx-1);
-                v[iv] += (dex+dey)/dxy_norm[inorm];
+                let iv = x + y*(nx+1);
+                v[iv] += dv;
             }
         }
     }
@@ -127,9 +118,9 @@ pub unsafe fn iterate_solver_2d(
 // 2. What is the problem space?
 // - We are approximating the energy calculation of an electric field in a dielectric discretely
 // - We use a yee grid with the following structure
-//   x -- x -- x
+//   o -- x
 //   |    |
-//   x -- x -- x
+//   x -- x
 // - A yee grid cell consists of the following:
 //  - "x": scalar voltage potential
 //  - "--": electric field x-component
@@ -183,14 +174,11 @@ pub fn get_gauss_legendre_integral(ex0: f32, ex1: f32, ey0: f32, ey1: f32, dx: f
     const A0: f32 = 0.21132;
     const A1: f32 = 0.78868;
 
-    // TODO: Sampling points technically are adjacent to 4 yee grid cells
-    //       This complicates the linear interpolation of Ex,Ey quite abit
-    //       For now we are performing a more crude interpolation which is simpler
-    //      |    |
-    //   -- o -- x --
-    //      |    |
-    //   -- x -- x --
-    //      |    |
+    // We approximate Ex and Ey as linearly changing along dy and dx inside the cell
+    // which under our Gauss Legendre integral will have a low error integral (not true for non-linear fields)
+    //  o -- x
+    //  |    |
+    //  x -- x
     let ex0_sample = ex0*A1 + ex1*A0;
     let ex1_sample = ex0*A0 + ex1*A1;
     let ey0_sample = ey0*A1 + ey1*A0;
@@ -237,12 +225,15 @@ pub unsafe fn calculate_homogenous_energy_2d(
 
 #[wasm_bindgen]
 pub unsafe fn calculate_inhomogenous_energy_2d(
-    e: &[f32], er: &[f32],
+    e: &[f32], 
+    er_table: &[f32], er_index_beta: &[u32],
     dx: &[f32], dy: &[f32],
 ) -> f32 {
     let nx: usize = dx.len();
     let ny: usize = dy.len();
     const E_DIMS: usize = 2;
+
+    let er0 = er_table[0];
 
     let mut energy = 0.0;
     for y in 0..ny-1 {
@@ -259,7 +250,10 @@ pub unsafe fn calculate_inhomogenous_energy_2d(
             let ey1 = e[i01+1];
             let sum = get_gauss_legendre_integral(ex0,ex1,ey0,ey1,dx,dy);
 
-            let er_cell = er[x+y*nx];
+            let packed_data = er_index_beta[x+y*nx];
+            let (index, beta) = unpack_data(packed_data);
+            let er_cell = (1.0-beta)*er0 + beta*er_table[index];
+
             energy += er_cell*sum;
         }
     }

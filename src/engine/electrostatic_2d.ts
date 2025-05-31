@@ -1,5 +1,4 @@
 import {
-  bake_2d,
   iterate_solver_2d,
   calculate_homogenous_energy_2d,
   calculate_inhomogenous_energy_2d,
@@ -26,42 +25,37 @@ export class Grid {
   size: [number, number];
   dx: Ndarray;
   dy: Ndarray;
-  v_force: Ndarray;
+  v_index_beta: Ndarray;
   v_table: Ndarray;
   v_field: Ndarray;
   e_field: Ndarray;
-  epsilon_k: Ndarray;
-
-  dx_mid: Ndarray;
-  dy_mid: Ndarray;
-  dxy_norm: Ndarray;
+  ek_table: Ndarray;
+  ek_index_beta: Ndarray;
 
   v_input: number;
+
+  static pack_index_beta(index: number, beta: number): number {
+    beta = Math.max(Math.min(0xFFFF, beta), 0x0000);
+    return ((index & 0xFFFF) << 16) | Math.floor(0xFFFF*beta);
+  }
+
+  static unpack_index_beta(packed_data: number): { index: number, beta: number } {
+    const beta = (packed_data & 0xFFFF) / 0xFFFF;
+    const index = (packed_data >> 16) & 0xFFFF;
+    return { index, beta };
+  }
 
   constructor(Ny: number, Nx: number) {
     this.size = [Ny, Nx];
     this.dx = Ndarray.create_zeros([Nx], "f32");
     this.dy = Ndarray.create_zeros([Ny], "f32");
-    this.v_force = Ndarray.create_zeros([Ny,Nx], "u32");
     this.v_table = Ndarray.create_zeros([3], "f32");
-    this.v_field = Ndarray.create_zeros([Ny,Nx], "f32");
+    this.v_index_beta = Ndarray.create_zeros([Ny+1,Nx+1], "u32");
+    this.v_field = Ndarray.create_zeros([Ny+1,Nx+1], "f32");
     this.e_field = Ndarray.create_zeros([Ny,Nx,2], "f32");
-    this.epsilon_k = Ndarray.create_zeros([Ny,Nx], "f32");
-
-    this.dx_mid = Ndarray.create_zeros([Nx-1], "f32");
-    this.dy_mid = Ndarray.create_zeros([Ny-1], "f32");
-    this.dxy_norm = Ndarray.create_zeros([Ny-1, Nx-1], "f32");
+    this.ek_table = Ndarray.create_zeros([Ny,Nx], "f32");
+    this.ek_index_beta = Ndarray.create_zeros([Ny,Nx], "u32");
     this.v_input = 1;
-  }
-
-  bake() {
-    bake_2d(
-      this.dx.cast(Float32Array),
-      this.dy.cast(Float32Array),
-      this.dx_mid.cast(Float32Array),
-      this.dy_mid.cast(Float32Array),
-      this.dxy_norm.cast(Float32Array),
-    );
   }
 
   reset() {
@@ -81,11 +75,8 @@ export class Grid {
     const e_field = this.e_field.cast(Float32Array);
     const dx = this.dx.cast(Float32Array);
     const dy = this.dy.cast(Float32Array);
-    const dx_mid = this.dx_mid.cast(Float32Array);
-    const dy_mid = this.dy_mid.cast(Float32Array);
-    const dxy_norm = this.dxy_norm.cast(Float32Array);
-    const v_force = this.v_force.cast(Uint32Array);
     const v_table = this.v_table.cast(Float32Array);
+    const v_index_beta = this.v_index_beta.cast(Uint32Array);
 
     const start_ms = performance.now();
     const max_step_strides = 100;
@@ -93,8 +84,7 @@ export class Grid {
       iterate_solver_2d(
         v_field, e_field,
         dx, dy,
-        dx_mid, dy_mid, dxy_norm,
-        v_force, v_table,
+        v_table, v_index_beta,
         step_stride
       );
       total_steps += step_stride;
@@ -132,7 +122,8 @@ export class Grid {
     );
     const energy_inhomogenous = calculate_inhomogenous_energy_2d(
       this.e_field.cast(Float32Array),
-      this.epsilon_k.cast(Float32Array),
+      this.ek_table.cast(Float32Array),
+      this.ek_index_beta.cast(Uint32Array),
       this.dx.cast(Float32Array),
       this.dy.cast(Float32Array),
     );
