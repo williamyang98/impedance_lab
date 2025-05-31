@@ -4,6 +4,7 @@ import {
   type Conductor,
   type Layer,
   type HorizontalSpacing,
+  type Voltage,
 } from "./stackup.ts";
 import { sizes } from "./viewer.ts";
 
@@ -418,7 +419,7 @@ export abstract class StackupWithConductorsEditor extends VerticalStackupEditor 
       layer_id,
       orientation,
       height: this.conductor_parameters.PH,
-      voltage: 0,
+      voltage: "ground",
     }
   }
 
@@ -618,10 +619,10 @@ export class CoplanarDifferentialPairEditor extends ColinearSignalEditor {
     const ids = Array.from({ length: 4 }, (_) => id_store.own());
     const p = this.conductor_parameters;
     const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: 0 },
-      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: 1 },
-      { type: "trace", id: ids[2], layer_id, orientation, width: p.W, voltage: -1 },
-      { type: "trace", id: ids[3], layer_id, orientation, width: p.CW, voltage: 0 },
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: "ground" },
+      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: "positive" },
+      { type: "trace", id: ids[2], layer_id, orientation, width: p.W, voltage: "negative" },
+      { type: "trace", id: ids[3], layer_id, orientation, width: p.CW, voltage: "ground" },
     ];
     const spacings: HorizontalSpacing[] = [
       { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
@@ -641,8 +642,8 @@ export class DifferentialPairEditor extends ColinearSignalEditor {
     const ids = Array.from({ length: 2 }, (_) => id_store.own());
     const p = this.conductor_parameters;
     const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: 1 },
-      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: -1 },
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: "positive" },
+      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: "negative" },
     ];
     const spacings: HorizontalSpacing[] = [
       { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.S },
@@ -660,7 +661,7 @@ export class SingleEndedEditor extends ColinearSignalEditor {
     const ids = Array.from({ length: 1 }, (_) => id_store.own());
     const p = this.conductor_parameters;
     const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: 1 },
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: "positive" },
     ];
     const spacings: HorizontalSpacing[] = [];
     return { layer_id, orientation, conductors, spacings };
@@ -676,9 +677,9 @@ export class CoplanarSingleEndedEditor extends ColinearSignalEditor {
     const ids = Array.from({ length: 3 }, (_) => id_store.own());
     const p = this.conductor_parameters;
     const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: 0 },
-      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: 1 },
-      { type: "trace", id: ids[2], layer_id, orientation, width: p.CW, voltage: 0 },
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: "ground" },
+      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: "positive" },
+      { type: "trace", id: ids[2], layer_id, orientation, width: p.CW, voltage: "ground" },
     ];
     const spacings: HorizontalSpacing[] = [
       { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
@@ -881,13 +882,13 @@ export class BroadsideCoplanarPairEditor extends BroadsideSignalEditor {
     super();
   }
 
-  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: number, id_store: IdStore): BroadsideTrace {
+  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
     const ids = Array.from({ length: 3 }, (_) => id_store.own());
     const p = this.conductor_parameters;
     const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: 0 },
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: "ground" },
       { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: signal_voltage },
-      { type: "trace", id: ids[2], layer_id, orientation, width: p.CW, voltage: 0 },
+      { type: "trace", id: ids[2], layer_id, orientation, width: p.CW, voltage: "ground" },
     ];
     const root = conductors[1];
     const spacings: HorizontalSpacing[] = [
@@ -898,11 +899,11 @@ export class BroadsideCoplanarPairEditor extends BroadsideSignalEditor {
   }
 
   override create_left_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(layer_id, orientation, 1, id_store);
+    return this.create_traces(layer_id, orientation, "positive", id_store);
   }
 
   override create_right_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(layer_id, orientation, -1, id_store);
+    return this.create_traces(layer_id, orientation, "negative", id_store);
   }
 }
 
@@ -911,7 +912,7 @@ export class BroadsidePairEditor extends BroadsideSignalEditor {
     super();
   }
 
-  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: number, id_store: IdStore): BroadsideTrace {
+  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
     const ids = Array.from({ length: 1 }, (_) => id_store.own());
     const p = this.conductor_parameters;
     const conductors: TraceConductor[] = [
@@ -923,12 +924,19 @@ export class BroadsidePairEditor extends BroadsideSignalEditor {
   }
 
   override create_left_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(layer_id, orientation, 1, id_store);
+    return this.create_traces(layer_id, orientation, "positive", id_store);
   }
 
   override create_right_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(layer_id, orientation, -1, id_store);
+    return this.create_traces(layer_id, orientation, "negative", id_store);
   }
+}
+
+function get_opposite_voltage(voltage: Voltage): Voltage {
+  if (voltage !== "positive" && voltage !== "negative") {
+    throw Error(`Cannot get the opposite voltage for ${voltage}`)
+  }
+  return (voltage == "positive") ? "negative" : "positive";
 }
 
 export class BroadsideMirroredPairEditor extends BroadsideSignalEditor {
@@ -936,12 +944,12 @@ export class BroadsideMirroredPairEditor extends BroadsideSignalEditor {
     super();
   }
 
-  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: number, id_store: IdStore): BroadsideTrace {
+  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
     const ids = Array.from({ length: 2 }, (_) => id_store.own());
     const p = this.conductor_parameters;
     const conductors: TraceConductor[] = [
       { type: "trace", id: ids[0], layer_id, orientation, width: p.W, voltage: signal_voltage },
-      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: -signal_voltage },
+      { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: get_opposite_voltage(signal_voltage) },
     ];
     const root = conductors[0];
     const spacings: HorizontalSpacing[] = [
@@ -951,11 +959,11 @@ export class BroadsideMirroredPairEditor extends BroadsideSignalEditor {
   }
 
   override create_left_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(layer_id, orientation, 1, id_store);
+    return this.create_traces(layer_id, orientation, "positive", id_store);
   }
 
   override create_right_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(layer_id, orientation, -1, id_store);
+    return this.create_traces(layer_id, orientation, "negative", id_store);
   }
 }
 
@@ -965,14 +973,14 @@ export class BroadsideMirroredCoplanarPairEditor extends BroadsideSignalEditor {
     super();
   }
 
-  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: number, id_store: IdStore): BroadsideTrace {
+  create_traces(layer_id: LayerId, orientation: Orientation, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
     const ids = Array.from({ length: 4 }, (_) => id_store.own());
     const p = this.conductor_parameters;
     const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: 0 },
+      { type: "trace", id: ids[0], layer_id, orientation, width: p.CW, voltage: "ground" },
       { type: "trace", id: ids[1], layer_id, orientation, width: p.W, voltage: signal_voltage },
-      { type: "trace", id: ids[2], layer_id, orientation, width: p.W, voltage: -signal_voltage },
-      { type: "trace", id: ids[3], layer_id, orientation, width: p.CW, voltage: 0 },
+      { type: "trace", id: ids[2], layer_id, orientation, width: p.W, voltage: get_opposite_voltage(signal_voltage) },
+      { type: "trace", id: ids[3], layer_id, orientation, width: p.CW, voltage: "ground" },
     ];
     const root = conductors[1];
     const spacings: HorizontalSpacing[] = [
@@ -984,10 +992,10 @@ export class BroadsideMirroredCoplanarPairEditor extends BroadsideSignalEditor {
   }
 
   override create_left_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(layer_id, orientation, 1, id_store);
+    return this.create_traces(layer_id, orientation, "positive", id_store);
   }
 
   override create_right_traces(layer_id: LayerId, orientation: Orientation, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(layer_id, orientation, -1, id_store);
+    return this.create_traces(layer_id, orientation, "negative", id_store);
   }
 }

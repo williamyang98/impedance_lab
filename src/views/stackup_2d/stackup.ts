@@ -20,13 +20,15 @@ export type Orientation = "up" | "down";
 export type LayerId = number;
 export type TraceId = number;
 
+export type Voltage = "ground" | "positive" | "negative";
+
 // conductors
 export interface CopperTrace {
   id: TraceId;
   width: SizeParameter;
   orientation: Orientation;
   layer_id: LayerId;
-  voltage: number;
+  voltage: Voltage;
   viewer?: {
     display?: "none" | "solid" | "selectable",
     group_tag?: string,
@@ -40,7 +42,7 @@ export interface CopperPlane {
   height: SizeParameter;
   orientation: Orientation;
   layer_id: LayerId;
-  voltage: number;
+  voltage: Voltage;
   layout?: {
     shrink_trace_layer?: boolean;
   };

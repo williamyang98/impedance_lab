@@ -1,10 +1,11 @@
-import { type Parameter } from "./stackup.ts";
+import { type Parameter, type Voltage } from "./stackup.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
 
 import {
   GridLines, RegionGrid,
 } from "../../engine/grid_2d.ts";
+import { Grid } from "../../engine/electrostatic_2d.ts";
 import { calculate_grid_regions, type RegionSpecification } from "../../engine/mesher.ts";
 
 function get_log_median(dims: number[]): number {
@@ -49,7 +50,7 @@ function get_sdf_multisample(sdf: (x: number, y: number) => number) {
   return transform;
 }
 
-function voltage_sdf(sdf: (x: number, y: number) => number, voltage_index: number) {
+function index_beta_sdf(sdf: (x: number, y: number) => number, index: number) {
   const sdf_multisample = get_sdf_multisample(sdf);
   function transform(
     _value: number,
@@ -57,22 +58,7 @@ function voltage_sdf(sdf: (x: number, y: number) => number, voltage_index: numbe
     [y_size, x_size]: [number, number]): number
   {
     const beta = sdf_multisample([y_start, x_start], [y_size, x_size]);
-    const beta_quantised = Math.floor(0xFFFF*beta);
-    return (voltage_index << 16) | beta_quantised;
-  }
-  return transform;
-}
-
-function epsilon_sdf(sdf: (x: number, y: number) => number, old_epsilon: number, new_epsilon: number) {
-  const sdf_multisample = get_sdf_multisample(sdf);
-  function transform(
-    _old_epsilon: number,
-    [y_start, x_start]: [number, number],
-    [y_size, x_size]: [number, number]): number
-  {
-    const beta = sdf_multisample([y_start, x_start], [y_size, x_size]);
-    const epsilon = (1-beta)*old_epsilon + beta*new_epsilon;
-    return epsilon;
+    return Grid.pack_index_beta(index, beta);
   }
   return transform;
 }
@@ -107,257 +93,298 @@ type DielectricRegion =
   { type: "soldermask" } & SoldermaskDielectricRegion;
 
 type ConductorRegion =
-  { type: "trace", region: TrapezoidRegion, voltage_index: number } |
-  { type: "plane", region: InfinitePlaneRegion, voltage_index: number, total_divisions: number };
+  { type: "trace", region: TrapezoidRegion, voltage: Voltage } |
+  { type: "plane", region: InfinitePlaneRegion, voltage: Voltage, total_divisions: number };
 
-export interface StackupGrid {
+function push_table_value(value: number, values: number[], epsilon?: number): number {
+  epsilon = epsilon ?? 1e-3;
+  for (let i = 0; i < values.length; i++) {
+    const other_value = values[i];
+    const delta = Math.abs(other_value-value);
+    if (delta < epsilon) return i;
+  }
+  const index = values.length;
+  values.push(value);
+  return index;
+}
+
+export class StackupGrid {
   layout: StackupLayout;
-  voltages: number[];
+  voltage_indexes: {
+    v_table: Record<Voltage, number>,
+    v_set: Set<Voltage>,
+  };
+  epsilon_indexes: {
+    ek_table: number[];
+    soldermask_indices: Set<number>;
+  };
+  conductor_regions: ConductorRegion[];
+  dielectric_regions: DielectricRegion[];
   x_grid_lines: GridLines;
   y_grid_lines: GridLines;
   region_grid: RegionGrid;
-}
 
-export function get_stackup_grid_from_stackup_layout(layout: StackupLayout): StackupGrid {
-  const x_grid_lines = new GridLines();
-  const y_grid_lines = new GridLines();
-  const voltages: number[] = [];
+  constructor(layout: StackupLayout) {
+    this.layout = layout;
+    this.x_grid_lines = new GridLines();
+    this.y_grid_lines = new GridLines();
+    this.voltage_indexes = {
+      v_table: {
+        "ground": 0,
+        "positive": 1,
+        "negative": 2,
+      },
+      v_set: new Set(),
+    };
+    this.epsilon_indexes = {
+      ek_table: [],
+      soldermask_indices: new Set(),
+    };
 
-  const push_voltage = (voltage: number): number => {
-    const epsilon = 1e-3;
-    for (let i = 0; i < voltages.length; i++) {
-      const other_voltage = voltages[i];
-      const delta = Math.abs(other_voltage-voltage);
-      if (delta < epsilon) return i;
-    }
-    const index = voltages.length;
-    voltages.push(voltage);
-    return index;
+    this.dielectric_regions = this.setup_create_dielectric_regions();
+    this.conductor_regions = this.setup_create_conductor_regions();
+    this.setup_pad_grid();
+    this.setup_merge_nearby_grid_lines();
+    this.region_grid = this.setup_create_region_grid();
+    this.setup_fill_dielectric_regions();
+    this.setup_fill_voltage_regions();
+
+    const grid = this.region_grid.grid;
+    // fit voltage and epsilon_k table
+    grid.v_table = Ndarray.create_zeros([3], "f32");
+    grid.ek_table = Ndarray.create_zeros([this.epsilon_indexes.ek_table.length], "f32");
   }
 
-  const get_epsilon = (param: Parameter): number => {
-    const epsilon = param.value;
-    if (epsilon === undefined) {
-      param.error = "Dielectric constant must be provided";
-      throw Error("Missing epsilon field value");
-    }
-    return epsilon;
-  };
-
-  const get_infinite_plane_region = (shape: InfinitePlaneShape): InfinitePlaneRegion => {
+  get_infinite_plane_region(shape: InfinitePlaneShape): InfinitePlaneRegion {
     const { y_start, height } = shape;
     const y_end = y_start+height;
     return {
-      iy_start: y_grid_lines.push(y_start),
-      iy_end: y_grid_lines.push(y_end),
+      iy_start: this.y_grid_lines.push(y_start),
+      iy_end: this.y_grid_lines.push(y_end),
     };
   };
 
-  const get_trapezoid_region = (shape: TrapezoidShape): TrapezoidRegion => {
+  get_trapezoid_region(shape: TrapezoidShape): TrapezoidRegion {
     return {
-      ix_signal_left: x_grid_lines.push(shape.x_left),
-      ix_taper_left: x_grid_lines.push(shape.x_left_taper),
-      ix_taper_right: x_grid_lines.push(shape.x_right_taper),
-      ix_signal_right: x_grid_lines.push(shape.x_right),
-      iy_base: y_grid_lines.push(shape.y_base),
-      iy_taper: y_grid_lines.push(shape.y_taper),
+      ix_signal_left: this.x_grid_lines.push(shape.x_left),
+      ix_taper_left: this.x_grid_lines.push(shape.x_left_taper),
+      ix_taper_right: this.x_grid_lines.push(shape.x_right_taper),
+      ix_signal_right: this.x_grid_lines.push(shape.x_right),
+      iy_base: this.y_grid_lines.push(shape.y_base),
+      iy_taper: this.y_grid_lines.push(shape.y_taper),
     }
   };
 
-  const dielectric_regions: DielectricRegion[] = [];
-  const conductor_regions: ConductorRegion[] = [];
-
-  // create dielectric regions
-  for (const layer_layout of layout.layers) {
-    switch (layer_layout.type) {
-      case "unmasked": {
-        break;
+  setup_create_dielectric_regions(): DielectricRegion[] {
+    const get_epsilon = (param: Parameter): number => {
+      const epsilon = param.value;
+      if (epsilon === undefined) {
+        param.error = "Dielectric constant must be provided";
+        throw Error("Missing epsilon field value");
       }
-      case "soldermask": {
-        const mask = layer_layout.mask;
-        if (mask) {
+      return epsilon;
+    };
+
+    const dielectric_regions: DielectricRegion[] = [];
+    for (const layer_layout of this.layout.layers) {
+      switch (layer_layout.type) {
+        case "unmasked": {
+          break;
+        }
+        case "soldermask": {
+          const mask = layer_layout.mask;
+          if (mask) {
+            const layer = layer_layout.parent;
+            const epsilon = get_epsilon(layer.epsilon);
+            const base_region = this.get_infinite_plane_region(mask.surface);
+            const trace_regions: TrapezoidRegion[] = mask.traces.map(shape => this.get_trapezoid_region(shape));
+            dielectric_regions.push({
+              type: "soldermask",
+              base_region,
+              trace_regions,
+              epsilon,
+            });
+          }
+          break;
+        }
+        case "core": // @fallthrough
+        case "prepreg": {
           const layer = layer_layout.parent;
           const epsilon = get_epsilon(layer.epsilon);
-          const base_region = get_infinite_plane_region(mask.surface);
-          const trace_regions: TrapezoidRegion[] = mask.traces.map(shape => get_trapezoid_region(shape));
+          const region = this.get_infinite_plane_region(layer_layout.bounding_box);
           dielectric_regions.push({
-            type: "soldermask",
-            base_region,
-            trace_regions,
+            type: "plane",
+            region,
             epsilon,
           });
+          break;
         }
-        break;
-      }
-      case "core": // @fallthrough
-      case "prepreg": {
-        const layer = layer_layout.parent;
-        const epsilon = get_epsilon(layer.epsilon);
-        const region = get_infinite_plane_region(layer_layout.bounding_box);
-        dielectric_regions.push({
-          type: "plane",
-          region,
-          epsilon,
-        });
-        break;
       }
     }
+    return dielectric_regions;
   }
 
-  // create conductor regions
-  for (const conductor_layout of layout.conductors) {
-    switch (conductor_layout.type) {
-      case "trace": {
-        const trace = conductor_layout.parent;
-        const region = get_trapezoid_region(conductor_layout.shape);
-        conductor_regions.push({
-          type: "trace",
-          region,
-          voltage_index: push_voltage(trace.voltage),
-        })
-        break;
-      }
-      case "plane": {
-        const plane = conductor_layout.parent;
-        const total_divisions = plane.grid?.override_total_divisions || 2;
-        conductor_regions.push({
-          type: "plane",
-          region: get_infinite_plane_region(conductor_layout.shape),
-          voltage_index: push_voltage(plane.voltage),
-          total_divisions,
-        })
-        break;
+  setup_create_conductor_regions(): ConductorRegion[] {
+    const conductor_regions: ConductorRegion[] = [];
+    for (const conductor_layout of this.layout.conductors) {
+      switch (conductor_layout.type) {
+        case "trace": {
+          const trace = conductor_layout.parent;
+          const region = this.get_trapezoid_region(conductor_layout.shape);
+          conductor_regions.push({
+            type: "trace",
+            region,
+            voltage: trace.voltage,
+          })
+          break;
+        }
+        case "plane": {
+          const plane = conductor_layout.parent;
+          const total_divisions = plane.grid?.override_total_divisions || 2;
+          conductor_regions.push({
+            type: "plane",
+            region: this.get_infinite_plane_region(conductor_layout.shape),
+            voltage: plane.voltage,
+            total_divisions,
+          })
+          break;
+        }
       }
     }
+    return conductor_regions;
   }
 
-  // pad simulation grid to include far field
-  {
-    const x_min = x_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
-    const x_max = x_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
-    const y_min = y_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
-    const y_max = y_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+  setup_pad_grid() {
+    const x_min = this.x_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
+    const x_max = this.x_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+    const y_min = this.y_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
+    const y_max = this.y_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
     const stackup_width = x_max-x_min;
     const stackup_height = y_max-y_min;
     const padding_size = Math.max(stackup_width, stackup_height);
-    x_grid_lines.push(x_min-padding_size);
-    x_grid_lines.push(x_max+padding_size);
+    this.x_grid_lines.push(x_min-padding_size);
+    this.x_grid_lines.push(x_max+padding_size);
     // only pad y-axis if copper planes don't exist at the ends
-    const y_plane_min = conductor_regions
+    const y_plane_min = this.conductor_regions
       .filter(conductor => conductor.type == "plane")
-      .map(plane => y_grid_lines.get_line(plane.region.iy_start))
+      .map(plane => this.y_grid_lines.get_line(plane.region.iy_start))
       .reduce((a,b) => Math.min(a,b), Infinity);
-    const y_plane_max = conductor_regions
+    const y_plane_max = this.conductor_regions
       .filter(conductor => conductor.type == "plane")
-      .map(plane => y_grid_lines.get_line(plane.region.iy_end))
+      .map(plane => this.y_grid_lines.get_line(plane.region.iy_end))
       .reduce((a,b) => Math.max(a,b), -Infinity);
     if (y_plane_min > y_min) {
-      y_grid_lines.push(y_min-padding_size);
+      this.y_grid_lines.push(y_min-padding_size);
     }
     if (y_plane_max < y_max) {
-      y_grid_lines.push(y_max+padding_size);
+      this.y_grid_lines.push(y_max+padding_size);
     }
   }
 
-  // merge nearby region lines
-  {
-    const x_region_sizes = x_grid_lines.to_regions();
-    const y_region_sizes = y_grid_lines.to_regions();
+  setup_merge_nearby_grid_lines() {
+    const x_region_sizes = this.x_grid_lines.to_regions();
+    const y_region_sizes = this.y_grid_lines.to_regions();
     const region_sizes = [...x_region_sizes, ...y_region_sizes]
       .filter(size => size > 0); // avoid normalising to 0 which causes infinities
     const log_mean = get_log_median(region_sizes);
     const merge_threshold = log_mean*1e-3;
-    x_grid_lines.merge(merge_threshold);
-    y_grid_lines.merge(merge_threshold);
-    x_grid_lines.scale(1.0/log_mean);
-    y_grid_lines.scale(1.0/log_mean);
+    this.x_grid_lines.merge(merge_threshold);
+    this.y_grid_lines.merge(merge_threshold);
+    this.x_grid_lines.scale(1.0/log_mean);
+    this.y_grid_lines.scale(1.0/log_mean);
   }
 
-  // create regions
-  const size_to_region_spec = (size: number): RegionSpecification => {
-    return {
-      size,
+  setup_create_region_grid(): RegionGrid {
+    const size_to_region_spec = (size: number): RegionSpecification => {
+      return {
+        size,
+      };
     };
-  };
-  const x_region_sizes = x_grid_lines.to_regions();
-  const y_region_sizes = y_grid_lines.to_regions();
-  const x_region_specs: RegionSpecification[] = x_region_sizes.map(size_to_region_spec);
-  const y_region_specs: RegionSpecification[] = y_region_sizes.map(size_to_region_spec);
+    const x_region_sizes = this.x_grid_lines.to_regions();
+    const y_region_sizes = this.y_grid_lines.to_regions();
+    const x_region_specs: RegionSpecification[] = x_region_sizes.map(size_to_region_spec);
+    const y_region_specs: RegionSpecification[] = y_region_sizes.map(size_to_region_spec);
 
-  // NOTE: copper planes don't need to be divided fancily to avoid numerical errors
-  //       just used a fixed number of divisions since it gives the same result and is faster to compute
-  for (const plane of conductor_regions.filter(conductor => conductor.type == "plane")) {
-    const { region, total_divisions } = plane;
-    const ry_start = y_grid_lines.get_index(region.iy_start);
-    const ry_end = y_grid_lines.get_index(region.iy_end);
-    for (let i = ry_start; i < ry_end; i++) {
-      y_region_specs[i].total_grid_lines = total_divisions;
+    // NOTE: copper planes don't need to be divided fancily to avoid numerical errors
+    //       just used a fixed number of divisions since it gives the same result and is faster to compute
+    for (const plane of this.conductor_regions.filter(conductor => conductor.type == "plane")) {
+      const { region, total_divisions } = plane;
+      const ry_start = this.y_grid_lines.get_index(region.iy_start);
+      const ry_end = this.y_grid_lines.get_index(region.iy_end);
+      for (let i = ry_start; i < ry_end; i++) {
+        y_region_specs[i].total_grid_lines = total_divisions;
+      }
     }
+
+    // create region grid
+    const x_max_ratio = 0.7;
+    const y_max_ratio = 0.7;
+    const x_min_subdivisions = 5;
+    const y_min_subdivisions = 5;
+    const x_region_grids = calculate_grid_regions(x_region_specs, x_min_subdivisions, x_max_ratio);
+    const y_region_grids = calculate_grid_regions(y_region_specs, y_min_subdivisions, y_max_ratio);
+    const region_grid = new RegionGrid(x_region_grids, y_region_grids);
+    return region_grid;
   }
 
-  // create region grid
-  const x_max_ratio = 0.7;
-  const y_max_ratio = 0.7;
-  const x_min_subdivisions = 5;
-  const y_min_subdivisions = 5;
-  const x_region_grids = calculate_grid_regions(x_region_specs, x_min_subdivisions, x_max_ratio);
-  const y_region_grids = calculate_grid_regions(y_region_specs, y_min_subdivisions, y_max_ratio);
-  const region_grid = new RegionGrid(x_region_grids, y_region_grids);
+  push_epsilon(epsilon_k: number): number {
+    return push_table_value(epsilon_k, this.epsilon_indexes.ek_table);
+  }
 
-  // fill dielectric regions
-  const er0 = 1.0; // dielectric of vacuum
-  region_grid.grid.epsilon_k.fill(er0);
-
-  const fill_dielectric_plane = (region: InfinitePlaneRegion, epsilon: number) => {
-    const ry_start = y_grid_lines.get_index(region.iy_start);
-    const ry_end = y_grid_lines.get_index(region.iy_end);
+  fill_dielectric_plane(region: InfinitePlaneRegion, ek_index: number) {
+    const ry_start = this.y_grid_lines.get_index(region.iy_start);
+    const ry_end = this.y_grid_lines.get_index(region.iy_end);
     const rx_start = 0;
-    const rx_end = x_region_grids.length;
-    const epsilon_k = region_grid.epsilon_k_region_view();
+    const rx_end = this.region_grid.x_grid_regions.length;
+
+    const ek_index_beta = this.region_grid.ek_index_beta_region_view();
+    const ek_beta = 1.0;
+
     if (ry_start < ry_end) {
-      epsilon_k
+      ek_index_beta
         .get_region(
             [ry_start,rx_start],
             [ry_end,rx_end],
         )
-        .fill(epsilon);
+        .fill(Grid.pack_index_beta(ek_index, ek_beta));
     }
   };
 
-  const fill_dielectric_trapezoid = (region: TrapezoidRegion, epsilon: number) => {
-    const rx_signal_left = x_grid_lines.get_index(region.ix_signal_left);
-    const rx_signal_right = x_grid_lines.get_index(region.ix_signal_right);
-    const rx_taper_left = x_grid_lines.get_index(region.ix_taper_left);
-    const rx_taper_right = x_grid_lines.get_index(region.ix_taper_right);
+  fill_dielectric_trapezoid(region: TrapezoidRegion, ek_index: number) {
+    const rx_signal_left = this.x_grid_lines.get_index(region.ix_signal_left);
+    const rx_signal_right = this.x_grid_lines.get_index(region.ix_signal_right);
+    const rx_taper_left = this.x_grid_lines.get_index(region.ix_taper_left);
+    const rx_taper_right = this.x_grid_lines.get_index(region.ix_taper_right);
 
-    const ry_base = y_grid_lines.get_index(region.iy_base);
-    const ry_taper = y_grid_lines.get_index(region.iy_taper);
+    const ry_base = this.y_grid_lines.get_index(region.iy_base);
+    const ry_taper = this.y_grid_lines.get_index(region.iy_taper);
     const ry_start = Math.min(ry_base, ry_taper);
     const ry_end = Math.max(ry_base, ry_taper);
 
-    const epsilon_k = region_grid.epsilon_k_region_view();
+    const ek_index_beta = this.region_grid.ek_index_beta_region_view();
+
     if (rx_signal_left < rx_taper_left && ry_start < ry_end) {
       const left_taper_sdf =
         (ry_taper > ry_base) ?
-        epsilon_sdf(sdf_slope_top_right, er0, epsilon) :
-        epsilon_sdf(sdf_slope_bottom_right, er0, epsilon);
-      epsilon_k.transform_norm_region(
+        index_beta_sdf(sdf_slope_top_right, ek_index) :
+        index_beta_sdf(sdf_slope_bottom_right, ek_index);
+      ek_index_beta.transform_norm_region(
         [ry_start, rx_signal_left],
         [ry_end, rx_taper_left],
         left_taper_sdf,
       );
     }
     if (rx_taper_left < rx_taper_right && ry_start < ry_end) {
-      epsilon_k
+      ek_index_beta
         .get_region([ry_start, rx_taper_left], [ry_end, rx_taper_right])
-        .fill(epsilon);
+        .fill(Grid.pack_index_beta(ek_index, 1.0));
     }
     if (rx_taper_right < rx_signal_right && ry_start < ry_end) {
       const right_taper_sdf =
         (ry_taper > ry_base) ?
-        epsilon_sdf(sdf_slope_top_left, er0, epsilon) :
-        epsilon_sdf(sdf_slope_bottom_left, er0, epsilon);
-      epsilon_k.transform_norm_region(
+        index_beta_sdf(sdf_slope_top_left, ek_index) :
+        index_beta_sdf(sdf_slope_bottom_left, ek_index);
+      ek_index_beta.transform_norm_region(
         [ry_start, rx_taper_right],
         [ry_end, rx_signal_right],
         right_taper_sdf,
@@ -365,77 +392,92 @@ export function get_stackup_grid_from_stackup_layout(layout: StackupLayout): Sta
     }
   };
 
-  for (const dielectric_region of dielectric_regions) {
-    switch (dielectric_region.type) {
-      case "plane": {
-        const { region, epsilon } = dielectric_region;
-        fill_dielectric_plane(region, epsilon);
-        break;
-      };
-      case "soldermask": {
-        const { base_region, trace_regions, epsilon} = dielectric_region;
-        fill_dielectric_plane(base_region, epsilon);
-        for (const region of trace_regions) {
-          fill_dielectric_trapezoid(region, epsilon);
-        }
-        break;
-      };
+  setup_fill_dielectric_regions() {
+    const er0 = 1.0; // dielectric of vacuum
+    const index_er0 = this.push_epsilon(er0);
+    this.region_grid.grid.ek_index_beta.fill(Grid.pack_index_beta(index_er0, 1.0));
+
+    for (const dielectric_region of this.dielectric_regions) {
+      const ek_index = this.push_epsilon(dielectric_region.epsilon);
+      switch (dielectric_region.type) {
+        case "plane": {
+          const { region } = dielectric_region;
+          this.fill_dielectric_plane(region, ek_index);
+          break;
+        };
+        case "soldermask": {
+          // @NOTE: we do this so we can toggle it on and off for mask/unmasked impedance calculation
+          this.epsilon_indexes.soldermask_indices.add(ek_index);
+          const { base_region, trace_regions } = dielectric_region;
+          this.fill_dielectric_plane(base_region, ek_index);
+          for (const region of trace_regions) {
+            this.fill_dielectric_trapezoid(region, ek_index);
+          }
+          break;
+        };
+      }
     }
   }
 
-  // fill voltage regions
-  const fill_voltage_plane = (region: InfinitePlaneRegion, voltage_index: number) => {
-    const ry_start = y_grid_lines.get_index(region.iy_start);
-    const ry_end = y_grid_lines.get_index(region.iy_end);
+  push_voltage(voltage: Voltage): number {
+    this.voltage_indexes.v_set.add(voltage);
+    return this.voltage_indexes.v_table[voltage];
+  }
+
+  fill_voltage_plane(region: InfinitePlaneRegion, voltage: Voltage) {
+    const ry_start = this.y_grid_lines.get_index(region.iy_start);
+    const ry_end = this.y_grid_lines.get_index(region.iy_end);
     const rx_start = 0;
-    const rx_end = x_region_grids.length;
+    const rx_end = this.region_grid.x_grid_regions.length;
 
-    const v_force = region_grid.v_force_region_view();
-    const [Ny, Nx] = v_force.view.shape;
+    const v_index_beta = this.region_grid.v_index_beta_region_view();
+    const v_index = this.push_voltage(voltage);
+    const [Ny, Nx] = v_index_beta.view.shape;
 
-    const gx_start = v_force.x_region_to_grid(rx_start);
-    const gx_end = v_force.x_region_to_grid(rx_end);
-    const gy_start = v_force.y_region_to_grid(ry_start);
-    const gy_end = v_force.y_region_to_grid(ry_end);
+    const gx_start = v_index_beta.x_region_to_grid(rx_start);
+    const gx_end = v_index_beta.x_region_to_grid(rx_end);
+    const gy_start = v_index_beta.y_region_to_grid(ry_start);
+    const gy_end = v_index_beta.y_region_to_grid(ry_end);
 
     // expand voltage field to include the next index so voltage along boundary of conductor is met
     // also allow infinitely flat traces (gy_start == gy_end)
-    v_force
+    v_index_beta
       .get_grid(
         [gy_start, gx_start],
         [Math.min(gy_end+1,Ny), Math.min(gx_end+1,Nx)],
       )
-      .fill((voltage_index << 16) | 0xFFFF);
+      .fill(Grid.pack_index_beta(v_index, 1.0));
   };
 
-  const fill_voltage_trapezoid = (region: TrapezoidRegion, voltage_index: number) => {
-    const rx_signal_left = x_grid_lines.get_index(region.ix_signal_left);
-    const rx_signal_right = x_grid_lines.get_index(region.ix_signal_right);
-    const rx_taper_left = x_grid_lines.get_index(region.ix_taper_left);
-    const rx_taper_right = x_grid_lines.get_index(region.ix_taper_right);
+  fill_voltage_trapezoid(region: TrapezoidRegion, voltage: Voltage) {
+    const rx_signal_left = this.x_grid_lines.get_index(region.ix_signal_left);
+    const rx_signal_right = this.x_grid_lines.get_index(region.ix_signal_right);
+    const rx_taper_left = this.x_grid_lines.get_index(region.ix_taper_left);
+    const rx_taper_right = this.x_grid_lines.get_index(region.ix_taper_right);
 
-    const ry_base = y_grid_lines.get_index(region.iy_base);
-    const ry_taper = y_grid_lines.get_index(region.iy_taper);
+    const ry_base = this.y_grid_lines.get_index(region.iy_base);
+    const ry_taper = this.y_grid_lines.get_index(region.iy_taper);
     const ry_start = Math.min(ry_base, ry_taper);
     const ry_end = Math.max(ry_base, ry_taper);
 
-    const v_force = region_grid.v_force_region_view();
-    const [Ny, Nx] = v_force.view.shape;
+    const v_index_beta = this.region_grid.v_index_beta_region_view();
+    const v_index = this.push_voltage(voltage);
+    const [Ny, Nx] = v_index_beta.view.shape;
 
-    const gx_taper_left = v_force.x_region_to_grid(rx_taper_left);
-    const gx_signal_left = v_force.x_region_to_grid(rx_signal_left);
-    const gx_signal_right = v_force.x_region_to_grid(rx_signal_right);
-    const gx_taper_right = v_force.x_region_to_grid(rx_taper_right);
-    const gy_start = v_force.y_region_to_grid(ry_start);
-    const gy_end = v_force.y_region_to_grid(ry_end);
+    const gx_taper_left = v_index_beta.x_region_to_grid(rx_taper_left);
+    const gx_signal_left = v_index_beta.x_region_to_grid(rx_signal_left);
+    const gx_signal_right = v_index_beta.x_region_to_grid(rx_signal_right);
+    const gx_taper_right = v_index_beta.x_region_to_grid(rx_taper_right);
+    const gy_start = v_index_beta.y_region_to_grid(ry_start);
+    const gy_end = v_index_beta.y_region_to_grid(ry_end);
 
     // allow infinitely flat traces (gy_start == gy_end)
     if (gx_signal_left < gx_taper_left) {
       const left_taper_sdf =
         (ry_taper > ry_base) ?
-        voltage_sdf(sdf_slope_top_right, voltage_index) :
-        voltage_sdf(sdf_slope_bottom_right, voltage_index);
-      v_force.transform_norm_grid(
+        index_beta_sdf(sdf_slope_top_right, v_index) :
+        index_beta_sdf(sdf_slope_bottom_right, v_index);
+      v_index_beta.transform_norm_grid(
         [gy_start, gx_signal_left],
         [Math.min(gy_end+1,Ny), gx_taper_left],
         left_taper_sdf,
@@ -443,19 +485,19 @@ export function get_stackup_grid_from_stackup_layout(layout: StackupLayout): Sta
     }
     // also allow for infinite thin traces (gx_taper_left == gx_taper_right)
     if (gx_taper_left <= gx_taper_right) {
-      v_force
+      v_index_beta
         .get_grid(
           [gy_start, gx_taper_left],
           [Math.min(gy_end+1,Ny), Math.min(gx_taper_right+1,Nx)],
         )
-        .fill((voltage_index << 16) | 0xFFFF);
+        .fill(Grid.pack_index_beta(v_index, 1.0));
     }
     if (gx_taper_right < gx_signal_right) {
       const right_taper_sdf =
         (ry_taper > ry_base) ?
-        voltage_sdf(sdf_slope_top_left, voltage_index) :
-        voltage_sdf(sdf_slope_bottom_left, voltage_index);
-      v_force.transform_norm_grid(
+        index_beta_sdf(sdf_slope_top_left, v_index) :
+        index_beta_sdf(sdf_slope_bottom_left, v_index);
+      v_index_beta.transform_norm_grid(
         [gy_start, gx_taper_right],
         [Math.min(gy_end+1,Ny), Math.min(gx_signal_right+1,Nx)],
         right_taper_sdf,
@@ -463,40 +505,70 @@ export function get_stackup_grid_from_stackup_layout(layout: StackupLayout): Sta
     }
   };
 
-  for (const conductor of conductor_regions) {
-    switch (conductor.type) {
-      case "plane": {
-        fill_voltage_plane(conductor.region, conductor.voltage_index);
-        break;
-      }
-      case "trace": {
-        fill_voltage_trapezoid(conductor.region, conductor.voltage_index);
-        break;
+  setup_fill_voltage_regions() {
+    for (const conductor of this.conductor_regions) {
+      switch (conductor.type) {
+        case "plane": {
+          this.fill_voltage_plane(conductor.region, conductor.voltage);
+          break;
+        }
+        case "trace": {
+          this.fill_voltage_trapezoid(conductor.region, conductor.voltage);
+          break;
+        }
       }
     }
   }
 
-  // setup voltage lookup table
-  const grid = region_grid.grid;
-  if (voltages.length > 0) {
-    const voltage_min = voltages.reduce((a,b) => Math.min(a,b), Infinity);
-    const voltage_max = voltages.reduce((a,b) => Math.max(a,b), -Infinity);
-    const voltage_delta = voltage_max-voltage_min;
-    grid.v_input = voltage_delta;
-    grid.v_table = Ndarray.create_zeros([voltages.length], "f32");
-    for (let i = 0; i < voltages.length; i++) {
-      grid.v_table.set([i], voltages[i]);
-    }
-  } else {
-    grid.v_input = 0;
+  is_differential_pair(): boolean {
+    const v_set =  this.voltage_indexes.v_set;
+    return v_set.has("positive") && v_set.has("negative");
   }
-  grid.bake();
 
-  return {
-    layout,
-    voltages,
-    x_grid_lines,
-    y_grid_lines,
-    region_grid,
+  configure_odd_mode_diffpair_voltage() {
+    const grid = this.region_grid.grid;
+    const v_table = grid.v_table;
+    v_table.set([0], 0);
+    v_table.set([1], 1);
+    v_table.set([2], -1);
+    grid.v_input = 2;
+  }
+
+  configure_even_mode_diffpair_voltage() {
+    const grid = this.region_grid.grid;
+    const v_table = grid.v_table;
+    v_table.set([0], 0);
+    v_table.set([1], 1);
+    v_table.set([2], 1);
+    grid.v_input = 1;
+  }
+
+  configure_single_ended_voltage() {
+    const grid = this.region_grid.grid;
+    const v_table = grid.v_table;
+    v_table.set([0], 0);
+    v_table.set([1], 1);
+    v_table.set([2], 1);
+    grid.v_input = 1;
+  }
+
+  configure_masked_dielectric() {
+    const grid = this.region_grid.grid;
+    const ek_table = this.epsilon_indexes.ek_table;
+    for (let i = 0; i < ek_table.length; i++) {
+      const ek = ek_table[i];
+      grid.ek_table.set([i], ek);
+    }
+  }
+
+  configure_unmasked_dielectric() {
+    const grid = this.region_grid.grid;
+    const ek_table = this.epsilon_indexes.ek_table;
+    const soldermask_indices = this.epsilon_indexes.soldermask_indices;
+    const er0 = ek_table[0];
+    for (let i = 0; i < ek_table.length; i++) {
+      const ek = soldermask_indices.has(i) ? er0 : ek_table[i];
+      grid.ek_table.set([i], ek);
+    }
   }
 }

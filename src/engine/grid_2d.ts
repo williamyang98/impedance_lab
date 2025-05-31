@@ -229,14 +229,13 @@ export class RegionGrid {
     return this.grid.dy.hi([i_end]).lo([i_start]);
   }
 
-  v_force_region_view(): RegionView {
-    return new RegionView(this, this.grid.v_force);
+  v_index_beta_region_view(): RegionView {
+    return new RegionView(this, this.grid.v_index_beta);
   }
 
-  epsilon_k_region_view(): RegionView {
-    return new RegionView(this, this.grid.epsilon_k);
+  ek_index_beta_region_view(): RegionView {
+    return new RegionView(this, this.grid.ek_index_beta);
   }
-
 }
 
 export class GridLines {

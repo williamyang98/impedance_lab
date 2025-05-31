@@ -9,7 +9,7 @@ import MeshViewer from "./MeshViewer.vue";
 
 import { type SizeParameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
-import { type StackupGrid, get_stackup_grid_from_stackup_layout } from "./grid.ts";
+import { StackupGrid } from "./grid.ts";
 import ParameterForm from "./ParameterForm.vue";
 import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
@@ -118,7 +118,7 @@ async function update_region_grid() {
   };
   try {
     const layout = create_layout_from_stackup(grid_stackup.value, get_size);
-    const grid = get_stackup_grid_from_stackup_layout(layout);
+    const grid = new StackupGrid(layout);
     stackup_grid.value = grid;
     await reset();
   } catch (error) {
@@ -146,8 +146,19 @@ async function reset() {
 
 async function run(reset?: boolean) {
   reset = (reset === undefined) ? false : reset;
-  const grid = stackup_grid.value?.region_grid?.grid;
-  if (grid === undefined) return;
+  const stackup = stackup_grid.value;
+  if (stackup === undefined) return;
+  const grid = stackup.region_grid.grid;
+
+  const is_diffpair = stackup.is_differential_pair();
+  console.log(`Running stackup: diffpair=${is_diffpair}`);
+  if (is_diffpair) {
+    stackup.configure_odd_mode_diffpair_voltage();
+    stackup.configure_masked_dielectric();
+  } else {
+    stackup.configure_single_ended_voltage();
+    stackup.configure_masked_dielectric();
+  }
 
   if (reset) {
     grid.reset();
