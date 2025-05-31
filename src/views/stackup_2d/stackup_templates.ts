@@ -452,12 +452,13 @@ export abstract class StackupWithConductorsEditor extends VerticalStackupEditor 
     };
   }
 
-  make_trace_conductor_selectable(trace: TraceConductor, on_click: () => void) {
+  make_trace_conductor_selectable(trace: TraceConductor, group_tag: string, on_click: () => void) {
     let viewer = trace.viewer ?? {};
     viewer = {
       is_labeled: false,
       display: "selectable",
       on_click,
+      group_tag,
       ...viewer,
     };
     trace.viewer = viewer;
@@ -514,8 +515,9 @@ export abstract class ColinearSignalEditor extends StackupWithConductorsEditor {
   }
 
   make_colinear_trace_conductors_selectable(trace: ColinearTrace) {
+    const group_tag = `${trace.layer_id}_${trace.orientation}`;
     for (const conductor of trace.conductors) {
-      this.make_trace_conductor_selectable(conductor, () => {
+      this.make_trace_conductor_selectable(conductor, group_tag, () => {
         for (const old_conductor of this.trace.conductors) {
           this.trace_ids.free(old_conductor.id)
         }
@@ -756,8 +758,9 @@ export abstract class BroadsideSignalEditor extends StackupWithConductorsEditor 
   }
 
   make_left_trace_selectable(left: BroadsideTrace) {
+    const group_tag = `${left.layer_id}_${left.orientation}_left`;
     for (const conductor of left.conductors) {
-      this.make_trace_conductor_selectable(conductor, () => {
+      this.make_trace_conductor_selectable(conductor, group_tag, () => {
         for (const trace of this.left.conductors) {
           this.trace_ids.free(trace.id);
         }
@@ -772,8 +775,9 @@ export abstract class BroadsideSignalEditor extends StackupWithConductorsEditor 
   }
 
   make_right_trace_selectable(right: BroadsideTrace) {
+    const group_tag = `${right.layer_id}_${right.orientation}_right`;
     for (const conductor of right.conductors) {
-      this.make_trace_conductor_selectable(conductor, () => {
+      this.make_trace_conductor_selectable(conductor, group_tag, () => {
         for (const trace of this.right.conductors) {
           this.trace_ids.free(trace.id);
         }

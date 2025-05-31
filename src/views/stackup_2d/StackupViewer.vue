@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, computed } from "vue";
+import { defineProps, computed, ref, watch } from "vue";
 import { type Stackup, type SizeParameter } from "./stackup.ts";
 import { create_layout_from_stackup, type TrapezoidShape, type SoldermaskLayerLayout, type Position } from "./layout.ts";
 import { Viewer, font_size } from "./viewer.ts";
@@ -17,20 +17,29 @@ const viewer = computed(() => {
   return viewer;
 });
 
-function points_to_string(points: Position[]): string {
-  return points.map(({x,y}) => `${x},${y}`).join(' ');
+// highlight groups of traces
+const trace_group_hovered = ref(new Set<string>());
+function on_trace_group_hover(group_tag?: string) {
+  if (group_tag === undefined) return
+  trace_group_hovered.value.add(group_tag);
 }
 
-function trapezoid_shape_to_points(shape: TrapezoidShape): Position[] {
-  const points: Position[] = [
-    { x: shape.x_left, y: shape.y_base },
-    { x: shape.x_left_taper, y: shape.y_taper },
-    { x: shape.x_right_taper, y: shape.y_taper },
-    { x: shape.x_right, y: shape.y_base },
-  ];
-  return points;
+function on_trace_group_unhover(group_tag?: string) {
+  if (group_tag === undefined) return
+  trace_group_hovered.value.delete(group_tag);
 }
 
+function is_trace_group_hovered(group_tag?: string): boolean {
+  if (group_tag === undefined) return false;
+  return trace_group_hovered.value.has(group_tag);
+}
+
+watch(viewer, () => {
+  // reset hover when viewer is updated
+  trace_group_hovered.value.clear();
+});
+
+// display constants
 const colours = {
   copper: "#eacc2d",
   dielectric_soldermask: "#00aa00",
@@ -50,6 +59,22 @@ const stroke = {
 };
 
 const viewport_padding = 0.5;
+
+
+// points to svg polygon string
+function points_to_string(points: Position[]): string {
+  return points.map(({x,y}) => `${x},${y}`).join(' ');
+}
+
+function trapezoid_shape_to_points(shape: TrapezoidShape): Position[] {
+  const points: Position[] = [
+    { x: shape.x_left, y: shape.y_base },
+    { x: shape.x_left_taper, y: shape.y_taper },
+    { x: shape.x_right_taper, y: shape.y_taper },
+    { x: shape.x_right, y: shape.y_base },
+  ];
+  return points;
+}
 
 const soldermask_layer_layout_to_points = (layout: SoldermaskLayerLayout): Position[] => {
   const mask = layout.mask;
@@ -128,10 +153,14 @@ const soldermask_layer_layout_to_points = (layout: SoldermaskLayerLayout): Posit
         :class="`
           ${conductor.is_selectable ? 'trace-selectable' : ''}
           ${conductor.on_click ? 'trace-clickable' : '' }
+          ${is_trace_group_hovered(conductor.group_tag) ? 'trace-selectable-group-hover' : '' }
         `"
         :points="points_to_string(trapezoid_shape_to_points(conductor.shape))"
         :fill="colours.copper" :stroke="stroke.outline_colour" :stroke-width="stroke.outline_width"
         @click="() => conductor.on_click?.()"
+        @mouseenter="() => on_trace_group_hover(conductor.group_tag)"
+        @mouseleave="() => on_trace_group_unhover(conductor.group_tag)"
+        :group_tag="conductor.group_tag"
       />
     </template>
     <template v-else-if="conductor.type === 'plane'">
@@ -242,6 +271,10 @@ const soldermask_layer_layout_to_points = (layout: SoldermaskLayerLayout): Posit
 <style scoped>
 .trace-selectable {
   opacity: 0.4;
+}
+
+.trace-selectable-group-hover {
+  opacity: 1.0;
 }
 
 .trace-selectable:hover {

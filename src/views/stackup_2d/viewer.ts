@@ -64,6 +64,7 @@ export interface EpsilonLabel {
 export interface CopperTrace {
   id: TraceId;
   shape: TrapezoidShape;
+  group_tag?: string;
   is_selectable: boolean;
   is_labeled: boolean;
   on_click?: () => void;
@@ -406,6 +407,7 @@ export class Viewer {
         shape: trace_layout.shape,
         is_selectable: display_type == "selectable",
         is_labeled,
+        group_tag: trace.viewer?.group_tag,
         on_click: trace.viewer?.on_click,
         z_offset,
       });

@@ -29,6 +29,7 @@ export interface CopperTrace {
   voltage: number;
   viewer?: {
     display?: "none" | "solid" | "selectable",
+    group_tag?: string,
     is_labeled?: boolean,
     on_click?: () => void;
     z_offset?: number;
