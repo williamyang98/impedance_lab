@@ -440,26 +440,34 @@ export abstract class ColinearSignalEditor extends VerticalStackupEditor {
   }
 
   override get_sim_conductors(): Conductor[] {
-    const plane_conductors: PlaneConductor[] = this.plane_conductors.map((plane) => {
-      return {
-        ...plane,
-        grid: {
-          override_total_divisions: 3,
-        },
-        viewer: {
-          on_click: () => this.remove_plane(plane),
-        },
-      }
-    });
-    return [...this.trace.conductors, ...plane_conductors];
+    return [...this.trace.conductors, ...this.plane_conductors];
   }
 
   get_sim_spacings(): HorizontalSpacing[] {
     return this.trace.spacings;
   }
 
+  make_plane_removable(plane: PlaneConductor) {
+    plane.grid = {
+      override_total_divisions: 3,
+    };
+    plane.viewer = {
+      on_click: () => this.remove_plane(plane),
+    };
+  }
+
+  get_sim_conductors_clickable(): Conductor[] {
+    return this.get_sim_conductors()
+      .map((conductor) => {
+        if (conductor.type == "plane") {
+          this.make_plane_removable(conductor);
+        }
+        return conductor;
+      });
+  }
+
   override get_simulation_stackup(): Stackup {
-    const conductors = this.get_sim_conductors();
+    const conductors = this.get_sim_conductors_clickable();
     const spacings = this.get_sim_spacings();
     return {
       layers: this.layers,
@@ -521,7 +529,7 @@ export abstract class ColinearSignalEditor extends VerticalStackupEditor {
   }
 
   override get_viewer_stackup(): Stackup {
-    const sim_conductors = this.get_sim_conductors();
+    const sim_conductors = this.get_sim_conductors_clickable();
     const sim_spacings = this.get_sim_spacings();
     const viewer_conductors = [];
     const viewer_spacings = [];
@@ -740,26 +748,34 @@ export abstract class BroadsideSignalEditor extends VerticalStackupEditor {
   }
 
   override get_sim_conductors(): Conductor[] {
-    const plane_conductors: PlaneConductor[] = this.plane_conductors.map((plane) => {
-      return {
-        ...plane,
-        grid: {
-          override_total_divisions: 3,
-        },
-        viewer: {
-          on_click: () => this.remove_plane(plane),
-        },
-      }
-    });
-    return [...this.left.conductors, ...this.right.conductors, ...plane_conductors];
+    return [...this.left.conductors, ...this.right.conductors, ...this.plane_conductors];
   }
 
   get_sim_spacings(): HorizontalSpacing[] {
     return [...this.left.spacings, this.broadside_spacing, ...this.right.spacings];
   }
 
+  make_plane_removable(plane: PlaneConductor) {
+    plane.grid = {
+      override_total_divisions: 3,
+    };
+    plane.viewer = {
+      on_click: () => this.remove_plane(plane),
+    };
+  }
+
+  get_sim_conductors_clickable(): Conductor[] {
+    return this.get_sim_conductors()
+      .map((conductor) => {
+        if (conductor.type == "plane") {
+          this.make_plane_removable(conductor);
+        }
+        return conductor;
+      });
+  }
+
   override get_simulation_stackup(): Stackup {
-    const conductors = this.get_sim_conductors();
+    const conductors = this.get_sim_conductors_clickable()
     const spacings = this.get_sim_spacings();
     return {
       layers: this.layers,
@@ -836,7 +852,7 @@ export abstract class BroadsideSignalEditor extends VerticalStackupEditor {
   }
 
   override get_viewer_stackup(): Stackup {
-    const sim_conductors = this.get_sim_conductors();
+    const sim_conductors = this.get_sim_conductors_clickable();
     const sim_spacings = this.get_sim_spacings();
     const viewer_conductors = [];
     const viewer_spacings = [];
