@@ -15,17 +15,17 @@ export type NdarrayType =
   "s32" | "u32" |
   "f32" | "f64";
 
-const create_array = (size: number, dtype: NdarrayType): NdarrayData => {
+const get_array_constructor_from_dtype = (dtype: NdarrayType) => {
   switch (dtype) {
-  case "s8": return new Int8Array(size);
-  case "u8": return new Uint8Array(size);
-  case "u8_clamped": return new Uint8ClampedArray(size);
-  case "s16": return new Int16Array(size);
-  case "u16": return new Uint16Array(size);
-  case "s32": return new Int32Array(size);
-  case "u32": return new Uint32Array(size);
-  case "f32": return new Float32Array(size);
-  case "f64": return new Float64Array(size);
+  case "s8": return Int8Array;
+  case "u8": return Uint8Array;
+  case "u8_clamped": return Uint8ClampedArray;
+  case "s16": return Int16Array;
+  case "u16": return Uint16Array;
+  case "s32": return Int32Array;
+  case "u32": return Uint32Array;
+  case "f32": return Float32Array;
+  case "f64": return Float64Array;
   }
 }
 
@@ -413,7 +413,8 @@ export class Ndarray extends NdarrayView {
 
   static create_zeros = (shape: number[], dtype: NdarrayType): Ndarray => {
     const total_elems = shape.reduce((a,b) => a*b, 1);
-    const data = create_array(total_elems, dtype);
+    const T = get_array_constructor_from_dtype(dtype);
+    const data = new T(total_elems);
     return new Ndarray(data, shape.slice(), dtype);
   };
 
@@ -481,5 +482,74 @@ export class Ndarray extends NdarrayView {
   fill = (value: number): Ndarray => {
     this.data.fill(value);
     return this;
+  }
+
+  export_as_numpy_bytecode = (): ArrayBuffer => {
+    // NUMPY file format
+    // header | descriptor_length | descriptor | padding | newline
+    //        | 2 bytes           |            |         | 1 byte
+
+    // header
+    const text_encoder = new TextEncoder();
+    const magic_number = 0x93;
+    const magic_label = text_encoder.encode("NUMPY");
+    const major_version = 0x01;
+    const minor_version = 0x00;
+    const header = new Uint8Array([magic_number, ...magic_label, major_version, minor_version]);
+
+    // descriptor
+    let type_id = null;
+    switch (this.dtype) {
+      case "u8": type_id = "<B"; break;
+      case "u8_clamped": type_id = "<B"; break;
+      case "s8": type_id = "<b"; break;
+      case "u16": type_id = "<u2"; break;
+      case "s16": type_id = "<i2"; break;
+      case "u32": type_id = "<u4"; break;
+      case "s32": type_id = "<i4"; break;
+      case "f32": type_id = "<f4"; break;
+      case "f64": type_id = "<f8"; break;
+    }
+    const descriptor_string = `{`+
+      `'descr':'${type_id}',` +
+      `'fortran_order':False,` +
+      `'shape':(${this.shape.join(",")},),` +
+    `}`;
+    const descriptor = text_encoder.encode(descriptor_string);
+
+    // padding
+    const unpadded_length = header.length + descriptor.length + 2 + 1;
+    const padding_alignment = 64;
+    const padded_length = Math.ceil(unpadded_length / padding_alignment) * padding_alignment;
+    const total_padding = padded_length-unpadded_length;
+
+    // data
+    const total_elems = this.shape.reduce((a,b) => a*b, 1);
+    const total_data_bytes = total_elems*this.data.BYTES_PER_ELEMENT;
+
+    // assemble
+    const buffer = new ArrayBuffer(padded_length+total_data_bytes);
+    const buffer_view = new DataView(buffer);
+    // header
+    let write_offset = 0;
+    new Uint8Array(buffer, write_offset, header.length).set(header);
+    write_offset += header.length;
+    // descriptor size
+    const is_little_endian = true;
+    buffer_view.setUint16(write_offset, descriptor.length+total_padding+1, is_little_endian);
+    write_offset += 2;
+    // descriptor
+    new Uint8Array(buffer, write_offset, descriptor.length).set(descriptor);
+    write_offset += descriptor.length;
+    // padding and newline
+    const [space, newline] = text_encoder.encode(" \n");
+    new Uint8Array(buffer, write_offset, total_padding).fill(space);
+    write_offset += total_padding;
+    buffer_view.setUint8(write_offset, newline);
+    write_offset += 1;
+    // data
+    const T = get_array_constructor_from_dtype(this.dtype);
+    new T(buffer, write_offset, total_elems).set(this.data)
+    return buffer;
   }
 }
