@@ -72,7 +72,11 @@ pub unsafe fn iterate_solver_2d(
                 let dv = div_e/norm;
 
                 let iv = x + y*(nx+1);
-                v[iv] += dv;
+                // avoid enforcing div(E)=0 if there is a voltage source since div(E) must be finite
+                let packed_data = v_index_beta[iv];
+                let (_index, beta) = unpack_data(packed_data);
+                let mask = 1.0-beta;
+                v[iv] += mask*dv;
             }
         }
     }
