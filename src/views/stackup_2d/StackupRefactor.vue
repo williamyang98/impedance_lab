@@ -7,6 +7,7 @@ import RunResultTable from "./RunResultTable.vue";
 import GridRegionTable from "./GridRegionTable.vue";
 import MeshViewer from "./MeshViewer.vue";
 
+import { Ndarray } from "../../utility/ndarray.ts";
 import { type SizeParameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
@@ -155,6 +156,8 @@ async function run(reset?: boolean) {
   if (is_diffpair) {
     stackup.configure_odd_mode_diffpair_voltage();
     stackup.configure_masked_dielectric();
+    // stackup.configure_even_mode_diffpair_voltage();
+    // stackup.configure_unmasked_dielectric();
   } else {
     stackup.configure_single_ended_voltage();
     stackup.configure_masked_dielectric();
@@ -172,6 +175,35 @@ async function run(reset?: boolean) {
   impedance_result.value = grid.calculate_impedance();
   is_running.value = false;
   await refresh_viewer();
+}
+
+interface DownloadLink {
+  name: string;
+  data: Ndarray;
+}
+
+const download_links = computed<DownloadLink[] | undefined>(() => {
+  const grid = stackup_grid.value?.region_grid?.grid;
+  if (grid === undefined) return undefined;
+  return [
+    { name: "e_field.npy", data: grid.e_field },
+    { name: "v_field.npy", data: grid.v_field },
+    { name: "dx.npy", data: grid.dx },
+    { name: "dy.npy", data: grid.dy },
+    { name: "ek_table.npy", data: grid.ek_table },
+    { name: "ek_index_beta.npy", data: grid.ek_index_beta },
+    { name: "v_table.npy", data: grid.v_table },
+    { name: "v_index_beta.npy", data: grid.v_index_beta },
+  ]
+});
+
+function download_ndarray(link: DownloadLink) {
+  const bytecode = link.data.export_as_numpy_bytecode();
+  const blob = new Blob([bytecode], { type: "application/octet-stream" });
+  const elem = document.createElement("a");
+  elem.href = window.URL.createObjectURL(blob);
+  elem.download = link.name;
+  elem.click();
 }
 
 </script>
@@ -297,6 +329,26 @@ async function run(reset?: boolean) {
           <div class="max-h-full">
             <Viewer2D ref="viewer_2d"></Viewer2D>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Export"/>
+  <div class="tab-content bg-base-100 border-base-300 p-1">
+    <div class="grid grid-cols-1 gap-x-2">
+      <div class="w-full card card-border bg-base-100">
+        <div class="card-body">
+          <h2 class="card-title">Export</h2>
+          <template v-if="download_links">
+            <table class="table table-sm w-fit">
+              <tbody>
+                <tr v-for="(link, index) in download_links" :key="index">
+                  <td>{{ link.name }}</td>
+                  <td><button class="btn btn-sm" @click="download_ndarray(link)">Download</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </template>
         </div>
       </div>
     </div>
