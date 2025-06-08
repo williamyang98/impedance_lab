@@ -23,6 +23,7 @@ add_executable(lu_solver
     ${SRC_DIR}/lib.cpp
     ${SRC_DIR}/LU_Solver.cpp
     ${SRC_DIR}/energy_integral.cpp
+    ${SRC_DIR}/convert_f32_to_f16.cpp
 )
 target_include_directories(lu_solver PRIVATE ${SRC_DIR})
 target_link_libraries(lu_solver PRIVATE superlu embind)

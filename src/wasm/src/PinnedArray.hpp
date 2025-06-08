@@ -57,4 +57,9 @@ public:
     inline T* get_data() const { return reinterpret_cast<T*>(m_pin->get_data()); }
     inline T& operator[](int i) { return get_data()[i]; }
     inline const T& operator[](int i) const { return get_data()[i]; }
+
+    template <typename U>
+    explicit operator TypedPinnedArray<U>() const {
+        return TypedPinnedArray<U>(m_pin);
+    }
 };

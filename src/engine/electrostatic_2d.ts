@@ -152,9 +152,9 @@ export class Grid {
       console.log(`CSR matrix creation took ${elapsed_ms.toPrecision(3)} ms`);
     }
 
-    const pinned_A_data = new mod.Float32PinnedArray(A_data.length);
-    const pinned_A_col_indices = new mod.Int32PinnedArray(A_col_indices.length);
-    const pinned_A_row_index_ptr = new mod.Int32PinnedArray(A_row_index_ptr.length);
+    const pinned_A_data = mod.Float32PinnedArray.owned_pin_from_malloc(A_data.length)!;
+    const pinned_A_col_indices = mod.Int32PinnedArray.owned_pin_from_malloc(A_col_indices.length)!;
+    const pinned_A_row_index_ptr = mod.Int32PinnedArray.owned_pin_from_malloc(A_row_index_ptr.length)!;
 
     new Float32Array(mod.HEAPF32.buffer, pinned_A_data.address, pinned_A_data.length).set(A_data);
     new Int32Array(mod.HEAP32.buffer, pinned_A_col_indices.address, pinned_A_col_indices.length).set(A_col_indices);
@@ -163,7 +163,7 @@ export class Grid {
     const total_voltages = (Ny+1)*(Nx+1);
     {
       const start_ms = performance.now();
-      this.lu_solver = new mod.LU_Solver(pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
+      this.lu_solver = mod.LU_Solver.create(pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages)!;
       const end_ms = performance.now();
       const delta_ms = end_ms-start_ms;
       console.log(`LU factorisation took ${delta_ms.toPrecision(3)} ms`);
@@ -183,7 +183,7 @@ export class Grid {
 
     const total_cells = Nx*Ny;
     const total_voltages = (Ny+1)*(Nx+1);
-    const pinned_B = new mod.Float32PinnedArray(total_voltages);
+    const pinned_B = mod.Float32PinnedArray.owned_pin_from_malloc(total_voltages)!;
     const B = new Float32Array(mod.HEAPF32.buffer, pinned_B.address, pinned_B.length);
 
     {
@@ -211,13 +211,13 @@ export class Grid {
     console.log(`LU solve took ${elapsed_ms.toPrecision(3)} ms`);
 
     const pin_f32 = (arr: Float32Array) => {
-      const pin = new mod.Float32PinnedArray(arr.length);
+      const pin = mod.Float32PinnedArray.owned_pin_from_malloc(arr.length)!;
       new Float32Array(mod.HEAPF32.buffer, pin.address, pin.length).set(arr);
       return pin;
     };
 
     {
-      const pinned_E = new mod.Float32PinnedArray(this.e_field.data.length);
+      const pinned_E = mod.Float32PinnedArray.owned_pin_from_malloc(this.e_field.data.length)!;
       const pinned_dx = pin_f32(this.dx.cast(Float32Array));
       const pinned_dy = pin_f32(this.dy.cast(Float32Array));
 
@@ -260,13 +260,13 @@ export class Grid {
     const c_0 = 3e8;
 
     const pin_f32 = (arr: Float32Array) => {
-      const pin = new mod.Float32PinnedArray(arr.length);
+      const pin = mod.Float32PinnedArray.owned_pin_from_malloc(arr.length)!;
       new Float32Array(mod.HEAPF32.buffer, pin.address, pin.length).set(arr);
       return pin;
     };
 
     const pin_u32 = (arr: Uint32Array) => {
-      const pin = new mod.Uint32PinnedArray(arr.length);
+      const pin = mod.Uint32PinnedArray.owned_pin_from_malloc(arr.length)!;
       new Uint32Array(mod.HEAPU32.buffer, pin.address, pin.length).set(arr);
       return pin;
     };
