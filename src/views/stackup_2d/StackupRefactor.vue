@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, useId, useTemplateRef } from "vue";
+import {
+  computed, ref, useId, useTemplateRef, inject,
+  type ComputedRef,
+} from "vue";
+import { type MainModule } from "../../wasm/build/lu_solver.js";
+
 import EditorControls from "./EditorControls.vue";
 import StackupViewer from "./StackupViewer.vue";
 import ImpedanceResultTable from "./ImpedanceResultTable.vue";
@@ -67,6 +72,10 @@ const selected_editor = ref<EditorKey>("coplanar_diff");
 const editor = computed<VerticalStackupEditor>(() => {
   return editors.value[selected_editor.value];
 });
+
+const wasm_module_inject = inject<ComputedRef<MainModule>>("wasm_module");
+if (wasm_module_inject === undefined) throw Error(`Expected wasm_module to be injected from provider`);
+const wasm_module = wasm_module_inject.value;
 
 const grid_stackup = computed(() => editor.value.get_simulation_stackup());
 const is_viewer_hover = ref<boolean>(false);
@@ -170,9 +179,17 @@ async function run(reset?: boolean) {
   is_running.value = true;
   await sleep(0);
 
-  const threshold = Math.pow(10, energy_threshold.value);
-  run_result.value = grid.run(threshold);
-  impedance_result.value = grid.calculate_impedance();
+  const start_ms = performance.now();
+  grid.bake(wasm_module);
+
+  // const threshold = Math.pow(10, energy_threshold.value);
+  run_result.value = grid.run(wasm_module);
+  impedance_result.value = grid.calculate_impedance(wasm_module);
+
+  const end_ms = performance.now();
+  const delta_ms = end_ms-start_ms;
+  console.log(`run() took ${delta_ms.toPrecision(3)} ms`);
+
   is_running.value = false;
   await refresh_viewer();
 }
