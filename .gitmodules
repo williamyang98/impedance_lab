@@ -1,0 +1,6 @@
+[submodule "src/wasm/vendor/emsdk"]
+	path = src/wasm/vendor/emsdk
+	url = https://github.com/emscripten-core/emsdk.git
+[submodule "src/wasm/vendor/superlu"]
+	path = src/wasm/vendor/superlu
+	url = https://github.com/xiaoyeli/superlu.git
