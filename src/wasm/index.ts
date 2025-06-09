@@ -10,18 +10,21 @@ import {
 
 // Wrap around the emscripten typescript bindings with something less jank
 // Use a singleton for ease of use
-let _mod: MainModule | undefined = undefined;
+declare global {
+  let __wasm_module__: MainModule | undefined = undefined;
+}
+
 export async function init() {
-  if (_mod === undefined) {
-    _mod = await init_module();
+  if (globalThis.__wasm_module__ === undefined) {
+    globalThis.__wasm_module__ = await init_module();
   }
 }
 
 function mod(): MainModule {
-  if (_mod === undefined) {
+  if (globalThis.__wasm_module__ === undefined) {
     throw Error(`Wasm module was not initialised yet`);
   }
-  return _mod;
+  return globalThis.__wasm_module__;
 }
 
 type TypedPinnedArray =
