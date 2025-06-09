@@ -1,10 +1,9 @@
 import {
   LU_Solver,
-  Float32ModuleBuffer, Uint32ModuleBuffer, Int32ModuleBuffer,
+  Float32ModuleBuffer, Int32ModuleBuffer,
   calculate_e_field, calculate_homogenous_energy_2d, calculate_inhomogenous_energy_2d,
 } from "../wasm";
-import { Ndarray } from "../utility/ndarray.ts";
-import { toRaw } from "vue";
+import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../utility/module_ndarray.ts";
 
 export interface RunResult {
   total_steps: number;
@@ -24,14 +23,14 @@ export interface ImpedanceResult {
 
 export class Grid {
   size: [number, number];
-  dx: Ndarray;
-  dy: Ndarray;
-  v_index_beta: Ndarray;
-  v_table: Ndarray;
-  v_field: Ndarray;
-  e_field: Ndarray;
-  ek_table: Ndarray;
-  ek_index_beta: Ndarray;
+  dx: Float32ModuleNdarray;
+  dy: Float32ModuleNdarray;
+  v_index_beta: Uint32ModuleNdarray;
+  v_table: Float32ModuleNdarray;
+  v_field: Float32ModuleNdarray;
+  e_field: Float32ModuleNdarray;
+  ek_table: Float32ModuleNdarray;
+  ek_index_beta: Uint32ModuleNdarray;
 
   v_input: number;
 
@@ -50,20 +49,32 @@ export class Grid {
 
   constructor(Ny: number, Nx: number) {
     this.size = [Ny, Nx];
-    this.dx = Ndarray.create_zeros([Nx], "f32");
-    this.dy = Ndarray.create_zeros([Ny], "f32");
-    this.v_table = Ndarray.create_zeros([3], "f32");
-    this.v_index_beta = Ndarray.create_zeros([Ny+1,Nx+1], "u32");
-    this.v_field = Ndarray.create_zeros([Ny+1,Nx+1], "f32");
-    this.e_field = Ndarray.create_zeros([Ny,Nx,2], "f32");
-    this.ek_table = Ndarray.create_zeros([Ny,Nx], "f32");
-    this.ek_index_beta = Ndarray.create_zeros([Ny,Nx], "u32");
+    this.dx = new Float32ModuleNdarray([Nx]);
+    this.dy = new Float32ModuleNdarray([Ny]);
+    this.v_table = new Float32ModuleNdarray([3]);
+    this.v_index_beta = new Uint32ModuleNdarray([Ny+1,Nx+1]);
+    this.v_field = new Float32ModuleNdarray([Ny+1,Nx+1]);
+    this.e_field = new Float32ModuleNdarray([Ny,Nx,2]);
+    this.ek_table = new Float32ModuleNdarray([Ny,Nx]);
+    this.ek_index_beta = new Uint32ModuleNdarray([Ny,Nx]);
     this.v_input = 1;
   }
 
+  delete() {
+    this.dx.delete();
+    this.dy.delete();
+    this.v_table.delete();
+    this.v_index_beta.delete();
+    this.v_field.delete();
+    this.e_field.delete();
+    this.ek_table.delete();
+    this.ek_index_beta.delete();
+    this.lu_solver?.delete();
+  }
+
   reset() {
-    this.v_field.fill(0.0);
-    this.e_field.fill(0.0);
+    this.v_field.array_view.fill(0.0);
+    this.e_field.array_view.fill(0.0);
   }
 
   bake() {
@@ -83,12 +94,16 @@ export class Grid {
 
     const [Ny,Nx] = this.size;
     {
+      const v_index_beta = this.v_index_beta.array_view;
+      const dx = this.dx.array_view;
+      const dy = this.dy.array_view;
+
       const start_ms = performance.now();
       for (let y = 0; y < Ny+1; y++) {
         for (let x = 0; x < Nx+1; x++) {
           push_csr_row();
           const iv = x + y*(Nx+1);
-          const index_beta = this.v_index_beta.get([y,x]);
+          const index_beta = v_index_beta[iv];
           const { beta } = Grid.unpack_index_beta(index_beta);
           const has_div_E_constraint = (x > 0 && x < Nx) || (y > 0 && y < Ny);
           if ((beta > 0.5) || !has_div_E_constraint) {
@@ -123,8 +138,8 @@ export class Grid {
 
           // div(Ex) = 0
           if (x > 0 && x < Nx) {
-            const dx_0 = this.dx.get([x-1]);
-            const dx_1 = this.dx.get([x]);
+            const dx_0 = dx[x-1];
+            const dx_1 = dx[x];
             const norm = dx_0+dx_1;
             column_value[1] -= (1/dx_0)/norm;
             column_value[2] += (1/dx_0 + 1/dx_1)/norm;
@@ -133,8 +148,8 @@ export class Grid {
 
           // div(Ey) = 0
           if (y > 0 && y < Ny) {
-            const dy_0 = this.dy.get([y-1]);
-            const dy_1 = this.dy.get([y]);
+            const dy_0 = dy[y-1];
+            const dy_1 = dy[y];
             const norm = dy_0+dy_1;
             column_value[0] -= (1/dy_0)/norm;
             column_value[2] += (1/dy_0 + 1/dy_1)/norm;
@@ -167,6 +182,7 @@ export class Grid {
     const total_voltages = (Ny+1)*(Nx+1);
     {
       const start_ms = performance.now();
+      this.lu_solver?.delete();
       this.lu_solver = new LU_Solver(pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
       const end_ms = performance.now();
       const delta_ms = end_ms-start_ms;
@@ -184,21 +200,20 @@ export class Grid {
     }
     const [Ny,Nx] = this.size;
     const total_steps: number = 1;
-
     const total_cells = Nx*Ny;
-    const total_voltages = (Ny+1)*(Nx+1);
-    const pinned_B = new Float32ModuleBuffer(total_voltages);
 
     {
       const start_ms = performance.now();
+      const v_index_beta = this.v_index_beta.array_view;
+      const v_table = this.v_table.array_view;
       // generate b matrix for Ax=b
-      const B = pinned_B.array_view;
+      const B = this.v_field.array_view;
       for (let y = 0; y < Ny+1; y++) {
         for (let x = 0; x < Nx+1; x++) {
           const iv = x + y*(Nx+1);
-          const index_beta = this.v_index_beta.get([y,x]);
+          const index_beta = v_index_beta[iv];
           const { index, beta } = Grid.unpack_index_beta(index_beta);
-          const voltage = this.v_table.get([index]);
+          const voltage = v_table[index];
           B[iv] = (beta > 0.5) ? voltage : 0.0;
         }
       }
@@ -208,33 +223,20 @@ export class Grid {
     }
 
     const start_ms = performance.now();
-    // NOTE: Vue can wrap this as a proxy and mess up emscripten's type checking
-    const solve_info = toRaw(this.lu_solver).solve(pinned_B);
+    const solve_info = this.lu_solver.solve(this.v_field);
     const end_ms = performance.now();
     const elapsed_ms = end_ms-start_ms;
     console.log(`LU solve took ${elapsed_ms.toPrecision(3)} ms`);
 
     {
-      const pinned_E = new Float32ModuleBuffer(this.e_field.data.length);
-      const pinned_dx = new Float32ModuleBuffer(this.dx.cast(Float32Array));
-      const pinned_dy = new Float32ModuleBuffer(this.dy.cast(Float32Array));
-
       const start_ms = performance.now();
       calculate_e_field(
-        pinned_E, pinned_B, pinned_dx, pinned_dy,
+        this.e_field, this.v_field, this.dx, this.dy,
       );
       const end_ms = performance.now();
       const elapsed_ms = end_ms-start_ms;
       console.log(`E field calculation took ${elapsed_ms.toPrecision(3)} ms`);
-
-      this.e_field.data.set(pinned_E.array_view);
-      pinned_E.delete();
-      pinned_dx.delete();
-      pinned_dy.delete();
     }
-
-    this.v_field.cast(Float32Array).set(pinned_B.array_view);
-    pinned_B.delete();
 
     if (solve_info !== 0) {
       console.error(`LU solver failed with code: ${solve_info}`);
@@ -257,19 +259,13 @@ export class Grid {
     const epsilon_0 = 8.85e-12
     const c_0 = 3e8;
 
-    const pinned_e_field = new Float32ModuleBuffer(this.e_field.cast(Float32Array));
-    const pinned_ek_table = new Float32ModuleBuffer(this.ek_table.cast(Float32Array));
-    const pinned_ek_index_beta = new Uint32ModuleBuffer(this.ek_index_beta.cast(Uint32Array));
-    const pinned_dx = new Float32ModuleBuffer(this.dx.cast(Float32Array));
-    const pinned_dy = new Float32ModuleBuffer(this.dy.cast(Float32Array));
-
     let energy_homogenous: number | undefined = undefined;
     let energy_inhomogenous: number | undefined = undefined;
 
     {
       const start_ms = performance.now();
       energy_homogenous = calculate_homogenous_energy_2d(
-        pinned_e_field, pinned_dx, pinned_dy,
+        this.e_field, this.dx, this.dy,
       );
       const end_ms = performance.now();
       const elapsed_ms = end_ms-start_ms;
@@ -279,22 +275,16 @@ export class Grid {
     {
       const start_ms = performance.now();
       energy_inhomogenous = calculate_inhomogenous_energy_2d(
-        pinned_e_field,
-        pinned_ek_table,
-        pinned_ek_index_beta,
-        pinned_dx,
-        pinned_dy,
+        this.e_field,
+        this.ek_table,
+        this.ek_index_beta,
+        this.dx,
+        this.dy,
       );
       const end_ms = performance.now();
       const elapsed_ms = end_ms-start_ms;
       console.log(`calculate_inhomogenous_energy_2d() took ${elapsed_ms.toPrecision(3)} ms`);
     }
-
-    pinned_e_field.delete();
-    pinned_ek_table.delete();
-    pinned_ek_index_beta.delete();
-    pinned_dx.delete();
-    pinned_dy.delete();
 
     const v0: number = this.v_input;
     const Ch = 1/(v0**2) * epsilon_0 * energy_homogenous;
@@ -313,10 +303,10 @@ export class Grid {
   }
 
   get width(): number {
-    return this.dx.cast(Float32Array).reduce((a,b) => a+b, 0);
+    return this.dx.length;
   }
 
   get height(): number {
-    return this.dy.cast(Float32Array).reduce((a,b) => a+b, 0);
+    return this.dy.length;
   }
 }

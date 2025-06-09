@@ -202,14 +202,14 @@ const download_links = computed<DownloadLink[] | undefined>(() => {
   const grid = toRaw(stackup_grid.value?.region_grid?.grid);
   if (grid === undefined) return undefined;
   return [
-    { name: "e_field.npy", data: grid.e_field },
-    { name: "v_field.npy", data: grid.v_field },
-    { name: "dx.npy", data: grid.dx },
-    { name: "dy.npy", data: grid.dy },
-    { name: "ek_table.npy", data: grid.ek_table },
-    { name: "ek_index_beta.npy", data: grid.ek_index_beta },
-    { name: "v_table.npy", data: grid.v_table },
-    { name: "v_index_beta.npy", data: grid.v_index_beta },
+    { name: "e_field.npy", data: grid.e_field.ndarray },
+    { name: "v_field.npy", data: grid.v_field.ndarray },
+    { name: "dx.npy", data: grid.dx.ndarray },
+    { name: "dy.npy", data: grid.dy.ndarray },
+    { name: "ek_table.npy", data: grid.ek_table.ndarray },
+    { name: "ek_index_beta.npy", data: grid.ek_index_beta.ndarray },
+    { name: "v_table.npy", data: grid.v_table.ndarray },
+    { name: "v_index_beta.npy", data: grid.v_index_beta.ndarray },
   ]
 });
 

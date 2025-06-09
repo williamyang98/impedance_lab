@@ -157,8 +157,8 @@ export class RegionGrid {
     const grid = new Grid(Ny, Nx);
 
     // grid feature lines
-    generate_grid_deltas(grid.dx, x_grid_regions);
-    generate_grid_deltas(grid.dy, y_grid_regions);
+    generate_grid_deltas(grid.dx.ndarray, x_grid_regions);
+    generate_grid_deltas(grid.dy.ndarray, y_grid_regions);
 
     // convert from region space to grid space
     const x_region_to_grid_indices: number[] = [0];
@@ -173,12 +173,12 @@ export class RegionGrid {
     }
 
     // unwrap dx and dy from Ndarray to number[] to avoid n-dim indexing overhead
-    const dx_grid = Array.from(grid.dx.cast(Float32Array));
-    const dy_grid = Array.from(grid.dy.cast(Float32Array));
+    const dx_grid = Array.from(grid.dx.array_view);
+    const dy_grid = Array.from(grid.dy.array_view);
 
     // create region and grid lines for visualisation
-    const x_grid_lines = get_grid_lines_from_deltas(Array.from(grid.dx.data));
-    const y_grid_lines = get_grid_lines_from_deltas(Array.from(grid.dy.data));
+    const x_grid_lines = get_grid_lines_from_deltas(dx_grid);
+    const y_grid_lines = get_grid_lines_from_deltas(dy_grid);
     const x_regions = new Array(x_grid_regions.length);
     const y_regions = new Array(y_grid_regions.length);
     for (let i = 0; i < x_grid_regions.length; i++) {
@@ -220,21 +220,21 @@ export class RegionGrid {
   dx_region(start: number, end: number): NdarrayView {
     const i_start = this.x_region_to_grid_indices[start];
     const i_end = this.x_region_to_grid_indices[end];
-    return this.grid.dx.hi([i_end]).lo([i_start]);
+    return this.grid.dx.ndarray.hi([i_end]).lo([i_start]);
   }
 
   dy_region(start: number, end: number): NdarrayView {
     const i_start = this.y_region_to_grid_indices[start];
     const i_end = this.y_region_to_grid_indices[end];
-    return this.grid.dy.hi([i_end]).lo([i_start]);
+    return this.grid.dy.ndarray.hi([i_end]).lo([i_start]);
   }
 
   v_index_beta_region_view(): RegionView {
-    return new RegionView(this, this.grid.v_index_beta);
+    return new RegionView(this, this.grid.v_index_beta.ndarray);
   }
 
   ek_index_beta_region_view(): RegionView {
-    return new RegionView(this, this.grid.ek_index_beta);
+    return new RegionView(this, this.grid.ek_index_beta.ndarray);
   }
 }
 

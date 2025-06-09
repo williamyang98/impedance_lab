@@ -1,6 +1,6 @@
 import { type Parameter, type Voltage } from "./stackup.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
-import { Ndarray } from "../../utility/ndarray.ts";
+import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 
 import {
   GridLines, RegionGrid,
@@ -146,8 +146,10 @@ export class StackupGrid {
 
     const grid = this.region_grid.grid;
     // fit voltage and epsilon_k table
-    grid.v_table = Ndarray.create_zeros([3], "f32");
-    grid.ek_table = Ndarray.create_zeros([this.epsilon_indexes.ek_table.length], "f32");
+    grid.v_table.delete();
+    grid.ek_table.delete();
+    grid.v_table = new Float32ModuleNdarray([3]);
+    grid.ek_table = new Float32ModuleNdarray([this.epsilon_indexes.ek_table.length]);
   }
 
   get_infinite_plane_region(shape: InfinitePlaneShape): InfinitePlaneRegion {
@@ -403,7 +405,7 @@ export class StackupGrid {
   setup_fill_dielectric_regions() {
     const er0 = 1.0; // dielectric of vacuum
     const index_er0 = this.push_epsilon(er0, "core");
-    this.region_grid.grid.ek_index_beta.fill(Grid.pack_index_beta(index_er0, 1.0));
+    this.region_grid.grid.ek_index_beta.ndarray.fill(Grid.pack_index_beta(index_er0, 1.0));
 
     for (const dielectric_region of this.dielectric_regions) {
       switch (dielectric_region.type) {
@@ -536,48 +538,50 @@ export class StackupGrid {
 
   configure_odd_mode_diffpair_voltage() {
     const grid = this.region_grid.grid;
-    const v_table = grid.v_table;
-    v_table.set([0], 0);
-    v_table.set([1], 1);
-    v_table.set([2], -1);
+    const v_table = grid.v_table.array_view;
+    v_table[0] = 0;
+    v_table[1] = 1;
+    v_table[2] = -1;
     grid.v_input = 2;
   }
 
   configure_even_mode_diffpair_voltage() {
     const grid = this.region_grid.grid;
-    const v_table = grid.v_table;
-    v_table.set([0], 0);
-    v_table.set([1], 1);
-    v_table.set([2], 1);
+    const v_table = grid.v_table.array_view;
+    v_table[0] = 0;
+    v_table[1] = 1;
+    v_table[2] = 1;
     grid.v_input = 1;
   }
 
   configure_single_ended_voltage() {
     const grid = this.region_grid.grid;
-    const v_table = grid.v_table;
-    v_table.set([0], 0);
-    v_table.set([1], 1);
-    v_table.set([2], 1);
+    const v_table = grid.v_table.array_view;
+    v_table[0] = 0;
+    v_table[1] = 1;
+    v_table[2] = 1;
     grid.v_input = 1;
   }
 
   configure_masked_dielectric() {
     const grid = this.region_grid.grid;
-    const ek_table = this.epsilon_indexes.ek_table;
-    for (let i = 0; i < ek_table.length; i++) {
-      const ek = ek_table[i];
-      grid.ek_table.set([i], ek.value);
+    const src_ek_table = this.epsilon_indexes.ek_table;
+    const dst_ek_table = grid.ek_table.array_view;
+    for (let i = 0; i < src_ek_table.length; i++) {
+      const ek = src_ek_table[i];
+      dst_ek_table[i] = ek.value;
     }
   }
 
   configure_unmasked_dielectric() {
     const grid = this.region_grid.grid;
-    const ek_table = this.epsilon_indexes.ek_table;
+    const src_ek_table = this.epsilon_indexes.ek_table;
+    const dst_ek_table = grid.ek_table.array_view;
     const soldermask_indices = this.epsilon_indexes.soldermask_indices;
-    const er0 = ek_table[0].value;
-    for (let i = 0; i < ek_table.length; i++) {
-      const ek = soldermask_indices.has(i) ? er0 : ek_table[i].value;
-      grid.ek_table.set([i], ek);
+    const er0 = src_ek_table[0].value;
+    for (let i = 0; i < src_ek_table.length; i++) {
+      const ek = soldermask_indices.has(i) ? er0 : src_ek_table[i].value;
+      dst_ek_table[i] = ek;
     }
   }
 }

@@ -1,34 +1,9 @@
 import { ShaderRenderTexture, type Axis } from "./kernels.ts";
-import { Ndarray } from "../../utility/ndarray.ts";
+import {
+  Float32ModuleNdarray, Uint32ModuleNdarray, Uint16ModuleNdarray,
+} from "../../utility/module_ndarray.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
-
-function convert_f32_to_f16(f32_data: Float32Array, f16_data: Uint16Array) {
-  if (f32_data.length != f16_data.length) {
-    throw Error(`Mismatch between f32 buffer with length ${f32_data.length} and f16 buffer with length ${f16_data.length}`);
-  }
-  const N = f32_data.length;
-  const u32_view = new Uint32Array(f32_data.buffer);
-  for (let i = 0; i < N; i++) {
-    // IEEE.754 32bit floating point format
-    // sign: 1, exponent: 8, mantissa: 23
-    // value = (-1)^sign * 2^(exponent-127) * (1 + mantissa*2^-23)
-    const f32_x = u32_view[i];
-    const f32_sign = (f32_x >> 31) & 0x1;
-    const f32_exponent = ((f32_x >> 23) & 0xFF) - 127;
-    const f32_mantissa = f32_x & 0x7FFFFF;
-
-    // IEEE.754 16bit floating point
-    // sign: 1, exponent: 5, mantissa: 10
-    // value = (-1)^sign * 2^(exponent-15) * (1 + mantissa*2^-10)
-    let f16_y = 0;
-    const f16_sign = f32_sign << 15;
-    // clamp exponent to displayable values
-    const f16_exponent = Math.min(Math.max(f32_exponent + 15, 0), 31);
-    const f16_mantissa = f32_mantissa >> 13;
-    f16_y = f16_sign | (f16_exponent << 10) | f16_mantissa;
-    f16_data[i] = f16_y;
-  }
-}
+import { convert_f32_to_f16 } from "../../wasm";
 
 export class Renderer {
   adapter: GPUAdapter;
@@ -58,7 +33,7 @@ export class Renderer {
     this._upload_epsilon(grid.ek_table, grid.ek_index_beta);
   }
 
-  _upload_v_force(v_table: Ndarray, v_index_beta: Ndarray) {
+  _upload_v_force(v_table: Float32ModuleNdarray, v_index_beta: Uint32ModuleNdarray) {
     const shape = v_index_beta.shape;
     if (shape.length != 2) {
       throw Error(`Tried to update grid 2d renderer with non 2d array: (${shape.join(',')})`);
@@ -82,28 +57,33 @@ export class Renderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const voltage = Ndarray.create_zeros([...shape, 2], "f32");
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const i = [y,x];
-        const { index, beta } = Grid.unpack_index_beta(v_index_beta.get(i));
-        const v_value = v_table.get([index]);
-        voltage.set([...i, 0], v_value);
-        voltage.set([...i, 1], beta);
+    const voltage = new Float32ModuleNdarray([...shape, 2]);
+    {
+      const voltage_arr = voltage.array_view;
+      const v_table_arr = v_table.array_view;
+      const v_index_beta_arr = v_index_beta.array_view;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const iv = x + y*width;
+          const { index, beta } = Grid.unpack_index_beta(v_index_beta_arr[iv]);
+          const v_value = v_table_arr[index];
+          voltage_arr[2*iv+0] = v_value;
+          voltage_arr[2*iv+1] = beta;
+        }
       }
     }
-    const f32_data = voltage.cast(Float32Array);
-    const f16_data = new Uint16Array(f32_data.length);
-    convert_f32_to_f16(f32_data, f16_data);
+    const f16_data = new Uint16ModuleNdarray(voltage.shape);
+    convert_f32_to_f16(voltage, f16_data);
     this.device.queue.writeTexture(
       { texture: this.v_force_texture },
-      f16_data,
+      f16_data.array_view,
       { bytesPerRow: width*2*2 },
       { width, height },
     );
+    f16_data.delete();
   }
 
-  _upload_v_field(v_field: Ndarray) {
+  _upload_v_field(v_field: Float32ModuleNdarray) {
     const shape = v_field.shape;
     if (shape.length != 2) {
       throw Error(`Tried to update grid 2d renderer with non 2d array: (${shape.join(',')})`);
@@ -123,19 +103,18 @@ export class Renderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const N = width*height;
-    const f32_data = v_field.cast(Float32Array);
-    const f16_data = new Uint16Array(N);
-    convert_f32_to_f16(f32_data, f16_data);
+    const f16_data = new Uint16ModuleNdarray(shape);
+    convert_f32_to_f16(v_field, f16_data);
     this.device.queue.writeTexture(
       { texture: this.v_field_texture },
-      f16_data,
+      f16_data.array_view,
       { bytesPerRow: width*2 },
       { width, height },
     );
+    f16_data.delete();
   }
 
-  _upload_epsilon(ek_table: Ndarray, ek_index_beta: Ndarray) {
+  _upload_epsilon(ek_table: Float32ModuleNdarray, ek_index_beta: Uint32ModuleNdarray) {
     const shape = ek_index_beta.shape;
     if (shape.length != 2) {
       throw Error(`Tried to update grid 2d renderer with non 2d array: (${shape.join(',')})`);
@@ -155,29 +134,33 @@ export class Renderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const epsilon = Ndarray.create_zeros([...shape, 2], "f32");
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const i = [y,x];
-        const { index, beta } = Grid.unpack_index_beta(ek_index_beta.get(i));
-        const er_value = ek_table.get([index]);
-        epsilon.set([...i, 0], er_value);
-        epsilon.set([...i, 1], beta);
+    const epsilon = new Float32ModuleNdarray([...shape, 2]);
+    {
+      const ek_table_arr = ek_table.array_view;
+      const ek_index_beta_arr = ek_index_beta.array_view;
+      const epsilon_arr = epsilon.array_view;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const iv = x + y*width;
+          const { index, beta } = Grid.unpack_index_beta(ek_index_beta_arr[iv]);
+          const er_value = ek_table_arr[index];
+          epsilon_arr[2*iv+0] = er_value;
+          epsilon_arr[2*iv+1] = beta;
+        }
       }
     }
-    const N = width*height*2;
-    const f32_data = epsilon.cast(Float32Array);
-    const f16_data = new Uint16Array(N);
-    convert_f32_to_f16(f32_data, f16_data);
+    const f16_data = new Uint16ModuleNdarray(epsilon.shape);
+    convert_f32_to_f16(epsilon, f16_data);
     this.device.queue.writeTexture(
       { texture: this.epsilon_texture },
-      f16_data,
+      f16_data.array_view,
       { bytesPerRow: width*2*2 },
       { width, height },
     );
+    f16_data.delete();
   }
 
-  _upload_e_field(e_field: Ndarray) {
+  _upload_e_field(e_field: Float32ModuleNdarray) {
     const shape = e_field.shape;
     if (shape.length != 3) {
       throw Error(`Tried to update grid 2d renderer with non 3d array: (${shape.join(',')})`);
@@ -200,19 +183,18 @@ export class Renderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const N = width*height*channels;
-    const f32_data = e_field.cast(Float32Array);
-    const f16_data = new Uint16Array(N);
-    convert_f32_to_f16(f32_data, f16_data);
+    const f16_data = new Uint16ModuleNdarray(e_field.shape);
+    convert_f32_to_f16(e_field, f16_data);
     this.device.queue.writeTexture(
       { texture: this.e_field_texture },
-      f16_data,
+      f16_data.array_view,
       { bytesPerRow: width*(2*channels) },
       { width, height },
     );
+    f16_data.delete();
   }
 
-  _upload_dy_spline(dy: Ndarray) {
+  _upload_dy_spline(dy: Float32ModuleNdarray) {
     if (dy.shape.length != 1) {
       throw Error(`dy spline array should be 1 dimensional but got: (${dy.shape.join(',')})`);
     }
@@ -233,18 +215,18 @@ export class Renderer {
       });
     }
 
-    const f32_dy = dy.cast(Float32Array);
-    const f16_dy = new Uint16Array(height);
-    convert_f32_to_f16(f32_dy, f16_dy);
+    const f16_data = new Uint16ModuleNdarray(dy.shape);
+    convert_f32_to_f16(dy, f16_data);
     this.device.queue.writeTexture(
       { texture: this.spline_dy_texture },
-      f16_dy,
+      f16_data.array_view,
       { bytesPerRow: height*2 },
       { width: height, height: 1 },
     );
+    f16_data.delete();
   }
 
-  _upload_dx_spline(dx: Ndarray) {
+  _upload_dx_spline(dx: Float32ModuleNdarray) {
     if (dx.shape.length != 1) {
       throw Error(`dx spline array should be 1 dimensional but got: (${dx.shape.join(',')})`);
     }
@@ -265,15 +247,15 @@ export class Renderer {
       });
     }
 
-    const f32_dx = dx.cast(Float32Array);
-    const f16_dx = new Uint16Array(width);
-    convert_f32_to_f16(f32_dx, f16_dx);
+    const f16_data = new Uint16ModuleNdarray(dx.shape);
+    convert_f32_to_f16(dx, f16_data);
     this.device.queue.writeTexture(
       { texture: this.spline_dx_texture },
-      f16_dx,
+      f16_data.array_view,
       { bytesPerRow: width*2 },
       { width, height: 1 },
     );
+    f16_data.delete();
   }
 
   update_canvas(canvas_context: GPUCanvasContext, scale: number, axis: Axis) {
