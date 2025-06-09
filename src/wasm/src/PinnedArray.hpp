@@ -23,7 +23,7 @@ public:
         }
     }
     static std::shared_ptr<PinnedArray> owned_pin_from_malloc(int length) {
-        int32_t address = reinterpret_cast<int32_t>(malloc(length));
+        int32_t address = reinterpret_cast<int32_t>(calloc(length, 1));
         return std::make_shared<PinnedArray>(address, length, true);
     }
     static std::shared_ptr<PinnedArray> weak_pin_from_address_length(int32_t address, int length) {
