@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <memory>
+#include "./logging.hpp"
 
 // Map between wasm module's ArrayBuffer heap and C++ environment
 // SRC: https://kapadia.github.io/emscripten/2013/09/13/emscripten-pointers-and-pointers.html
@@ -18,7 +19,7 @@ public:
     : m_address(address), m_length(length), m_owned(owned) {}
     ~PinnedArray() {
         if (m_owned) {
-            printf("Freeing pinned array at addr=%d, len=%d\n", m_address, m_length);
+            MODULE_LOG("Freeing pinned array at addr=%d, len=%d\n", m_address, m_length);
             free(reinterpret_cast<void*>(m_address));
         }
     }

@@ -1,4 +1,5 @@
 #include "./LU_Solver.hpp"
+#include "./logging.hpp"
 #include <emscripten/emscripten.h>
 #include <vector>
 
@@ -22,7 +23,7 @@ std::shared_ptr<LU_Solver> LU_Solver::create(
         }, A_row_index_ptr.get_length(), total_rows);
     }
 
-    printf("Setting default options for superlu\n");
+    MODULE_LOG("Setting default options for superlu\n");
     // from set_default_options()
     superlu_options_t options;
     {
@@ -42,7 +43,7 @@ std::shared_ptr<LU_Solver> LU_Solver::create(
     // SRC: void sCreate_CompCol_Matrix(...)
     // NOTE: options->Trans is not used in sp_preorder (SLU_NC to SLU_NCP) or sgstrf (LU factorisation)
     //       instead we only need to pass it to sgstrs (solve) as the first parameter (transpose_mode)
-    printf("Transpose CSR matrix to be interpreted as CSC matrix");
+    MODULE_LOG("Transpose CSR matrix to be interpreted as CSC matrix");
     const trans_t transpose_mode = TRANS;
     SuperMatrix A;
     A.Stype = SLU_NC;
@@ -58,7 +59,7 @@ std::shared_ptr<LU_Solver> LU_Solver::create(
     Astore.colptr = A_row_index_ptr.get_data();
 
     // NOTE: Following steps are taken from sgssv()
-    printf("Permute columns for A to convert from SLU_NC to SLU_NCP format\n");
+    MODULE_LOG("Permute columns for A to convert from SLU_NC to SLU_NCP format\n");
     auto permute_col = std::vector<int>(A.ncol);
     if (options.ColPerm != MY_PERMC && options.Fact == DOFACT) {
         get_perm_c(options.ColPerm, &A, permute_col.data());
@@ -67,11 +68,11 @@ std::shared_ptr<LU_Solver> LU_Solver::create(
     SuperMatrix A_column_permuted;
     sp_preorder(&options, &A, permute_col.data(), elimination_tree.data(), &A_column_permuted);
 
-    printf("Initialize the statistics variables\n");
+    MODULE_LOG("Initialize the statistics variables\n");
     SuperLUStat_t stat;
     StatInit(&stat);
 
-    printf("Perform LU factorisation using sgstrf() with row permutations for partial pivoting\n");
+    MODULE_LOG("Perform LU factorisation using sgstrf() with row permutations for partial pivoting\n");
     auto permute_row = std::vector<int>(A.nrow);
     SuperMatrix L;
     SuperMatrix U;
@@ -121,14 +122,14 @@ int32_t LU_Solver::solve(TypedPinnedArray<float> B_data) {
     Bstore.nzval = B_data.get_data();
 
     // NOTE: Following steps are taken from sgssv()
-    printf("Solving for Ax=b using sgstrs\n");
+    MODULE_LOG("Solving for Ax=b using sgstrs\n");
     int_t solve_info = 0;
     sgstrs(m_transpose_mode, &m_L, &m_U, m_permute_col.data(), m_permute_row.data(), &B, &m_stat, &solve_info);
     return solve_info;
 }
 
 LU_Solver::~LU_Solver() {
-    printf("Freeing LU solver\n");
+    MODULE_LOG("Freeing LU solver\n");
     StatFree(&m_stat);
     Destroy_SuperNode_Matrix(&m_L);
     Destroy_CompCol_Matrix(&m_U);
