@@ -1,19 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, provide } from "vue";
-import init_wasm_module, { type MainModule } from "../wasm/build/lu_solver.js";
+import { ref, onMounted } from "vue";
+import { init as module_init } from "../wasm";
 
 type LoadState = "loading" | "failed" | "finished";
 const state = ref<LoadState>("loading");
 const error_message = ref<string>();
 
-const module = ref<MainModule>();
-
-provide("wasm_module", computed(() => module.value));
-
 async function init() {
   try {
-    const new_module = await init_wasm_module();
-    module.value = new_module;
+    await module_init();
     state.value = "finished";
   } catch (error) {
     if (error instanceof Error) {

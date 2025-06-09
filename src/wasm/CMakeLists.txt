@@ -19,21 +19,21 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
-add_executable(lu_solver
+add_executable(wasm_module
     ${SRC_DIR}/lib.cpp
     ${SRC_DIR}/LU_Solver.cpp
     ${SRC_DIR}/energy_integral.cpp
     ${SRC_DIR}/convert_f32_to_f16.cpp
 )
-target_include_directories(lu_solver PRIVATE ${SRC_DIR})
-target_link_libraries(lu_solver PRIVATE superlu embind)
-target_link_options(lu_solver PUBLIC
+target_include_directories(wasm_module PRIVATE ${SRC_DIR})
+target_link_libraries(wasm_module PRIVATE superlu embind)
+target_link_options(wasm_module PUBLIC
     -std=c++17 -ffast-math -march=native
     # export es6 module with typescript bindings
     -sMODULARIZE -sEXPORT_ES6
-    --bind --emit-tsd lu_solver.d.ts
+    --bind --emit-tsd wasm_module.d.ts
     # malloc/free to wasm module's own heap
     -sALLOW_MEMORY_GROWTH=1
     -sEXPORTED_FUNCTIONS=_malloc,_free
-    -sEXPORTED_RUNTIME_METHODS=HEAP8,HEAP16,HEAP32,HEAPU8,HEAPU16,HEAPU32,HEAPF32,HEAPF64,HEAP64,HEAPU64
+    -sEXPORTED_RUNTIME_METHODS=HEAP8
 )

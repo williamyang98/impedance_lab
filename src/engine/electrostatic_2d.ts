@@ -1,4 +1,8 @@
-import { type MainModule, type LU_Solver } from "../wasm/build/lu_solver.js";
+import {
+  LU_Solver,
+  Float32ModuleBuffer, Uint32ModuleBuffer, Int32ModuleBuffer,
+  calculate_e_field, calculate_homogenous_energy_2d, calculate_inhomogenous_energy_2d,
+} from "../wasm";
 import { Ndarray } from "../utility/ndarray.ts";
 import { toRaw } from "vue";
 
@@ -62,7 +66,7 @@ export class Grid {
     this.e_field.fill(0.0);
   }
 
-  bake(mod: MainModule) {
+  bake() {
     // generate A matrix for Ax=b
     const A_data: number[] = [];
     const A_col_indices: number[] = [];
@@ -152,18 +156,18 @@ export class Grid {
       console.log(`CSR matrix creation took ${elapsed_ms.toPrecision(3)} ms`);
     }
 
-    const pinned_A_data = mod.Float32PinnedArray.owned_pin_from_malloc(A_data.length)!;
-    const pinned_A_col_indices = mod.Int32PinnedArray.owned_pin_from_malloc(A_col_indices.length)!;
-    const pinned_A_row_index_ptr = mod.Int32PinnedArray.owned_pin_from_malloc(A_row_index_ptr.length)!;
+    const pinned_A_data = new Float32ModuleBuffer(A_data.length);
+    const pinned_A_col_indices = new Int32ModuleBuffer(A_col_indices.length);
+    const pinned_A_row_index_ptr = new Int32ModuleBuffer(A_row_index_ptr.length);
 
-    new Float32Array(mod.HEAPF32.buffer, pinned_A_data.address, pinned_A_data.length).set(A_data);
-    new Int32Array(mod.HEAP32.buffer, pinned_A_col_indices.address, pinned_A_col_indices.length).set(A_col_indices);
-    new Int32Array(mod.HEAP32.buffer, pinned_A_row_index_ptr.address, pinned_A_row_index_ptr.length).set(A_row_index_ptr);
+    pinned_A_data.array_view.set(A_data);
+    pinned_A_col_indices.array_view.set(A_col_indices);
+    pinned_A_row_index_ptr.array_view.set(A_row_index_ptr);
 
     const total_voltages = (Ny+1)*(Nx+1);
     {
       const start_ms = performance.now();
-      this.lu_solver = mod.LU_Solver.create(pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages)!;
+      this.lu_solver = new LU_Solver(pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
       const end_ms = performance.now();
       const delta_ms = end_ms-start_ms;
       console.log(`LU factorisation took ${delta_ms.toPrecision(3)} ms`);
@@ -174,7 +178,7 @@ export class Grid {
     pinned_A_row_index_ptr.delete();
   }
 
-  run(mod: MainModule): RunResult {
+  run(): RunResult {
     if (this.lu_solver === undefined) {
       throw Error(`LU Solver has not been factorised yet. Call bake() first`);
     }
@@ -183,12 +187,12 @@ export class Grid {
 
     const total_cells = Nx*Ny;
     const total_voltages = (Ny+1)*(Nx+1);
-    const pinned_B = mod.Float32PinnedArray.owned_pin_from_malloc(total_voltages)!;
-    const B = new Float32Array(mod.HEAPF32.buffer, pinned_B.address, pinned_B.length);
+    const pinned_B = new Float32ModuleBuffer(total_voltages);
 
     {
       const start_ms = performance.now();
       // generate b matrix for Ax=b
+      const B = pinned_B.array_view;
       for (let y = 0; y < Ny+1; y++) {
         for (let x = 0; x < Nx+1; x++) {
           const iv = x + y*(Nx+1);
@@ -210,32 +214,26 @@ export class Grid {
     const elapsed_ms = end_ms-start_ms;
     console.log(`LU solve took ${elapsed_ms.toPrecision(3)} ms`);
 
-    const pin_f32 = (arr: Float32Array) => {
-      const pin = mod.Float32PinnedArray.owned_pin_from_malloc(arr.length)!;
-      new Float32Array(mod.HEAPF32.buffer, pin.address, pin.length).set(arr);
-      return pin;
-    };
-
     {
-      const pinned_E = mod.Float32PinnedArray.owned_pin_from_malloc(this.e_field.data.length)!;
-      const pinned_dx = pin_f32(this.dx.cast(Float32Array));
-      const pinned_dy = pin_f32(this.dy.cast(Float32Array));
+      const pinned_E = new Float32ModuleBuffer(this.e_field.data.length);
+      const pinned_dx = new Float32ModuleBuffer(this.dx.cast(Float32Array));
+      const pinned_dy = new Float32ModuleBuffer(this.dy.cast(Float32Array));
 
       const start_ms = performance.now();
-      mod.calculate_e_field(
+      calculate_e_field(
         pinned_E, pinned_B, pinned_dx, pinned_dy,
       );
       const end_ms = performance.now();
       const elapsed_ms = end_ms-start_ms;
       console.log(`E field calculation took ${elapsed_ms.toPrecision(3)} ms`);
 
-      this.e_field.data.set(new Float32Array(mod.HEAPF32.buffer, pinned_E.address, pinned_E.length));
+      this.e_field.data.set(pinned_E.array_view);
       pinned_E.delete();
       pinned_dx.delete();
       pinned_dy.delete();
     }
 
-    this.v_field.cast(Float32Array).set(B);
+    this.v_field.cast(Float32Array).set(pinned_B.array_view);
     pinned_B.delete();
 
     if (solve_info !== 0) {
@@ -255,34 +253,22 @@ export class Grid {
     }
   }
 
-  calculate_impedance(mod: MainModule): ImpedanceResult {
+  calculate_impedance(): ImpedanceResult {
     const epsilon_0 = 8.85e-12
     const c_0 = 3e8;
 
-    const pin_f32 = (arr: Float32Array) => {
-      const pin = mod.Float32PinnedArray.owned_pin_from_malloc(arr.length)!;
-      new Float32Array(mod.HEAPF32.buffer, pin.address, pin.length).set(arr);
-      return pin;
-    };
-
-    const pin_u32 = (arr: Uint32Array) => {
-      const pin = mod.Uint32PinnedArray.owned_pin_from_malloc(arr.length)!;
-      new Uint32Array(mod.HEAPU32.buffer, pin.address, pin.length).set(arr);
-      return pin;
-    };
-
-    const pinned_e_field = pin_f32(this.e_field.cast(Float32Array));
-    const pinned_ek_table = pin_f32(this.ek_table.cast(Float32Array));
-    const pinned_ek_index_beta = pin_u32(this.ek_index_beta.cast(Uint32Array));
-    const pinned_dx = pin_f32(this.dx.cast(Float32Array));
-    const pinned_dy = pin_f32(this.dy.cast(Float32Array));
+    const pinned_e_field = new Float32ModuleBuffer(this.e_field.cast(Float32Array));
+    const pinned_ek_table = new Float32ModuleBuffer(this.ek_table.cast(Float32Array));
+    const pinned_ek_index_beta = new Uint32ModuleBuffer(this.ek_index_beta.cast(Uint32Array));
+    const pinned_dx = new Float32ModuleBuffer(this.dx.cast(Float32Array));
+    const pinned_dy = new Float32ModuleBuffer(this.dy.cast(Float32Array));
 
     let energy_homogenous: number | undefined = undefined;
     let energy_inhomogenous: number | undefined = undefined;
 
     {
       const start_ms = performance.now();
-      energy_homogenous = mod.calculate_homogenous_energy_2d(
+      energy_homogenous = calculate_homogenous_energy_2d(
         pinned_e_field, pinned_dx, pinned_dy,
       );
       const end_ms = performance.now();
@@ -292,7 +278,7 @@ export class Grid {
 
     {
       const start_ms = performance.now();
-      energy_inhomogenous = mod.calculate_inhomogenous_energy_2d(
+      energy_inhomogenous = calculate_inhomogenous_energy_2d(
         pinned_e_field,
         pinned_ek_table,
         pinned_ek_index_beta,
