@@ -9,9 +9,11 @@ import {
 } from "./build/wasm_module.js";
 
 // Wrap around the emscripten typescript bindings with something less jank
-// Use a singleton for ease of use
+// Use globalThis to avoid different global being imported: https://stackoverflow.com/a/55396992
+// syntax for declaring variable in globalThis: https://stackoverflow.com/a/69429093
 declare global {
-  let __wasm_module__: MainModule | undefined = undefined;
+  // eslint-disable-next-line no-var
+  var __wasm_module__: MainModule | undefined;
 }
 
 export async function init() {
