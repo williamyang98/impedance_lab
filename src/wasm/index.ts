@@ -27,6 +27,11 @@ function mod(): MainModule {
   return globalThis.__wasm_module__;
 }
 
+export interface ManagedObject {
+  delete(): void;
+  is_deleted(): boolean;
+}
+
 type TypedPinnedArray =
   Uint8PinnedArray | Int8PinnedArray |
   Uint16PinnedArray | Int16PinnedArray |
@@ -39,7 +44,7 @@ type TypedArrayViewConstructor =
   Uint32ArrayConstructor | Int32ArrayConstructor |
   Float32ArrayConstructor | Float64ArrayConstructor;
 
-class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> {
+class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> implements ManagedObject {
   readonly pin: T;
   readonly ctor: U;
 
@@ -58,6 +63,10 @@ class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstruct
 
   get array_view() {
     return new this.ctor(mod().HEAP8.buffer, this.pin.address, this.pin.length);
+  }
+
+  get length(): number {
+    return this.pin.length;
   }
 
   delete() {
@@ -121,6 +130,16 @@ export class Float64ModuleBuffer extends ModuleBuffer<Float64PinnedArray, Float6
   }
 }
 
+export type TypedModuleBuffer =
+  Uint8ModuleBuffer |
+  Int8ModuleBuffer |
+  Uint16ModuleBuffer |
+  Int16ModuleBuffer |
+  Uint32ModuleBuffer |
+  Int32ModuleBuffer |
+  Float32ModuleBuffer |
+  Float64ModuleBuffer;
+
 export function calculate_homogenous_energy_2d(e_field: Float32ModuleBuffer, dx: Float32ModuleBuffer, dy: Float32ModuleBuffer): number {
   return mod().calculate_homogenous_energy_2d(e_field.pin, dx.pin, dy.pin);
 }
@@ -137,7 +156,7 @@ export function convert_f32_to_f16(f32_in: Float32ModuleBuffer, f16_out: Uint16M
   return mod().convert_f32_to_f16(f32_in.pin, f16_out.pin);
 }
 
-export class LU_Solver {
+export class LU_Solver implements ManagedObject {
   readonly inner: _LU_Solver;
 
   constructor(
@@ -154,5 +173,13 @@ export class LU_Solver {
 
   solve(b: Float32ModuleBuffer): number {
     return this.inner.solve(b.pin);
+  }
+
+  delete() {
+    this.inner.delete();
+  }
+
+  is_deleted(): boolean {
+    return this.inner.isDeleted();
   }
 }
