@@ -25,7 +25,7 @@ void convert_f32_to_f16(TypedPinnedArray<float> X, TypedPinnedArray<uint16_t> Y)
         // sign: 1, exponent: 5, mantissa: 10
         // value = (-1)^sign * 2^(exponent-15) * (1 + mantissa*2^-10)
         const uint16_t f16_sign = uint16_t(f32_sign);
-        const uint16_t f16_exponent = uint16_t(clamp<uint32_t>(f32_exponent+15, 0, 31));
+        const uint16_t f16_exponent = uint16_t(clamp<int32_t>(f32_exponent+15, 0, 31));
         const uint16_t f16_mantissa = uint16_t(f32_mantissa >> 13);
         Y[i] = (f16_sign << 15) | (f16_exponent << 10) | f16_mantissa;
     }
