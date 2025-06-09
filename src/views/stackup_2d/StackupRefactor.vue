@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, useId, useTemplateRef } from "vue";
+import {
+  computed, ref, useId, useTemplateRef,
+  // NOTE: we need use toRaw(...) to unwrap the proxy on wasm module objects
+  //       otherwise emscripten will panic on upcastCheck() use to upcast/downcast virtual pointers
+  //       this is because it performs a comparison between the entity's "class" descriptor
+  //       and since a comparison between a proxy and the original object is false this breaks this check
+  toRaw,
+} from "vue";
 
 import EditorControls from "./EditorControls.vue";
 import StackupViewer from "./StackupViewer.vue";
@@ -132,7 +139,7 @@ async function refresh_viewer() {
   if (viewer_2d.value === null) return;
   if (stackup_grid.value === undefined) return;
   const viewer = viewer_2d.value;
-  const grid = stackup_grid.value.region_grid.grid;
+  const grid = toRaw(stackup_grid.value.region_grid.grid);
   if (grid === undefined) return;
   viewer.upload_grid(grid);
   await viewer.refresh_canvas();
@@ -148,7 +155,7 @@ async function reset() {
 
 async function run(reset?: boolean) {
   reset = (reset === undefined) ? false : reset;
-  const stackup = stackup_grid.value;
+  const stackup = toRaw(stackup_grid.value);
   if (stackup === undefined) return;
   const grid = stackup.region_grid.grid;
 
@@ -192,7 +199,7 @@ interface DownloadLink {
 }
 
 const download_links = computed<DownloadLink[] | undefined>(() => {
-  const grid = stackup_grid.value?.region_grid?.grid;
+  const grid = toRaw(stackup_grid.value?.region_grid?.grid);
   if (grid === undefined) return undefined;
   return [
     { name: "e_field.npy", data: grid.e_field },
