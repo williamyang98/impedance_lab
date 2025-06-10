@@ -4,10 +4,7 @@ import {
   calculate_e_field, calculate_homogenous_energy_2d, calculate_inhomogenous_energy_2d,
 } from "../wasm";
 import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../utility/module_ndarray.ts";
-
-export interface RunResult {
-  time_taken: number;
-}
+import { Profiler } from "../utility/profiler.ts";
 
 export interface ImpedanceResult {
   Z0: number;
@@ -73,7 +70,8 @@ export class Grid {
     this.e_field.array_view.fill(0.0);
   }
 
-  bake() {
+  bake(profiler?: Profiler) {
+    profiler?.begin("bake()");
     // generate A matrix for Ax=b
     const A_data: number[] = [];
     const A_col_indices: number[] = [];
@@ -90,11 +88,11 @@ export class Grid {
 
     const [Ny,Nx] = this.size;
     {
+      profiler?.begin("create_csr", "Create CSR matrix A to represent grid");
       const v_index_beta = this.v_index_beta.array_view;
       const dx = this.dx.array_view;
       const dy = this.dy.array_view;
 
-      const start_ms = performance.now();
       for (let y = 0; y < Ny+1; y++) {
         for (let x = 0; x < Nx+1; x++) {
           push_csr_row();
@@ -162,41 +160,46 @@ export class Grid {
         }
       }
       push_csr_row();
-      const end_ms = performance.now();
-      const elapsed_ms = end_ms-start_ms;
-      console.log(`CSR matrix creation took ${elapsed_ms.toPrecision(3)} ms`);
+      profiler?.end();
     }
 
+    profiler?.begin("alloc_csr", "Allocate temporary CSR A matrix buffers inside WASM heap");
     const pinned_A_data = new Float32ModuleBuffer(A_data.length);
     const pinned_A_col_indices = new Int32ModuleBuffer(A_col_indices.length);
     const pinned_A_row_index_ptr = new Int32ModuleBuffer(A_row_index_ptr.length);
-
     pinned_A_data.array_view.set(A_data);
     pinned_A_col_indices.array_view.set(A_col_indices);
     pinned_A_row_index_ptr.array_view.set(A_row_index_ptr);
+    profiler?.end();
 
-    const total_voltages = (Ny+1)*(Nx+1);
-    {
-      const start_ms = performance.now();
-      this.lu_solver?.delete();
-      this.lu_solver = new LU_Solver(pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
-      const end_ms = performance.now();
-      const delta_ms = end_ms-start_ms;
-      console.log(`LU factorisation took ${delta_ms.toPrecision(3)} ms`);
+    if (this.lu_solver) {
+      profiler?.begin("free_old_lu_solver", "Free old LU factorisation");
+      this.lu_solver.delete();
+      profiler?.end();
     }
 
+    const total_voltages = (Ny+1)*(Nx+1);
+    profiler?.begin("create_lu_solver", "Calculate new LU factorisations");
+    this.lu_solver = new LU_Solver(pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
+    profiler?.end();
+
+    profiler?.begin("free_csr", "Free temporary CSR A matrix buffers inside WASM heap");
     pinned_A_data.delete();
     pinned_A_col_indices.delete();
     pinned_A_row_index_ptr.delete();
+    profiler?.end();
+
+    profiler?.end();
   }
 
-  run(): RunResult {
+  run(profiler?: Profiler) {
+    profiler?.begin("run()");
     if (this.lu_solver === undefined) {
       throw Error(`LU Solver has not been factorised yet. Call bake() first`);
     }
     const [Ny,Nx] = this.size;
     {
-      const start_ms = performance.now();
+      profiler?.begin("create_b", "Generate b column vector from forcing voltage potentials");
       const v_index_beta = this.v_index_beta.array_view;
       const v_table = this.v_table.array_view;
       // generate b matrix for Ax=b
@@ -210,68 +213,41 @@ export class Grid {
           B[iv] = (beta > 0.5) ? voltage : 0.0;
         }
       }
-      const end_ms = performance.now();
-      const elapsed_ms = end_ms-start_ms;
-      console.log(`B matrix creation took ${elapsed_ms.toPrecision(3)} ms`);
+      profiler?.end();
     }
 
-    const start_ms = performance.now();
+    profiler?.begin("solve_v_field", "Solve for voltage field in system Ax=b where A has LU factors");
     const solve_info = this.lu_solver.solve(this.v_field);
-    const end_ms = performance.now();
-    const elapsed_ms = end_ms-start_ms;
-    console.log(`LU solve took ${elapsed_ms.toPrecision(3)} ms`);
+    profiler?.end();
 
-    {
-      const start_ms = performance.now();
-      calculate_e_field(
-        this.e_field, this.v_field, this.dx, this.dy,
-      );
-      const end_ms = performance.now();
-      const elapsed_ms = end_ms-start_ms;
-      console.log(`E field calculation took ${elapsed_ms.toPrecision(3)} ms`);
-    }
+    profiler?.begin("calc_e_field", "Calculate electric field from voltage field");
+    calculate_e_field(this.e_field, this.v_field, this.dx, this.dy);
+    profiler?.end();
 
     if (solve_info !== 0) {
       console.error(`LU solver failed with code: ${solve_info}`);
     }
 
-    const time_taken = elapsed_ms*1e-3;
-    return {
-      time_taken,
-    }
+    profiler?.end();
   }
 
-  calculate_impedance(): ImpedanceResult {
+  calculate_impedance(profiler?: Profiler): ImpedanceResult {
+    profiler?.begin("calculate_impedance()");
+
+    profiler?.begin("energy_homogenous", "Calculate energy stored without dielectric material");
+    const energy_homogenous = calculate_homogenous_energy_2d(this.e_field, this.dx, this.dy);
+    profiler?.end();
+
+    profiler?.begin("energy_inhomogenous", "Calculate energy stored with dielectric material");
+    const energy_inhomogenous = calculate_inhomogenous_energy_2d(
+      this.e_field,
+      this.ek_table, this.ek_index_beta,
+      this.dx, this.dy,
+    );
+    profiler?.end();
+
     const epsilon_0 = 8.85e-12
     const c_0 = 3e8;
-
-    let energy_homogenous: number | undefined = undefined;
-    let energy_inhomogenous: number | undefined = undefined;
-
-    {
-      const start_ms = performance.now();
-      energy_homogenous = calculate_homogenous_energy_2d(
-        this.e_field, this.dx, this.dy,
-      );
-      const end_ms = performance.now();
-      const elapsed_ms = end_ms-start_ms;
-      console.log(`calculate_homogenous_energy_2d() took ${elapsed_ms.toPrecision(3)} ms`);
-    }
-
-    {
-      const start_ms = performance.now();
-      energy_inhomogenous = calculate_inhomogenous_energy_2d(
-        this.e_field,
-        this.ek_table,
-        this.ek_index_beta,
-        this.dx,
-        this.dy,
-      );
-      const end_ms = performance.now();
-      const elapsed_ms = end_ms-start_ms;
-      console.log(`calculate_inhomogenous_energy_2d() took ${elapsed_ms.toPrecision(3)} ms`);
-    }
-
     const v0: number = this.v_input;
     const Ch = 1/(v0**2) * epsilon_0 * energy_homogenous;
     const Lh = 1/((c_0**2) * Ch);
@@ -279,6 +255,8 @@ export class Grid {
     const Z0 = (Lh/Cih)**0.5;
     const propagation_speed = 1/(Cih*Lh)**0.5;
     const propagation_delay = 1/propagation_speed;
+
+    profiler?.end();
     return {
       Z0,
       Cih,

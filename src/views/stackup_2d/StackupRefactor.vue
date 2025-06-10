@@ -7,20 +7,19 @@ import {
   //       and since a comparison between a proxy and the original object is false this breaks this check
   toRaw,
 } from "vue";
-
+// subcomponents
 import EditorControls from "./EditorControls.vue";
 import StackupViewer from "./StackupViewer.vue";
 import GridRegionTable from "./GridRegionTable.vue";
 import MeshViewer from "./MeshViewer.vue";
 import MeasurementTable from "./MeasurementTable.vue";
-
-import { Ndarray } from "../../utility/ndarray.ts";
+import ParameterForm from "./ParameterForm.vue";
+import { Viewer2D } from "../../components/viewer_2d/index.ts";
+import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
+// ts imports
 import { type SizeParameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
-import ParameterForm from "./ParameterForm.vue";
-import { Viewer2D } from "../../components/viewer_2d/index.ts";
-import { type TransmissionLineMeasurement, perform_transmission_line_measurement } from "./measurement.ts";
 import {
   type VerticalStackupEditor,
   CoplanarDifferentialPairEditor,
@@ -32,6 +31,9 @@ import {
   BroadsideMirroredPairEditor,
   BroadsideMirroredCoplanarPairEditor,
 } from "./stackup_templates.ts";
+import { type Measurement, perform_measurement } from "./measurement.ts";
+import { Profiler } from "../../utility/profiler.ts";
+import { Ndarray } from "../../utility/ndarray.ts";
 
 class Editors {
   coplanar_diff = new CoplanarDifferentialPairEditor();
@@ -95,13 +97,15 @@ const uid = {
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 
-const impedance_result = ref<TransmissionLineMeasurement | undefined>(undefined);
+const measurement = ref<Measurement | undefined>(undefined);
+const profiler = ref<Profiler | undefined>(undefined);
 
 async function sleep(millis: number) {
   await new Promise(resolve => setTimeout(resolve, millis));
 }
 
-function rebuild_stackup() {
+function rebuild_stackup(profiler: Profiler): StackupGrid {
+  profiler.begin("rebuild_stackup");
   const get_size = (param: SizeParameter): number => {
     const size = param.value;
     if (size === undefined) {
@@ -127,31 +131,23 @@ function rebuild_stackup() {
     param.error = undefined;
     return size;
   };
-  try {
-    const layout = create_layout_from_stackup(grid_stackup.value, get_size);
-    const stackup = new StackupGrid(layout);
-    stackup_grid.value = stackup;
-  } catch (error) {
-    console.error(error);
-  }
+  profiler.begin("create_layout", "Create layout from transmission line stackup");
+  const layout = create_layout_from_stackup(grid_stackup.value, get_size, profiler);
+  profiler.end();
+
+  profiler.begin("create_grid", "Create simulation grid from layout");
+  const stackup = new StackupGrid(layout);
+  profiler.end();
+
+  profiler.end();
+  return stackup;
 }
 
-async function run_simulation() {
-  const stackup = toRaw(stackup_grid.value);
-  if (stackup === undefined) return;
-
-  is_running.value = true;
-  try {
-    await sleep(0);
-    const start_ms = performance.now();
-    impedance_result.value = perform_transmission_line_measurement(stackup);
-    const end_ms = performance.now();
-    const delta_ms = end_ms-start_ms;
-    console.log(`run() took ${delta_ms.toPrecision(3)} ms`);
-  } catch (error) {
-    console.error("run() failed with: ", error);
-  }
-  is_running.value = false;
+function run_simulation(stackup: StackupGrid, profiler: Profiler): Measurement {
+  profiler.begin("run");
+  const measurement = perform_measurement(stackup, profiler);
+  profiler.end();
+  return measurement;
 }
 
 async function refresh_viewer() {
@@ -165,8 +161,25 @@ async function refresh_viewer() {
 }
 
 async function calculate_impedance() {
-  rebuild_stackup();
-  await run_simulation();
+  is_running.value = true;
+  await sleep(0); // required so ui changes are reflected when is_running = True
+
+  const new_profiler = new Profiler("calculate_impedance");
+  try {
+    const new_stackup = rebuild_stackup(new_profiler);
+    const new_measurement = run_simulation(new_stackup, new_profiler);
+    new_profiler.end();
+    stackup_grid.value = new_stackup;
+    measurement.value = new_measurement;
+  } catch (error) {
+    console.error("calculate_impedance() failed with: ", error);
+  }
+  if (!new_profiler.is_ended()) {
+    new_profiler.end();
+  }
+  profiler.value = new_profiler;
+  is_running.value = false;
+
   await refresh_viewer();
 }
 
@@ -241,8 +254,8 @@ function download_ndarray(link: DownloadLink) {
         <div class="card-body">
           <h2 class="card-title">Impedance</h2>
           <div class="h-full">
-            <template v-if="impedance_result">
-              <MeasurementTable :measurement="impedance_result"></MeasurementTable>
+            <template v-if="measurement">
+              <MeasurementTable :measurement="measurement"></MeasurementTable>
             </template>
             <template v-else>
               <div class="w-full h-full flex justify-center items-center">
@@ -288,30 +301,37 @@ function download_ndarray(link: DownloadLink) {
       <h1 class="text-2xl">Simulation grid not created yet</h1>
     </div>
   </div>
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Simulation"/>
+  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Viewer"/>
   <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div class="grid grid-cols-7 gap-x-2">
-      <div class="w-full card card-border bg-base-100 col-span-2">
-        <div class="card-body">
-          <h2 class="card-title">Simulation</h2>
-          <!-- TODO: -->
+    <div class="w-full card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">Viewer</h2>
+        <div class="max-h-full">
+          <Viewer2D ref="viewer_2d"></Viewer2D>
+        </div>
+      </div>
+    </div>
+  </div>
+  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Profiler"/>
+  <div class="tab-content bg-base-100 border-base-300 p-1">
+    <div class="w-full card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">Profiler</h2>
+        <template v-if="profiler">
+          <div class="w-full">
+            <ProfilerFlameChart :profiler="profiler"></ProfilerFlameChart>
+          </div>
+        </template>
+        <template v-else>
           <div class="text-center">
             <h1 class="text-2xl">Simulation has not run yet</h1>
           </div>
-          <div class="card-actions justify-end">
-            <div class="mt-1">
-              <div class="flex justify-end gap-x-2 mt-3">
-                <button class="btn" @click="calculate_impedance()" :disabled="is_running">Calculate</button>
-              </div>
+        </template>
+        <div class="card-actions justify-end">
+          <div class="mt-1">
+            <div class="flex justify-end gap-x-2 mt-3">
+              <button class="btn" @click="calculate_impedance()" :disabled="is_running">Calculate</button>
             </div>
-          </div>
-        </div>
-      </div>
-      <div class="w-full card card-border bg-base-100 col-span-5">
-        <div class="card-body">
-          <h2 class="card-title">Viewer</h2>
-          <div class="max-h-full">
-            <Viewer2D ref="viewer_2d"></Viewer2D>
           </div>
         </div>
       </div>

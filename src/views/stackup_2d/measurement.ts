@@ -1,48 +1,44 @@
-import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
+import { type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
+import { Profiler } from "../../utility/profiler.ts";
 import { StackupGrid } from "./grid.ts";
 
-export interface Measurement {
-  run: RunResult;
-  impedance: ImpedanceResult;
-}
-
-function perform_measurement(stackup: StackupGrid): Measurement {
-  const grid = stackup.region_grid.grid;
-  const run = grid.run();
-  const impedance = grid.calculate_impedance();
-  return { run, impedance };
-};
-
 export interface SingleEndedMeasurement {
-  masked: Measurement;
-  unmasked: Measurement;
+  masked: ImpedanceResult;
+  unmasked: ImpedanceResult;
 }
 
 export interface DifferentialMeasurement {
-  odd_masked: Measurement;
-  even_masked: Measurement;
-  odd_unmasked: Measurement;
+  odd_masked: ImpedanceResult;
+  even_masked: ImpedanceResult;
+  odd_unmasked: ImpedanceResult;
   coupling_factor: number;
 }
 
-export type TransmissionLineMeasurement =
+export type Measurement =
   { type: "single" } & SingleEndedMeasurement |
   { type: "differential" } & DifferentialMeasurement;
 
-export function perform_transmission_line_measurement(stackup: StackupGrid): TransmissionLineMeasurement {
+export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): Measurement {
   const grid = stackup.region_grid.grid;
-  grid.bake();
+  grid.bake(profiler);
+
+  const calculate = (label: string): ImpedanceResult => {
+    profiler?.begin(label, `Calculating with setup ${label}`);
+    grid.run(profiler);
+    const impedance = grid.calculate_impedance(profiler);
+    profiler?.end();
+    return impedance;
+  };
 
   const is_single_ended = !stackup.is_differential_pair();
-
   if (is_single_ended) {
     stackup.configure_single_ended_voltage();
     stackup.configure_masked_dielectric();
-    const masked = perform_measurement(stackup);
+    const masked = calculate("masked");
 
     stackup.configure_single_ended_voltage();
     stackup.configure_unmasked_dielectric();
-    const unmasked = perform_measurement(stackup);
+    const unmasked = calculate("unmasked");
     return {
       type: "single",
       masked,
@@ -51,18 +47,18 @@ export function perform_transmission_line_measurement(stackup: StackupGrid): Tra
   } else {
     stackup.configure_odd_mode_diffpair_voltage();
     stackup.configure_masked_dielectric();
-    const odd_masked = perform_measurement(stackup);
+    const odd_masked = calculate("odd_masked");
 
     stackup.configure_even_mode_diffpair_voltage();
     stackup.configure_masked_dielectric();
-    const even_masked = perform_measurement(stackup);
+    const even_masked = calculate("even_masked");
 
     stackup.configure_odd_mode_diffpair_voltage();
     stackup.configure_unmasked_dielectric();
-    const odd_unmasked = perform_measurement(stackup);
+    const odd_unmasked = calculate("odd_unmasked");
 
-    const Z_odd = odd_masked.impedance.Z0;
-    const Z_even = even_masked.impedance.Z0;
+    const Z_odd = odd_masked.Z0;
+    const Z_even = even_masked.Z0;
     const coupling_factor = (Z_even-Z_odd)/(Z_even+Z_odd);
 
     return {

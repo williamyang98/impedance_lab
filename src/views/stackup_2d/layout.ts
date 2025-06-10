@@ -6,6 +6,7 @@ import {
   type CopperTrace, type CopperPlane,
   type UnmaskedLayer, type SoldermaskLayer, type CoreLayer, type PrepregLayer,
 } from "./stackup.ts";
+import { Profiler } from "../../utility/profiler.ts";
 
 // describe shapes
 export interface Position {
@@ -111,6 +112,7 @@ export interface StackupLayout {
 export function create_layout_from_stackup(
   stackup: Stackup,
   get_size: (size_param: SizeParameter) => number,
+  profiler?: Profiler,
 ): StackupLayout {
   const layout: StackupLayout = {
     spacings: [],
@@ -166,6 +168,7 @@ export function create_layout_from_stackup(
 
   const spacings = stackup.spacings;
   {
+    profiler?.begin("trace_layout_horizontal", "Layout traces horizontally use widths and spacings");
     // seed first trace to x=0
     {
       const trace = traces[0];
@@ -231,6 +234,7 @@ export function create_layout_from_stackup(
         running_count_unmarked++;
       }
     }
+    profiler?.end();
 
     if (trace_x_regions.length != traces.length) {
       throw Error(`Failed to find x position of all traces. Found ${trace_x_regions.length} but needed ${traces.length}`);
@@ -247,6 +251,7 @@ export function create_layout_from_stackup(
   layout.x_max = x_max;
 
   // get y regions
+  profiler?.begin("layer_layout_vertical", "Layout layers horizontally from heights");
   const conductor_in_layer_table: Partial<Record<LayerId, Set<Orientation>>> = {};
   const plane_in_layer_table: Partial<Record<LayerId, Partial<Record<Orientation, CopperPlane>>>> = {};
   for (const conductor of stackup.conductors) {
@@ -466,8 +471,10 @@ export function create_layout_from_stackup(
     layout.y_min = 0;
     layout.y_max = y_offset;
   }
+  profiler?.end();
 
   // create conductor layouts
+  profiler?.begin("trace_layout_complete", "Layout traces with vertical and horizontal dimensions");
   const layer_trace_layout_table: Partial<Record<LayerId, Partial<Record<Orientation, CopperTraceLayout[]>>>> = {};
   const trace_layout_table: Partial<Record<TraceId, CopperTraceLayout>> = {};
   const push_trace_layout = (layer_id: LayerId, orientation: Orientation, trace_layout: CopperTraceLayout) => {
@@ -546,8 +553,10 @@ export function create_layout_from_stackup(
       }
     }
   }
+  profiler?.end();
 
   // create spacing layouts
+  profiler?.begin("spacing_layout_complete", "Layout spacings with vertical and horizontal dimensions");
   function get_closest_value(target: number, ...values: number[]): number {
     let closest_value = 0;
     let min_distance = Infinity;
@@ -600,8 +609,10 @@ export function create_layout_from_stackup(
       y_mid,
     });
   }
+  profiler?.end();
 
   // finish layer layout for soldermask layers now that we have trace shapes
+  profiler?.begin("soldermask_layout_complete", "Layout soldermask with vertical and horizontal dimensions");
   for (const soldermask_layout of layout.layers.filter(layer => layer.type == "soldermask")) {
     const layer = soldermask_layout.parent;
     const trace_layouts = layer_trace_layout_table[layer.id]?.[layer.orientation];
@@ -619,6 +630,7 @@ export function create_layout_from_stackup(
       }
     }
   }
+  profiler?.end();
 
   return layout;
 }
