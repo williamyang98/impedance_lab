@@ -6,11 +6,7 @@ import {
 import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../utility/module_ndarray.ts";
 
 export interface RunResult {
-  total_steps: number;
   time_taken: number;
-  cell_rate: number;
-  step_rate: number;
-  total_cells: number;
 }
 
 export interface ImpedanceResult {
@@ -199,9 +195,6 @@ export class Grid {
       throw Error(`LU Solver has not been factorised yet. Call bake() first`);
     }
     const [Ny,Nx] = this.size;
-    const total_steps: number = 1;
-    const total_cells = Nx*Ny;
-
     {
       const start_ms = performance.now();
       const v_index_beta = this.v_index_beta.array_view;
@@ -242,16 +235,9 @@ export class Grid {
       console.error(`LU solver failed with code: ${solve_info}`);
     }
 
-
     const time_taken = elapsed_ms*1e-3;
-    const cell_rate = (total_cells*total_steps)/time_taken;
-    const step_rate = total_steps/time_taken;
     return {
-      total_steps,
       time_taken,
-      cell_rate,
-      step_rate,
-      total_cells,
     }
   }
 

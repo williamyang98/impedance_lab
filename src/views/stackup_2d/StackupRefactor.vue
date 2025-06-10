@@ -10,10 +10,9 @@ import {
 
 import EditorControls from "./EditorControls.vue";
 import StackupViewer from "./StackupViewer.vue";
-import ImpedanceResultTable from "./ImpedanceResultTable.vue";
-import RunResultTable from "./RunResultTable.vue";
 import GridRegionTable from "./GridRegionTable.vue";
 import MeshViewer from "./MeshViewer.vue";
+import MeasurementTable from "./MeasurementTable.vue";
 
 import { Ndarray } from "../../utility/ndarray.ts";
 import { type SizeParameter } from "./stackup.ts";
@@ -21,7 +20,7 @@ import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
 import ParameterForm from "./ParameterForm.vue";
 import { Viewer2D } from "../../components/viewer_2d/index.ts";
-import { type RunResult, type ImpedanceResult } from "../../engine/electrostatic_2d.ts";
+import { type TransmissionLineMeasurement, perform_transmission_line_measurement } from "./measurement.ts";
 import {
   type VerticalStackupEditor,
   CoplanarDifferentialPairEditor,
@@ -93,13 +92,16 @@ const uid = {
   tab_region_grid: useId(),
   tab_simulation: useId(),
 };
-const energy_threshold = ref<number>(-3);
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
-const run_result = ref<RunResult | undefined>(undefined);
-const impedance_result = ref<ImpedanceResult | undefined>(undefined);
 
-async function update_region_grid() {
+const impedance_result = ref<TransmissionLineMeasurement | undefined>(undefined);
+
+async function sleep(millis: number) {
+  await new Promise(resolve => setTimeout(resolve, millis));
+}
+
+function rebuild_stackup() {
   const get_size = (param: SizeParameter): number => {
     const size = param.value;
     if (size === undefined) {
@@ -127,12 +129,29 @@ async function update_region_grid() {
   };
   try {
     const layout = create_layout_from_stackup(grid_stackup.value, get_size);
-    const grid = new StackupGrid(layout);
-    stackup_grid.value = grid;
-    await reset();
+    const stackup = new StackupGrid(layout);
+    stackup_grid.value = stackup;
   } catch (error) {
     console.error(error);
   }
+}
+
+async function run_simulation() {
+  const stackup = toRaw(stackup_grid.value);
+  if (stackup === undefined) return;
+
+  is_running.value = true;
+  try {
+    await sleep(0);
+    const start_ms = performance.now();
+    impedance_result.value = perform_transmission_line_measurement(stackup);
+    const end_ms = performance.now();
+    const delta_ms = end_ms-start_ms;
+    console.log(`run() took ${delta_ms.toPrecision(3)} ms`);
+  } catch (error) {
+    console.error("run() failed with: ", error);
+  }
+  is_running.value = false;
 }
 
 async function refresh_viewer() {
@@ -145,51 +164,9 @@ async function refresh_viewer() {
   await viewer.refresh_canvas();
 }
 
-async function sleep(millis: number) {
-  await new Promise(resolve => setTimeout(resolve, millis));
-}
-
-async function reset() {
-  await run(true);
-}
-
-async function run(reset?: boolean) {
-  reset = (reset === undefined) ? false : reset;
-  const stackup = toRaw(stackup_grid.value);
-  if (stackup === undefined) return;
-  const grid = stackup.region_grid.grid;
-
-  const is_diffpair = stackup.is_differential_pair();
-  console.log(`Running stackup: diffpair=${is_diffpair}`);
-  if (is_diffpair) {
-    stackup.configure_odd_mode_diffpair_voltage();
-    stackup.configure_masked_dielectric();
-    // stackup.configure_even_mode_diffpair_voltage();
-    // stackup.configure_unmasked_dielectric();
-  } else {
-    stackup.configure_single_ended_voltage();
-    stackup.configure_masked_dielectric();
-  }
-
-  if (reset) {
-    grid.reset();
-  }
-
-  is_running.value = true;
-  await sleep(0);
-
-  const start_ms = performance.now();
-  grid.bake();
-
-  // const threshold = Math.pow(10, energy_threshold.value);
-  run_result.value = grid.run();
-  impedance_result.value = grid.calculate_impedance();
-
-  const end_ms = performance.now();
-  const delta_ms = end_ms-start_ms;
-  console.log(`run() took ${delta_ms.toPrecision(3)} ms`);
-
-  is_running.value = false;
+async function calculate_impedance() {
+  rebuild_stackup();
+  await run_simulation();
   await refresh_viewer();
 }
 
@@ -265,16 +242,16 @@ function download_ndarray(link: DownloadLink) {
           <h2 class="card-title">Impedance</h2>
           <div class="h-full">
             <template v-if="impedance_result">
-              <ImpedanceResultTable :result="impedance_result"></ImpedanceResultTable>
+              <MeasurementTable :measurement="impedance_result"></MeasurementTable>
             </template>
             <template v-else>
               <div class="w-full h-full flex justify-center items-center">
-                <h1 class="text-xl">Simulation has not run yet</h1>
+                <h1 class="text-xl">No results to display</h1>
               </div>
             </template>
           </div>
           <div class="card-actions justify-end">
-            <button class="btn" @click="update_region_grid()" :disabled="is_running">Calculate</button>
+            <button class="btn" @click="calculate_impedance()" :disabled="is_running">Calculate</button>
           </div>
         </div>
       </div>
@@ -317,23 +294,14 @@ function download_ndarray(link: DownloadLink) {
       <div class="w-full card card-border bg-base-100 col-span-2">
         <div class="card-body">
           <h2 class="card-title">Simulation</h2>
-          <template v-if="run_result">
-            <RunResultTable :result="run_result"></RunResultTable>
-          </template>
-          <template v-else>
-            <div class="text-center">
-              <h1 class="text-2xl">Simulation has not run yet</h1>
-            </div>
-          </template>
+          <!-- TODO: -->
+          <div class="text-center">
+            <h1 class="text-2xl">Simulation has not run yet</h1>
+          </div>
           <div class="card-actions justify-end">
             <div class="mt-1">
-              <form class="grid grid-cols-[8rem_auto] gap-y-1 gap-x-1">
-                <label for="threshold">Settling threshold</label>
-                <input id="threshold" type="number" v-model.number="energy_threshold" min="-5" max="-1" step="0.1"/>
-              </form>
               <div class="flex justify-end gap-x-2 mt-3">
-                <button class="btn" @click="reset()" variant="outline" :disabled="is_running">Reset</button>
-                <button class="btn" @click="run()" :disabled="is_running">Run</button>
+                <button class="btn" @click="calculate_impedance()" :disabled="is_running">Calculate</button>
               </div>
             </div>
           </div>

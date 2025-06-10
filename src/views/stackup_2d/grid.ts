@@ -551,7 +551,7 @@ export class StackupGrid {
     v_table[0] = 0;
     v_table[1] = 1;
     v_table[2] = 1;
-    grid.v_input = 1;
+    grid.v_input = 2;
   }
 
   configure_single_ended_voltage() {

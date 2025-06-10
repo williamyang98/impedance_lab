@@ -250,7 +250,7 @@ function create_conductor_parameters() {
       placeholder_value: sizes.signal_width_separation,
     },
     B: {
-      name: "S",
+      name: "BS",
       description: "Broadside separation",
       min: 0,
       value: 0,
