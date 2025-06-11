@@ -71,7 +71,6 @@ export class Grid {
   }
 
   bake(profiler?: Profiler) {
-    profiler?.begin("bake()");
     // generate A matrix for Ax=b
     const A_data: number[] = [];
     const A_col_indices: number[] = [];
@@ -188,12 +187,9 @@ export class Grid {
     pinned_A_col_indices.delete();
     pinned_A_row_index_ptr.delete();
     profiler?.end();
-
-    profiler?.end();
   }
 
   run(profiler?: Profiler) {
-    profiler?.begin("run()");
     if (this.lu_solver === undefined) {
       throw Error(`LU Solver has not been factorised yet. Call bake() first`);
     }
@@ -227,13 +223,9 @@ export class Grid {
     if (solve_info !== 0) {
       console.error(`LU solver failed with code: ${solve_info}`);
     }
-
-    profiler?.end();
   }
 
   calculate_impedance(profiler?: Profiler): ImpedanceResult {
-    profiler?.begin("calculate_impedance()");
-
     profiler?.begin("energy_homogenous", "Calculate energy stored without dielectric material");
     const energy_homogenous = calculate_homogenous_energy_2d(this.e_field, this.dx, this.dy);
     profiler?.end();
@@ -256,7 +248,6 @@ export class Grid {
     const propagation_speed = 1/(Cih*Lh)**0.5;
     const propagation_delay = 1/propagation_speed;
 
-    profiler?.end();
     return {
       Z0,
       Cih,

@@ -20,17 +20,28 @@ export type Measurement =
 
 export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): Measurement {
   const grid = stackup.region_grid.grid;
+  profiler?.begin("bake");
   grid.bake(profiler);
+  profiler?.end();
 
   const calculate = (label: string): ImpedanceResult => {
     profiler?.begin(label, `Calculating with setup ${label}`);
+
+    profiler?.begin("grid.run");
     grid.run(profiler);
+    profiler?.end();
+
+    profiler?.begin("grid.calculate_impedance");
     const impedance = grid.calculate_impedance(profiler);
+    profiler?.end();
+
     profiler?.end();
     return impedance;
   };
 
+  profiler?.begin("calculate_setups");
   const is_single_ended = !stackup.is_differential_pair();
+  let measurement: Measurement | undefined = undefined;
   if (is_single_ended) {
     stackup.configure_single_ended_voltage();
     stackup.configure_masked_dielectric();
@@ -39,7 +50,8 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
     stackup.configure_single_ended_voltage();
     stackup.configure_unmasked_dielectric();
     const unmasked = calculate("unmasked");
-    return {
+
+    measurement = {
       type: "single",
       masked,
       unmasked,
@@ -61,7 +73,7 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
     const Z_even = even_masked.Z0;
     const coupling_factor = (Z_even-Z_odd)/(Z_even+Z_odd);
 
-    return {
+    measurement = {
       type: "differential",
       odd_masked,
       even_masked,
@@ -69,4 +81,7 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
       coupling_factor,
     }
   }
+  profiler?.end();
+
+  return measurement;
 }
