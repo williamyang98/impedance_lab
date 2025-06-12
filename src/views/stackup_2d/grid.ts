@@ -633,6 +633,10 @@ export class StackupGrid {
     return v_set.has("positive") && v_set.has("negative");
   }
 
+  has_soldermask(): boolean {
+    return this.epsilon_indexes.soldermask_indices.size > 0;
+  }
+
   configure_odd_mode_diffpair_voltage() {
     const v_table = this.grid.v_table.array_view;
     v_table[0] = 0;

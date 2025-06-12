@@ -4,13 +4,13 @@ import { StackupGrid } from "./grid.ts";
 
 export interface SingleEndedMeasurement {
   masked: ImpedanceResult;
-  unmasked: ImpedanceResult;
+  unmasked?: ImpedanceResult;
 }
 
 export interface DifferentialMeasurement {
   odd_masked: ImpedanceResult;
   even_masked: ImpedanceResult;
-  odd_unmasked: ImpedanceResult;
+  odd_unmasked?: ImpedanceResult;
   coupling_factor: number;
 }
 
@@ -47,9 +47,12 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
     stackup.configure_masked_dielectric();
     const masked = calculate("masked");
 
-    stackup.configure_single_ended_voltage();
-    stackup.configure_unmasked_dielectric();
-    const unmasked = calculate("unmasked");
+    let unmasked = undefined;
+    if (stackup.has_soldermask()) {
+      stackup.configure_single_ended_voltage();
+      stackup.configure_unmasked_dielectric();
+      unmasked = calculate("unmasked");
+    }
 
     measurement = {
       type: "single",
@@ -65,9 +68,12 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
     stackup.configure_masked_dielectric();
     const even_masked = calculate("even_masked");
 
-    stackup.configure_odd_mode_diffpair_voltage();
-    stackup.configure_unmasked_dielectric();
-    const odd_unmasked = calculate("odd_unmasked");
+    let odd_unmasked = undefined;
+    if (stackup.has_soldermask()) {
+      stackup.configure_odd_mode_diffpair_voltage();
+      stackup.configure_unmasked_dielectric();
+      odd_unmasked = calculate("odd_unmasked");
+    }
 
     const Z_odd = odd_masked.Z0;
     const Z_even = even_masked.Z0;
