@@ -17,10 +17,15 @@ function create_chart() {
   const grid = props.stackup_grid;
   if (grid === undefined) return;
 
-  const x_region_lines = grid.x_region_to_grid_map.region_lines;
-  const y_region_lines = grid.y_region_to_grid_map.region_lines;
-  const x_grid_lines = grid.x_region_to_grid_map.grid_lines;
-  const y_grid_lines = grid.y_region_to_grid_map.grid_lines;
+  // rescale from normalised to actual sizes
+  const x_scale = grid.x_region_to_grid_map.region_lines_builder.scale;
+  const y_scale = grid.y_region_to_grid_map.region_lines_builder.scale;
+
+  const x_region_lines = grid.x_region_to_grid_map.region_lines.map(x => x/x_scale);
+  const y_region_lines = grid.y_region_to_grid_map.region_lines.map(y => y/y_scale);
+
+  const x_grid_lines = grid.x_region_to_grid_map.grid_lines.map(x => x/x_scale);
+  const y_grid_lines = grid.y_region_to_grid_map.grid_lines.map(y => y/y_scale);
 
   const x_min = 0;
   const x_max = x_grid_lines[x_grid_lines.length-1];

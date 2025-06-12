@@ -271,8 +271,8 @@ export class StackupGrid {
     const merge_threshold = log_mean*1e-3;
     this.x_region_lines_builder.merge(merge_threshold);
     this.y_region_lines_builder.merge(merge_threshold);
-    this.x_region_lines_builder.scale(1.0/log_mean);
-    this.y_region_lines_builder.scale(1.0/log_mean);
+    this.x_region_lines_builder.apply_scale(1.0/log_mean);
+    this.y_region_lines_builder.apply_scale(1.0/log_mean);
     this.profiler?.end();
   }
 

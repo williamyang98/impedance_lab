@@ -2,6 +2,7 @@ export class LinesBuilder {
   id_to_index: number[] = [];
   lines: number[] = [];
   is_sorted: boolean = false;
+  scale: number = 1.0;
 
   push(line: number): number {
     const id = this.id_to_index.length;
@@ -83,9 +84,10 @@ export class LinesBuilder {
     }
   }
 
-  scale(scale: number) {
+  apply_scale(scale: number) {
     for (let i = 0; i < this.lines.length; i++) {
       this.lines[i] *= scale;
     }
+    this.scale *= scale;
   }
 }
