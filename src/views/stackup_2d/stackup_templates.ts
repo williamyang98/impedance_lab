@@ -432,7 +432,7 @@ export abstract class StackupWithConductorsEditor extends VerticalStackupEditor 
 
   make_plane_removable(plane: PlaneConductor) {
     plane.grid = {
-      override_total_divisions: 3,
+      override_total_divisions: 1,
     };
     plane.viewer = {
       on_click: () => this.remove_plane(plane),
