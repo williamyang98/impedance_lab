@@ -18,7 +18,12 @@ export function generate_region_mesh_segments(
   min_region_subdivisions = min_region_subdivisions ?? 3;
   max_ratio = max_ratio ?? 0.5;
 
-  const a_min = regions.map(region => region.size/min_region_subdivisions);
+  const a_min: (number | null)[] = regions.map((region) => {
+    if (region.total_grid_lines !== undefined) {
+      return null;
+    }
+    return region.size/min_region_subdivisions;
+  });
 
   const segments: RegionMeshSegment[] = [];
   const N = regions.length;
