@@ -137,7 +137,11 @@ async function calculate_impedance() {
     new_stackup = new StackupGrid(layout, get_parameter, new_profiler);
     new_profiler.end();
 
-    new_profiler.begin("run");
+    new_profiler.begin("run", "Perform impedance measurements", {
+      "Total Columns": `${new_stackup.grid.width}`,
+      "Total Rows": `${new_stackup.grid.height}`,
+      "Total Cells": `${new_stackup.grid.width*new_stackup.grid.height}`,
+    });
     new_measurement = perform_measurement(new_stackup, new_profiler);
     new_profiler.end();
 

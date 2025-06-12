@@ -13,17 +13,21 @@ export class Timer {
   }
 }
 
+type MetaData = Partial<Record<string, string>>;
+
 export class ProfilerTrace {
   label?: string;
   description?: string;
   start_ms: number;
   _end_ms?: number;
+  metadata?: MetaData;
   sub_traces: ProfilerTrace[];
 
-  constructor(label?: string, description?: string) {
+  constructor(label?: string, description?: string, metadata?: MetaData) {
     this.label = label;
     this.description = description;
     this.start_ms = performance.now();
+    this.metadata = metadata;
     this.sub_traces = [];
   }
 
@@ -84,8 +88,8 @@ export class Profiler {
     }
   }
 
-  begin(label?: string, description?: string) {
-    const child = new ProfilerTrace(label, description)
+  begin(label?: string, description?: string, metadata?: MetaData) {
+    const child = new ProfilerTrace(label, description, metadata)
     if (this.stack.length <= 0) {
       this.handle_error("Tried to begin trace in profiler after it was terminated");
       return;

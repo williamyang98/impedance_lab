@@ -134,7 +134,7 @@ function on_span_enter(ev: MouseEvent) {
                     <col class="w-full">
                   </colgroup>
                   <tbody>
-                    <tr>
+                    <tr class="table-separator">
                       <td class="font-medium text-base" colspan="2">
                         {{ span.trace.label }} ({{ span.width.toFixed(0) }}%)
                       </td>
@@ -151,10 +151,16 @@ function on_span_enter(ev: MouseEvent) {
                       <td class="font-medium">Start</td>
                       <td>{{ rebase_timestamp(span.trace.start_ms).toFixed(2) }} ms</td>
                     </tr>
-                    <tr>
+                    <tr :class="`${span.trace.metadata ? 'table-separator' : ''}`">
                       <td class="font-medium">End</td>
                       <td>{{ rebase_timestamp(span.trace.end_ms).toFixed(2) }} ms</td>
                     </tr>
+                    <template v-if="span.trace.metadata">
+                      <tr v-for="([key, value], row_index) in Object.entries(span.trace.metadata)" :key="row_index">
+                        <td class="font-medium">{{ key }}</td>
+                        <td>{{ value }}</td>
+                      </tr>
+                    </template>
                   </tbody>
                 </table>
               </div>
@@ -216,6 +222,10 @@ function on_span_enter(ev: MouseEvent) {
 
 .chart-span-inner:hover .chart-tooltip {
   display: block;
+}
+
+.table-separator {
+  border-bottom: 2px solid var(--color-base-300);
 }
 
 </style>
