@@ -165,18 +165,20 @@ async function calculate_impedance() {
   await sleep(0); // required so ui changes are reflected when is_running = True
 
   const new_profiler = new Profiler("calculate_impedance");
+  let new_stackup = undefined;
+  let new_measurement = undefined;
   try {
-    const new_stackup = rebuild_stackup(new_profiler);
-    const new_measurement = run_simulation(new_stackup, new_profiler);
+    new_stackup = rebuild_stackup(new_profiler);
+    new_measurement = run_simulation(new_stackup, new_profiler);
     new_profiler.end();
-    stackup_grid.value = new_stackup;
-    measurement.value = new_measurement;
   } catch (error) {
     console.error("calculate_impedance() failed with: ", error);
   }
   if (!new_profiler.is_ended()) {
-    new_profiler.end();
+    new_profiler.end_all();
   }
+  stackup_grid.value = new_stackup;
+  measurement.value = new_measurement;
   profiler.value = new_profiler;
   is_running.value = false;
 

@@ -124,6 +124,12 @@ export class Profiler {
     this.stack.pop();
   }
 
+  end_all() {
+    while (this.stack.length > 0) {
+      this.end();
+    }
+  }
+
   is_ended() {
     return this.stack.length <= 0;
   }
