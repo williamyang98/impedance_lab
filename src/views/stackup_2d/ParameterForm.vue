@@ -92,7 +92,12 @@ const valid_form = computed(() => {
 });
 
 function get_input_class(param: Parameter): string {
-  if (param.error !== undefined) return "input-error";
+  if (param.error !== undefined) {
+    return "input-error";
+  }
+  if (param.old_value != param.value) {
+    return "input-warning";
+  }
   return "";
 }
 

@@ -1,4 +1,4 @@
-import { validate_parameter, type Voltage } from "./stackup.ts";
+import { type Parameter, type Voltage } from "./stackup.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 
@@ -99,7 +99,11 @@ export class StackupGrid {
   grid: Grid;
   profiler?: Profiler;
 
-  constructor(layout: StackupLayout, profiler: Profiler | undefined) {
+  constructor(
+    layout: StackupLayout,
+    get_epsilon: (param: Parameter) => number,
+    profiler: Profiler | undefined,
+  ) {
     this.layout = layout;
     this.x_region_lines_builder = new LinesBuilder();
     this.y_region_lines_builder = new LinesBuilder();
@@ -117,7 +121,7 @@ export class StackupGrid {
     };
 
     this.profiler = profiler;
-    this.dielectric_regions = this.setup_create_dielectric_regions();
+    this.dielectric_regions = this.setup_create_dielectric_regions(get_epsilon);
     this.conductor_regions = this.setup_create_conductor_regions();
     this.setup_pad_grid();
     this.setup_merge_nearby_grid_lines();
@@ -154,7 +158,7 @@ export class StackupGrid {
     }
   };
 
-  setup_create_dielectric_regions(): DielectricRegion[] {
+  setup_create_dielectric_regions(get_epsilon: (param: Parameter) => number): DielectricRegion[] {
     this.profiler?.begin("create_dielectric_regions");
     const dielectric_regions: DielectricRegion[] = [];
     for (const layer_layout of this.layout.layers) {
@@ -166,7 +170,7 @@ export class StackupGrid {
           const mask = layer_layout.mask;
           if (mask) {
             const layer = layer_layout.parent;
-            const epsilon = validate_parameter(layer.epsilon);
+            const epsilon = get_epsilon(layer.epsilon);
             const base_region = this.get_infinite_plane_region(mask.surface);
             const trace_regions: TrapezoidRegion[] = mask.traces.map(shape => this.get_trapezoid_region(shape));
             dielectric_regions.push({
@@ -181,7 +185,7 @@ export class StackupGrid {
         case "core": // @fallthrough
         case "prepreg": {
           const layer = layer_layout.parent;
-          const epsilon = validate_parameter(layer.epsilon);
+          const epsilon = get_epsilon(layer.epsilon);
           const region = this.get_infinite_plane_region(layer_layout.bounding_box);
           dielectric_regions.push({
             type: "plane",

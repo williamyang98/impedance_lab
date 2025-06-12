@@ -2,6 +2,7 @@
 export interface Parameter {
   name?: string;
   description?: string;
+  old_value?: number;
   value?: number;
   min?: number;
   max?: number;
@@ -16,7 +17,7 @@ export interface TaperSizeParameter extends SizeParameter {
   taper_suffix?: string;
 }
 
-export function validate_parameter(param: Parameter): number {
+export function validate_parameter(param: Parameter) {
   if (param.value === undefined) {
     param.error = "Field is required";
     throw Error(`Missing field value for ${param.name}`);
@@ -38,7 +39,6 @@ export function validate_parameter(param: Parameter): number {
     throw Error(`Violated maximum value for ${param.name}`);
   }
   param.error = undefined;
-  return param.value;
 }
 
 export type Orientation = "up" | "down";

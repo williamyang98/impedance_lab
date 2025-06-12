@@ -17,7 +17,7 @@ import ParameterForm from "./ParameterForm.vue";
 import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
 // ts imports
-import { validate_parameter } from "./stackup.ts";
+import { validate_parameter, type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
 import {
@@ -104,28 +104,6 @@ async function sleep(millis: number) {
   await new Promise(resolve => setTimeout(resolve, millis));
 }
 
-function rebuild_stackup(profiler: Profiler): StackupGrid {
-  profiler.begin("rebuild_stackup");
-
-  profiler.begin("create_layout", "Create layout from transmission line stackup");
-  const layout = create_layout_from_stackup(simulation_stackup.value, validate_parameter, profiler);
-  profiler.end();
-
-  profiler.begin("create_grid", "Create simulation grid from layout");
-  const stackup = new StackupGrid(layout, profiler);
-  profiler.end();
-
-  profiler.end();
-  return stackup;
-}
-
-function run_simulation(stackup: StackupGrid, profiler: Profiler): Measurement {
-  profiler.begin("run");
-  const measurement = perform_measurement(stackup, profiler);
-  profiler.end();
-  return measurement;
-}
-
 async function refresh_viewer() {
   if (viewer_2d.value === null) return;
   if (stackup_grid.value === undefined) return;
@@ -144,8 +122,28 @@ async function calculate_impedance() {
   let new_stackup = undefined;
   let new_measurement = undefined;
   try {
-    new_stackup = rebuild_stackup(new_profiler);
-    new_measurement = run_simulation(new_stackup, new_profiler);
+    const used_parameters = new Set<Parameter>();
+    function get_parameter(param: Parameter): number {
+      validate_parameter(param);
+      used_parameters.add(param);
+      return param.value!;
+    }
+
+    new_profiler.begin("create_layout", "Create layout from transmission line stackup");
+    const layout = create_layout_from_stackup(simulation_stackup.value, get_parameter, new_profiler);
+    new_profiler.end();
+
+    new_profiler.begin("create_grid", "Create simulation grid from layout");
+    new_stackup = new StackupGrid(layout, get_parameter, new_profiler);
+    new_profiler.end();
+
+    new_profiler.begin("run");
+    new_measurement = perform_measurement(new_stackup, new_profiler);
+    new_profiler.end();
+
+    for (const param of used_parameters) {
+      param.old_value = param.value;
+    }
     new_profiler.end();
   } catch (error) {
     console.error("calculate_impedance() failed with: ", error);
@@ -277,7 +275,7 @@ function download_ndarray(link: DownloadLink) {
       </div>
     </div>
     <div v-else class="text-center">
-      <h1 class="text-2xl">Simulation grid not created yet</h1>
+      <h1 class="text-2xl">Calculation has not been run yet</h1>
     </div>
   </div>
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Viewer"/>
@@ -303,7 +301,7 @@ function download_ndarray(link: DownloadLink) {
         </template>
         <template v-else>
           <div class="text-center">
-            <h1 class="text-2xl">Simulation has not run yet</h1>
+            <h1 class="text-2xl">Calculation has not been run yet</h1>
           </div>
         </template>
         <div class="card-actions justify-end">
