@@ -192,7 +192,8 @@ const download_links = computed<DownloadLink[] | undefined>(() => {
   const grid = toRaw(stackup_grid.value?.grid);
   if (grid === undefined) return undefined;
   return [
-    { name: "e_field.npy", data: grid.e_field.ndarray },
+    { name: "ex_field.npy", data: grid.ex_field.ndarray },
+    { name: "ey_field.npy", data: grid.ey_field.ndarray },
     { name: "v_field.npy", data: grid.v_field.ndarray },
     { name: "dx.npy", data: grid.dx.ndarray },
     { name: "dy.npy", data: grid.dy.ndarray },

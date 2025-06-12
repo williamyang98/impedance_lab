@@ -39,9 +39,9 @@ namespace emscripten {
         BIND_TYPED_PINNED_ARRAY("Uint32", uint32_t);
         BIND_TYPED_PINNED_ARRAY("Float32", float);
         BIND_TYPED_PINNED_ARRAY("Float64", double);
-        function("calculate_homogenous_energy_2d(e_field, dx, dy)", &calculate_homogenous_energy_2d);
-        function("calculate_inhomogenous_energy_2d(e_field, er_table, er_index_beta, dx, dy)", &calculate_inhomogenous_energy_2d);
-        function("calculate_e_field(e_field_out, v_field_in, dx_in, dy_in)", &calculate_e_field);
+        function("calculate_homogenous_energy_2d(ex_field, ey_field, dx, dy)", &calculate_homogenous_energy_2d);
+        function("calculate_inhomogenous_energy_2d(ex_field, ey_field, dx, dy, er_table, er_index_beta)", &calculate_inhomogenous_energy_2d);
+        function("calculate_e_field(ex_field_out, ey_field_out, v_field_in, dx_in, dy_in)", &calculate_e_field);
         function("convert_f32_to_f16(f32_in, f16_out)", &convert_f32_to_f16);
     }
 }

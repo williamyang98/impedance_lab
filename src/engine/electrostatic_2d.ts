@@ -21,7 +21,8 @@ export class Grid {
   v_index_beta: Uint32ModuleNdarray;
   v_table: Float32ModuleNdarray;
   v_field: Float32ModuleNdarray;
-  e_field: Float32ModuleNdarray;
+  ex_field: Float32ModuleNdarray;
+  ey_field: Float32ModuleNdarray;
   ek_table: Float32ModuleNdarray;
   ek_index_beta: Uint32ModuleNdarray;
 
@@ -47,7 +48,8 @@ export class Grid {
     this.v_table = new Float32ModuleNdarray([3]);
     this.v_index_beta = new Uint32ModuleNdarray([Ny+1,Nx+1]);
     this.v_field = new Float32ModuleNdarray([Ny+1,Nx+1]);
-    this.e_field = new Float32ModuleNdarray([Ny,Nx,2]);
+    this.ex_field = new Float32ModuleNdarray([Ny+1,Nx]);
+    this.ey_field = new Float32ModuleNdarray([Ny,Nx+1]);
     this.ek_table = new Float32ModuleNdarray([Ny,Nx]);
     this.ek_index_beta = new Uint32ModuleNdarray([Ny,Nx]);
     this.v_input = 1;
@@ -59,7 +61,8 @@ export class Grid {
     this.v_table.delete();
     this.v_index_beta.delete();
     this.v_field.delete();
-    this.e_field.delete();
+    this.ex_field.delete();
+    this.ey_field.delete();
     this.ek_table.delete();
     this.ek_index_beta.delete();
     this.lu_solver?.delete();
@@ -67,7 +70,8 @@ export class Grid {
 
   reset() {
     this.v_field.array_view.fill(0.0);
-    this.e_field.array_view.fill(0.0);
+    this.ex_field.array_view.fill(0.0);
+    this.ey_field.array_view.fill(0.0);
   }
 
   bake(profiler?: Profiler) {
@@ -217,7 +221,7 @@ export class Grid {
     profiler?.end();
 
     profiler?.begin("calc_e_field", "Calculate electric field from voltage field");
-    calculate_e_field(this.e_field, this.v_field, this.dx, this.dy);
+    calculate_e_field(this.ex_field, this.ey_field, this.v_field, this.dx, this.dy);
     profiler?.end();
 
     if (solve_info !== 0) {
@@ -227,14 +231,17 @@ export class Grid {
 
   calculate_impedance(profiler?: Profiler): ImpedanceResult {
     profiler?.begin("energy_homogenous", "Calculate energy stored without dielectric material");
-    const energy_homogenous = calculate_homogenous_energy_2d(this.e_field, this.dx, this.dy);
+    const energy_homogenous = calculate_homogenous_energy_2d(
+      this.ex_field, this.ey_field,
+      this.dx, this.dy,
+    );
     profiler?.end();
 
     profiler?.begin("energy_inhomogenous", "Calculate energy stored with dielectric material");
     const energy_inhomogenous = calculate_inhomogenous_energy_2d(
-      this.e_field,
-      this.ek_table, this.ek_index_beta,
+      this.ex_field, this.ey_field,
       this.dx, this.dy,
+      this.ek_table, this.ek_index_beta,
     );
     profiler?.end();
 

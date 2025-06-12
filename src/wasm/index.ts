@@ -142,16 +142,35 @@ export type TypedModuleBuffer =
   Float32ModuleBuffer |
   Float64ModuleBuffer;
 
-export function calculate_homogenous_energy_2d(e_field: Float32ModuleBuffer, dx: Float32ModuleBuffer, dy: Float32ModuleBuffer): number {
-  return mod().calculate_homogenous_energy_2d(e_field.pin, dx.pin, dy.pin);
+export function calculate_homogenous_energy_2d(
+  ex_field: Float32ModuleBuffer, ey_field: Float32ModuleBuffer,
+  dx: Float32ModuleBuffer, dy: Float32ModuleBuffer,
+): number {
+  return mod().calculate_homogenous_energy_2d(ex_field.pin, ey_field.pin, dx.pin, dy.pin);
 }
 
-export function calculate_inhomogenous_energy_2d(e_field: Float32ModuleBuffer, er_table: Float32ModuleBuffer, er_index_beta: Uint32ModuleBuffer, dx: Float32ModuleBuffer, dy: Float32ModuleBuffer): number {
-  return mod().calculate_inhomogenous_energy_2d(e_field.pin, er_table.pin, er_index_beta.pin, dx.pin, dy.pin);
+export function calculate_inhomogenous_energy_2d(
+  ex_field: Float32ModuleBuffer, ey_field: Float32ModuleBuffer,
+  dx: Float32ModuleBuffer, dy: Float32ModuleBuffer,
+  er_table: Float32ModuleBuffer, er_index_beta: Uint32ModuleBuffer,
+): number {
+  return mod().calculate_inhomogenous_energy_2d(
+    ex_field.pin, ey_field.pin,
+    dx.pin, dy.pin,
+    er_table.pin, er_index_beta.pin,
+  );
 }
 
-export function calculate_e_field(e_field_out: Float32ModuleBuffer, v_field_in: Float32ModuleBuffer, dx_in: Float32ModuleBuffer, dy_in: Float32ModuleBuffer): void {
-  return mod().calculate_e_field(e_field_out.pin, v_field_in.pin, dx_in.pin, dy_in.pin);
+export function calculate_e_field(
+  ex_field_out: Float32ModuleBuffer, ey_field_out: Float32ModuleBuffer,
+  v_field_in: Float32ModuleBuffer,
+  dx_in: Float32ModuleBuffer, dy_in: Float32ModuleBuffer,
+): void {
+  return mod().calculate_e_field(
+    ex_field_out.pin, ey_field_out.pin,
+    v_field_in.pin,
+    dx_in.pin, dy_in.pin,
+  );
 }
 
 export function convert_f32_to_f16(f32_in: Float32ModuleBuffer, f16_out: Uint16ModuleBuffer): void {

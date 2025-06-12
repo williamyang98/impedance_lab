@@ -27,7 +27,7 @@ export class Renderer {
     this.grid_size = grid.size;
     this._upload_v_force(grid.v_table, grid.v_index_beta);
     this._upload_v_field(grid.v_field);
-    this._upload_e_field(grid.e_field);
+    this._upload_e_field(grid.ex_field, grid.ey_field);
     this._upload_dx_spline(grid.dx);
     this._upload_dy_spline(grid.dy);
     this._upload_epsilon(grid.ek_table, grid.ek_index_beta);
@@ -160,15 +160,11 @@ export class Renderer {
     f16_data.delete();
   }
 
-  _upload_e_field(e_field: Float32ModuleNdarray) {
-    const shape = e_field.shape;
-    if (shape.length != 3) {
-      throw Error(`Tried to update grid 2d renderer with non 3d array: (${shape.join(',')})`);
-    }
-    const [height, width, channels] = shape;
-    if (channels != 2) {
-      throw Error(`Expected 2 channels but got ${channels} channels`);
-    }
+  _upload_e_field(ex_field: Float32ModuleNdarray, ey_field: Float32ModuleNdarray) {
+    const Nx = ex_field.shape[1];
+    const Ny = ey_field.shape[0];
+    const height = Ny;
+    const width = Nx;
     if (
       this.e_field_texture === undefined ||
       this.e_field_texture.width != width ||
@@ -183,14 +179,32 @@ export class Renderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const f16_data = new Uint16ModuleNdarray(e_field.shape);
-    convert_f32_to_f16(e_field, f16_data);
+    const shape = [Ny,Nx,2];
+    const f32_data = new Float32ModuleNdarray(shape);
+    {
+      const ex_buf = ex_field.array_view;
+      const ey_buf = ey_field.array_view;
+      const e_buf = f32_data.array_view;
+      for (let y = 0; y < Ny; y++) {
+        for (let x = 0; x < Nx; x++) {
+          const iex = x + y*Nx;
+          const iey = x + y*(Nx+1);
+          const ie = 2*(x + y*Nx);
+          e_buf[ie+0] = ex_buf[iex];
+          e_buf[ie+1] = ey_buf[iey];
+        }
+      }
+    }
+
+    const f16_data = new Uint16ModuleNdarray(shape);
+    convert_f32_to_f16(f32_data, f16_data);
     this.device.queue.writeTexture(
       { texture: this.e_field_texture },
       f16_data.array_view,
-      { bytesPerRow: width*(2*channels) },
+      { bytesPerRow: width*2*2 },
       { width, height },
     );
+    f32_data.delete();
     f16_data.delete();
   }
 

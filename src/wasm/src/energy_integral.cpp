@@ -123,27 +123,22 @@ static inline float get_gauss_legendre_integral(
 }
 
 float calculate_homogenous_energy_2d(
-    TypedPinnedArray<float> e_field, 
+    TypedPinnedArray<float> ex_field, TypedPinnedArray<float> ey_field,
     TypedPinnedArray<float> dx_arr, TypedPinnedArray<float> dy_arr
 ) {
     const int Nx = dx_arr.get_length();
     const int Ny = dy_arr.get_length();
-    constexpr int E_DIMS = 2;
 
     float energy = 0.0f;
-    for (int y = 0; y < Ny-1; y++) {
+    for (int y = 0; y < Ny; y++) {
         const float dy = dy_arr[y];
-        for (int x = 0; x < Nx-1; x++) {
+        for (int x = 0; x < Nx; x++) {
             const float dx = dx_arr[x];
 
-            const float i00 = E_DIMS*(x+y*Nx);
-            const float i01 = E_DIMS*((x+1)+y*Nx);
-            const float i10 = E_DIMS*(x+(y+1)*Nx);
-
-            const float ex0 = e_field[i00+0];
-            const float ey0 = e_field[i00+1];
-            const float ex1 = e_field[i10+0];
-            const float ey1 = e_field[i01+1];
+            const float ex0 = ex_field[x + y*Nx];
+            const float ey0 = ey_field[x + y*(Nx+1)];
+            const float ex1 = ex_field[x + (y+1)*Nx];
+            const float ey1 = ey_field[(x+1) + y*(Nx+1)];
             const float sum = get_gauss_legendre_integral(ex0,ex1,ey0,ey1,dx,dy);
             energy += sum;
         }
@@ -152,13 +147,12 @@ float calculate_homogenous_energy_2d(
 }
 
 float calculate_inhomogenous_energy_2d(
-    TypedPinnedArray<float> e_field, 
-    TypedPinnedArray<float> er_table, TypedPinnedArray<uint32_t> er_index_beta, 
-    TypedPinnedArray<float> dx_arr, TypedPinnedArray<float> dy_arr
+    TypedPinnedArray<float> ex_field, TypedPinnedArray<float> ey_field,
+    TypedPinnedArray<float> dx_arr, TypedPinnedArray<float> dy_arr,
+    TypedPinnedArray<float> er_table, TypedPinnedArray<uint32_t> er_index_beta
 ) {
     const int Nx = dx_arr.get_length();
     const int Ny = dy_arr.get_length();
-    constexpr int E_DIMS = 2;
 
     const float er0 = er_table[0];
 
@@ -168,13 +162,10 @@ float calculate_inhomogenous_energy_2d(
         for (int x = 0; x < Nx-1; x++) {
             const float dx = dx_arr[x];
 
-            const float i00 = E_DIMS*(x+y*Nx);
-            const float i01 = E_DIMS*((x+1)+y*Nx);
-            const float i10 = E_DIMS*(x+(y+1)*Nx);
-            const float ex0 = e_field[i00+0];
-            const float ey0 = e_field[i00+1];
-            const float ex1 = e_field[i10+0];
-            const float ey1 = e_field[i01+1];
+            const float ex0 = ex_field[x + y*Nx];
+            const float ey0 = ey_field[x + y*(Nx+1)];
+            const float ex1 = ex_field[x + (y+1)*Nx];
+            const float ey1 = ey_field[(x+1) + y*(Nx+1)];
             const float sum = get_gauss_legendre_integral(ex0,ex1,ey0,ey1,dx,dy);
 
             const uint32_t index_beta = er_index_beta[x+y*Nx];
@@ -188,25 +179,32 @@ float calculate_inhomogenous_energy_2d(
 }
 
 void calculate_e_field(
-    TypedPinnedArray<float> e_field, 
+    TypedPinnedArray<float> ex_field, TypedPinnedArray<float> ey_field, 
     TypedPinnedArray<float> v_field, 
     TypedPinnedArray<float> dx_arr, TypedPinnedArray<float> dy_arr
 ) {
     const int Nx = dx_arr.get_length();
     const int Ny = dy_arr.get_length();
-    constexpr int E_DIMS = 2;
+
+    for (int y = 0; y < Ny+1; y++) {
+        for (int x = 0; x < Nx; x++) {
+            const float dx = dx_arr[x];
+            const int ie = x + y*Nx;
+            const int iv = x + y*(Nx+1);
+            const int iv_dx = x+1 + y*(Nx+1);
+            // Ex = -dV/dx
+            ex_field[ie] = -(v_field[iv_dx]-v_field[iv])/dx;
+        }
+    }
 
     for (int y = 0; y < Ny; y++) {
         const float dy = dy_arr[y];
-        for (int x = 0; x < Nx; x++) {
-            const float dx = dx_arr[x];
-            const int ie = E_DIMS*(x + y*Nx);
+        for (int x = 0; x < Nx+1; x++) {
+            const int ie = x + y*(Nx+1);
             const int iv = x + y*(Nx+1);
-            const int iv_dx = x+1 + y*(Nx+1);
             const int iv_dy = x + (y+1)*(Nx+1);
-            // E = -dV/dr
-            e_field[ie+0] = -(v_field[iv_dx]-v_field[iv])/dx;
-            e_field[ie+1] = -(v_field[iv_dy]-v_field[iv])/dy;
+            // Ey = -dV/dy
+            ey_field[ie] = -(v_field[iv_dy]-v_field[iv])/dy;
         }
     }
 }
