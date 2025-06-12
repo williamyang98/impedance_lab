@@ -16,6 +16,31 @@ export interface TaperSizeParameter extends SizeParameter {
   taper_suffix?: string;
 }
 
+export function validate_parameter(param: Parameter): number {
+  if (param.value === undefined) {
+    param.error = "Field is required";
+    throw Error(`Missing field value for ${param.name}`);
+  }
+  if (typeof(param.value) !== 'number') {
+    param.error = "Field is requried";
+    throw Error(`Non number field value for ${param.name}`);
+  }
+  if (Number.isNaN(param.value)) {
+    param.error = "Field is requried";
+    throw Error(`NaN field value for ${param.name}`);
+  }
+  if (param.min !== undefined && param.value < param.min) {
+    param.error = `Value must be greater than ${param.min}`;
+    throw Error(`Violated minimum value for ${param.name}`);
+  }
+  if (param.max !== undefined && param.value > param.max) {
+    param.error = `Value must be less than ${param.max}`;
+    throw Error(`Violated maximum value for ${param.name}`);
+  }
+  param.error = undefined;
+  return param.value;
+}
+
 export type Orientation = "up" | "down";
 export type LayerId = number;
 export type TraceId = number;

@@ -1,4 +1,4 @@
-import { type Parameter, type Voltage } from "./stackup.ts";
+import { validate_parameter, type Voltage } from "./stackup.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 
@@ -156,15 +156,6 @@ export class StackupGrid {
 
   setup_create_dielectric_regions(): DielectricRegion[] {
     this.profiler?.begin("create_dielectric_regions");
-    const get_epsilon = (param: Parameter): number => {
-      const epsilon = param.value;
-      if (epsilon === undefined) {
-        param.error = "Dielectric constant must be provided";
-        throw Error("Missing epsilon field value");
-      }
-      return epsilon;
-    };
-
     const dielectric_regions: DielectricRegion[] = [];
     for (const layer_layout of this.layout.layers) {
       switch (layer_layout.type) {
@@ -175,7 +166,7 @@ export class StackupGrid {
           const mask = layer_layout.mask;
           if (mask) {
             const layer = layer_layout.parent;
-            const epsilon = get_epsilon(layer.epsilon);
+            const epsilon = validate_parameter(layer.epsilon);
             const base_region = this.get_infinite_plane_region(mask.surface);
             const trace_regions: TrapezoidRegion[] = mask.traces.map(shape => this.get_trapezoid_region(shape));
             dielectric_regions.push({
@@ -190,7 +181,7 @@ export class StackupGrid {
         case "core": // @fallthrough
         case "prepreg": {
           const layer = layer_layout.parent;
-          const epsilon = get_epsilon(layer.epsilon);
+          const epsilon = validate_parameter(layer.epsilon);
           const region = this.get_infinite_plane_region(layer_layout.bounding_box);
           dielectric_regions.push({
             type: "plane",

@@ -17,7 +17,7 @@ import ParameterForm from "./ParameterForm.vue";
 import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
 // ts imports
-import { type SizeParameter } from "./stackup.ts";
+import { validate_parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
 import {
@@ -77,7 +77,7 @@ const editor = computed<VerticalStackupEditor>(() => {
   return editors.value[selected_editor.value];
 });
 
-const grid_stackup = computed(() => editor.value.get_simulation_stackup());
+const simulation_stackup = computed(() => editor.value.get_simulation_stackup());
 const is_viewer_hover = ref<boolean>(false);
 const viewer_stackup = computed(() => {
   if (is_viewer_hover.value) {
@@ -106,33 +106,9 @@ async function sleep(millis: number) {
 
 function rebuild_stackup(profiler: Profiler): StackupGrid {
   profiler.begin("rebuild_stackup");
-  const get_size = (param: SizeParameter): number => {
-    const size = param.value;
-    if (size === undefined) {
-      param.error = "Field is required";
-      throw Error(`Missing field value for ${param.name}`);
-    }
-    if (typeof(size) !== 'number') {
-      param.error = "Field is requried";
-      throw Error(`Non number field value for ${param.name}`);
-    }
-    if (Number.isNaN(size)) {
-      param.error = "Field is requried";
-      throw Error(`NaN field value for ${param.name}`);
-    }
-    if (param.min !== undefined && size < param.min) {
-      param.error = `Value must be greater than ${param.min}`;
-      throw Error(`Violated minimum value for ${param.name}`);
-    }
-    if (param.max !== undefined && size > param.max) {
-      param.error = `Value must be less than ${param.max}`;
-      throw Error(`Violated maximum value for ${param.name}`);
-    }
-    param.error = undefined;
-    return size;
-  };
+
   profiler.begin("create_layout", "Create layout from transmission line stackup");
-  const layout = create_layout_from_stackup(grid_stackup.value, get_size, profiler);
+  const layout = create_layout_from_stackup(simulation_stackup.value, validate_parameter, profiler);
   profiler.end();
 
   profiler.begin("create_grid", "Create simulation grid from layout");
@@ -250,7 +226,7 @@ function download_ndarray(link: DownloadLink) {
       <div class="w-full card card-border bg-base-100 col-span-2">
         <div class="card-body">
           <h2 class="card-title">Parameters</h2>
-          <ParameterForm :stackup="grid_stackup"></ParameterForm>
+          <ParameterForm :stackup="simulation_stackup"></ParameterForm>
         </div>
       </div>
       <div class="w-full card card-border bg-base-100 col-span-2">
