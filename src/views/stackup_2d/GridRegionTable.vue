@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { defineProps } from "vue";
-import { type GridRegion } from "../../engine/mesher.ts";
+import { defineProps, computed } from "vue";
+import { RegionToGridMap } from "../../engine/regions.ts";
 
-const _props = defineProps<{
-  grid_regions: GridRegion[],
+const props = defineProps<{
+  region_to_grid_map: RegionToGridMap,
 }>();
+
+const segments = computed(() => {
+  return props.region_to_grid_map.region_segments;
+});
 
 </script>
 
@@ -20,23 +24,23 @@ const _props = defineProps<{
     </tr>
   </thead>
   <tbody>
-    <tr v-for="(grid, index) in grid_regions" :key="index">
+    <tr v-for="({ type, segment: seg }, index) in segments" :key="index">
       <td class="font-medium">{{ index }}</td>
-      <template v-if="grid.type == 'asymmetric'">
-        <td class="text-nowrap">[{{ grid.a0.toPrecision(2) }}, {{ grid.a1.toPrecision(2) }}]</td>
-        <td class="text-nowrap">[{{ grid.n0 }}, {{ grid.n1 }}]</td>
-        <td class="text-nowrap">[{{ grid.r0.toFixed(2) }}, {{ grid.r1.toFixed(2) }}]</td>
-        <td class="text-nowrap">{{ Math.max(Math.abs(1-grid.r0), Math.abs(1-grid.r1)).toPrecision(2) }}</td>
+      <template v-if="type == 'closed_geometric'">
+        <td class="text-nowrap">[{{ seg.left.a.toPrecision(2) }}, {{ seg.right.a.toPrecision(2) }}]</td>
+        <td class="text-nowrap">[{{ seg.left.n }}, {{ seg.right.n }}]</td>
+        <td class="text-nowrap">[{{ seg.left.r.toFixed(2) }}, {{ seg.right.r.toFixed(2) }}]</td>
+        <td class="text-nowrap">{{ Math.max(Math.abs(1-seg.left.r), Math.abs(1-seg.right.r)).toPrecision(2) }}</td>
       </template>
-      <template v-if="grid.type == 'symmetric'">
-        <td class="text-nowrap">{{ grid.a.toPrecision(2) }}</td>
-        <td class="text-nowrap">{{ grid.n }}</td>
-        <td class="text-nowrap">{{ grid.r.toFixed(2) }}</td>
-        <td class="text-nowrap">{{ Math.abs(1-grid.r).toPrecision(2) }}</td>
+      <template v-if="type == 'open_geometric'">
+        <td class="text-nowrap">{{ seg.a.toPrecision(2) }}</td>
+        <td class="text-nowrap">{{ seg.n }}</td>
+        <td class="text-nowrap">{{ seg.r.toFixed(2) }}</td>
+        <td class="text-nowrap">{{ Math.abs(1-seg.r).toPrecision(2) }}</td>
       </template>
-      <template v-if="grid.type == 'linear'">
-        <td class="text-nowrap">{{ grid.a.toPrecision(2) }}</td>
-        <td class="text-nowrap">{{ grid.n }}</td>
+      <template v-if="type == 'linear'">
+        <td class="text-nowrap">{{ seg.a.toPrecision(2) }}</td>
+        <td class="text-nowrap">{{ seg.n }}</td>
         <td class="text-nowrap">1</td>
         <td class="text-nowrap">0</td>
       </template>

@@ -136,7 +136,7 @@ function rebuild_stackup(profiler: Profiler): StackupGrid {
   profiler.end();
 
   profiler.begin("create_grid", "Create simulation grid from layout");
-  const stackup = new StackupGrid(layout);
+  const stackup = new StackupGrid(layout, profiler);
   profiler.end();
 
   profiler.end();
@@ -154,7 +154,7 @@ async function refresh_viewer() {
   if (viewer_2d.value === null) return;
   if (stackup_grid.value === undefined) return;
   const viewer = viewer_2d.value;
-  const grid = toRaw(stackup_grid.value.region_grid.grid);
+  const grid = toRaw(stackup_grid.value.grid);
   if (grid === undefined) return;
   viewer.upload_grid(grid);
   await viewer.refresh_canvas();
@@ -189,7 +189,7 @@ interface DownloadLink {
 }
 
 const download_links = computed<DownloadLink[] | undefined>(() => {
-  const grid = toRaw(stackup_grid.value?.region_grid?.grid);
+  const grid = toRaw(stackup_grid.value?.grid);
   if (grid === undefined) return undefined;
   return [
     { name: "e_field.npy", data: grid.e_field.ndarray },
@@ -276,7 +276,7 @@ function download_ndarray(link: DownloadLink) {
       <div class="w-full card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Mesh</h2>
-          <MeshViewer :region_grid="stackup_grid.region_grid"></MeshViewer>
+          <MeshViewer :stackup_grid="stackup_grid"></MeshViewer>
         </div>
       </div>
       <div class="w-full card card-border bg-base-100">
@@ -286,11 +286,11 @@ function download_ndarray(link: DownloadLink) {
             <div class="tabs tabs-lift">
               <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="X" checked/>
               <div class="tab-content bg-base-100 border-base-300 max-h-[25rem] overflow-scroll">
-                <GridRegionTable :grid_regions="stackup_grid.region_grid.x_grid_regions"></GridRegionTable>
+                <GridRegionTable :region_to_grid_map="stackup_grid.x_region_to_grid_map"></GridRegionTable>
               </div>
               <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="Y"/>
               <div class="tab-content bg-base-100 border-base-300 max-h-[25rem] overflow-scroll">
-                <GridRegionTable :grid_regions="stackup_grid.region_grid.y_grid_regions"></GridRegionTable>
+                <GridRegionTable :region_to_grid_map="stackup_grid.y_region_to_grid_map"></GridRegionTable>
               </div>
             </div>
           </div>

@@ -1,202 +1,148 @@
-import { run_global_section_search, run_binary_search } from "../utility/search.ts";
+import { run_discrete_global_section_search, run_binary_search } from "../utility/search.ts";
 
-export interface GeometricGrid {
+export interface MeshSegment {
+  generate_deltas(): number[];
+  get_size(): number;
+  get_total_elements(): number;
+}
+
+export class LinearMeshSegment implements MeshSegment {
+  a: number;
+  n: number;
+
+  constructor(a: number, n: number) {
+    this.a = a;
+    this.n = n;
+  }
+
+  generate_deltas(): number[] {
+      return new Array(this.n).fill(this.a);
+  }
+
+  get_size(): number {
+    return this.a*this.n;
+  }
+
+  get_total_elements(): number {
+    return this.n;
+  }
+}
+
+export class OpenGeometricMeshSegment implements MeshSegment {
   a: number;
   r: number;
   n: number;
   is_reversed: boolean;
-}
 
-export function generate_geometric_grid(grid: GeometricGrid): number[] {
-  const arr = new Array(grid.n);
-  let s = grid.a;
-  for (let i = 0; i < grid.n; i++) {
-    arr[i] = s;
-    s *= grid.r;
+  constructor(a: number, r: number, n: number, is_reversed: boolean) {
+    this.a = a;
+    this.r = r;
+    this.n = n;
+    this.is_reversed = is_reversed;
   }
-  if (grid.is_reversed) {
-    arr.reverse();
+
+  generate_deltas(): number[] {
+    const arr = new Array(this.n);
+    let s = this.a;
+    for (let i = 0; i < this.n; i++) {
+      arr[i] = s;
+      s *= this.r;
+    }
+    if (this.is_reversed) {
+      arr.reverse();
+    }
+    return arr;
   }
-  return arr;
-}
 
-export function get_geometric_sum(a: number, r: number, n: number) {
-  if (Math.abs(1-r) < 1e-3) {
-    return a*n;
+  get_size(): number {
+    return OpenGeometricMeshSegment.calculate_sum(this.a, this.r, this.n);
   }
-  return a*(Math.pow(r, n)-1)/(r-1);
-}
 
-function get_geometric_n(sum: number, r: number, a: number): number {
-  return Math.log(1 + sum*(r-1)/a)/Math.log(r);
-}
-
-function get_geometric_r(sum: number, a: number, n: number): number {
-  function search_function(r: number): number {
-    const pred_sum = get_geometric_sum(a, r, n);
-    return (pred_sum - sum)/2;
+  get_total_elements(): number {
+    return this.n;
   }
-  const r = run_binary_search(search_function, 0, 1);
-  return r;
-}
 
-export interface AsymmetricGeometricGrid {
-  a0: number;
-  a1: number;
-  r0: number;
-  r1: number;
-  n0: number;
-  n1: number;
-}
-
-function get_asymmetric_geometric_sum(grid: AsymmetricGeometricGrid): number {
-  const A1 = get_geometric_sum(grid.a0, grid.r0, grid.n0);
-  const A2 = get_geometric_sum(grid.a1, grid.r1, grid.n1);
-  return A1+A2;
-}
-
-export function generate_asymmetric_geometric_grid(grid: AsymmetricGeometricGrid): number[] {
-  const k: number = grid.n0+grid.n1;
-  const arr = new Array(k);
-  let s0: number = grid.a0;
-  for (let i = 0; i < grid.n0; i++) {
-    arr[i] = s0;
-    s0 *= grid.r0;
+  static calculate_sum(a: number, r: number, n: number): number {
+    if (Math.abs(1-r) < 1e-3) {
+      return a*n;
+    }
+    return a*(Math.pow(r, n)-1)/(r-1);
   }
-  let s1: number = grid.a1;
-  for (let i = 0; i < grid.n1; i++) {
-    arr[k-1-i] = s1;
-    s1 *= grid.r1;
+
+  static calculate_n(sum: number, r: number, a: number): number {
+    return Math.log(1 + sum*(r-1)/a)/Math.log(r);
   }
-  return arr;
+
+  static estimate_r(sum: number, a: number, n: number): number {
+    function search_r(r: number) {
+      const pred_sum = OpenGeometricMeshSegment.calculate_sum(a, r, n);
+      const error = (pred_sum - sum)/2;
+      return { error };
+    }
+    const result = run_binary_search(search_r, 0, 1);
+    return result.best_value;
+  }
+
+  static search_best_fit(
+    A_target: number,
+    a: number,
+    r_max: number, n_min: number,
+  ): OpenGeometricMeshSegment {
+    const n_estimate = OpenGeometricMeshSegment.calculate_n(A_target, r_max, a);
+    const n = Math.max(n_min, Math.ceil(n_estimate));
+    const r = OpenGeometricMeshSegment.estimate_r(A_target, a, n);
+    return new OpenGeometricMeshSegment(a, r, n, false);
+  }
 }
 
-function find_best_asymmetric_geometric_grid(
-  A: number, a0: number, a1: number,
-  n_lower: number, n_upper: number,
-): AsymmetricGeometricGrid {
-  const grid: AsymmetricGeometricGrid = {
-    a0,
-    a1,
-    r0: 0.0,
-    r1: 0.0,
-    n0: 0,
-    n1: 0,
-  };
-  let lowest_error: number = Infinity;
+export class ClosedGeometricMeshSegment implements MeshSegment {
+  left: OpenGeometricMeshSegment;
+  right: OpenGeometricMeshSegment;
 
-  function search_n(n: number): number {
-    function search_n0(n0: number): number {
-      const n1: number = n-n0;
-      // make last gridpoint of each geometric grid equal in size by constraining r1
-      function get_r1(r0: number): number {
-        // a0*r0^(n0+1) = a1*r1^n1
-        const r1 = Math.pow((a0/a1)*Math.pow(r0, n0+1), 1/n1);
-        return r1;
+  constructor(a0: number, a1: number, r0: number, r1: number, n0: number, n1: number) {
+    this.left = new OpenGeometricMeshSegment(a0, r0, n0, false);
+    this.right = new OpenGeometricMeshSegment(a1, r1, n1, true);
+  }
+
+  generate_deltas(): number[] {
+    const left_deltas = this.left.generate_deltas();
+    const right_deltas = this.right.generate_deltas();
+    return [...left_deltas, ...right_deltas];
+  }
+
+  get_size(): number {
+    return this.left.get_size() + this.right.get_size();
+  }
+
+  get_total_elements(): number {
+    return this.left.get_total_elements() + this.right.get_total_elements();
+  }
+
+  static search_lowest_maximum_ratio(
+    A_target: number,
+    a_left: number, a_right: number,
+    n_lower: number, n_upper: number,
+  ): ClosedGeometricMeshSegment {
+    function search_n(n: number) {
+      function search_n0(n0: number) {
+        function search_r0(r0: number) {
+          const n1: number = n-n0;
+          // make last gridpoint of each geometric grid equal in size by constraining r1
+          const r1 = Math.pow((a_left/a_right)*Math.pow(r0, n0+1), 1/n1);
+          const mesh = new ClosedGeometricMeshSegment(a_left, a_right, r0, r1, n0, n1);
+          const A_pred = mesh.get_size();
+          const error = (A_pred-A_target)/A_target;
+          return { mesh, error };
+        }
+        const result = run_binary_search(search_r0, 0, 1);
+        const mesh = result.best_result.mesh;
+        const error = Math.max(Math.abs(1-mesh.left.r), Math.abs(1-mesh.right.r));
+        return { mesh, error };
       }
-      function search_r0(r0: number): number {
-        const r1 = get_r1(r0);
-        const A_pred = get_asymmetric_geometric_sum({
-          a0, a1,
-          r0, r1,
-          n0, n1,
-        });
-        const error = (A_pred-A)/A;
-        return error;
-      }
-      const r0 = run_binary_search(search_r0, 0, 1);
-      const r1 = get_r1(r0);
-      const error = Math.max(Math.abs(1-r0), Math.abs(1-r1));
-      if (error < lowest_error) {
-        lowest_error = error;
-        grid.r0 = r0;
-        grid.r1 = r1;
-        grid.n0 = n0;
-        grid.n1 = n1;
-      }
-      return error;
+      const result = run_discrete_global_section_search(search_n0, 1, n-1);
+      return result.best_result;
     }
-    const results = run_global_section_search(search_n0, 1, n-1);
-    return results.lowest_error;
+    const result = run_discrete_global_section_search(search_n, n_lower, n_upper);
+    return result.best_result.mesh;
   }
-  const _results = run_global_section_search(search_n, n_lower, n_upper);
-  return grid;
-}
-
-export type GridRegion =
-  { type: "linear", a: number, n: number } |
-  { type: "symmetric" } & GeometricGrid |
-  { type: "asymmetric" } & AsymmetricGeometricGrid;
-
-export class GridRegionUtility {
-  static generate_grid(region: GridRegion): number[] {
-    switch (region.type) {
-      case "linear": return new Array(region.n).fill(region.a);
-      case "asymmetric": return generate_asymmetric_geometric_grid(region);
-      case "symmetric": return generate_geometric_grid(region);
-    }
-  }
-
-  static get_total_grid_lines(region: GridRegion): number {
-    switch (region.type) {
-      case "linear": return region.n;
-      case "asymmetric": return region.n0+region.n1;
-      case "symmetric": return region.n;
-    }
-  }
-}
-
-export interface RegionSpecification {
-  size: number;
-  total_grid_lines?: number;
-}
-
-export function calculate_grid_regions(
-  regions: RegionSpecification[],
-  min_region_subdivisions?: number, max_ratio?: number,
-): GridRegion[] {
-  min_region_subdivisions = min_region_subdivisions ?? 3;
-  max_ratio = max_ratio ?? 0.5;
-
-  const a_min = regions.map(region => region.size/min_region_subdivisions);
-
-  const grids: GridRegion[] = [];
-  const N = regions.length;
-  for (let i = 0; i < N; i++) {
-    const region = regions[i];
-    const a_mid = a_min[i];
-    const a_left = (i > 0) ? a_min[i-1] : null;
-    const a_right = (i < (N-1)) ? a_min[i+1] : null;
-
-    const a0 = (a_left !== null && a_mid !== null) ? Math.min(a_left, a_mid) : null;
-    const a1 = (a_right !== null && a_mid !== null) ? Math.min(a_right, a_mid) : null;
-
-    const A = region.size;
-    const total_grid_lines = region.total_grid_lines;
-
-    if ((a0 === null && a1 === null) || (total_grid_lines !== undefined)) {
-      const n = total_grid_lines || min_region_subdivisions;
-      const a = A/n;
-      grids.push({ type: "linear", a, n });
-    } else if (a0 === null && a1 !== null) {
-      const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a1));
-      const n = Math.max(min_region_subdivisions, n_estimate);
-      const r = get_geometric_r(A, a1, n);
-      const grid: GeometricGrid = { a: a1, r, n, is_reversed: true };
-      grids.push({ type: "symmetric", ...grid });
-    } else if (a0 !== null && a1 === null) {
-      const n_estimate = Math.ceil(get_geometric_n(A, 1+max_ratio, a0));
-      const n = Math.max(min_region_subdivisions, n_estimate);
-      const r = get_geometric_r(A, a0, n);
-      const grid: GeometricGrid = { a: a0, r, n, is_reversed: false };
-      grids.push({ type: "symmetric", ...grid });
-    } else if (a0 !== null && a1 !== null) {
-      const n_lower = min_region_subdivisions-1;
-      const n_upper_estimate = Math.ceil(get_geometric_n(A/2, 1.0+max_ratio, Math.min(a0,a1))*2);
-      const n_upper = Math.max(min_region_subdivisions, n_upper_estimate);
-      const grid = find_best_asymmetric_geometric_grid(A, a0, a1, n_lower, n_upper);
-      grids.push({ type: "asymmetric", ...grid });
-    }
-  }
-  return grids;
 }

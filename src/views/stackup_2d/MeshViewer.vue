@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { defineProps, ref, useTemplateRef, watch, computed } from "vue";
-import { RegionGrid } from "../../engine/grid_2d.ts";
+import { StackupGrid } from "./grid.ts";
 import Chart from "chart.js/auto";
 
 const props = defineProps<{
-  region_grid: RegionGrid,
+  stackup_grid: StackupGrid,
 }>();
 
 const grid_canvas_elem = useTemplateRef<HTMLCanvasElement>("grid-canvas");
@@ -14,20 +14,25 @@ function create_chart() {
   const grid_canvas = grid_canvas_elem.value;
   if (grid_canvas === null) return;
 
-  const grid = props.region_grid;
+  const grid = props.stackup_grid;
   if (grid === undefined) return;
 
+  const x_region_lines = grid.x_region_to_grid_map.region_lines;
+  const y_region_lines = grid.y_region_to_grid_map.region_lines;
+  const x_grid_lines = grid.x_region_to_grid_map.grid_lines;
+  const y_grid_lines = grid.y_region_to_grid_map.grid_lines;
+
   const x_min = 0;
-  const x_max = grid.x_region_lines[grid.x_region_lines.length-1];
+  const x_max = x_grid_lines[x_grid_lines.length-1];
   const y_min = 0;
-  const y_max = grid.y_region_lines[grid.y_region_lines.length-1];
+  const y_max = y_grid_lines[y_grid_lines.length-1];
 
   chart.value?.destroy();
   chart.value = new Chart(grid_canvas, {
     type: "line",
     data: {
       datasets: Array.prototype.concat(
-        grid.x_grid_lines.map((x) => {
+        x_grid_lines.map((x) => {
           return {
             data: [
               { x, y: y_min, },
@@ -39,7 +44,7 @@ function create_chart() {
             showLine: true,
           }
         }),
-        grid.y_grid_lines.map((y) => {
+        y_grid_lines.map((y) => {
           return {
             data: [
               { x: x_min, y },
@@ -51,7 +56,7 @@ function create_chart() {
             showLine: true,
           }
         }),
-        grid.x_region_lines.map((x) => {
+        x_region_lines.map((x) => {
           return {
             data: [
               { x, y: y_min, },
@@ -63,7 +68,7 @@ function create_chart() {
             showLine: true,
           }
         }),
-        grid.y_region_lines.map((y) => {
+        y_region_lines.map((y) => {
           return {
             data: [
               { x: x_min, y },
@@ -97,8 +102,8 @@ watch(grid_canvas_elem, () => {
   create_chart();
 })
 
-const region_grid = computed(() => props.region_grid);
-watch(region_grid, () => {
+const stackup_grid = computed(() => props.stackup_grid);
+watch(stackup_grid, () => {
   create_chart();
 });
 </script>

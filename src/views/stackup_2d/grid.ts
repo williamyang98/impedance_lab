@@ -2,11 +2,10 @@ import { type Parameter, type Voltage } from "./stackup.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 
-import {
-  GridLines, RegionGrid,
-} from "../../engine/grid_2d.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
-import { calculate_grid_regions, type RegionSpecification } from "../../engine/mesher.ts";
+import { LinesBuilder } from "../../engine/lines_builder.ts";
+import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../../engine/regions.ts";
+import { Profiler } from "../../utility/profiler.ts";
 
 function get_log_median(dims: number[]): number {
   const log_dims = dims.map(x => Math.log10(x));
@@ -20,45 +19,23 @@ function get_log_median(dims: number[]): number {
 }
 
 // x=0,y=0 is top left
-const sdf_slope_bottom_left = (x: number, y: number) => (y > x) ? 1.0 : 0.0;
-const sdf_slope_bottom_right = (x: number, y: number) => (y > 1-x) ? 1.0 : 0.0;
-const sdf_slope_top_left = (x: number, y: number) => (y < 1-x) ? 1.0 : 0.0;
-const sdf_slope_top_right = (x: number, y: number) => (y < x) ? 1.0 : 0.0;
+type SDF = (y: number, x: number) => number;
+const sdf_slope_bottom_left: SDF = (y: number, x: number) => (y >= x) ? 1.0 : 0.0;
+const sdf_slope_bottom_right: SDF = (y: number, x: number) => (y >= 1-x) ? 1.0 : 0.0;
+const sdf_slope_top_left: SDF = (y: number, x: number) => (y <= 1-x) ? 1.0 : 0.0;
+const sdf_slope_top_right: SDF = (y: number, x: number) => (y <= x) ? 1.0 : 0.0;
 
-function get_sdf_multisample(sdf: (x: number, y: number) => number) {
-  const My = 2;
-  const Mx = 2;
-  const total_samples = My*Mx;
-  function transform(
-    [y_start, x_start]: [number, number],
-    [y_size, x_size]: [number, number]): number
-  {
+type MultisampledSDF = (y: number, x: number, height: number, width: number) => number;
+function get_sdf_multisample(sdf: SDF): MultisampledSDF {
+  function transform(y: number, x: number, dy: number, dx: number): number {
     // multisampling
     let total_beta = 0;
-    for (let my = 0; my < My; my++) {
-      const ey = (my+0.5)/My;
-      const y_norm = y_start + y_size*ey;
-      for (let mx = 0; mx < Mx; mx++) {
-        const ex = (mx+0.5)/Mx;
-        const x_norm = x_start + x_size*ex;
-        total_beta += sdf(x_norm, y_norm);
-      }
-    }
-    const beta = total_beta/total_samples;
+    total_beta += sdf(y-dy, x-dx);
+    total_beta += sdf(y-dy, x+dx);
+    total_beta += sdf(y+dy, x-dx);
+    total_beta += sdf(y+dy, x+dx);
+    const beta = total_beta/4;
     return beta;
-  }
-  return transform;
-}
-
-function index_beta_sdf(sdf: (x: number, y: number) => number, index: number) {
-  const sdf_multisample = get_sdf_multisample(sdf);
-  function transform(
-    _value: number,
-    [y_start, x_start]: [number, number],
-    [y_size, x_size]: [number, number]): number
-  {
-    const beta = sdf_multisample([y_start, x_start], [y_size, x_size]);
-    return Grid.pack_index_beta(index, beta);
   }
   return transform;
 }
@@ -115,14 +92,17 @@ export class StackupGrid {
   };
   conductor_regions: ConductorRegion[];
   dielectric_regions: DielectricRegion[];
-  x_grid_lines: GridLines;
-  y_grid_lines: GridLines;
-  region_grid: RegionGrid;
+  x_region_lines_builder: LinesBuilder;
+  y_region_lines_builder: LinesBuilder;
+  x_region_to_grid_map: RegionToGridMap;
+  y_region_to_grid_map: RegionToGridMap;
+  grid: Grid;
+  profiler?: Profiler;
 
-  constructor(layout: StackupLayout) {
+  constructor(layout: StackupLayout, profiler: Profiler | undefined) {
     this.layout = layout;
-    this.x_grid_lines = new GridLines();
-    this.y_grid_lines = new GridLines();
+    this.x_region_lines_builder = new LinesBuilder();
+    this.y_region_lines_builder = new LinesBuilder();
     this.voltage_indexes = {
       v_table: {
         "ground": 0,
@@ -136,43 +116,46 @@ export class StackupGrid {
       soldermask_indices: new Set(),
     };
 
+    this.profiler = profiler;
     this.dielectric_regions = this.setup_create_dielectric_regions();
     this.conductor_regions = this.setup_create_conductor_regions();
     this.setup_pad_grid();
     this.setup_merge_nearby_grid_lines();
-    this.region_grid = this.setup_create_region_grid();
+    this.x_region_to_grid_map = this.setup_create_x_region_to_grid_map();
+    this.y_region_to_grid_map = this.setup_create_y_region_to_grid_map();
+    this.grid = this.setup_create_simulation_grid();
     this.setup_fill_dielectric_regions();
     this.setup_fill_voltage_regions();
 
-    const grid = this.region_grid.grid;
     // fit voltage and epsilon_k table
-    grid.v_table.delete();
-    grid.ek_table.delete();
-    grid.v_table = new Float32ModuleNdarray([3]);
-    grid.ek_table = new Float32ModuleNdarray([this.epsilon_indexes.ek_table.length]);
+    this.grid.v_table.delete();
+    this.grid.ek_table.delete();
+    this.grid.v_table = new Float32ModuleNdarray([3]);
+    this.grid.ek_table = new Float32ModuleNdarray([this.epsilon_indexes.ek_table.length]);
   }
 
   get_infinite_plane_region(shape: InfinitePlaneShape): InfinitePlaneRegion {
     const { y_start, height } = shape;
     const y_end = y_start+height;
     return {
-      iy_start: this.y_grid_lines.push(y_start),
-      iy_end: this.y_grid_lines.push(y_end),
+      iy_start: this.y_region_lines_builder.push(y_start),
+      iy_end: this.y_region_lines_builder.push(y_end),
     };
   };
 
   get_trapezoid_region(shape: TrapezoidShape): TrapezoidRegion {
     return {
-      ix_signal_left: this.x_grid_lines.push(shape.x_left),
-      ix_taper_left: this.x_grid_lines.push(shape.x_left_taper),
-      ix_taper_right: this.x_grid_lines.push(shape.x_right_taper),
-      ix_signal_right: this.x_grid_lines.push(shape.x_right),
-      iy_base: this.y_grid_lines.push(shape.y_base),
-      iy_taper: this.y_grid_lines.push(shape.y_taper),
+      ix_signal_left: this.x_region_lines_builder.push(shape.x_left),
+      ix_taper_left: this.x_region_lines_builder.push(shape.x_left_taper),
+      ix_taper_right: this.x_region_lines_builder.push(shape.x_right_taper),
+      ix_signal_right: this.x_region_lines_builder.push(shape.x_right),
+      iy_base: this.y_region_lines_builder.push(shape.y_base),
+      iy_taper: this.y_region_lines_builder.push(shape.y_taper),
     }
   };
 
   setup_create_dielectric_regions(): DielectricRegion[] {
+    this.profiler?.begin("create_dielectric_regions");
     const get_epsilon = (param: Parameter): number => {
       const epsilon = param.value;
       if (epsilon === undefined) {
@@ -218,10 +201,12 @@ export class StackupGrid {
         }
       }
     }
+    this.profiler?.end();
     return dielectric_regions;
   }
 
   setup_create_conductor_regions(): ConductorRegion[] {
+    this.profiler?.begin("create_conductor_regions");
     const conductor_regions: ConductorRegion[] = [];
     for (const conductor_layout of this.layout.conductors) {
       switch (conductor_layout.type) {
@@ -248,80 +233,108 @@ export class StackupGrid {
         }
       }
     }
+    this.profiler?.end();
     return conductor_regions;
   }
 
   setup_pad_grid() {
-    const x_min = this.x_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
-    const x_max = this.x_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
-    const y_min = this.y_grid_lines.lines.reduce((a,b) => Math.min(a,b), Infinity);
-    const y_max = this.y_grid_lines.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+    this.profiler?.begin("pad_grid");
+    const x_min = this.x_region_lines_builder.lines.reduce((a,b) => Math.min(a,b), Infinity);
+    const x_max = this.x_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+    const y_min = this.y_region_lines_builder.lines.reduce((a,b) => Math.min(a,b), Infinity);
+    const y_max = this.y_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
     const stackup_width = x_max-x_min;
     const stackup_height = y_max-y_min;
     const padding_size = Math.max(stackup_width, stackup_height);
-    this.x_grid_lines.push(x_min-padding_size);
-    this.x_grid_lines.push(x_max+padding_size);
+    this.x_region_lines_builder.push(x_min-padding_size);
+    this.x_region_lines_builder.push(x_max+padding_size);
     // only pad y-axis if copper planes don't exist at the ends
     const y_plane_min = this.conductor_regions
       .filter(conductor => conductor.type == "plane")
-      .map(plane => this.y_grid_lines.get_line(plane.region.iy_start))
+      .map(plane => this.y_region_lines_builder.get_line(plane.region.iy_start))
       .reduce((a,b) => Math.min(a,b), Infinity);
     const y_plane_max = this.conductor_regions
       .filter(conductor => conductor.type == "plane")
-      .map(plane => this.y_grid_lines.get_line(plane.region.iy_end))
+      .map(plane => this.y_region_lines_builder.get_line(plane.region.iy_end))
       .reduce((a,b) => Math.max(a,b), -Infinity);
     if (y_plane_min > y_min) {
-      this.y_grid_lines.push(y_min-padding_size);
+      this.y_region_lines_builder.push(y_min-padding_size);
     }
     if (y_plane_max < y_max) {
-      this.y_grid_lines.push(y_max+padding_size);
+      this.y_region_lines_builder.push(y_max+padding_size);
     }
+    this.profiler?.end();
   }
 
   setup_merge_nearby_grid_lines() {
-    const x_region_sizes = this.x_grid_lines.to_regions();
-    const y_region_sizes = this.y_grid_lines.to_regions();
+    this.profiler?.begin("merge_grid_lines");
+    const x_region_sizes = this.x_region_lines_builder.to_regions();
+    const y_region_sizes = this.y_region_lines_builder.to_regions();
     const region_sizes = [...x_region_sizes, ...y_region_sizes]
       .filter(size => size > 0); // avoid normalising to 0 which causes infinities
     const log_mean = get_log_median(region_sizes);
     const merge_threshold = log_mean*1e-3;
-    this.x_grid_lines.merge(merge_threshold);
-    this.y_grid_lines.merge(merge_threshold);
-    this.x_grid_lines.scale(1.0/log_mean);
-    this.y_grid_lines.scale(1.0/log_mean);
+    this.x_region_lines_builder.merge(merge_threshold);
+    this.y_region_lines_builder.merge(merge_threshold);
+    this.x_region_lines_builder.scale(1.0/log_mean);
+    this.y_region_lines_builder.scale(1.0/log_mean);
+    this.profiler?.end();
   }
 
-  setup_create_region_grid(): RegionGrid {
+  setup_create_x_region_to_grid_map(): RegionToGridMap {
+    this.profiler?.begin("create_x_region_to_grid_map");
     const size_to_region_spec = (size: number): RegionSpecification => {
       return {
         size,
       };
     };
-    const x_region_sizes = this.x_grid_lines.to_regions();
-    const y_region_sizes = this.y_grid_lines.to_regions();
+    const x_region_sizes = this.x_region_lines_builder.to_regions();
     const x_region_specs: RegionSpecification[] = x_region_sizes.map(size_to_region_spec);
+    const x_max_ratio = 0.7;
+    const x_min_subdivisions = 5;
+    const x_region_segments = generate_region_mesh_segments(x_region_specs, x_min_subdivisions, x_max_ratio);
+    this.profiler?.end();
+    return new RegionToGridMap(this.x_region_lines_builder, x_region_segments);
+  }
+
+  setup_create_y_region_to_grid_map() {
+    this.profiler?.begin("create_y_region_to_grid_map");
+    const size_to_region_spec = (size: number): RegionSpecification => {
+      return {
+        size,
+      };
+    };
+    const y_region_sizes = this.y_region_lines_builder.to_regions();
     const y_region_specs: RegionSpecification[] = y_region_sizes.map(size_to_region_spec);
 
     // NOTE: copper planes don't need to be divided fancily to avoid numerical errors
     //       just used a fixed number of divisions since it gives the same result and is faster to compute
     for (const plane of this.conductor_regions.filter(conductor => conductor.type == "plane")) {
       const { region, total_divisions } = plane;
-      const ry_start = this.y_grid_lines.get_index(region.iy_start);
-      const ry_end = this.y_grid_lines.get_index(region.iy_end);
+      const ry_start = this.y_region_lines_builder.get_index(region.iy_start);
+      const ry_end = this.y_region_lines_builder.get_index(region.iy_end);
       for (let i = ry_start; i < ry_end; i++) {
         y_region_specs[i].total_grid_lines = total_divisions;
       }
     }
 
-    // create region grid
-    const x_max_ratio = 0.7;
     const y_max_ratio = 0.7;
-    const x_min_subdivisions = 5;
     const y_min_subdivisions = 5;
-    const x_region_grids = calculate_grid_regions(x_region_specs, x_min_subdivisions, x_max_ratio);
-    const y_region_grids = calculate_grid_regions(y_region_specs, y_min_subdivisions, y_max_ratio);
-    const region_grid = new RegionGrid(x_region_grids, y_region_grids);
-    return region_grid;
+    const y_region_segments = generate_region_mesh_segments(y_region_specs, y_min_subdivisions, y_max_ratio);
+    this.profiler?.end();
+    return new RegionToGridMap(this.y_region_lines_builder, y_region_segments);
+  }
+
+  setup_create_simulation_grid(): Grid {
+    this.profiler?.begin("create_simulation_grid");
+    const grid = new Grid(
+      this.y_region_to_grid_map.total_grid_segments,
+      this.x_region_to_grid_map.total_grid_segments,
+    );
+    grid.dx.array_view.set(this.x_region_to_grid_map.grid_segments);
+    grid.dy.array_view.set(this.y_region_to_grid_map.grid_segments);
+    this.profiler?.end();
+    return grid;
   }
 
   push_epsilon(epsilon_k: number, category: EpsilonCategory, threshold?: number): number {
@@ -341,71 +354,113 @@ export class StackupGrid {
     return index;
   }
 
-  fill_dielectric_plane(region: InfinitePlaneRegion, ek_index: number) {
-    const ry_start = this.y_grid_lines.get_index(region.iy_start);
-    const ry_end = this.y_grid_lines.get_index(region.iy_end);
-    const rx_start = 0;
-    const rx_end = this.region_grid.x_grid_regions.length;
-
-    const ek_index_beta = this.region_grid.ek_index_beta_region_view();
-    const ek_beta = 1.0;
-
-    if (ry_start < ry_end) {
-      ek_index_beta
-        .get_region(
-            [ry_start,rx_start],
-            [ry_end,rx_end],
-        )
-        .fill(Grid.pack_index_beta(ek_index, ek_beta));
+  fill_dielectric_constant(
+    gx_start: number, gx_end: number, gy_start: number, gy_end: number,
+    ek_index: number,
+  ) {
+    const grid = this.grid.ek_index_beta.ndarray;
+    const [_Ny, Nx] = grid.shape;
+    const buf = grid.data;
+    const width = gx_end-gx_start;
+    const value = Grid.pack_index_beta(ek_index, 1.0);
+    for (let y = gy_start; y < gy_end; y++) {
+      const gi = gx_start + y*Nx;
+      buf.fill(value, gi, gi+width);
     }
+  }
+
+  fill_dielectric_sdf(
+    gx_start: number, gx_end: number, gy_start: number, gy_end: number,
+    ek_index: number, sdf: SDF,
+  ) {
+    const grid = this.grid.ek_index_beta.ndarray;
+    const [_Ny, Nx] = grid.shape;
+    const buf = grid.data;
+
+    const X = this.x_region_to_grid_map.grid_lines.slice(gx_start, gx_end);
+    const Y = this.y_region_to_grid_map.grid_lines.slice(gy_start, gy_end);
+    const dX = this.x_region_to_grid_map.grid_segments.slice(gx_start, gx_end);
+    const dY = this.y_region_to_grid_map.grid_segments.slice(gy_start, gy_end);
+    const abs_width = dX.reduce((a,b) => a+b, 0);
+    const abs_height = dY.reduce((a,b) => a+b, 0);
+    const norm_dX = dX.map(dx => dx/abs_width);
+    const norm_dY = dY.map(dy => dy/abs_height);
+    const norm_X = X.map(x => (x-X[0])/abs_width);
+    const norm_Y = Y.map(y => (y-Y[0])/abs_height);
+
+    const width = gx_end-gx_start;
+    const height = gy_end-gy_start;
+
+    const multisampled_sdf = get_sdf_multisample(sdf);
+    function index_beta_sdf(y: number, x: number, height: number, width: number): number {
+      const beta = multisampled_sdf(y+height/2, x+width/2, height/2, width/2);
+      return Grid.pack_index_beta(ek_index, beta);
+    }
+
+    for (let y = 0; y < height; y++) {
+      const norm_y = norm_Y[y];
+      const norm_dy = norm_dY[y];
+      const gy = gy_start+y;
+      for (let x = 0; x < width; x++) {
+        const norm_x = norm_X[x];
+        const norm_dx = norm_dX[x];
+        const gx = gx_start+x;
+        const gi = gx + gy*Nx;
+        const value = index_beta_sdf(norm_y, norm_x, norm_dy, norm_dx);
+        buf[gi] = value;
+      }
+    }
+  }
+
+  fill_dielectric_plane(region: InfinitePlaneRegion, ek_index: number) {
+    const gy_start = this.y_region_to_grid_map.id_to_grid_index(region.iy_start);
+    const gy_end = this.y_region_to_grid_map.id_to_grid_index(region.iy_end);
+    const gx_start = 0;
+    const gx_end = this.x_region_to_grid_map.total_grid_segments;
+    this.fill_dielectric_constant(
+      gx_start, gx_end, gy_start, gy_end,
+      ek_index,
+    );
   };
 
   fill_dielectric_trapezoid(region: TrapezoidRegion, ek_index: number) {
-    const rx_signal_left = this.x_grid_lines.get_index(region.ix_signal_left);
-    const rx_signal_right = this.x_grid_lines.get_index(region.ix_signal_right);
-    const rx_taper_left = this.x_grid_lines.get_index(region.ix_taper_left);
-    const rx_taper_right = this.x_grid_lines.get_index(region.ix_taper_right);
+    const gx_signal_left = this.x_region_to_grid_map.id_to_grid_index(region.ix_signal_left);
+    const gx_taper_left = this.x_region_to_grid_map.id_to_grid_index(region.ix_taper_left);
+    const gx_taper_right = this.x_region_to_grid_map.id_to_grid_index(region.ix_taper_right);
+    const gx_signal_right = this.x_region_to_grid_map.id_to_grid_index(region.ix_signal_right);
 
-    const ry_base = this.y_grid_lines.get_index(region.iy_base);
-    const ry_taper = this.y_grid_lines.get_index(region.iy_taper);
-    const ry_start = Math.min(ry_base, ry_taper);
-    const ry_end = Math.max(ry_base, ry_taper);
+    const gy_base = this.y_region_to_grid_map.id_to_grid_index(region.iy_base);
+    const gy_taper = this.y_region_to_grid_map.id_to_grid_index(region.iy_taper);
+    const gy_start = Math.min(gy_base, gy_taper);
+    const gy_end = Math.max(gy_base, gy_taper);
 
-    const ek_index_beta = this.region_grid.ek_index_beta_region_view();
-
-    if (rx_signal_left < rx_taper_left && ry_start < ry_end) {
-      const left_taper_sdf =
-        (ry_taper > ry_base) ?
-        index_beta_sdf(sdf_slope_top_right, ek_index) :
-        index_beta_sdf(sdf_slope_bottom_right, ek_index);
-      ek_index_beta.transform_norm_region(
-        [ry_start, rx_signal_left],
-        [ry_end, rx_taper_left],
-        left_taper_sdf,
+    if (gx_signal_left < gx_taper_left && gy_start < gy_end) {
+      const sdf = (gy_taper > gy_base) ? sdf_slope_top_right : sdf_slope_bottom_right;
+      this.fill_dielectric_sdf(
+        gx_signal_left, gx_taper_left, gy_start, gy_end,
+        ek_index, sdf,
       );
     }
-    if (rx_taper_left < rx_taper_right && ry_start < ry_end) {
-      ek_index_beta
-        .get_region([ry_start, rx_taper_left], [ry_end, rx_taper_right])
-        .fill(Grid.pack_index_beta(ek_index, 1.0));
+    if (gx_taper_left < gx_taper_right && gy_start < gy_end) {
+      this.fill_dielectric_constant(
+        gx_taper_left, gx_taper_right, gy_start, gy_end,
+        ek_index,
+      );
     }
-    if (rx_taper_right < rx_signal_right && ry_start < ry_end) {
-      const right_taper_sdf =
-        (ry_taper > ry_base) ?
-        index_beta_sdf(sdf_slope_top_left, ek_index) :
-        index_beta_sdf(sdf_slope_bottom_left, ek_index);
-      ek_index_beta.transform_norm_region(
-        [ry_start, rx_taper_right],
-        [ry_end, rx_signal_right],
-        right_taper_sdf,
+    if (gx_taper_right < gx_signal_right && gy_start < gy_end) {
+      const sdf = (gy_taper > gy_base) ? sdf_slope_top_left: sdf_slope_bottom_left;
+      this.fill_dielectric_sdf(
+        gx_taper_right, gx_signal_right, gy_start, gy_end,
+        ek_index, sdf,
       );
     }
   };
 
   setup_fill_dielectric_regions() {
+    this.profiler?.begin("fill_dielectric_regions");
     const er0 = 1.0; // dielectric of vacuum
     const index_er0 = this.push_epsilon(er0, "core");
-    this.region_grid.grid.ek_index_beta.ndarray.fill(Grid.pack_index_beta(index_er0, 1.0));
+    this.grid.ek_index_beta.ndarray.fill(Grid.pack_index_beta(index_er0, 0.0));
 
     for (const dielectric_region of this.dielectric_regions) {
       switch (dielectric_region.type) {
@@ -428,6 +483,7 @@ export class StackupGrid {
         };
       }
     }
+    this.profiler?.end();
   }
 
   push_voltage(voltage: Voltage): number {
@@ -435,100 +491,141 @@ export class StackupGrid {
     return this.voltage_indexes.v_table[voltage];
   }
 
+  fill_voltage_constant(
+    gx_start: number, gx_end: number, gy_start: number, gy_end: number,
+    v_index: number,
+  ) {
+    const grid = this.grid.v_index_beta.ndarray;
+    const [Ny, Nx] = grid.shape;
+    const buf = grid.data;
+
+    // include boundary of grid cell
+    gx_end = Math.min(Nx, gx_end+1);
+    gy_end = Math.min(Ny, gy_end+1);
+    const width = gx_end-gx_start;
+    const value = Grid.pack_index_beta(v_index, 1.0);
+    for (let y = gy_start; y < gy_end; y++) {
+      const gi = gx_start + y*Nx;
+      buf.fill(value, gi, gi+width);
+    }
+  }
+
+  fill_voltage_sdf(
+    gx_start: number, gx_end: number, gy_start: number, gy_end: number,
+    v_index: number, sdf: SDF,
+  ) {
+    const grid = this.grid.v_index_beta.ndarray;
+    const [Ny, Nx] = grid.shape;
+    const buf = grid.data;
+
+    const dX = this.x_region_to_grid_map.grid_segments.slice(gx_start, gx_end);
+    const dY = this.y_region_to_grid_map.grid_segments.slice(gy_start, gy_end);
+    const abs_width = dX.reduce((a,b) => a+b, 0);
+    const abs_height = dY.reduce((a,b) => a+b, 0);
+    const norm_dX = dX.map(dx => dx/abs_width);
+    const norm_dY = dY.map(dy => dy/abs_height);
+
+    // include boundary of grid cell
+    gx_end = Math.min(Nx, gx_end+1);
+    gy_end = Math.min(Ny, gy_end+1);
+    const width = gx_end-gx_start;
+    const height = gy_end-gy_start;
+    const X = this.x_region_to_grid_map.grid_lines.slice(gx_start, gx_end);
+    const Y = this.y_region_to_grid_map.grid_lines.slice(gy_start, gy_end);
+    const norm_X = X.map(x => (x-X[0])/abs_width);
+    const norm_Y = Y.map(y => (y-Y[0])/abs_height);
+
+    const multisampled_sdf = get_sdf_multisample(sdf);
+    function index_beta_sdf(y: number, x: number, dy: number, dx: number): number {
+      const beta = multisampled_sdf(y, x, dy/2, dx/2);
+      return Grid.pack_index_beta(v_index, beta);
+    }
+
+    for (let y = 0; y < height; y++) {
+      const norm_y = norm_Y[y];
+      const norm_dy = norm_dY[y] ?? norm_dY[norm_dY.length-1];
+      const gy = gy_start+y;
+      for (let x = 0; x < width; x++) {
+        const norm_x = norm_X[x];
+        const norm_dx = norm_dX[x] ?? norm_dX[norm_dX.length-1];
+        const gx = gx_start+x;
+        const gi = gx + gy*Nx;
+        const value = index_beta_sdf(norm_y, norm_x, norm_dy, norm_dx);
+        buf[gi] = value;
+      }
+    }
+  }
+
+
   fill_voltage_plane(region: InfinitePlaneRegion, voltage: Voltage) {
-    const ry_start = this.y_grid_lines.get_index(region.iy_start);
-    const ry_end = this.y_grid_lines.get_index(region.iy_end);
-    const rx_start = 0;
-    const rx_end = this.region_grid.x_grid_regions.length;
+    const gy_start = this.y_region_to_grid_map.id_to_grid_index(region.iy_start);
+    const gy_end = this.y_region_to_grid_map.id_to_grid_index(region.iy_end);
+    const gx_start = 0;
+    const gx_end = this.x_region_to_grid_map.total_grid_segments;
 
-    const v_index_beta = this.region_grid.v_index_beta_region_view();
     const v_index = this.push_voltage(voltage);
-    const [Ny, Nx] = v_index_beta.view.shape;
-
-    const gx_start = v_index_beta.x_region_to_grid(rx_start);
-    const gx_end = v_index_beta.x_region_to_grid(rx_end);
-    const gy_start = v_index_beta.y_region_to_grid(ry_start);
-    const gy_end = v_index_beta.y_region_to_grid(ry_end);
-
-    // expand voltage field to include the next index so voltage along boundary of conductor is met
-    // also allow infinitely flat traces (gy_start == gy_end)
-    v_index_beta
-      .get_grid(
-        [gy_start, gx_start],
-        [Math.min(gy_end+1,Ny), Math.min(gx_end+1,Nx)],
-      )
-      .fill(Grid.pack_index_beta(v_index, 1.0));
+    this.fill_voltage_constant(
+      gx_start, gx_end, gy_start, gy_end,
+      v_index,
+    );
   };
 
   fill_voltage_trapezoid(region: TrapezoidRegion, voltage: Voltage) {
-    const rx_signal_left = this.x_grid_lines.get_index(region.ix_signal_left);
-    const rx_signal_right = this.x_grid_lines.get_index(region.ix_signal_right);
-    const rx_taper_left = this.x_grid_lines.get_index(region.ix_taper_left);
-    const rx_taper_right = this.x_grid_lines.get_index(region.ix_taper_right);
+    const gx_signal_left = this.x_region_to_grid_map.id_to_grid_index(region.ix_signal_left);
+    const gx_taper_left = this.x_region_to_grid_map.id_to_grid_index(region.ix_taper_left);
+    const gx_taper_right = this.x_region_to_grid_map.id_to_grid_index(region.ix_taper_right);
+    const gx_signal_right = this.x_region_to_grid_map.id_to_grid_index(region.ix_signal_right);
 
-    const ry_base = this.y_grid_lines.get_index(region.iy_base);
-    const ry_taper = this.y_grid_lines.get_index(region.iy_taper);
-    const ry_start = Math.min(ry_base, ry_taper);
-    const ry_end = Math.max(ry_base, ry_taper);
+    const gy_base = this.y_region_to_grid_map.id_to_grid_index(region.iy_base);
+    const gy_taper = this.y_region_to_grid_map.id_to_grid_index(region.iy_taper);
+    const gy_start = Math.min(gy_base, gy_taper);
+    let gy_end = Math.max(gy_base, gy_taper);
+    // also set edge of region to voltage
+    gy_end = Math.min(gy_end+1, this.y_region_to_grid_map.total_grid_lines);
 
-    const v_index_beta = this.region_grid.v_index_beta_region_view();
     const v_index = this.push_voltage(voltage);
-    const [Ny, Nx] = v_index_beta.view.shape;
 
-    const gx_taper_left = v_index_beta.x_region_to_grid(rx_taper_left);
-    const gx_signal_left = v_index_beta.x_region_to_grid(rx_signal_left);
-    const gx_signal_right = v_index_beta.x_region_to_grid(rx_signal_right);
-    const gx_taper_right = v_index_beta.x_region_to_grid(rx_taper_right);
-    const gy_start = v_index_beta.y_region_to_grid(ry_start);
-    const gy_end = v_index_beta.y_region_to_grid(ry_end);
-
-    // allow infinitely flat traces (gy_start == gy_end)
     if (gx_signal_left < gx_taper_left) {
-      const left_taper_sdf =
-        (ry_taper > ry_base) ?
-        index_beta_sdf(sdf_slope_top_right, v_index) :
-        index_beta_sdf(sdf_slope_bottom_right, v_index);
-      v_index_beta.transform_norm_grid(
-        [gy_start, gx_signal_left],
-        [Math.min(gy_end+1,Ny), gx_taper_left],
-        left_taper_sdf,
+      const sdf = (gy_taper > gy_base) ? sdf_slope_top_right : sdf_slope_bottom_right;
+      this.fill_voltage_sdf(
+        gx_signal_left, gx_taper_left, gy_start, gy_end,
+        v_index, sdf,
       );
     }
-    // also allow for infinite thin traces (gx_taper_left == gx_taper_right)
     if (gx_taper_left <= gx_taper_right) {
-      v_index_beta
-        .get_grid(
-          [gy_start, gx_taper_left],
-          [Math.min(gy_end+1,Ny), Math.min(gx_taper_right+1,Nx)],
-        )
-        .fill(Grid.pack_index_beta(v_index, 1.0));
+      this.fill_voltage_constant(
+        gx_taper_left, gx_taper_right, gy_start, gy_end,
+        v_index,
+      );
     }
     if (gx_taper_right < gx_signal_right) {
-      const right_taper_sdf =
-        (ry_taper > ry_base) ?
-        index_beta_sdf(sdf_slope_top_left, v_index) :
-        index_beta_sdf(sdf_slope_bottom_left, v_index);
-      v_index_beta.transform_norm_grid(
-        [gy_start, gx_taper_right],
-        [Math.min(gy_end+1,Ny), Math.min(gx_signal_right+1,Nx)],
-        right_taper_sdf,
+      const sdf = (gy_taper > gy_base) ? sdf_slope_top_left : sdf_slope_bottom_left;
+      this.fill_voltage_sdf(
+        gx_taper_right, gx_signal_right, gy_start, gy_end,
+        v_index, sdf,
       );
     }
   };
 
   setup_fill_voltage_regions() {
+    this.profiler?.begin("fill_voltage_regions");
     for (const conductor of this.conductor_regions) {
       switch (conductor.type) {
         case "plane": {
+          this.profiler?.begin("fill_voltage_plane");
           this.fill_voltage_plane(conductor.region, conductor.voltage);
+          this.profiler?.end();
           break;
         }
         case "trace": {
+          this.profiler?.begin("fill_voltage_trace");
           this.fill_voltage_trapezoid(conductor.region, conductor.voltage);
+          this.profiler?.end();
           break;
         }
       }
     }
+    this.profiler?.end();
   }
 
   is_differential_pair(): boolean {
@@ -537,36 +634,32 @@ export class StackupGrid {
   }
 
   configure_odd_mode_diffpair_voltage() {
-    const grid = this.region_grid.grid;
-    const v_table = grid.v_table.array_view;
+    const v_table = this.grid.v_table.array_view;
     v_table[0] = 0;
     v_table[1] = 1;
     v_table[2] = -1;
-    grid.v_input = 2;
+    this.grid.v_input = 2;
   }
 
   configure_even_mode_diffpair_voltage() {
-    const grid = this.region_grid.grid;
-    const v_table = grid.v_table.array_view;
+    const v_table = this.grid.v_table.array_view;
     v_table[0] = 0;
     v_table[1] = 1;
     v_table[2] = 1;
-    grid.v_input = 2;
+    this.grid.v_input = 2;
   }
 
   configure_single_ended_voltage() {
-    const grid = this.region_grid.grid;
-    const v_table = grid.v_table.array_view;
+    const v_table = this.grid.v_table.array_view;
     v_table[0] = 0;
     v_table[1] = 1;
     v_table[2] = 1;
-    grid.v_input = 1;
+    this.grid.v_input = 1;
   }
 
   configure_masked_dielectric() {
-    const grid = this.region_grid.grid;
     const src_ek_table = this.epsilon_indexes.ek_table;
-    const dst_ek_table = grid.ek_table.array_view;
+    const dst_ek_table = this.grid.ek_table.array_view;
     for (let i = 0; i < src_ek_table.length; i++) {
       const ek = src_ek_table[i];
       dst_ek_table[i] = ek.value;
@@ -574,9 +667,8 @@ export class StackupGrid {
   }
 
   configure_unmasked_dielectric() {
-    const grid = this.region_grid.grid;
     const src_ek_table = this.epsilon_indexes.ek_table;
-    const dst_ek_table = grid.ek_table.array_view;
+    const dst_ek_table = this.grid.ek_table.array_view;
     const soldermask_indices = this.epsilon_indexes.soldermask_indices;
     const er0 = src_ek_table[0].value;
     for (let i = 0; i < src_ek_table.length; i++) {

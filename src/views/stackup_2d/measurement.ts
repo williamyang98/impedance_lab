@@ -19,7 +19,7 @@ export type Measurement =
   { type: "differential" } & DifferentialMeasurement;
 
 export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): Measurement {
-  const grid = stackup.region_grid.grid;
+  const grid = stackup.grid;
   profiler?.begin("bake");
   grid.bake(profiler);
   profiler?.end();
