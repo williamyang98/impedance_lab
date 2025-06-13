@@ -3,14 +3,14 @@ import {
   type Voltage,
   type TracePosition,
   type Layer,
+  type CopperTrace,
+  type CopperPlane,
 } from "./stackup.ts";
 import {
   StackupParameters,
   create_layer,
   create_ground_plane_conductor,
   type IdStore,
-  type TraceConductor,
-  type PlaneConductor,
   type ColinearTrace,
   type ColinearLayerTemplate,
   type ColinearTraceTemplate,
@@ -22,7 +22,7 @@ import {
 export class ColinearTraceDifferentialPair implements ColinearTraceTemplate {
   create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
     const ids = Array.from({ length: 2 }, (_) => id_store.own());
-    const conductors: TraceConductor[] = [
+    const conductors: CopperTrace[] = [
       { type: "trace", id: ids[0], position, width: params.W, voltage: "positive" },
       { type: "trace", id: ids[1], position, width: params.W, voltage: "negative" },
     ];
@@ -36,7 +36,7 @@ export class ColinearTraceDifferentialPair implements ColinearTraceTemplate {
 export class ColinearTraceCoplanarDifferentialPair implements ColinearTraceTemplate {
   create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
     const ids = Array.from({ length: 4 }, (_) => id_store.own());
-    const conductors: TraceConductor[] = [
+    const conductors: CopperTrace[] = [
       { type: "trace", id: ids[0], position, width: params.CW, voltage: "ground" },
       { type: "trace", id: ids[1], position, width: params.W, voltage: "positive" },
       { type: "trace", id: ids[2], position, width: params.W, voltage: "negative" },
@@ -54,7 +54,7 @@ export class ColinearTraceCoplanarDifferentialPair implements ColinearTraceTempl
 export class ColinearTraceSingleEnded implements ColinearTraceTemplate {
   create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
     const ids = Array.from({ length: 1 }, (_) => id_store.own());
-    const conductors: TraceConductor[] = [
+    const conductors: CopperTrace[] = [
       { type: "trace", id: ids[0], position, width: params.W, voltage: "positive" },
     ];
     const spacings: HorizontalSpacing[] = [];
@@ -66,7 +66,7 @@ export class ColinearTraceSingleEnded implements ColinearTraceTemplate {
 export class ColinearTraceCoplanarSingleEnded implements ColinearTraceTemplate {
   create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
     const ids = Array.from({ length: 3 }, (_) => id_store.own());
-    const conductors: TraceConductor[] = [
+    const conductors: CopperTrace[] = [
       { type: "trace", id: ids[0], position, width: params.CW, voltage: "ground" },
       { type: "trace", id: ids[1], position, width: params.W, voltage: "positive" },
       { type: "trace", id: ids[2], position, width: params.CW, voltage: "ground" },
@@ -82,19 +82,19 @@ export class ColinearTraceCoplanarSingleEnded implements ColinearTraceTemplate {
 export class ColinearLayerMicrostrip implements ColinearLayerTemplate {
   create(params: StackupParameters, id_store: IdStore): {
     layers: Layer[],
-    plane_conductors: PlaneConductor[],
+    plane_conductors: CopperPlane[],
     trace_position: TracePosition,
   } {
-    const layer_0 = create_layer(params, "soldermask", id_store.own(), "down");
-    const layer_1 = create_layer(params, "core", id_store.own(), "down");
-    const layer_2 = create_layer(params, "unmasked", id_store.own(), "up");
+    const layer_0 = create_layer.soldermask(params, id_store.own(), "down");
+    const layer_1 = create_layer.core(params, id_store.own());
+    const layer_2 = create_layer.unmasked(params, id_store.own(), "up");
 
-    const plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: "up" });
+    const plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: layer_2.orientation });
 
     return {
       layers: [layer_0, layer_1, layer_2],
       plane_conductors: [plane],
-      trace_position: { layer_id: layer_0.id, orientation: "down" },
+      trace_position: { layer_id: layer_0.id, orientation: layer_0.orientation },
     };
   };
 }
@@ -102,15 +102,15 @@ export class ColinearLayerMicrostrip implements ColinearLayerTemplate {
 export class ColinearLayerStripline implements ColinearLayerTemplate {
   create(params: StackupParameters, id_store: IdStore): {
     layers: Layer[],
-    plane_conductors: PlaneConductor[],
+    plane_conductors: CopperPlane[],
     trace_position: TracePosition,
   } {
-    const layer_0 = create_layer(params, "prepreg", id_store.own(), "up");
-    const layer_1 = create_layer(params, "core", id_store.own(), "up");
-    const layer_2 = create_layer(params, "unmasked", id_store.own(), "up");
+    const layer_0 = create_layer.prepreg(params, id_store.own());
+    const layer_1 = create_layer.core(params, id_store.own());
+    const layer_2 = create_layer.unmasked(params, id_store.own(), "up");
 
     const top_plane = create_ground_plane_conductor(params, { layer_id: layer_0.id, orientation: "up" });
-    const bottom_plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: "up" });
+    const bottom_plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: layer_2.orientation });
 
     return {
       layers: [layer_0, layer_1, layer_2],
@@ -123,19 +123,19 @@ export class ColinearLayerStripline implements ColinearLayerTemplate {
 export class BroadsideLayerMicrostrip implements BroadsideLayerTemplate {
   create(params: StackupParameters, id_store: IdStore): {
     layers: Layer[],
-    plane_conductors: PlaneConductor[],
+    plane_conductors: CopperPlane[],
     left_trace_position: TracePosition,
     right_trace_position: TracePosition,
   } {
-    const layer_0 = create_layer(params, "soldermask", id_store.own(), "down");
-    const layer_1 = create_layer(params, "core", id_store.own(), "down");
-    const layer_2 = create_layer(params, "soldermask", id_store.own(), "up");
+    const layer_0 = create_layer.soldermask(params, id_store.own(), "down");
+    const layer_1 = create_layer.core(params, id_store.own());
+    const layer_2 = create_layer.soldermask(params, id_store.own(), "up");
 
     return {
       layers: [layer_0, layer_1, layer_2],
       plane_conductors: [],
-      left_trace_position: { layer_id: layer_0.id, orientation: "down" },
-      right_trace_position: { layer_id: layer_2.id, orientation: "up" },
+      left_trace_position: { layer_id: layer_0.id, orientation: layer_0.orientation },
+      right_trace_position: { layer_id: layer_2.id, orientation: layer_2.orientation },
     };
   }
 }
@@ -143,13 +143,13 @@ export class BroadsideLayerMicrostrip implements BroadsideLayerTemplate {
 export class BroadsideLayerStripline implements BroadsideLayerTemplate {
   create(params: StackupParameters, id_store: IdStore): {
     layers: Layer[],
-    plane_conductors: PlaneConductor[],
+    plane_conductors: CopperPlane[],
     left_trace_position: TracePosition,
     right_trace_position: TracePosition,
   } {
-    const layer_0 = create_layer(params, "prepreg", id_store.own(), "down");
-    const layer_1 = create_layer(params, "core", id_store.own(), "down");
-    const layer_2 = create_layer(params, "prepreg", id_store.own(), "down");
+    const layer_0 = create_layer.prepreg(params, id_store.own());
+    const layer_1 = create_layer.core(params, id_store.own());
+    const layer_2 = create_layer.prepreg(params, id_store.own());
 
     const top_plane = create_ground_plane_conductor(params, { layer_id: layer_0.id, orientation: "up" });
     const bottom_plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: "down" });
@@ -173,7 +173,7 @@ function get_opposite_voltage(voltage: Voltage): Voltage {
 export class BroadsideTracePair implements BroadsideTraceTemplate {
   create_traces(params: StackupParameters, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
     const ids = Array.from({ length: 1 }, (_) => id_store.own());
-    const conductors: TraceConductor[] = [
+    const conductors: CopperTrace[] = [
       { type: "trace", id: ids[0], position, width: params.W, voltage: signal_voltage },
     ];
     const root = conductors[0];
@@ -193,7 +193,7 @@ export class BroadsideTracePair implements BroadsideTraceTemplate {
 export class BroadsideTraceCoplanarPair implements BroadsideTraceTemplate {
   create_traces(params: StackupParameters, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
     const ids = Array.from({ length: 3 }, (_) => id_store.own());
-    const conductors: TraceConductor[] = [
+    const conductors: CopperTrace[] = [
       { type: "trace", id: ids[0], position, width: params.CW, voltage: "ground" },
       { type: "trace", id: ids[1], position, width: params.W, voltage: signal_voltage },
       { type: "trace", id: ids[2], position, width: params.CW, voltage: "ground" },
@@ -218,7 +218,7 @@ export class BroadsideTraceCoplanarPair implements BroadsideTraceTemplate {
 export class BroadsideTraceMirroredPair implements BroadsideTraceTemplate {
   create_traces(params: StackupParameters, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
     const ids = Array.from({ length: 2 }, (_) => id_store.own());
-    const conductors: TraceConductor[] = [
+    const conductors: CopperTrace[] = [
       { type: "trace", id: ids[0], position, width: params.W, voltage: signal_voltage },
       { type: "trace", id: ids[1], position, width: params.W, voltage: get_opposite_voltage(signal_voltage) },
     ];
@@ -241,7 +241,7 @@ export class BroadsideTraceMirroredPair implements BroadsideTraceTemplate {
 export class BroadsideTraceCoplanarMirroredPair implements BroadsideTraceTemplate {
   create_traces(params: StackupParameters, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
     const ids = Array.from({ length: 4 }, (_) => id_store.own());
-    const conductors: TraceConductor[] = [
+    const conductors: CopperTrace[] = [
       { type: "trace", id: ids[0], position, width: params.CW, voltage: "ground" },
       { type: "trace", id: ids[1], position, width: params.W, voltage: signal_voltage },
       { type: "trace", id: ids[2], position, width: params.W, voltage: get_opposite_voltage(signal_voltage) },

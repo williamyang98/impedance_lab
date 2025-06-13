@@ -54,6 +54,7 @@ export interface TracePosition {
 
 // conductors
 export interface CopperTrace {
+  type: "trace";
   id: TraceId;
   width: SizeParameter;
   position: TracePosition;
@@ -68,6 +69,7 @@ export interface CopperTrace {
 }
 
 export interface CopperPlane {
+  type: "plane";
   height: SizeParameter;
   position: TracePosition;
   voltage: Voltage;
@@ -85,9 +87,7 @@ export interface CopperPlane {
   };
 }
 
-export type Conductor =
-  { type: "trace" } & CopperTrace |
-  { type: "plane" } & CopperPlane;
+export type Conductor = CopperTrace | CopperPlane;
 
 // horizontal spacing
 export type AttachPoint = "left" | "center" | "right";
@@ -108,6 +108,7 @@ export interface HorizontalSpacing {
 
 // layers
 export interface UnmaskedLayer {
+  type: "unmasked",
   id: LayerId;
   trace_height: SizeParameter;
   trace_taper: TaperSizeParameter;
@@ -115,6 +116,7 @@ export interface UnmaskedLayer {
 }
 
 export interface SoldermaskLayer {
+  type: "soldermask",
   id: LayerId;
   trace_height: SizeParameter;
   trace_taper: TaperSizeParameter;
@@ -124,12 +126,14 @@ export interface SoldermaskLayer {
 }
 
 export interface CoreLayer {
+  type: "core",
   id: LayerId;
   height: SizeParameter;
   epsilon: Parameter;
 }
 
 export interface PrepregLayer {
+  type: "prepreg",
   id: LayerId;
   height: SizeParameter;
   trace_height: SizeParameter;
@@ -137,12 +141,7 @@ export interface PrepregLayer {
   epsilon: Parameter;
 }
 
-export type Layer =
-  { type: "unmasked" } & UnmaskedLayer |
-  { type: "soldermask" } & SoldermaskLayer |
-  { type: "core" } & CoreLayer |
-  { type: "prepreg" } & PrepregLayer;
-
+export type Layer = UnmaskedLayer | SoldermaskLayer | CoreLayer | PrepregLayer;
 
 export interface Stackup {
   spacings: HorizontalSpacing[];

@@ -3,8 +3,14 @@ import {
   type Orientation, type LayerId, type TraceId,
   type Conductor,
   type Layer,
+  type UnmaskedLayer,
+  type SoldermaskLayer,
+  type CoreLayer,
+  type PrepregLayer,
   type HorizontalSpacing,
   type TracePosition,
+  type CopperTrace,
+  type CopperPlane,
   type SizeParameter, type TaperSizeParameter, type Parameter,
 } from "./stackup.ts";
 import { sizes } from "./viewer.ts";
@@ -264,52 +270,56 @@ export class StackupParameters {
   }
 }
 
-export function create_layer(
-  params: StackupParameters, type: LayerType, layer_id: LayerId, orientation: Orientation,
-): Layer {
-  switch (type) {
-    case "core": {
-      return {
-        type: "core",
-        id: layer_id,
-        height: params.H.get(layer_id),
-        epsilon: params.ER.get(layer_id),
-      };
-    }
-    case "prepreg": {
-      return {
-        type: "prepreg",
-        id: layer_id,
-        height: params.H.get(layer_id),
-        epsilon: params.ER.get(layer_id),
-        trace_height: params.T.get(layer_id),
-        trace_taper: params.dW.get(layer_id),
-      };
-    }
-    case "soldermask": {
-      return {
-        type: "soldermask",
-        id: layer_id,
-        height: params.SH.get(layer_id),
-        epsilon: params.ER.get(layer_id),
-        trace_height: params.T.get(layer_id),
-        trace_taper: params.dW.get(layer_id),
-        orientation,
-      };
-    }
-    case "unmasked": {
-      return {
-        type: "unmasked",
-        id: layer_id,
-        trace_height: params.T.get(layer_id),
-        trace_taper: params.dW.get(layer_id),
-        orientation,
-      };
+export const create_layer = {
+  core(params: StackupParameters, layer_id: LayerId): CoreLayer {
+    return {
+      type: "core",
+      id: layer_id,
+      height: params.H.get(layer_id),
+      epsilon: params.ER.get(layer_id),
+    };
+  },
+  prepreg(params: StackupParameters, layer_id: LayerId): PrepregLayer {
+    return {
+      type: "prepreg",
+      id: layer_id,
+      height: params.H.get(layer_id),
+      epsilon: params.ER.get(layer_id),
+      trace_height: params.T.get(layer_id),
+      trace_taper: params.dW.get(layer_id),
+    };
+  },
+  soldermask(params: StackupParameters, layer_id: LayerId, orientation: Orientation): SoldermaskLayer {
+    return {
+      type: "soldermask",
+      id: layer_id,
+      height: params.SH.get(layer_id),
+      epsilon: params.ER.get(layer_id),
+      trace_height: params.T.get(layer_id),
+      trace_taper: params.dW.get(layer_id),
+      orientation,
+    };
+  },
+  unmasked(params: StackupParameters, layer_id: LayerId, orientation: Orientation): UnmaskedLayer {
+    return {
+      type: "unmasked",
+      id: layer_id,
+      trace_height: params.T.get(layer_id),
+      trace_taper: params.dW.get(layer_id),
+      orientation,
+    };
+  },
+  with_type(params: StackupParameters, type: LayerType, layer_id: LayerId, orientation: Orientation): Layer {
+    switch (type) {
+      case "core": return this.core(params, layer_id);
+      case "prepreg": return this.prepreg(params, layer_id);
+      case "soldermask": return this.soldermask(params, layer_id, orientation);
+      case "unmasked": return this.unmasked(params, layer_id, orientation);
     }
   }
 }
 
-export function create_ground_plane_conductor(params: StackupParameters, position: TracePosition): PlaneConductor {
+export function create_ground_plane_conductor(params: StackupParameters, position: TracePosition): CopperPlane {
   return {
     type: "plane" ,
     position,
@@ -322,7 +332,7 @@ export abstract class StackupEditor {
   layers: Layer[] = [];
   layer_id = new ArenaIdStore();
   parameters: StackupParameters;
-  plane_conductors: PlaneConductor[] = [];
+  plane_conductors: CopperPlane[] = [];
 
   constructor(parameters: StackupParameters) {
     this.parameters = parameters;
@@ -354,7 +364,7 @@ export abstract class StackupEditor {
     const curr_layer = (layer_index < this.layers.length) ? this.layers[layer_index] : undefined;
     if (prev_layer && !CommonRules.can_layer_support_adjacent_layer(prev_layer, "down")) return undefined;
     if (curr_layer && !CommonRules.can_layer_support_adjacent_layer(curr_layer, "up")) return undefined;
-    const new_layer_temp = create_layer(this.parameters, "prepreg", this.layer_id.borrow(), "down")
+    const new_layer_temp = create_layer.prepreg(this.parameters, this.layer_id.borrow())
     return () => {
       this.layers.splice(layer_index, 0, new_layer_temp);
       this.layer_id.own(new_layer_temp.id);
@@ -366,7 +376,7 @@ export abstract class StackupEditor {
     const layer = this.layers[layer_index];
     const [prev_layer, next_layer] = this.get_adjacent_layers(layer_index);
     const new_orientation: Orientation = (layer_index == 0) ? "down" : "up";
-    const new_layer_temp = create_layer(this.parameters, type, layer.id, new_orientation);
+    const new_layer_temp = create_layer.with_type(this.parameters, type, layer.id, new_orientation);
 
     if (prev_layer && !CommonRules.can_layer_support_adjacent_layer(new_layer_temp, "up")) return undefined;
     if (next_layer && !CommonRules.can_layer_support_adjacent_layer(new_layer_temp, "down")) return undefined;
@@ -401,7 +411,7 @@ export abstract class StackupEditor {
   }
 
   // add/delete ground planes
-  remove_plane(plane: PlaneConductor) {
+  remove_plane(plane: CopperPlane) {
     const index = this.plane_conductors.indexOf(plane);
     if (index >= 0) {
       this.plane_conductors.splice(index, 1);
@@ -409,7 +419,7 @@ export abstract class StackupEditor {
   }
 
   // TODO: viewer styling and action bindings??? (why is this done separately???)
-  make_plane_removable(plane: PlaneConductor) {
+  make_plane_removable(plane: CopperPlane) {
     plane.grid = {
       override_total_divisions: 1,
     };
@@ -425,7 +435,7 @@ export abstract class StackupEditor {
     }
   }
 
-  make_plane_conductor_selectable(plane: PlaneConductor) {
+  make_plane_conductor_selectable(plane: CopperPlane) {
     plane.viewer = {
       is_labeled: false,
       display: "selectable",
@@ -439,7 +449,7 @@ export abstract class StackupEditor {
     };
   }
 
-  make_trace_conductor_selectable(trace: TraceConductor, group_tag: string, on_click: () => void) {
+  make_trace_conductor_selectable(trace: CopperTrace, group_tag: string, on_click: () => void) {
     let viewer = trace.viewer ?? {};
     viewer = {
       is_labeled: false,
@@ -462,12 +472,9 @@ export abstract class StackupEditor {
   }
 }
 
-export type TraceConductor = Conductor & { type: "trace" };
-export type PlaneConductor = Conductor & { type: "plane" };
-
 export interface ColinearTrace {
   position: TracePosition;
-  conductors: TraceConductor[];
+  conductors: CopperTrace[];
   spacings: HorizontalSpacing[];
 }
 
@@ -478,7 +485,7 @@ export interface ColinearTraceTemplate {
 export interface ColinearLayerTemplate {
   create(params: StackupParameters, id_store: IdStore): {
     layers: Layer[],
-    plane_conductors: PlaneConductor[],
+    plane_conductors: CopperPlane[],
     trace_position: TracePosition,
   };
 }
@@ -623,8 +630,8 @@ export class ColinearStackupEditor extends StackupEditor {
 
 export interface BroadsideTrace {
   position: TracePosition;
-  conductors: TraceConductor[],
-  root: TraceConductor,
+  conductors: CopperTrace[],
+  root: CopperTrace,
   spacings: HorizontalSpacing[],
 }
 
@@ -636,7 +643,7 @@ export interface BroadsideTraceTemplate {
 export interface BroadsideLayerTemplate {
   create(params: StackupParameters, id_store: IdStore): {
     layers: Layer[],
-    plane_conductors: PlaneConductor[],
+    plane_conductors: CopperPlane[],
     left_trace_position: TracePosition,
     right_trace_position: TracePosition,
   }
