@@ -55,23 +55,34 @@ interface InfinitePlaneRegion {
 }
 
 interface InfinitePlaneDielectricRegion {
+  type: "plane";
   epsilon: number;
   region: InfinitePlaneRegion;
 }
 
 interface SoldermaskDielectricRegion {
+  type: "soldermask";
   epsilon: number;
   base_region: InfinitePlaneRegion;
   trace_regions: TrapezoidRegion[];
 }
 
-type DielectricRegion =
-  { type: "plane" } & InfinitePlaneDielectricRegion |
-  { type: "soldermask" } & SoldermaskDielectricRegion;
+type DielectricRegion = InfinitePlaneDielectricRegion | SoldermaskDielectricRegion;
 
-type ConductorRegion =
-  { type: "trace", region: TrapezoidRegion, voltage: Voltage } |
-  { type: "plane", region: InfinitePlaneRegion, voltage: Voltage, total_divisions: number };
+interface TraceConductorRegion {
+  type: "trace";
+  region: TrapezoidRegion;
+  voltage: Voltage;
+}
+
+interface PlaneConductorRegion {
+  type: "plane";
+  region: InfinitePlaneRegion;
+  voltage: Voltage;
+  total_divisions: number;
+}
+
+type ConductorRegion = TraceConductorRegion | PlaneConductorRegion;
 
 type EpsilonCategory = "soldermask" | "core";
 

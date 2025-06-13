@@ -1,10 +1,8 @@
-import { LinearMeshSegment, OpenGeometricMeshSegment, ClosedGeometricMeshSegment } from "./mesher.ts";
+import {
+  LinearMeshSegment, OpenGeometricMeshSegment, ClosedGeometricMeshSegment,
+  type MeshSegment,
+} from "./mesher.ts";
 import { LinesBuilder } from "./lines_builder.ts";
-
-export type RegionMeshSegment =
-  { type: "linear", segment: LinearMeshSegment } |
-  { type: "open_geometric", segment: OpenGeometricMeshSegment } |
-  { type: "closed_geometric", segment: ClosedGeometricMeshSegment };
 
 export interface RegionSpecification {
   size: number;
@@ -14,7 +12,7 @@ export interface RegionSpecification {
 export function generate_region_mesh_segments(
   regions: RegionSpecification[],
   min_region_subdivisions?: number, max_ratio?: number,
-): RegionMeshSegment[] {
+): MeshSegment[] {
   min_region_subdivisions = min_region_subdivisions ?? 3;
   max_ratio = max_ratio ?? 0.5;
 
@@ -25,7 +23,7 @@ export function generate_region_mesh_segments(
     return region.size/min_region_subdivisions;
   });
 
-  const segments: RegionMeshSegment[] = [];
+  const segments: MeshSegment[] = [];
   const N = regions.length;
   for (let i = 0; i < N; i++) {
     const region = regions[i];
@@ -42,15 +40,15 @@ export function generate_region_mesh_segments(
     if ((a_left === null && a_right === null) || (total_grid_lines !== undefined)) {
       const n = total_grid_lines || min_region_subdivisions;
       const a = A/n;
-      segments.push({ type: "linear", segment: new LinearMeshSegment(a, n) });
+      segments.push(new LinearMeshSegment(a, n));
     } else if (a_left === null && a_right !== null) {
       const segment = OpenGeometricMeshSegment.search_best_fit(A, a_right, 1+max_ratio, min_region_subdivisions);
       segment.is_reversed = true;
-      segments.push({ type: "open_geometric", segment });
+      segments.push(segment);
     } else if (a_left !== null && a_right === null) {
       const segment = OpenGeometricMeshSegment.search_best_fit(A, a_left, 1+max_ratio, min_region_subdivisions);
       segment.is_reversed = false;
-      segments.push({ type: "open_geometric", segment });
+      segments.push(segment);
     } else if (a_left !== null && a_right !== null) {
       const n_lower = min_region_subdivisions-1;
       let n_upper_estimate = undefined;
@@ -64,7 +62,7 @@ export function generate_region_mesh_segments(
       }
       const n_upper = Math.max(min_region_subdivisions, Math.ceil(n_upper_estimate));
       const segment = ClosedGeometricMeshSegment.search_lowest_maximum_ratio(A, a_left, a_right, n_lower, n_upper);
-      segments.push({ type: "closed_geometric", segment });
+      segments.push(segment);
     }
   }
   return segments;
@@ -72,13 +70,13 @@ export function generate_region_mesh_segments(
 
 export class RegionToGridMap {
   region_lines_builder: LinesBuilder;
-  region_segments: RegionMeshSegment[];
+  region_segments: MeshSegment[];
   region_lines: number[];
   grid_segments: number[];
   grid_lines: number[];
   region_to_grid_index: number[];
 
-  constructor(region_lines_builder: LinesBuilder, region_segments: RegionMeshSegment[]) {
+  constructor(region_lines_builder: LinesBuilder, region_segments: MeshSegment[]) {
     if (!region_lines_builder.is_sorted) {
       throw Error("Region lines must be sorted before creating region to grid map");
     }
@@ -88,7 +86,7 @@ export class RegionToGridMap {
 
     const total_region_segments = region_segments.length;
     const total_grid_segments = region_segments
-      .map(s => s.segment.get_total_elements())
+      .map(s => s.get_total_elements())
       .reduce((a,b) => a+b, 0);
 
     const region_lines = Array.from({ length: total_region_segments+1 }, _ => 0);
@@ -97,7 +95,7 @@ export class RegionToGridMap {
       for (let i = 0; i < total_region_segments; i++) {
         region_lines[i] = region_line;
         const region_segment = region_segments[i];
-        region_line += region_segment.segment.get_size();
+        region_line += region_segment.get_size();
       }
       region_lines[total_region_segments] = region_line;
     }
@@ -105,7 +103,7 @@ export class RegionToGridMap {
     const grid_segments = Array.from({ length: total_grid_segments }, _ => 0);
     {
       let offset: number = 0;
-      for (const { segment } of region_segments) {
+      for (const segment of region_segments) {
         const region_grid_segments = segment.generate_deltas();
         for (let i = 0; i < region_grid_segments.length; i++) {
           grid_segments[offset+i] = region_grid_segments[i];
@@ -130,7 +128,7 @@ export class RegionToGridMap {
       let grid_index = 0;
       for (let i = 0; i < total_region_segments; i++) {
         region_to_grid_index[i] = grid_index;
-        const region_grid_elements = region_segments[i].segment.get_total_elements();
+        const region_grid_elements = region_segments[i].get_total_elements();
         grid_index += region_grid_elements;
       }
       region_to_grid_index[total_region_segments] = grid_index;

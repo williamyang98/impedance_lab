@@ -62,6 +62,7 @@ export interface EpsilonLabel {
 }
 
 export interface CopperTrace {
+  type: "trace";
   id: TraceId;
   shape: TrapezoidShape;
   group_tag?: string;
@@ -72,15 +73,14 @@ export interface CopperTrace {
 }
 
 export interface CopperPlane {
+  type: "plane";
   shape: InfinitePlaneShape;
   is_selectable: boolean;
   on_click?: () => void;
   z_offset: number;
 }
 
-export type Conductor =
-  { type: "trace" } & CopperTrace |
-  { type: "plane" } & CopperPlane;
+export type Conductor = CopperTrace | CopperPlane;
 
 function get_name(param?: { name?: string }): string | undefined {
   return param?.name;

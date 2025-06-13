@@ -3,20 +3,20 @@ import { Profiler } from "../../utility/profiler.ts";
 import { StackupGrid } from "./grid.ts";
 
 export interface SingleEndedMeasurement {
+  type: "single";
   masked: ImpedanceResult;
   unmasked?: ImpedanceResult;
 }
 
 export interface DifferentialMeasurement {
+  type: "differential";
   odd_masked: ImpedanceResult;
   even_masked: ImpedanceResult;
   odd_unmasked?: ImpedanceResult;
   coupling_factor: number;
 }
 
-export type Measurement =
-  { type: "single" } & SingleEndedMeasurement |
-  { type: "differential" } & DifferentialMeasurement;
+export type Measurement = SingleEndedMeasurement | DifferentialMeasurement;
 
 export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): Measurement {
   const grid = stackup.grid;

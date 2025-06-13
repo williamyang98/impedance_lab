@@ -36,18 +36,18 @@ export interface InfinitePlaneShape {
 
 // describe layout associated with each stackup entity
 export interface CopperTraceLayout {
+  type: "trace";
   parent: CopperTrace;
   shape: TrapezoidShape;
 }
 
 export interface CopperPlaneLayout {
+  type: "plane";
   parent: CopperPlane;
   shape: InfinitePlaneShape;
 }
 
-export type ConductorLayout =
-  { type: "trace" } & CopperTraceLayout |
-  { type: "plane" } & CopperPlaneLayout;
+export type ConductorLayout = CopperTraceLayout | CopperPlaneLayout;
 
 export interface HorizontalSpacingLayout {
   parent: HorizontalSpacing;
@@ -57,12 +57,14 @@ export interface HorizontalSpacingLayout {
 }
 
 export interface UnmaskedLayerLayout {
+  type: "unmasked";
   parent: UnmaskedLayer;
   bounding_box: InfinitePlaneShape;
   is_copper_plane: boolean;
 }
 
 export interface SoldermaskLayerLayout {
+  type: "soldermask";
   parent: SoldermaskLayer;
   bounding_box: InfinitePlaneShape;
   mask?: {
@@ -73,11 +75,13 @@ export interface SoldermaskLayerLayout {
 }
 
 export interface CoreLayerLayout {
+  type: "core";
   parent: CoreLayer;
   bounding_box: InfinitePlaneShape;
 }
 
 export interface PrepregLayerLayout {
+  type: "prepreg";
   parent: PrepregLayer;
   bounding_box: InfinitePlaneShape;
   top: {
@@ -91,11 +95,7 @@ export interface PrepregLayerLayout {
   };
 }
 
-export type LayerLayout =
-  { type: "unmasked" } & UnmaskedLayerLayout |
-  { type: "soldermask" } & SoldermaskLayerLayout |
-  { type: "core" } & CoreLayerLayout |
-  { type: "prepreg" } & PrepregLayerLayout;
+export type LayerLayout = UnmaskedLayerLayout | SoldermaskLayerLayout | CoreLayerLayout | PrepregLayerLayout;
 
 export interface StackupLayout {
   spacings: HorizontalSpacingLayout[];
@@ -538,6 +538,7 @@ export function create_layout_from_stackup(
           y_taper: y_end-trace_height,
         };
         const trace_layout: CopperTraceLayout = {
+          type: "trace",
           parent: conductor,
           shape: {
             x_left: x_region.x_left,
@@ -547,7 +548,7 @@ export function create_layout_from_stackup(
             ...trapezoid_y_shape,
           },
         };
-        layout.conductors.push({ type: "trace", ...trace_layout });
+        layout.conductors.push(trace_layout);
         push_trace_layout(layer_id, conductor.position.orientation, trace_layout);
         break;
       }

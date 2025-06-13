@@ -34,20 +34,20 @@ function rescale(x: number): number {
     </tr>
   </thead>
   <tbody>
-    <tr v-for="({ type, segment: seg }, index) in segments" :key="index">
+    <tr v-for="(seg, index) in segments" :key="index">
       <td class="font-medium">{{ index }}</td>
-      <td class="text-nowrap">{{ type }}</td>
-      <template v-if="type == 'closed_geometric'">
+      <td class="text-nowrap">{{ seg.type }}</td>
+      <template v-if="seg.type == 'closed_geometric'">
         <td class="text-nowrap">[{{ rescale(seg.left.a).toPrecision(2) }}, {{ rescale(seg.right.a).toPrecision(2) }}]</td>
         <td class="text-nowrap">[{{ seg.left.n }}, {{ seg.right.n }}]</td>
         <td class="text-nowrap">[{{ seg.left.r.toFixed(2) }}, {{ seg.right.r.toFixed(2) }}]</td>
       </template>
-      <template v-if="type == 'open_geometric'">
+      <template v-if="seg.type == 'open_geometric'">
         <td class="text-nowrap">{{ rescale(seg.a).toPrecision(2) }}</td>
         <td class="text-nowrap">{{ seg.n }}</td>
         <td class="text-nowrap">{{ seg.r.toFixed(2) }}</td>
       </template>
-      <template v-if="type == 'linear'">
+      <template v-if="seg.type == 'linear'">
         <td class="text-nowrap">{{ rescale(seg.a).toPrecision(2) }}</td>
         <td class="text-nowrap">{{ seg.n }}</td>
         <td class="text-nowrap">1</td>

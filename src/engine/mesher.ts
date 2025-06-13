@@ -1,12 +1,13 @@
 import { run_discrete_global_section_search, run_binary_search } from "../utility/search.ts";
 
-export interface MeshSegment {
+export interface IMeshSegment {
   generate_deltas(): number[];
   get_size(): number;
   get_total_elements(): number;
 }
 
-export class LinearMeshSegment implements MeshSegment {
+export class LinearMeshSegment implements IMeshSegment {
+  readonly type = "linear";
   a: number;
   n: number;
 
@@ -28,7 +29,8 @@ export class LinearMeshSegment implements MeshSegment {
   }
 }
 
-export class OpenGeometricMeshSegment implements MeshSegment {
+export class OpenGeometricMeshSegment implements IMeshSegment {
+  readonly type = "open_geometric";
   a: number;
   r: number;
   n: number;
@@ -95,7 +97,8 @@ export class OpenGeometricMeshSegment implements MeshSegment {
   }
 }
 
-export class ClosedGeometricMeshSegment implements MeshSegment {
+export class ClosedGeometricMeshSegment implements IMeshSegment {
+  readonly type = "closed_geometric";
   left: OpenGeometricMeshSegment;
   right: OpenGeometricMeshSegment;
 
@@ -146,3 +149,5 @@ export class ClosedGeometricMeshSegment implements MeshSegment {
     return result.best_result.mesh;
   }
 }
+
+export type MeshSegment = LinearMeshSegment | OpenGeometricMeshSegment | ClosedGeometricMeshSegment;
