@@ -21,61 +21,125 @@ import { validate_parameter, type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
 import {
-  type VerticalStackupEditor,
-  CoplanarDifferentialPairEditor,
-  DifferentialPairEditor,
-  CoplanarSingleEndedEditor,
-  SingleEndedEditor,
-  BroadsideCoplanarPairEditor,
-  BroadsidePairEditor,
-  BroadsideMirroredPairEditor,
-  BroadsideMirroredCoplanarPairEditor,
+  BaseStackupEditor,
+  BroadsideSignalEditor,
+  // BroadsideLayerMicrostrip,
+  BroadsideLayerStripline,
+  type BroadsideTraceTemplate,
+  BroadsideTracePair,
+  BroadsideTraceCoplanarPair,
+  BroadsideTraceMirroredPair,
+  BroadsideTraceCoplanarMirroredPair,
+  ColinearSignalEditor,
+  // ColinearLayerMicrostrip,
+  ColinearLayerStripline,
+  type ColinearTraceTemplate,
+  ColinearTraceSingleEnded,
+  ColinearTraceCoplanarSingleEnded,
+  ColinearTraceDifferentialPair,
+  ColinearTraceCoplanarDifferentialPair,
 } from "./stackup_templates.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
 
-class Editors {
-  coplanar_diff = new CoplanarDifferentialPairEditor();
-  diff = new DifferentialPairEditor();
-  coplanar_single = new CoplanarSingleEndedEditor();
-  single = new SingleEndedEditor();
-  broadside_diff = new BroadsidePairEditor();
-  broadside_coplanar_diff = new BroadsideCoplanarPairEditor();
-  broadside_mirrored_diff = new BroadsideMirroredPairEditor();
-  broadside_mirrored_coplanar_diff = new BroadsideMirroredCoplanarPairEditor();
+interface SelectedMap<K extends string, V> {
+  selected: K;
+  options: Record<K, V>;
+  value: V;
+  keys: K[];
 }
-type EditorKey = keyof Editors;
-const editor_keys: EditorKey[] = [
-  "coplanar_diff",
-  "diff",
-  "coplanar_single",
-  "single",
-  "broadside_diff",
-  "broadside_coplanar_diff",
-  "broadside_mirrored_diff",
-  "broadside_mirrored_coplanar_diff",
-];
 
-function editor_key_to_name(key: EditorKey): string {
-  switch (key) {
-    case "coplanar_diff": return "Coplanar Diffpair";
-    case "diff": return "Diffpair";
-    case "coplanar_single": return "Coplanar Single Ended";
-    case "single": return "Single Ended";
-    case "broadside_diff": return "Broadside Pair";
-    case "broadside_coplanar_diff": return "Broadside Coplanar Pair";
-    case "broadside_mirrored_diff": return "Broadside Mirrored Pair";
-    case "broadside_mirrored_coplanar_diff": return "Broadside Mirrored Coplanar Pair";
+function make_selected_map<K extends string, V, U extends K>(
+  instance: { selected: U, options: Record<K, V> }
+): SelectedMap<K, V> {
+  const wrapped = {
+    selected: instance.selected as K,
+    options: instance.options,
+    get value(): V {
+      return this.options[this.selected];
+    },
+    get keys(): K[] {
+      return Object.keys(this.options) as K[];
+    },
+  };
+  return wrapped;
+}
+
+function create_editor() {
+  const broadside_trace_templates = {
+    "pair": new BroadsideTracePair(),
+    "coplanar_pair": new BroadsideTraceCoplanarPair(),
+    "mirrored_pair": new BroadsideTraceMirroredPair(),
+    "coplanar_mirrored_pair": new BroadsideTraceCoplanarMirroredPair(),
+  };
+
+  type K0 = keyof typeof broadside_trace_templates;
+  class BroadsideEditor implements SelectedMap<K0, BroadsideTraceTemplate> {
+    _selected: K0 = "pair";
+    options = broadside_trace_templates;
+    keys = Object.keys(broadside_trace_templates) as K0[];
+    editor = new BroadsideSignalEditor(
+      broadside_trace_templates[this._selected],
+      new BroadsideLayerStripline(),
+    );
+    get selected() {
+      return this._selected;
+    }
+    set selected(selected) {
+      this._selected = selected;
+      this.editor.set_trace_template(this.value);
+    }
+    get value() {
+      return this.options[this.selected];
+    }
   }
+  const broadside_editor = new BroadsideEditor();
+
+  const colinear_trace_templates = {
+    "single": new ColinearTraceSingleEnded(),
+    "coplanar_single": new ColinearTraceCoplanarSingleEnded(),
+    "pair": new ColinearTraceDifferentialPair(),
+    "coplanar_pair": new ColinearTraceCoplanarDifferentialPair(),
+  };
+
+  type K1 = keyof typeof colinear_trace_templates;
+  class ColinearEditor implements SelectedMap<K1, ColinearTraceTemplate> {
+    _selected: K1 = "single";
+    options = colinear_trace_templates;
+    keys = Object.keys(colinear_trace_templates) as K1[];
+    editor = new ColinearSignalEditor(
+      colinear_trace_templates[this._selected],
+      new ColinearLayerStripline(),
+    );
+    get selected() {
+      return this._selected;
+    }
+    set selected(selected) {
+      this._selected = selected;
+      this.editor.set_trace_template(this.value);
+    }
+    get value() {
+      return this.options[this.selected];
+    }
+  }
+  const colinear_editor = new ColinearEditor();
+
+  const editor = make_selected_map({
+    selected: "broadside",
+    options: {
+      broadside: broadside_editor,
+      colinear: colinear_editor,
+    },
+  });
+
+  return editor;
 }
 
-const editors = ref(new Editors());
+const selected_editor = ref(create_editor());
 
-const selected_editor = ref<EditorKey>("coplanar_diff");
-const editor = computed<VerticalStackupEditor>(() => {
-  return editors.value[selected_editor.value];
-});
+const editor = computed<BaseStackupEditor>(() => selected_editor.value.value.editor);
+const selected_trace_template = computed(() => selected_editor.value.value);
 
 const simulation_stackup = computed(() => editor.value.get_simulation_stackup());
 const is_viewer_hover = ref<boolean>(false);
@@ -208,9 +272,14 @@ function download_ndarray(link: DownloadLink) {
               <div class="min-w-[18rem]">
                 <div class="mb-2 w-full flex flex-row">
                   <div><b>Layout: </b></div>
-                  <select v-model="selected_editor">
-                    <option v-for="option in editor_keys" :value="option" :key="option">
-                      {{ editor_key_to_name(option) }}
+                  <select v-model="selected_editor.selected">
+                    <option v-for="option in selected_editor.keys" :value="option" :key="option">
+                      {{ option }}
+                    </option>
+                  </select>
+                  <select v-model="selected_trace_template.selected">
+                    <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
+                      {{ option }}
                     </option>
                   </select>
                 </div>

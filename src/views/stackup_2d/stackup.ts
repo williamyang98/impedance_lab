@@ -47,12 +47,16 @@ export type TraceId = number;
 
 export type Voltage = "ground" | "positive" | "negative";
 
+export interface TracePosition {
+  layer_id: LayerId;
+  orientation: Orientation;
+}
+
 // conductors
 export interface CopperTrace {
   id: TraceId;
   width: SizeParameter;
-  orientation: Orientation;
-  layer_id: LayerId;
+  position: TracePosition;
   voltage: Voltage;
   viewer?: {
     display?: "none" | "solid" | "selectable",
@@ -65,8 +69,7 @@ export interface CopperTrace {
 
 export interface CopperPlane {
   height: SizeParameter;
-  orientation: Orientation;
-  layer_id: LayerId;
+  position: TracePosition;
   voltage: Voltage;
   layout?: {
     shrink_trace_layer?: boolean;

@@ -255,14 +255,14 @@ export function create_layout_from_stackup(
   const conductor_in_layer_table: Partial<Record<LayerId, Set<Orientation>>> = {};
   const plane_in_layer_table: Partial<Record<LayerId, Partial<Record<Orientation, CopperPlane>>>> = {};
   for (const conductor of stackup.conductors) {
-    const layer_id = conductor.layer_id;
+    const layer_id = conductor.position.layer_id;
     {
       let orientations = conductor_in_layer_table[layer_id];
       if (orientations === undefined) {
         orientations = new Set();
         conductor_in_layer_table[layer_id] = orientations;
       }
-      orientations.add(conductor.orientation);
+      orientations.add(conductor.position.orientation);
     }
     if (conductor.type == "plane" && conductor.layout?.shrink_trace_layer !== false) {
       let orientations = plane_in_layer_table[layer_id];
@@ -270,7 +270,7 @@ export function create_layout_from_stackup(
         orientations = {};
         plane_in_layer_table[layer_id] = orientations;
       }
-      orientations[conductor.orientation] = conductor;
+      orientations[conductor.position.orientation] = conductor;
     }
   }
   const is_conductor_here = (layer_id: LayerId, orientation: Orientation) => {
@@ -495,13 +495,13 @@ export function create_layout_from_stackup(
   for (const conductor of stackup.conductors) {
     switch (conductor.type) {
       case "plane": {
-        const layer_id = conductor.layer_id;
+        const layer_id = conductor.position.layer_id;
         const layer_layout = layer_layout_table[layer_id];
         if (layer_layout === undefined) throw Error(`Plane references missing layer layout id ${layer_id}`);
         const plane_height = get_size(conductor.height);
         const y_start = layer_layout.bounding_box.y_start;
         const y_end = y_start+layer_layout.bounding_box.height;
-        const plane_y_region = conductor.orientation == "up" ? {
+        const plane_y_region = conductor.position.orientation == "up" ? {
           y_start: y_start,
           y_end: y_start+plane_height,
         } : {
@@ -519,7 +519,7 @@ export function create_layout_from_stackup(
         break;
       }
       case "trace": {
-        const layer_id = conductor.layer_id;
+        const layer_id = conductor.position.layer_id;
         const layer_layout = layer_layout_table[layer_id];
         if (layer_layout === undefined) throw Error(`Plane references invalid layer layout id ${layer_id}`);
         const x_region = trace_x_region_table[conductor.id];
@@ -530,7 +530,7 @@ export function create_layout_from_stackup(
         if (trace_height === undefined) throw Error(`Plane references layer id without trace height ${layer_id}`);
         const y_start = layer_layout.bounding_box.y_start;
         const y_end = y_start+layer_layout.bounding_box.height;
-        const trapezoid_y_shape = conductor.orientation == "up" ? {
+        const trapezoid_y_shape = conductor.position.orientation == "up" ? {
           y_base: y_start,
           y_taper: y_start+trace_height,
         } : {
@@ -548,7 +548,7 @@ export function create_layout_from_stackup(
           },
         };
         layout.conductors.push({ type: "trace", ...trace_layout });
-        push_trace_layout(layer_id, conductor.orientation, trace_layout);
+        push_trace_layout(layer_id, conductor.position.orientation, trace_layout);
         break;
       }
     }
@@ -584,7 +584,7 @@ export function create_layout_from_stackup(
     const right_shape = right_trace_layout.shape;
 
     const y_mid =
-      (left_trace.layer_id == right_trace.layer_id) ?
+      (left_trace.position.layer_id == right_trace.position.layer_id) ?
       (left_shape.y_base+right_shape.y_base)/2 :
       (left_shape.y_base+left_shape.y_taper+right_shape.y_base+right_shape.y_taper)/4;
     const y_left =

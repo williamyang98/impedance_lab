@@ -167,14 +167,14 @@ export class Viewer {
       if (trace.viewer?.display === "none") continue;
 
       const x_min = trace_layout.shape.x_left_taper;
-      let orientations = layer_trace_x_min_table[trace.layer_id];
+      let orientations = layer_trace_x_min_table[trace.position.layer_id];
       if (orientations === undefined) {
         orientations = {};
-        layer_trace_x_min_table[trace.layer_id] = orientations;
+        layer_trace_x_min_table[trace.position.layer_id] = orientations;
       }
-      const old_x_min = orientations[trace.orientation];
+      const old_x_min = orientations[trace.position.orientation];
       if (old_x_min === undefined || old_x_min > x_min) {
-        orientations[trace.orientation] = x_min;
+        orientations[trace.position.orientation] = x_min;
       }
     }
     const get_layer_x_min = (layer_id: LayerId, orientation: Orientation): number => {
@@ -391,7 +391,7 @@ export class Viewer {
           const label = this.create_inline_width_label(offset, width, trace_width_name, drag_up);
           this.width_labels.push(label);
         }
-        const trace_taper_suffix = trace_taper_suffixes[trace.layer_id];
+        const trace_taper_suffix = trace_taper_suffixes[trace.position.layer_id];
         if (trace_taper_suffix) {
           const offset: Position = { x: shape.x_left_taper, y: shape.y_taper };
           const width = shape.x_right_taper-shape.x_left_taper;
@@ -434,7 +434,7 @@ export class Viewer {
     const trace_orientations: Partial<Record<TraceId, Orientation>> = {};
     for (const trace_layout of this.layout.conductors.filter(conductor => conductor.type == "trace")) {
       const trace = trace_layout.parent;
-      trace_orientations[trace.id] = trace.orientation;
+      trace_orientations[trace.id] = trace.position.orientation;
     }
 
     const viewer_traces: Partial<Record<TraceId, CopperTrace>> = {};

@@ -30,11 +30,11 @@ const form = computed<Form>(() => {
   for (const conductor of stackup.conductors) {
     switch (conductor.type) {
       case "trace": {
-        layers_with_traces.add(conductor.layer_id);
+        layers_with_traces.add(conductor.position.layer_id);
         break;
       }
       case "plane": {
-        layers_with_plane.add(conductor.layer_id);
+        layers_with_plane.add(conductor.position.layer_id);
         break;
       }
     }

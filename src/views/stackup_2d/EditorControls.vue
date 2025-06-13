@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { VerticalStackupEditor, type LayerType } from "./stackup_templates.ts";
+import { BaseStackupEditor, type LayerType } from "./stackup_templates.ts";
 import { computed, defineProps } from "vue";
 
 const { editor } = defineProps<{
-  editor: VerticalStackupEditor,
+  editor: BaseStackupEditor,
 }>();
 
 const layers = computed(() => editor.layers.map((layer, index) => {
