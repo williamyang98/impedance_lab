@@ -53,24 +53,13 @@ interface SelectedMap<K extends string, V> {
   keys: K[];
 }
 
-function make_selected_map<K extends string, V, U extends K>(
-  instance: { selected: U, options: Record<K, V> }
-): SelectedMap<K, V> {
-  const wrapped = {
-    selected: instance.selected as K,
-    options: instance.options,
-    get value(): V {
-      return this.options[this.selected];
-    },
-    get keys(): K[] {
-      return Object.keys(this.options) as K[];
-    },
-  };
-  return wrapped;
-}
-
 function create_editor() {
   const parameters = new StackupParameters();
+
+  function mark_parameter_changed(param: Parameter) {
+    param.old_value = undefined;
+    param.error = undefined;
+  }
 
   const broadside_trace_templates = {
     "pair": new BroadsideTracePair(),
@@ -95,6 +84,7 @@ function create_editor() {
     set selected(selected) {
       this._selected = selected;
       this.editor.set_trace_template(this.value);
+      this.editor.parameters.map(mark_parameter_changed);
     }
     get value() {
       return this.options[this.selected];
@@ -125,6 +115,7 @@ function create_editor() {
     set selected(selected) {
       this._selected = selected;
       this.editor.set_trace_template(this.value);
+      this.editor.parameters.map(mark_parameter_changed);
     }
     get value() {
       return this.options[this.selected];
@@ -132,14 +123,30 @@ function create_editor() {
   }
   const colinear_editor = new ColinearEditor();
 
-  const editor = make_selected_map({
-    selected: "broadside",
-    options: {
-      broadside: broadside_editor,
-      colinear: colinear_editor,
-    },
-  });
+  const editors = {
+    broadside: broadside_editor,
+    colinear: colinear_editor,
+  };
 
+  type K2 = keyof typeof editors;
+  type V2 = typeof editors[K2];
+  class Editor implements SelectedMap<K2, V2> {
+    _selected: K2 = "colinear";
+    options = editors;
+    keys = Object.keys(editors) as K2[];
+    parameters: StackupParameters = parameters;
+    get selected() {
+      return this._selected;
+    }
+    set selected(selected) {
+      this._selected = selected;
+      this.parameters.map(mark_parameter_changed);
+    }
+    get value() {
+      return this.options[this.selected];
+    }
+  }
+  const editor = new Editor();
   return editor;
 }
 

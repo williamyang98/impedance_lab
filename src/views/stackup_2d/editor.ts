@@ -15,8 +15,8 @@ import {
 } from "./stackup.ts";
 import { sizes } from "./viewer.ts";
 
-export class ParameterCache<K extends string | number, V> {
-  cache: Partial<Record<K, V>> = {};
+export class ParameterCache<K extends string | number, V extends Parameter> {
+  cache = new Map<K, V>();
   ctor: (key: K) => V;
 
   constructor(ctor: (key: K) => V) {
@@ -24,13 +24,19 @@ export class ParameterCache<K extends string | number, V> {
   }
 
   get(key: K): V {
-    let value: V | undefined = this.cache[key];
+    let value = this.cache.get(key);
     if (value !== undefined) {
       return value;
     }
     value = this.ctor(key);
-    this.cache[key] = value;
+    this.cache.set(key, value);
     return value;
+  }
+
+  map(func: (param: Parameter) => void) {
+    for (const param of this.cache.values()) {
+      func(param);
+    }
   }
 }
 
@@ -267,6 +273,20 @@ export class StackupParameters {
       value: 0.25,
       placeholder_value: sizes.ground_width_separation,
     };
+  }
+
+  map(func: (param: Parameter) => void) {
+    this.dW.map(func);
+    this.T.map(func);
+    this.SH.map(func);
+    this.H.map(func);
+    this.ER.map(func);
+    func(this.PH);
+    func(this.W);
+    func(this.CW);
+    func(this.S);
+    func(this.B);
+    func(this.CS);
   }
 }
 
