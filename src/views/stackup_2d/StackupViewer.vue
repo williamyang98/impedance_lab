@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineProps, computed, ref, watch } from "vue";
-import { type Stackup, type SizeParameter } from "./stackup.ts";
+import { type Stackup, type SizeParameter, type TaperSizeParameter } from "./stackup.ts";
 import { create_layout_from_stackup, type TrapezoidShape, type SoldermaskLayerLayout, type Position } from "./layout.ts";
 import { Viewer, font_size } from "./viewer.ts";
 
@@ -9,7 +9,7 @@ const props = defineProps<{
 }>();
 
 const viewer = computed(() => {
-  const get_size = (param: SizeParameter): number => {
+  const get_size = (param: SizeParameter | TaperSizeParameter): number => {
     return param.placeholder_value;
   };
   const layout = create_layout_from_stackup(props.stackup, get_size);

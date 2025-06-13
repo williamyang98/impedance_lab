@@ -1,6 +1,6 @@
 import {
   type Stackup,
-  type SizeParameter,
+  type SizeParameter, type TaperSizeParameter,
   type Orientation, type LayerId, type TraceId,
   type HorizontalSpacing, type AttachPoint,
   type CopperTrace, type CopperPlane,
@@ -111,7 +111,7 @@ export interface StackupLayout {
 
 export function create_layout_from_stackup(
   stackup: Stackup,
-  get_size: (size_param: SizeParameter) => number,
+  get_size: (size_param: SizeParameter | TaperSizeParameter) => number,
   profiler?: Profiler,
 ): StackupLayout {
   const layout: StackupLayout = {

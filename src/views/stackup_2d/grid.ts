@@ -1,4 +1,4 @@
-import { type Parameter, type Voltage } from "./stackup.ts";
+import { type EpsilonParameter, type Voltage } from "./stackup.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 
@@ -112,7 +112,7 @@ export class StackupGrid {
 
   constructor(
     layout: StackupLayout,
-    get_epsilon: (param: Parameter) => number,
+    get_epsilon: (param: EpsilonParameter) => number,
     profiler: Profiler | undefined,
   ) {
     this.layout = layout;
@@ -169,7 +169,7 @@ export class StackupGrid {
     }
   };
 
-  setup_create_dielectric_regions(get_epsilon: (param: Parameter) => number): DielectricRegion[] {
+  setup_create_dielectric_regions(get_epsilon: (param: EpsilonParameter) => number): DielectricRegion[] {
     this.profiler?.begin("create_dielectric_regions");
     const dielectric_regions: DielectricRegion[] = [];
     for (const layer_layout of this.layout.layers) {

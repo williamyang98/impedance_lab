@@ -10,11 +10,18 @@ export interface Parameter {
 }
 
 export interface SizeParameter extends Parameter {
+  type: "size";
   placeholder_value: number;
 }
 
-export interface TaperSizeParameter extends SizeParameter {
+export interface TaperSizeParameter extends Parameter {
+  type: "taper";
+  placeholder_value: number;
   taper_suffix?: string;
+}
+
+export interface EpsilonParameter extends Parameter {
+  type: "epsilon";
 }
 
 export function validate_parameter(param: Parameter) {
@@ -121,7 +128,7 @@ export interface SoldermaskLayer {
   trace_height: SizeParameter;
   trace_taper: TaperSizeParameter;
   height: SizeParameter;
-  epsilon: Parameter;
+  epsilon: EpsilonParameter;
   orientation: Orientation;
 }
 
@@ -129,7 +136,7 @@ export interface CoreLayer {
   type: "core",
   id: LayerId;
   height: SizeParameter;
-  epsilon: Parameter;
+  epsilon: EpsilonParameter;
 }
 
 export interface PrepregLayer {
@@ -138,7 +145,7 @@ export interface PrepregLayer {
   height: SizeParameter;
   trace_height: SizeParameter;
   trace_taper: TaperSizeParameter;
-  epsilon: Parameter;
+  epsilon: EpsilonParameter;
 }
 
 export type Layer = UnmaskedLayer | SoldermaskLayer | CoreLayer | PrepregLayer;

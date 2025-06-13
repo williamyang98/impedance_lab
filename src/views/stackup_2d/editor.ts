@@ -11,7 +11,7 @@ import {
   type TracePosition,
   type CopperTrace,
   type CopperPlane,
-  type SizeParameter, type TaperSizeParameter, type Parameter,
+  type SizeParameter, type TaperSizeParameter, type Parameter, type EpsilonParameter,
 } from "./stackup.ts";
 import { sizes } from "./viewer.ts";
 
@@ -175,7 +175,7 @@ export class StackupParameters {
   T: ParameterCache<number, SizeParameter>;
   SH: ParameterCache<number, SizeParameter>;
   H: ParameterCache<number, SizeParameter>;
-  ER: ParameterCache<number, Parameter>;
+  ER: ParameterCache<number, EpsilonParameter>;
   PH: SizeParameter;
   W: SizeParameter;
   CW: SizeParameter;
@@ -186,6 +186,7 @@ export class StackupParameters {
   constructor() {
     this.dW = new ParameterCache((i: number) => {
       return {
+        type: "taper",
         parent: this,
         get name() { return `dW${this.parent.get_index(i)}`; },
         description: "Trace taper",
@@ -197,6 +198,7 @@ export class StackupParameters {
     });
     this.T = new ParameterCache((i: number) => {
       return {
+        type: "size",
         parent: this,
         get name() { return `T${this.parent.get_index(i)}`; },
         description: "Trace thickness",
@@ -207,6 +209,7 @@ export class StackupParameters {
     });
     this.SH = new ParameterCache((i: number) => {
       return {
+        type: "size",
         parent: this,
         get name() { return `H${this.parent.get_index(i)}` },
         description: "Soldermask thickness",
@@ -217,6 +220,7 @@ export class StackupParameters {
     });
     this.H = new ParameterCache((i: number) => {
       return {
+        type: "size",
         parent: this,
         get name() { return `H${this.parent.get_index(i)}`; },
         description: "Dielectric height",
@@ -227,6 +231,7 @@ export class StackupParameters {
     });
     this.ER = new ParameterCache((i: number) => {
       return {
+        type: "epsilon",
         parent: this,
         get name() { return `ER${this.parent.get_index(i)}`; },
         description: "Dielectric constant",
@@ -235,10 +240,12 @@ export class StackupParameters {
       };
     });
     this.PH = {
+      type: "size",
       value: 0.1,
       placeholder_value: sizes.copper_layer_height,
     };
     this.W = {
+      type: "size",
       name: "W",
       description: "Trace width",
       min: 0,
@@ -246,6 +253,7 @@ export class StackupParameters {
       placeholder_value: sizes.signal_trace_width,
     };
     this.CW = {
+      type: "size",
       name: "CW",
       description: "Coplanar ground width",
       min: 0,
@@ -253,6 +261,7 @@ export class StackupParameters {
       placeholder_value: sizes.ground_trace_width,
     };
     this.S = {
+      type: "size",
       name: "S",
       description: "Signal separation",
       min: 0,
@@ -260,6 +269,7 @@ export class StackupParameters {
       placeholder_value: sizes.signal_width_separation,
     };
     this.B = {
+      type: "size",
       name: "BS",
       description: "Broadside separation",
       min: 0,
@@ -267,6 +277,7 @@ export class StackupParameters {
       placeholder_value: sizes.broadside_width_separation,
     };
     this.CS = {
+      type: "size",
       name: "CS",
       description: "Coplanar ground separation",
       min: 0,
@@ -572,6 +583,7 @@ export class ColinearStackupEditor extends StackupEditor {
       left_trace: { id: left, attach: "left" },
       right_trace: { id: right, attach: "left" },
       width: {
+        type: "size",
         placeholder_value: 0,
       },
     }
