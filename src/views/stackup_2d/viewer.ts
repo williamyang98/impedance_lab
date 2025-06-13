@@ -177,15 +177,29 @@ export class Viewer {
         orientations[trace.position.orientation] = x_min;
       }
     }
-    const get_layer_x_min = (layer_id: LayerId, orientation: Orientation): number => {
+    const get_trace_taper_overhang = (layer_id: LayerId, orientation: Orientation): number => {
       const x_min = layer_trace_x_min_table[layer_id]?.[orientation];
       if (x_min === undefined) return this.stackup.x_min;
-      return x_min;
-    };
-    const get_layer_label_overhang = (layer_id: LayerId, orientation: Orientation): number => {
-      const x_min = get_layer_x_min(layer_id, orientation);
       return x_min-this.stackup.x_min;
     };
+
+    // if there are any layers with dielectric material change overhang of label connecting to stackup
+    // the only time this isn't true is if we have floating unmasked traces
+    let dielectric_x_min: number = Infinity;
+    for (const layer_layout of this.layout.layers) {
+      if (layer_layout.type !== "unmasked") {
+        dielectric_x_min = this.stackup.x_min;
+        break;
+      }
+    }
+    if (dielectric_x_min == Infinity) {
+      for (const trace_layout of this.layout.conductors.filter(conductor => conductor.type == "trace")) {
+        const trace = trace_layout.parent;
+        if (trace.viewer?.display === "none") continue;
+        dielectric_x_min = Math.min(dielectric_x_min, trace_layout.shape.x_left);
+      }
+    }
+    const dielectric_overhang = dielectric_x_min-this.stackup.x_min;
 
     for (const layer_layout of this.layout.layers) {
       switch (layer_layout.type) {
@@ -195,12 +209,12 @@ export class Viewer {
           const height = layer_layout.bounding_box.height;
           const is_copper_plane = layer_layout.is_copper_plane;
           if (height > 0 && !is_copper_plane && text) {
-            const overhang = get_layer_label_overhang(layer.id, layer.orientation);
+            const trace_taper_overhang = get_trace_taper_overhang(layer.id, layer.orientation);
             this.height_labels.push({
               y_offset: layer_layout.bounding_box.y_start,
               height: layer_layout.bounding_box.height,
-              overhang_top: layer.orientation == "up" ? 0 : overhang,
-              overhang_bottom: layer.orientation == "up" ? overhang: 0,
+              overhang_top: layer.orientation == "up" ? dielectric_overhang : trace_taper_overhang,
+              overhang_bottom: layer.orientation == "up" ? trace_taper_overhang: dielectric_overhang,
               text,
             })
           }
@@ -217,14 +231,14 @@ export class Viewer {
               const trace_height = Math.abs(trace.y_base-trace.y_taper);
               const trace_height_name = get_name(layer.trace_height);
               const y_start = layer_layout.bounding_box.y_start;
-              const arm_overhang = get_layer_label_overhang(layer.id, layer.orientation);
+              const trace_taper_overhang = get_trace_taper_overhang(layer.id, layer.orientation);
               if (layer.orientation == "down") {
                 if (soldermask_height_name) {
                   this.height_labels.push({
                     y_offset: y_start,
                     height: soldermask_height,
-                    overhang_top: arm_overhang,
-                    overhang_bottom: arm_overhang,
+                    overhang_top: trace_taper_overhang,
+                    overhang_bottom: trace_taper_overhang,
                     text: soldermask_height_name,
                   });
                 }
@@ -232,8 +246,8 @@ export class Viewer {
                   this.height_labels.push({
                     y_offset: y_start+soldermask_height,
                     height: trace_height,
-                    overhang_top: arm_overhang,
-                    overhang_bottom: 0,
+                    overhang_top: trace_taper_overhang,
+                    overhang_bottom: dielectric_overhang,
                     text: trace_height_name,
                   });
                 }
@@ -242,8 +256,8 @@ export class Viewer {
                   this.height_labels.push({
                     y_offset: y_start,
                     height: trace_height,
-                    overhang_top: 0,
-                    overhang_bottom: arm_overhang,
+                    overhang_top: dielectric_overhang,
+                    overhang_bottom: trace_taper_overhang,
                     text: trace_height_name,
                   });
                 }
@@ -251,8 +265,8 @@ export class Viewer {
                   this.height_labels.push({
                     y_offset: y_start+trace_height,
                     height: soldermask_height,
-                    overhang_top: arm_overhang,
-                    overhang_bottom: arm_overhang,
+                    overhang_top: trace_taper_overhang,
+                    overhang_bottom: trace_taper_overhang,
                     text: soldermask_height_name,
                   });
                 }
@@ -263,8 +277,8 @@ export class Viewer {
                 this.height_labels.push({
                   y_offset: layer_layout.mask.surface.y_start,
                   height: soldermask_height,
-                  overhang_top: 0,
-                  overhang_bottom: 0,
+                  overhang_top: dielectric_overhang,
+                  overhang_bottom: dielectric_overhang,
                   text: soldermask_height_name,
                 });
               }
@@ -280,8 +294,8 @@ export class Viewer {
             this.height_labels.push({
               y_offset: layer_layout.bounding_box.y_start,
               height: layer_layout.bounding_box.height,
-              overhang_top: 0,
-              overhang_bottom: 0,
+              overhang_top: dielectric_overhang,
+              overhang_bottom: dielectric_overhang,
               text,
             })
           }
@@ -292,12 +306,12 @@ export class Viewer {
           const trace_height_name = get_name(layer.trace_height);
           const layer_height_name = get_name(layer.height);
           if (!layer_layout.top.is_copper_plane && trace_height_name) {
-            const arm_overhang = get_layer_label_overhang(layer.id, "up");
+            const trace_taper_overhang = get_trace_taper_overhang(layer.id, "up");
             this.height_labels.push({
               y_offset: layer_layout.top.shape.y_start,
               height: layer_layout.top.shape.height,
-              overhang_top: 0,
-              overhang_bottom: arm_overhang,
+              overhang_top: dielectric_overhang,
+              overhang_bottom: trace_taper_overhang,
               text: trace_height_name,
             })
           }
@@ -305,18 +319,18 @@ export class Viewer {
             this.height_labels.push({
               y_offset: layer_layout.middle_shape.y_start,
               height: layer_layout.middle_shape.height,
-              overhang_top: 0,
-              overhang_bottom: 0,
+              overhang_top: dielectric_overhang,
+              overhang_bottom: dielectric_overhang,
               text: layer_height_name,
             })
           }
           if (!layer_layout.bottom.is_copper_plane && trace_height_name) {
-            const arm_overhang = get_layer_label_overhang(layer.id, "down");
+            const trace_taper_overhang = get_trace_taper_overhang(layer.id, "down");
             this.height_labels.push({
               y_offset: layer_layout.bottom.shape.y_start,
               height: layer_layout.bottom.shape.height,
-              overhang_top: arm_overhang,
-              overhang_bottom: 0,
+              overhang_top: trace_taper_overhang,
+              overhang_bottom: dielectric_overhang,
               text: trace_height_name,
             })
           }
