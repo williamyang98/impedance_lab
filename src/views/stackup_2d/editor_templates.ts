@@ -1,0 +1,267 @@
+import {
+  type HorizontalSpacing,
+  type Voltage,
+  type TracePosition,
+  type Layer,
+} from "./stackup.ts";
+import {
+  StackupParameters,
+  create_layer,
+  create_ground_plane_conductor,
+  type IdStore,
+  type TraceConductor,
+  type PlaneConductor,
+  type ColinearTrace,
+  type ColinearLayerTemplate,
+  type ColinearTraceTemplate,
+  type BroadsideTrace,
+  type BroadsideLayerTemplate,
+  type BroadsideTraceTemplate,
+} from "./editor.ts";
+
+export class ColinearTraceDifferentialPair implements ColinearTraceTemplate {
+  create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
+    const ids = Array.from({ length: 2 }, (_) => id_store.own());
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], position, width: params.W, voltage: "positive" },
+      { type: "trace", id: ids[1], position, width: params.W, voltage: "negative" },
+    ];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: params.S },
+    ];
+    return { position, conductors, spacings };
+  }
+}
+
+export class ColinearTraceCoplanarDifferentialPair implements ColinearTraceTemplate {
+  create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
+    const ids = Array.from({ length: 4 }, (_) => id_store.own());
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], position, width: params.CW, voltage: "ground" },
+      { type: "trace", id: ids[1], position, width: params.W, voltage: "positive" },
+      { type: "trace", id: ids[2], position, width: params.W, voltage: "negative" },
+      { type: "trace", id: ids[3], position, width: params.CW, voltage: "ground" },
+    ];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: params.CS },
+      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: params.S },
+      { left_trace: { id: ids[2], attach: "right" }, right_trace: { id: ids[3], attach: "left" }, width: params.CS },
+    ];
+    return { position, conductors, spacings };
+  }
+}
+
+export class ColinearTraceSingleEnded implements ColinearTraceTemplate {
+  create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
+    const ids = Array.from({ length: 1 }, (_) => id_store.own());
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], position, width: params.W, voltage: "positive" },
+    ];
+    const spacings: HorizontalSpacing[] = [];
+    return { position, conductors, spacings };
+
+  }
+}
+
+export class ColinearTraceCoplanarSingleEnded implements ColinearTraceTemplate {
+  create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
+    const ids = Array.from({ length: 3 }, (_) => id_store.own());
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], position, width: params.CW, voltage: "ground" },
+      { type: "trace", id: ids[1], position, width: params.W, voltage: "positive" },
+      { type: "trace", id: ids[2], position, width: params.CW, voltage: "ground" },
+    ];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: params.CS },
+      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: params.CS },
+    ];
+    return { position, conductors, spacings };
+  }
+}
+
+export class ColinearLayerMicrostrip implements ColinearLayerTemplate {
+  create(params: StackupParameters, id_store: IdStore): {
+    layers: Layer[],
+    plane_conductors: PlaneConductor[],
+    trace_position: TracePosition,
+  } {
+    const layer_0 = create_layer(params, "soldermask", id_store.own(), "down");
+    const layer_1 = create_layer(params, "core", id_store.own(), "down");
+    const layer_2 = create_layer(params, "unmasked", id_store.own(), "up");
+
+    const plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: "up" });
+
+    return {
+      layers: [layer_0, layer_1, layer_2],
+      plane_conductors: [plane],
+      trace_position: { layer_id: layer_0.id, orientation: "down" },
+    };
+  };
+}
+
+export class ColinearLayerStripline implements ColinearLayerTemplate {
+  create(params: StackupParameters, id_store: IdStore): {
+    layers: Layer[],
+    plane_conductors: PlaneConductor[],
+    trace_position: TracePosition,
+  } {
+    const layer_0 = create_layer(params, "prepreg", id_store.own(), "up");
+    const layer_1 = create_layer(params, "core", id_store.own(), "up");
+    const layer_2 = create_layer(params, "unmasked", id_store.own(), "up");
+
+    const top_plane = create_ground_plane_conductor(params, { layer_id: layer_0.id, orientation: "up" });
+    const bottom_plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: "up" });
+
+    return {
+      layers: [layer_0, layer_1, layer_2],
+      plane_conductors: [top_plane, bottom_plane],
+      trace_position: { layer_id: layer_0.id, orientation: "down" },
+    };
+  };
+}
+
+export class BroadsideLayerMicrostrip implements BroadsideLayerTemplate {
+  create(params: StackupParameters, id_store: IdStore): {
+    layers: Layer[],
+    plane_conductors: PlaneConductor[],
+    left_trace_position: TracePosition,
+    right_trace_position: TracePosition,
+  } {
+    const layer_0 = create_layer(params, "soldermask", id_store.own(), "down");
+    const layer_1 = create_layer(params, "core", id_store.own(), "down");
+    const layer_2 = create_layer(params, "soldermask", id_store.own(), "up");
+
+    return {
+      layers: [layer_0, layer_1, layer_2],
+      plane_conductors: [],
+      left_trace_position: { layer_id: layer_0.id, orientation: "down" },
+      right_trace_position: { layer_id: layer_2.id, orientation: "up" },
+    };
+  }
+}
+
+export class BroadsideLayerStripline implements BroadsideLayerTemplate {
+  create(params: StackupParameters, id_store: IdStore): {
+    layers: Layer[],
+    plane_conductors: PlaneConductor[],
+    left_trace_position: TracePosition,
+    right_trace_position: TracePosition,
+  } {
+    const layer_0 = create_layer(params, "prepreg", id_store.own(), "down");
+    const layer_1 = create_layer(params, "core", id_store.own(), "down");
+    const layer_2 = create_layer(params, "prepreg", id_store.own(), "down");
+
+    const top_plane = create_ground_plane_conductor(params, { layer_id: layer_0.id, orientation: "up" });
+    const bottom_plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: "down" });
+
+    return {
+      layers: [layer_0, layer_1, layer_2],
+      plane_conductors: [top_plane, bottom_plane],
+      left_trace_position: { layer_id: layer_0.id, orientation: "down" },
+      right_trace_position: { layer_id: layer_2.id, orientation: "up" },
+    };
+  }
+}
+
+function get_opposite_voltage(voltage: Voltage): Voltage {
+  if (voltage !== "positive" && voltage !== "negative") {
+    throw Error(`Cannot get the opposite voltage for ${voltage}`)
+  }
+  return (voltage == "positive") ? "negative" : "positive";
+}
+
+export class BroadsideTracePair implements BroadsideTraceTemplate {
+  create_traces(params: StackupParameters, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
+    const ids = Array.from({ length: 1 }, (_) => id_store.own());
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], position, width: params.W, voltage: signal_voltage },
+    ];
+    const root = conductors[0];
+    const spacings: HorizontalSpacing[] = [];
+    return { position, root, conductors, spacings };
+  }
+
+  create_left(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(params, position, "positive", id_store);
+  }
+
+  create_right(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(params, position, "negative", id_store);
+  }
+}
+
+export class BroadsideTraceCoplanarPair implements BroadsideTraceTemplate {
+  create_traces(params: StackupParameters, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
+    const ids = Array.from({ length: 3 }, (_) => id_store.own());
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], position, width: params.CW, voltage: "ground" },
+      { type: "trace", id: ids[1], position, width: params.W, voltage: signal_voltage },
+      { type: "trace", id: ids[2], position, width: params.CW, voltage: "ground" },
+    ];
+    const root = conductors[1];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: params.CS },
+      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: params.CS },
+    ];
+    return { position, root, conductors, spacings };
+  }
+
+  create_left(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(params, position, "positive", id_store);
+  }
+
+  create_right(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(params, position, "negative", id_store);
+  }
+}
+
+export class BroadsideTraceMirroredPair implements BroadsideTraceTemplate {
+  create_traces(params: StackupParameters, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
+    const ids = Array.from({ length: 2 }, (_) => id_store.own());
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], position, width: params.W, voltage: signal_voltage },
+      { type: "trace", id: ids[1], position, width: params.W, voltage: get_opposite_voltage(signal_voltage) },
+    ];
+    const root = conductors[0];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: params.S },
+    ];
+    return { position, root, conductors, spacings };
+  }
+
+  create_left(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(params, position, "positive", id_store);
+  }
+
+  create_right(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(params, position, "negative", id_store);
+  }
+}
+
+export class BroadsideTraceCoplanarMirroredPair implements BroadsideTraceTemplate {
+  create_traces(params: StackupParameters, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
+    const ids = Array.from({ length: 4 }, (_) => id_store.own());
+    const conductors: TraceConductor[] = [
+      { type: "trace", id: ids[0], position, width: params.CW, voltage: "ground" },
+      { type: "trace", id: ids[1], position, width: params.W, voltage: signal_voltage },
+      { type: "trace", id: ids[2], position, width: params.W, voltage: get_opposite_voltage(signal_voltage) },
+      { type: "trace", id: ids[3], position, width: params.CW, voltage: "ground" },
+    ];
+    const root = conductors[1];
+    const spacings: HorizontalSpacing[] = [
+      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: params.CS },
+      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: params.S },
+      { left_trace: { id: ids[2], attach: "right" }, right_trace: { id: ids[3], attach: "left" }, width: params.CS },
+    ];
+    return { position, root, conductors, spacings };
+
+  }
+
+  create_left(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(params, position, "positive", id_store);
+  }
+
+  create_right(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace {
+    return this.create_traces(params, position, "negative", id_store);
+  }
+}

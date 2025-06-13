@@ -4,38 +4,35 @@ import {
   type Conductor,
   type Layer,
   type HorizontalSpacing,
-  type Voltage,
   type TracePosition,
+  type SizeParameter, type TaperSizeParameter, type Parameter,
 } from "./stackup.ts";
 import { sizes } from "./viewer.ts";
 
-class ParameterCache<K, V> {
-  cache: Partial<Record<string | number, V>> = {};
-  get_hash: (key: K) => string | number;
-  get_default_value: (key: K) => V;
+export class ParameterCache<K extends string | number, V> {
+  cache: Partial<Record<K, V>> = {};
+  ctor: (key: K) => V;
 
-  constructor(get_hash: (key: K) => string | number, get_default_value: (key: K) => V) {
-    this.get_hash = get_hash;
-    this.get_default_value = get_default_value;
+  constructor(ctor: (key: K) => V) {
+    this.ctor = ctor;
   }
 
   get(key: K): V {
-    const hash = this.get_hash(key);
-    let value = this.cache[hash];
+    let value: V | undefined = this.cache[key];
     if (value !== undefined) {
       return value;
     }
-    value = this.get_default_value(key);
-    this.cache[hash] = value;
+    value = this.ctor(key);
+    this.cache[key] = value;
     return value;
   }
 }
 
-interface IdStore {
+export interface IdStore {
   own(id?: number): number;
 }
 
-class ArenaIdStore {
+export class ArenaIdStore {
   occupied: Set<number> = new Set();
   curr_head: number = 0;
 
@@ -70,7 +67,7 @@ class ArenaIdStore {
   }
 }
 
-class BumpIdStore {
+export class BumpIdStore {
   curr_head: number = 0;
 
   own(id?: number): number {
@@ -151,130 +148,185 @@ const CommonRules = {
   },
 };
 
-function create_layer_parameters_cache() {
-  const id_to_index: Partial<Record<LayerId, number>> = {};
-  const get_index = (id: LayerId): number => {
-    const index  = id_to_index[id];
+export class StackupParameters {
+  id_to_index: Partial<Record<LayerId, number>> = {};
+
+  get_index(id: LayerId): number {
+    const index  = this.id_to_index[id];
     if (index === undefined) {
       throw Error(`Failed to get layer index of layer id ${id}`);
     }
     return index;
   }
 
-  return {
-    id_to_index,
-    dW: new ParameterCache(
-      (i: number) => i,
-      (i: number) => {
-        return {
-          get name() { return `dW${get_index(i)}`; },
-          description: "Trace taper",
-          get taper_suffix() { return `${get_index(i)}`; },
-          min: 0,
-          value: 0,
-          placeholder_value: sizes.trace_taper,
-        };
-      },
-    ),
-    T: new ParameterCache(
-      (i: number) => i,
-      (i: number) => {
-        return {
-          get name() { return `T${get_index(i)}`; },
-          description: "Trace thickness",
-          min: 0,
-          value: 0.035,
-          placeholder_value: sizes.trace_height,
-        };
-      },
-    ),
-    SH: new ParameterCache(
-      (i: number) => i,
-      (i: number) => {
-        return {
-          get name() { return `H${get_index(i)}` },
-          description: "Soldermask thickness",
-          min: 0,
-          value: 0.0152,
-          placeholder_value: sizes.soldermask_height,
-        };
-      },
-    ),
-    H: new ParameterCache(
-      (i: number) => i,
-      (i: number) => {
-        return {
-          get name() { return `H${get_index(i)}`; },
-          description: "Dielectric height",
-          min: 0,
-          value: 0.15,
-          placeholder_value: sizes.core_height,
-        };
-      },
-    ),
-    ER: new ParameterCache(
-      (i: number) => i,
-      (i: number) => {
-        return {
-          get name() { return `ER${get_index(i)}`; },
-          description: "Dielectric constant",
-          min: 1,
-          value: 4.1,
-        };
-      },
-    ),
-  }
-}
+  dW: ParameterCache<number, TaperSizeParameter>;
+  T: ParameterCache<number, SizeParameter>;
+  SH: ParameterCache<number, SizeParameter>;
+  H: ParameterCache<number, SizeParameter>;
+  ER: ParameterCache<number, Parameter>;
+  PH: SizeParameter;
+  W: SizeParameter;
+  CW: SizeParameter;
+  S: SizeParameter;
+  B: SizeParameter;
+  CS: SizeParameter;
 
-function create_conductor_parameters() {
-  return {
-    PH: { value: 0.1, placeholder_value: sizes.copper_layer_height },
-    W: {
-        name: "W",
-        description: "Trace width",
+  constructor() {
+    this.dW = new ParameterCache((i: number) => {
+      return {
+        parent: this,
+        get name() { return `dW${this.parent.get_index(i)}`; },
+        description: "Trace taper",
+        get taper_suffix() { return `${this.parent.get_index(i)}`; },
         min: 0,
-        value: 0.25,
-        placeholder_value: sizes.signal_trace_width,
-    },
-    CW: {
+        value: 0,
+        placeholder_value: sizes.trace_taper,
+      };
+    });
+    this.T = new ParameterCache((i: number) => {
+      return {
+        parent: this,
+        get name() { return `T${this.parent.get_index(i)}`; },
+        description: "Trace thickness",
+        min: 0,
+        value: 0.035,
+        placeholder_value: sizes.trace_height,
+      };
+    });
+    this.SH = new ParameterCache((i: number) => {
+      return {
+        parent: this,
+        get name() { return `H${this.parent.get_index(i)}` },
+        description: "Soldermask thickness",
+        min: 0,
+        value: 0.0152,
+        placeholder_value: sizes.soldermask_height,
+      };
+    });
+    this.H = new ParameterCache((i: number) => {
+      return {
+        parent: this,
+        get name() { return `H${this.parent.get_index(i)}`; },
+        description: "Dielectric height",
+        min: 0,
+        value: 0.15,
+        placeholder_value: sizes.core_height,
+      };
+    });
+    this.ER = new ParameterCache((i: number) => {
+      return {
+        parent: this,
+        get name() { return `ER${this.parent.get_index(i)}`; },
+        description: "Dielectric constant",
+        min: 1,
+        value: 4.1,
+      };
+    });
+    this.PH = {
+      value: 0.1,
+      placeholder_value: sizes.copper_layer_height,
+    };
+    this.W = {
+      name: "W",
+      description: "Trace width",
+      min: 0,
+      value: 0.25,
+      placeholder_value: sizes.signal_trace_width,
+    };
+    this.CW = {
       name: "CW",
       description: "Coplanar ground width",
       min: 0,
       value: 0.25,
       placeholder_value: sizes.ground_trace_width,
-    },
-    S: {
+    };
+    this.S = {
       name: "S",
       description: "Signal separation",
       min: 0,
       value: 0.25,
       placeholder_value: sizes.signal_width_separation,
-    },
-    B: {
+    };
+    this.B = {
       name: "BS",
       description: "Broadside separation",
       min: 0,
       value: 0,
       placeholder_value: sizes.broadside_width_separation,
-    },
-    CS: {
+    };
+    this.CS = {
       name: "CS",
       description: "Coplanar ground separation",
       min: 0,
       value: 0.25,
       placeholder_value: sizes.ground_width_separation,
-    },
+    };
   }
 }
 
-export abstract class BaseStackupEditor {
+export function create_layer(
+  params: StackupParameters, type: LayerType, layer_id: LayerId, orientation: Orientation,
+): Layer {
+  switch (type) {
+    case "core": {
+      return {
+        type: "core",
+        id: layer_id,
+        height: params.H.get(layer_id),
+        epsilon: params.ER.get(layer_id),
+      };
+    }
+    case "prepreg": {
+      return {
+        type: "prepreg",
+        id: layer_id,
+        height: params.H.get(layer_id),
+        epsilon: params.ER.get(layer_id),
+        trace_height: params.T.get(layer_id),
+        trace_taper: params.dW.get(layer_id),
+      };
+    }
+    case "soldermask": {
+      return {
+        type: "soldermask",
+        id: layer_id,
+        height: params.SH.get(layer_id),
+        epsilon: params.ER.get(layer_id),
+        trace_height: params.T.get(layer_id),
+        trace_taper: params.dW.get(layer_id),
+        orientation,
+      };
+    }
+    case "unmasked": {
+      return {
+        type: "unmasked",
+        id: layer_id,
+        trace_height: params.T.get(layer_id),
+        trace_taper: params.dW.get(layer_id),
+        orientation,
+      };
+    }
+  }
+}
+
+export function create_ground_plane_conductor(params: StackupParameters, position: TracePosition): PlaneConductor {
+  return {
+    type: "plane" ,
+    position,
+    height: params.PH,
+    voltage: "ground",
+  }
+}
+
+export abstract class StackupEditor {
   layers: Layer[] = [];
   layer_id = new ArenaIdStore();
-  layer_parameters_cache = create_layer_parameters_cache();
+  parameters: StackupParameters;
   plane_conductors: PlaneConductor[] = [];
-  conductor_parameters = create_conductor_parameters();
 
-  constructor() {}
+  constructor(parameters: StackupParameters) {
+    this.parameters = parameters;
+  }
 
   abstract get_sim_conductors(): Conductor[];
   abstract get_simulation_stackup(): Stackup;
@@ -288,56 +340,12 @@ export abstract class BaseStackupEditor {
     return [prev_layer, next_layer];
   }
 
-  create_layer(type: LayerType, layer_id: LayerId, orientation: Orientation): Layer {
-    const P = this.layer_parameters_cache;
-    switch (type) {
-      case "core": {
-        return {
-          type: "core",
-          id: layer_id,
-          height: P.H.get(layer_id),
-          epsilon: P.ER.get(layer_id),
-        };
-      }
-      case "prepreg": {
-        return {
-          type: "prepreg",
-          id: layer_id,
-          height: P.H.get(layer_id),
-          epsilon: P.ER.get(layer_id),
-          trace_height: P.T.get(layer_id),
-          trace_taper: P.dW.get(layer_id),
-        };
-      }
-      case "soldermask": {
-        return {
-          type: "soldermask",
-          id: layer_id,
-          height: P.SH.get(layer_id),
-          epsilon: P.ER.get(layer_id),
-          trace_height: P.T.get(layer_id),
-          trace_taper: P.dW.get(layer_id),
-          orientation,
-        };
-      }
-      case "unmasked": {
-        return {
-          type: "unmasked",
-          id: layer_id,
-          trace_height: P.T.get(layer_id),
-          trace_taper: P.dW.get(layer_id),
-          orientation,
-        };
-      }
-    }
-  }
-
   regenerate_layer_id_to_index() {
     // everytime a layer is removed/added we update the id to index map
     // this will be used to create new labels for the layers corresponding to their order in the stack
     for (let layer_index = 0; layer_index < this.layers.length; layer_index++) {
       const layer = this.layers[layer_index];
-      this.layer_parameters_cache.id_to_index[layer.id] = layer_index;
+      this.parameters.id_to_index[layer.id] = layer_index;
     }
   }
 
@@ -346,7 +354,7 @@ export abstract class BaseStackupEditor {
     const curr_layer = (layer_index < this.layers.length) ? this.layers[layer_index] : undefined;
     if (prev_layer && !CommonRules.can_layer_support_adjacent_layer(prev_layer, "down")) return undefined;
     if (curr_layer && !CommonRules.can_layer_support_adjacent_layer(curr_layer, "up")) return undefined;
-    const new_layer_temp = this.create_layer("prepreg", this.layer_id.borrow(), "down")
+    const new_layer_temp = create_layer(this.parameters, "prepreg", this.layer_id.borrow(), "down")
     return () => {
       this.layers.splice(layer_index, 0, new_layer_temp);
       this.layer_id.own(new_layer_temp.id);
@@ -358,7 +366,7 @@ export abstract class BaseStackupEditor {
     const layer = this.layers[layer_index];
     const [prev_layer, next_layer] = this.get_adjacent_layers(layer_index);
     const new_orientation: Orientation = (layer_index == 0) ? "down" : "up";
-    const new_layer_temp = this.create_layer(type, layer.id, new_orientation);
+    const new_layer_temp = create_layer(this.parameters, type, layer.id, new_orientation);
 
     if (prev_layer && !CommonRules.can_layer_support_adjacent_layer(new_layer_temp, "up")) return undefined;
     if (next_layer && !CommonRules.can_layer_support_adjacent_layer(new_layer_temp, "down")) return undefined;
@@ -400,15 +408,6 @@ export abstract class BaseStackupEditor {
     }
   }
 
-  create_ground_plane_conductor(position: TracePosition): PlaneConductor {
-    return {
-      type: "plane",
-      position,
-      height: this.conductor_parameters.PH,
-      voltage: "ground",
-    }
-  }
-
   // TODO: viewer styling and action bindings??? (why is this done separately???)
   make_plane_removable(plane: PlaneConductor) {
     plane.grid = {
@@ -431,7 +430,7 @@ export abstract class BaseStackupEditor {
       is_labeled: false,
       display: "selectable",
       on_click: () => {
-        const sim_plane = this.create_ground_plane_conductor(plane.position);
+        const sim_plane = create_ground_plane_conductor(this.parameters, plane.position);
         this.plane_conductors.push(sim_plane);
       },
     };
@@ -463,8 +462,8 @@ export abstract class BaseStackupEditor {
   }
 }
 
-type TraceConductor = Conductor & { type: "trace" };
-type PlaneConductor = Conductor & { type: "plane" };
+export type TraceConductor = Conductor & { type: "trace" };
+export type PlaneConductor = Conductor & { type: "plane" };
 
 export interface ColinearTrace {
   position: TracePosition;
@@ -473,124 +472,31 @@ export interface ColinearTrace {
 }
 
 export interface ColinearTraceTemplate {
-  create(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): ColinearTrace;
+  create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace;
 }
 
 export interface ColinearLayerTemplate {
-  create(base: BaseStackupEditor): TracePosition;
-}
-
-export class ColinearTraceDifferentialPair implements ColinearTraceTemplate {
-  create(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): ColinearTrace {
-    const ids = Array.from({ length: 2 }, (_) => id_store.own());
-    const p = base.conductor_parameters;
-    const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], position, width: p.W, voltage: "positive" },
-      { type: "trace", id: ids[1], position, width: p.W, voltage: "negative" },
-    ];
-    const spacings: HorizontalSpacing[] = [
-      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.S },
-    ];
-    return { position, conductors, spacings };
-  }
-}
-
-export class ColinearTraceCoplanarDifferentialPair implements ColinearTraceTemplate {
-  create(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): ColinearTrace {
-    const ids = Array.from({ length: 4 }, (_) => id_store.own());
-    const p = base.conductor_parameters;
-    const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], position, width: p.CW, voltage: "ground" },
-      { type: "trace", id: ids[1], position, width: p.W, voltage: "positive" },
-      { type: "trace", id: ids[2], position, width: p.W, voltage: "negative" },
-      { type: "trace", id: ids[3], position, width: p.CW, voltage: "ground" },
-    ];
-    const spacings: HorizontalSpacing[] = [
-      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
-      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: p.S },
-      { left_trace: { id: ids[2], attach: "right" }, right_trace: { id: ids[3], attach: "left" }, width: p.CS },
-    ];
-    return { position, conductors, spacings };
-  }
-}
-
-export class ColinearTraceSingleEnded implements ColinearTraceTemplate {
-  create(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): ColinearTrace {
-    const ids = Array.from({ length: 1 }, (_) => id_store.own());
-    const p = base.conductor_parameters;
-    const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], position, width: p.W, voltage: "positive" },
-    ];
-    const spacings: HorizontalSpacing[] = [];
-    return { position, conductors, spacings };
-
-  }
-}
-
-export class ColinearTraceCoplanarSingleEnded implements ColinearTraceTemplate {
-  create(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): ColinearTrace {
-    const ids = Array.from({ length: 3 }, (_) => id_store.own());
-    const p = base.conductor_parameters;
-    const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], position, width: p.CW, voltage: "ground" },
-      { type: "trace", id: ids[1], position, width: p.W, voltage: "positive" },
-      { type: "trace", id: ids[2], position, width: p.CW, voltage: "ground" },
-    ];
-    const spacings: HorizontalSpacing[] = [
-      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
-      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: p.CS },
-    ];
-    return { position, conductors, spacings };
-  }
-}
-
-export class ColinearLayerMicrostrip implements ColinearLayerTemplate {
-  create(base: BaseStackupEditor): TracePosition {
-    const layer_0 = base.create_layer("soldermask", base.layer_id.own(), "down");
-    const layer_1 = base.create_layer("core", base.layer_id.own(), "down");
-    const layer_2 = base.create_layer("unmasked", base.layer_id.own(), "up");
-
-    base.layers.push(layer_0);
-    base.layers.push(layer_1);
-    base.layers.push(layer_2);
-    base.regenerate_layer_id_to_index();
-
-    const plane = base.create_ground_plane_conductor({ layer_id: layer_2.id, orientation: "up" });
-    base.plane_conductors.push(plane);
-
-    return { layer_id: layer_0.id, orientation: "down" };
+  create(params: StackupParameters, id_store: IdStore): {
+    layers: Layer[],
+    plane_conductors: PlaneConductor[],
+    trace_position: TracePosition,
   };
 }
 
-export class ColinearLayerStripline implements ColinearLayerTemplate {
-  create(base: BaseStackupEditor): TracePosition {
-    const layer_0 = base.create_layer("prepreg", base.layer_id.own(), "up");
-    const layer_1 = base.create_layer("core", base.layer_id.own(), "up");
-    const layer_2 = base.create_layer("unmasked", base.layer_id.own(), "up");
-    base.layers.push(layer_0);
-    base.layers.push(layer_1);
-    base.layers.push(layer_2);
-    base.regenerate_layer_id_to_index();
-
-    const top_plane = base.create_ground_plane_conductor({ layer_id: layer_0.id, orientation: "up" });
-    const bottom_plane = base.create_ground_plane_conductor({ layer_id: layer_2.id, orientation: "up" });
-    base.plane_conductors.push(top_plane);
-    base.plane_conductors.push(bottom_plane);
-
-    return { layer_id: layer_0.id, orientation: "down" };
-  };
-}
-
-export class ColinearSignalEditor extends BaseStackupEditor {
+export class ColinearStackupEditor extends StackupEditor {
   trace_ids: ArenaIdStore = new ArenaIdStore();
   trace: ColinearTrace;
   trace_template: ColinearTraceTemplate;
 
-  constructor(trace_template: ColinearTraceTemplate, layer_template: ColinearLayerTemplate) {
-    super();
+  constructor(parameters: StackupParameters, trace_template: ColinearTraceTemplate, layer_template: ColinearLayerTemplate) {
+    super(parameters);
     this.trace_template = trace_template;
-    const trace_position = layer_template.create(this);
-    this.trace = this.trace_template.create(this, trace_position, this.trace_ids);
+    const { layers, plane_conductors, trace_position} = layer_template.create(this.parameters, this.layer_id);
+    this.layers = layers;
+    this.plane_conductors = plane_conductors;
+    this.regenerate_layer_id_to_index();
+
+    this.trace = this.trace_template.create(this.parameters, trace_position, this.trace_ids);
   }
 
   set_trace_template(trace_template: ColinearTraceTemplate) {
@@ -598,7 +504,7 @@ export class ColinearSignalEditor extends BaseStackupEditor {
     for (const trace of this.trace.conductors) {
       this.trace_ids.free(trace.id);
     }
-    this.trace = this.trace_template.create(this, this.trace.position, this.trace_ids);
+    this.trace = this.trace_template.create(this.parameters, this.trace.position, this.trace_ids);
   }
 
   override get_sim_conductors(): Conductor[] {
@@ -626,7 +532,7 @@ export class ColinearSignalEditor extends BaseStackupEditor {
         for (const old_conductor of this.trace.conductors) {
           this.trace_ids.free(old_conductor.id)
         }
-        const sim_trace = this.trace_template.create(this, conductor.position, this.trace_ids);
+        const sim_trace = this.trace_template.create(this.parameters, conductor.position, this.trace_ids);
         this.trace = sim_trace;
       });
     }
@@ -684,7 +590,7 @@ export class ColinearSignalEditor extends BaseStackupEditor {
 
         // add regular traces
         const new_position = { layer_id: layer.id, orientation };
-        const new_trace = this.trace_template.create(this, new_position, viewer_trace_ids);
+        const new_trace = this.trace_template.create(this.parameters, new_position, viewer_trace_ids);
         if (!is_shorting([...new_trace.conductors, ...this.plane_conductors])) {
           this.make_colinear_trace_conductors_selectable(new_trace);
           for (const conductor of new_trace.conductors) {
@@ -699,7 +605,7 @@ export class ColinearSignalEditor extends BaseStackupEditor {
         }
 
         // add ground plane
-        const new_plane = this.create_ground_plane_conductor(new_position);
+        const new_plane = create_ground_plane_conductor(this.parameters, new_position);
         if (!is_shorting([...sim_conductors, new_plane])) {
           this.make_plane_conductor_selectable(new_plane);
           viewer_conductors.push(new_plane);
@@ -723,174 +629,42 @@ export interface BroadsideTrace {
 }
 
 export interface BroadsideTraceTemplate {
-  create_left(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace;
-  create_right(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace;
+  create_left(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace;
+  create_right(params: StackupParameters, position: TracePosition, id_store: IdStore): BroadsideTrace;
 }
 
 export interface BroadsideLayerTemplate {
-  create(base: BaseStackupEditor): { left: TracePosition, right: TracePosition }
-}
-
-export class BroadsideLayerMicrostrip implements BroadsideLayerTemplate {
-  create(base: BaseStackupEditor): { left: TracePosition, right: TracePosition } {
-    const layer_0 = base.create_layer("soldermask", base.layer_id.own(), "down");
-    const layer_1 = base.create_layer("core", base.layer_id.own(), "down");
-    const layer_2 = base.create_layer("soldermask", base.layer_id.own(), "up");
-    base.layers.push(layer_0);
-    base.layers.push(layer_1);
-    base.layers.push(layer_2);
-    base.regenerate_layer_id_to_index();
-
-    return {
-      left: { layer_id: layer_0.id, orientation: "down" },
-      right: { layer_id: layer_2.id, orientation: "up" },
-    }
+  create(params: StackupParameters, id_store: IdStore): {
+    layers: Layer[],
+    plane_conductors: PlaneConductor[],
+    left_trace_position: TracePosition,
+    right_trace_position: TracePosition,
   }
 }
 
-export class BroadsideLayerStripline implements BroadsideLayerTemplate {
-  create(base: BaseStackupEditor): { left: TracePosition, right: TracePosition } {
-    const layer_0 = base.create_layer("prepreg", base.layer_id.own(), "down");
-    const layer_1 = base.create_layer("core", base.layer_id.own(), "down");
-    const layer_2 = base.create_layer("prepreg", base.layer_id.own(), "down");
-    base.layers.push(layer_0);
-    base.layers.push(layer_1);
-    base.layers.push(layer_2);
-    base.regenerate_layer_id_to_index();
-
-    const top_plane = base.create_ground_plane_conductor({ layer_id: layer_0.id, orientation: "up" });
-    const bottom_plane = base.create_ground_plane_conductor({ layer_id: layer_2.id, orientation: "down" });
-    base.plane_conductors.push(top_plane);
-    base.plane_conductors.push(bottom_plane);
-
-    return {
-      left: { layer_id: layer_0.id, orientation: "down" },
-      right: { layer_id: layer_2.id, orientation: "up" },
-    }
-  }
-}
-
-function get_opposite_voltage(voltage: Voltage): Voltage {
-  if (voltage !== "positive" && voltage !== "negative") {
-    throw Error(`Cannot get the opposite voltage for ${voltage}`)
-  }
-  return (voltage == "positive") ? "negative" : "positive";
-}
-
-export class BroadsideTracePair implements BroadsideTraceTemplate {
-  create_traces(base: BaseStackupEditor, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
-    const ids = Array.from({ length: 1 }, (_) => id_store.own());
-    const p = base.conductor_parameters;
-    const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], position, width: p.W, voltage: signal_voltage },
-    ];
-    const root = conductors[0];
-    const spacings: HorizontalSpacing[] = [];
-    return { position, root, conductors, spacings };
-  }
-
-  create_left(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(base, position, "positive", id_store);
-  }
-
-  create_right(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(base, position, "negative", id_store);
-  }
-}
-
-export class BroadsideTraceCoplanarPair implements BroadsideTraceTemplate {
-  create_traces(base: BaseStackupEditor, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
-    const ids = Array.from({ length: 3 }, (_) => id_store.own());
-    const p = base.conductor_parameters;
-    const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], position, width: p.CW, voltage: "ground" },
-      { type: "trace", id: ids[1], position, width: p.W, voltage: signal_voltage },
-      { type: "trace", id: ids[2], position, width: p.CW, voltage: "ground" },
-    ];
-    const root = conductors[1];
-    const spacings: HorizontalSpacing[] = [
-      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
-      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: p.CS },
-    ];
-    return { position, root, conductors, spacings };
-  }
-
-  create_left(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(base, position, "positive", id_store);
-  }
-
-  create_right(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(base, position, "negative", id_store);
-  }
-}
-
-export class BroadsideTraceMirroredPair implements BroadsideTraceTemplate {
-  create_traces(base: BaseStackupEditor, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
-    const ids = Array.from({ length: 2 }, (_) => id_store.own());
-    const p = base.conductor_parameters;
-    const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], position, width: p.W, voltage: signal_voltage },
-      { type: "trace", id: ids[1], position, width: p.W, voltage: get_opposite_voltage(signal_voltage) },
-    ];
-    const root = conductors[0];
-    const spacings: HorizontalSpacing[] = [
-      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.S },
-    ];
-    return { position, root, conductors, spacings };
-  }
-
-  create_left(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(base, position, "positive", id_store);
-  }
-
-  create_right(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(base, position, "negative", id_store);
-  }
-}
-
-export class BroadsideTraceCoplanarMirroredPair implements BroadsideTraceTemplate {
-  create_traces(base: BaseStackupEditor, position: TracePosition, signal_voltage: Voltage, id_store: IdStore): BroadsideTrace {
-    const ids = Array.from({ length: 4 }, (_) => id_store.own());
-    const p = base.conductor_parameters;
-    const conductors: TraceConductor[] = [
-      { type: "trace", id: ids[0], position, width: p.CW, voltage: "ground" },
-      { type: "trace", id: ids[1], position, width: p.W, voltage: signal_voltage },
-      { type: "trace", id: ids[2], position, width: p.W, voltage: get_opposite_voltage(signal_voltage) },
-      { type: "trace", id: ids[3], position, width: p.CW, voltage: "ground" },
-    ];
-    const root = conductors[1];
-    const spacings: HorizontalSpacing[] = [
-      { left_trace: { id: ids[0], attach: "right" }, right_trace: { id: ids[1], attach: "left" }, width: p.CS },
-      { left_trace: { id: ids[1], attach: "right" }, right_trace: { id: ids[2], attach: "left" }, width: p.S },
-      { left_trace: { id: ids[2], attach: "right" }, right_trace: { id: ids[3], attach: "left" }, width: p.CS },
-    ];
-    return { position, root, conductors, spacings };
-
-  }
-
-  create_left(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(base, position, "positive", id_store);
-  }
-
-  create_right(base: BaseStackupEditor, position: TracePosition, id_store: IdStore): BroadsideTrace {
-    return this.create_traces(base, position, "negative", id_store);
-  }
-}
-
-export class BroadsideSignalEditor extends BaseStackupEditor {
+export class BroadsideStackupEditor extends StackupEditor {
   trace_ids: ArenaIdStore = new ArenaIdStore();
   left: BroadsideTrace;
   right: BroadsideTrace;
   broadside_spacing: HorizontalSpacing;
   trace_template: BroadsideTraceTemplate;
 
-  constructor(trace_template: BroadsideTraceTemplate, layer_template: BroadsideLayerTemplate) {
-    super();
+  constructor(parameters: StackupParameters, trace_template: BroadsideTraceTemplate, layer_template: BroadsideLayerTemplate) {
+    super(parameters);
     this.trace_template = trace_template;
 
-    const { left: left_position, right: right_position } = layer_template.create(this);
-    this.left = this.trace_template.create_left(this, left_position, this.trace_ids);
-    this.right = this.trace_template.create_right(this, right_position, this.trace_ids);
+    const {
+      layers,
+      plane_conductors,
+      left_trace_position,
+      right_trace_position,
+    } = layer_template.create(this.parameters, this.layer_id);
+    this.layers = layers;
+    this.plane_conductors = plane_conductors;
+    this.regenerate_layer_id_to_index();
+
+    this.left = this.trace_template.create_left(this.parameters, left_trace_position, this.trace_ids);
+    this.right = this.trace_template.create_right(this.parameters, right_trace_position, this.trace_ids);
     this.broadside_spacing = this.create_broadside_spacing(this.left.root.id, this.right.root.id);
   }
 
@@ -898,8 +672,8 @@ export class BroadsideSignalEditor extends BaseStackupEditor {
     this.trace_template = trace_template;
     const left_position = this.left.position;
     const right_position = this.right.position;
-    this.left = this.trace_template.create_left(this, left_position, this.trace_ids);
-    this.right = this.trace_template.create_right(this, right_position, this.trace_ids);
+    this.left = this.trace_template.create_left(this.parameters, left_position, this.trace_ids);
+    this.right = this.trace_template.create_right(this.parameters, right_position, this.trace_ids);
     this.broadside_spacing = this.create_broadside_spacing(this.left.root.id, this.right.root.id);
   }
 
@@ -913,7 +687,7 @@ export class BroadsideSignalEditor extends BaseStackupEditor {
         id: right_id,
         attach: "center",
       },
-      width: this.conductor_parameters.B,
+      width: this.parameters.B,
     }
   }
 
@@ -942,7 +716,7 @@ export class BroadsideSignalEditor extends BaseStackupEditor {
         for (const trace of this.left.conductors) {
           this.trace_ids.free(trace.id);
         }
-        const sim_left = this.trace_template.create_left(this, left.position, this.trace_ids);
+        const sim_left = this.trace_template.create_left(this.parameters, left.position, this.trace_ids);
         const sim_spacing = this.create_broadside_spacing(sim_left.root.id, this.right.root.id);
         this.left = sim_left;
         this.broadside_spacing = sim_spacing;
@@ -959,7 +733,7 @@ export class BroadsideSignalEditor extends BaseStackupEditor {
         for (const trace of this.right.conductors) {
           this.trace_ids.free(trace.id);
         }
-        const sim_right = this.trace_template.create_right(this, right.position, this.trace_ids);
+        const sim_right = this.trace_template.create_right(this.parameters, right.position, this.trace_ids);
         const sim_spacing = this.create_broadside_spacing(this.left.root.id, sim_right.root.id);
         this.right = sim_right;
         this.broadside_spacing = sim_spacing;
@@ -1009,7 +783,7 @@ export class BroadsideSignalEditor extends BaseStackupEditor {
 
         // left traces
         const new_position: TracePosition = { layer_id: layer.id, orientation };
-        const new_left = this.trace_template.create_left(this, new_position, viewer_trace_ids);
+        const new_left = this.trace_template.create_left(this.parameters, new_position, viewer_trace_ids);
         if (!is_shorting([...new_left.conductors, ...this.right.conductors, ...this.plane_conductors])) {
           this.make_left_trace_selectable(new_left);
           for (const conductor of new_left.conductors) {
@@ -1024,7 +798,7 @@ export class BroadsideSignalEditor extends BaseStackupEditor {
         }
 
         // right traces
-        const new_right = this.trace_template.create_right(this, new_position, viewer_trace_ids);
+        const new_right = this.trace_template.create_right(this.parameters, new_position, viewer_trace_ids);
         if (!is_shorting([...new_right.conductors, ...this.left.conductors, ...this.plane_conductors])) {
           this.make_right_trace_selectable(new_right);
           for (const conductor of new_right.conductors) {
@@ -1039,7 +813,7 @@ export class BroadsideSignalEditor extends BaseStackupEditor {
         }
 
         // add ground plane
-        const new_plane = this.create_ground_plane_conductor(new_position);
+        const new_plane = create_ground_plane_conductor(this.parameters, new_position);
         if (!is_shorting([...sim_conductors, new_plane])) {
           this.make_plane_conductor_selectable(new_plane);
           viewer_conductors.push(new_plane);

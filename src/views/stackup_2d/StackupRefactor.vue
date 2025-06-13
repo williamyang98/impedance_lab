@@ -21,24 +21,27 @@ import { validate_parameter, type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
 import {
-  BaseStackupEditor,
-  BroadsideSignalEditor,
+  StackupEditor,
+  StackupParameters,
+  BroadsideStackupEditor,
+  type BroadsideTraceTemplate,
+  ColinearStackupEditor,
+  type ColinearTraceTemplate,
+} from "./editor.ts";
+import {
   // BroadsideLayerMicrostrip,
   BroadsideLayerStripline,
-  type BroadsideTraceTemplate,
   BroadsideTracePair,
   BroadsideTraceCoplanarPair,
   BroadsideTraceMirroredPair,
   BroadsideTraceCoplanarMirroredPair,
-  ColinearSignalEditor,
   // ColinearLayerMicrostrip,
   ColinearLayerStripline,
-  type ColinearTraceTemplate,
   ColinearTraceSingleEnded,
   ColinearTraceCoplanarSingleEnded,
   ColinearTraceDifferentialPair,
   ColinearTraceCoplanarDifferentialPair,
-} from "./stackup_templates.ts";
+} from "./editor_templates.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
@@ -67,6 +70,8 @@ function make_selected_map<K extends string, V, U extends K>(
 }
 
 function create_editor() {
+  const parameters = new StackupParameters();
+
   const broadside_trace_templates = {
     "pair": new BroadsideTracePair(),
     "coplanar_pair": new BroadsideTraceCoplanarPair(),
@@ -79,7 +84,8 @@ function create_editor() {
     _selected: K0 = "pair";
     options = broadside_trace_templates;
     keys = Object.keys(broadside_trace_templates) as K0[];
-    editor = new BroadsideSignalEditor(
+    editor = new BroadsideStackupEditor(
+      parameters,
       broadside_trace_templates[this._selected],
       new BroadsideLayerStripline(),
     );
@@ -108,7 +114,8 @@ function create_editor() {
     _selected: K1 = "single";
     options = colinear_trace_templates;
     keys = Object.keys(colinear_trace_templates) as K1[];
-    editor = new ColinearSignalEditor(
+    editor = new ColinearStackupEditor(
+      parameters,
       colinear_trace_templates[this._selected],
       new ColinearLayerStripline(),
     );
@@ -138,7 +145,7 @@ function create_editor() {
 
 const selected_editor = ref(create_editor());
 
-const editor = computed<BaseStackupEditor>(() => selected_editor.value.value.editor);
+const editor = computed<StackupEditor>(() => selected_editor.value.value.editor);
 const selected_trace_template = computed(() => selected_editor.value.value);
 
 const simulation_stackup = computed(() => editor.value.get_simulation_stackup());
