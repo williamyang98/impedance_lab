@@ -1,0 +1,116 @@
+import { type Parameter, type Stackup } from "./stackup.ts";
+import { create_layout_from_stackup, type StackupLayout } from "./layout.ts";
+import { StackupGrid } from "./grid.ts";
+import { type Measurement, perform_measurement } from "./measurement.ts";
+import { Profiler } from "../../utility/profiler.ts";
+import { run_binary_search } from "../../utility/search.ts";
+
+export interface SearchResult {
+  value: number;
+  impedance: number;
+  error: number;
+  layout: StackupLayout;
+  stackup_grid: StackupGrid;
+  measurement: Measurement;
+}
+
+export interface SearchResults {
+  target_impedance: number;
+  stackup: Stackup;
+  best_result: SearchResult;
+  results: SearchResult[];
+}
+
+export function search_parameters(
+  target_impedance: number,
+  stackup: Stackup, params: Parameter[],
+  get_parameter: (param: Parameter) => number,
+  profiler?: Profiler,
+): SearchResults {
+  if (params.length <= 0) {
+    throw Error("Got 0 parameters in parametric search");
+  }
+
+  const ref_param = params[0];
+  const impedance_correlation = ref_param.impedance_correlation;
+  if (impedance_correlation === undefined) {
+    throw Error("Got first parameter without a known impedance correlation");
+  }
+
+  for (const param of params) {
+    if (param.impedance_correlation != impedance_correlation) {
+      throw Error(`Impedance correlation mismatch between two parameters: ${ref_param.impedance_correlation}, ${param.impedance_correlation}`);
+    }
+  }
+
+  const results: SearchResult[] = [];
+  const search_function = (value: number): SearchResult => {
+    for (const param of params) {
+      param.value = value;
+    }
+
+    const total_iterations = results.length;
+    const metadata: Partial<Record<string, string>> = {
+      iteration: `${total_iterations}`,
+    };
+    profiler?.begin(`search_${total_iterations}`, undefined, metadata);
+
+    profiler?.begin("create_layout", "Create layout from transmission line stackup");
+    const layout = create_layout_from_stackup(stackup, get_parameter, profiler);
+    profiler?.end();
+
+    profiler?.begin("create_grid", "Create simulation grid from layout");
+    const stackup_grid = new StackupGrid(layout, get_parameter, profiler);
+    profiler?.end();
+
+    profiler?.begin("run", "Perform impedance measurements", {
+      "Total Columns": `${stackup_grid.grid.width}`,
+      "Total Rows": `${stackup_grid.grid.height}`,
+      "Total Cells": `${stackup_grid.grid.width*stackup_grid.grid.height}`,
+    });
+    const measurement = perform_measurement(stackup_grid, profiler);
+    profiler?.end();
+
+    profiler?.end();
+
+    const actual_impedance = measurement.type == "single" ? measurement.masked.Z0 : measurement.odd_masked.Z0;
+    const error_impedance = target_impedance-actual_impedance;
+    const error = impedance_correlation == "positive" ? -error_impedance : error_impedance;
+
+    metadata.target_impedance = `${target_impedance.toPrecision(3)}`;
+    metadata.actual_impedance = `${actual_impedance.toPrecision(3)}`;
+    metadata.error_impedance = `${error_impedance.toPrecision(3)}`;
+    metadata.error = `${error.toPrecision(3)}`;
+
+    const result: SearchResult = {
+      value,
+      error,
+      impedance: actual_impedance,
+      layout,
+      stackup_grid,
+      measurement,
+    };
+    results.push(result);
+    return result;
+  };
+
+  const min_value = params
+    .map(param => param.min ?? 0)
+    .reduce((a,b) => Math.min(a,b), Infinity);
+  const max_value = params
+    .map(param => param.max ?? min_value+1)
+    .reduce((a,b) => Math.max(a,b), -Infinity);
+  const max_steps = 16;
+  const threshold = 1e-2;
+
+  profiler?.begin("run_binary_search");
+  const binary_search_results = run_binary_search(search_function, min_value, max_value, max_steps, threshold);
+  profiler?.end();
+
+  return {
+    stackup,
+    target_impedance,
+    best_result: binary_search_results.best_result,
+    results,
+  };
+}

@@ -18,7 +18,7 @@ import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
 // ts imports
 import { validate_parameter, type Parameter } from "./stackup.ts";
-import { create_layout_from_stackup, type StackupLayout } from "./layout.ts";
+import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
 import {
   StackupEditor,
@@ -42,10 +42,10 @@ import {
   ColinearTraceDifferentialPair,
   ColinearTraceCoplanarDifferentialPair,
 } from "./editor_templates.ts";
+import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
-import { run_binary_search } from "../../utility/search.ts";
 
 interface SelectedMap<K extends string, V> {
   selected: K;
@@ -244,107 +244,26 @@ async function calculate_impedance() {
 
 const target_impedance = ref<number>(50.0);
 async function perform_search(search_params: Parameter[]) {
-  if (search_params.length <= 0) {
-    console.error("Got 0 parameters in parametric search");
-    return;
-  }
-  const impedance_correlation = search_params[0].impedance_correlation;
-  if (impedance_correlation === undefined) {
-    console.error("Got first parameter without a known impedance correlation", search_params);
-    return;
-  }
-
-  for (const param of search_params) {
-    if (param.impedance_correlation != impedance_correlation) {
-      console.warn("Impedance correlation mismatch between two parameters: ", param, search_params[0]);
-    }
-  }
-
   is_running.value = true;
   await sleep(0);
 
-  const raw_search_params = toRaw(search_params); // avoid triggering vue updates
-  const new_profiler = new Profiler("perform_search");
-
-  interface SearchResult {
-    value: number;
-    error: number;
-    layout: StackupLayout;
-    stackup: StackupGrid;
-    measurement: Measurement;
+  const used_parameters = new Set<Parameter>();
+  function get_parameter(param: Parameter): number {
+    validate_parameter(param);
+    used_parameters.add(param);
+    return param.value!;
   }
 
-  let best_result: SearchResult | undefined = undefined;
-  let total_iterations: number = 0;
-  const used_parameters = new Set<Parameter>();
-  const raw_target_impedance = target_impedance.value;
-
+  let search_results: SearchResults | undefined = undefined;
+  const new_profiler = new Profiler("perform_search");
   try {
-    function get_parameter(param: Parameter): number {
-      validate_parameter(param);
-      used_parameters.add(param);
-      return param.value!;
-    }
-
-
-    const search_function = (value: number): SearchResult => {
-      for (const raw_param of raw_search_params) {
-        raw_param.value = value;
-      }
-
-      const metadata: Partial<Record<string, string>> = {
-        iteration: `${total_iterations}`,
-      };
-      new_profiler.begin(`search_${total_iterations}`, undefined, metadata);
-      total_iterations += 1;
-
-      new_profiler.begin("create_layout", "Create layout from transmission line stackup");
-      const layout = create_layout_from_stackup(simulation_stackup.value, get_parameter, new_profiler);
-      new_profiler.end();
-
-      new_profiler.begin("create_grid", "Create simulation grid from layout");
-      const stackup = new StackupGrid(layout, get_parameter, new_profiler);
-      new_profiler.end();
-
-      new_profiler.begin("run", "Perform impedance measurements", {
-        "Total Columns": `${stackup.grid.width}`,
-        "Total Rows": `${stackup.grid.height}`,
-        "Total Cells": `${stackup.grid.width*stackup.grid.height}`,
-      });
-      const measurement = perform_measurement(stackup, new_profiler);
-      new_profiler.end();
-
-      new_profiler.end();
-
-      const actual_impedance = measurement.type == "single" ? measurement.masked.Z0 : measurement.odd_masked.Z0;
-      const error_impedance = raw_target_impedance-actual_impedance;
-      const error = impedance_correlation == "positive" ? -error_impedance : error_impedance;
-
-      metadata.target_impedance = `${raw_target_impedance.toPrecision(3)}`;
-      metadata.actual_impedance = `${actual_impedance.toPrecision(3)}`;
-      metadata.error_impedance = `${error_impedance.toPrecision(3)}`;
-      metadata.error = `${error.toPrecision(3)}`;
-
-      return {
-        value,
-        error,
-        layout,
-        stackup,
-        measurement,
-      };
-    };
-
-    const min_value = raw_search_params
-      .map(param => param.min ?? 0)
-      .reduce((a,b) => Math.min(a,b), Infinity);
-    const max_value = raw_search_params
-      .map(param => param.max ?? min_value+1)
-      .reduce((a,b) => Math.max(a,b), -Infinity);
-    const max_steps = 16;
-    const threshold = 1e-2;
-    const results = run_binary_search(search_function, min_value, max_value, max_steps, threshold);
-    best_result = results.best_result;
-
+    search_results = search_parameters(
+      target_impedance.value,
+      simulation_stackup.value,
+      toRaw(search_params), // avoid triggering vue updates with toRaw(...)
+      get_parameter,
+      new_profiler,
+    );
     new_profiler.end();
   } catch (error) {
     console.log("perform_search() failed with: ", error);
@@ -352,7 +271,9 @@ async function perform_search(search_params: Parameter[]) {
   if (!new_profiler.is_ended()) {
     new_profiler.end_all();
   }
-  stackup_grid.value = best_result?.stackup;
+
+  const best_result = search_results?.best_result;
+  stackup_grid.value = best_result?.stackup_grid;
   measurement.value = best_result?.measurement;
   profiler.value = new_profiler;
   if (best_result) {
@@ -363,8 +284,7 @@ async function perform_search(search_params: Parameter[]) {
       param.old_value = param.value;
     }
   }
-  // TODO: graph these results
-  console.log(total_iterations, best_result);
+  console.log(search_results);
   is_running.value = false;
 
   await refresh_viewer();
