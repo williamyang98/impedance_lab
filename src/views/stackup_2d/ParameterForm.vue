@@ -1,95 +1,163 @@
 <script setup lang="ts">
-import { type Stackup, type Parameter, type LayerId } from "./stackup.ts";
-import { defineProps, computed } from "vue";
-import { TriangleAlert } from "lucide-vue-next";
+import {
+  type Stackup,
+  type Parameter,
+  type LayerId,
+} from "./stackup.ts";
+import { defineProps, defineEmits, computed } from "vue";
+import { TriangleAlert, SearchIcon } from "lucide-vue-next";
 
 const props = defineProps<{
   stackup: Stackup,
 }>();
 
-type Form = ({ name: string, params: Set<Parameter> })[];
+const emits = defineEmits<{
+  search: [parameters: Parameter[]],
+}>();
 
-const form = computed<Form>(() => {
-  const stackup = props.stackup;
+interface FormFields {
+  name: string;
+  parameters: Set<Parameter>;
+  has_group_search: boolean;
+}
 
-  const layer_params = new Set<Parameter>();
-  const trace_params = new Set<Parameter>();
-  const separation_params = new Set<Parameter>();
+function set_to_array<T>(set: Set<T>): T[] {
+  return Array.from(set.values());
+}
 
-  for (const trace of stackup.conductors.filter(conductor => conductor.type == "trace")) {
-    trace_params.add(trace.width);
+function get_total_searchable_parameters(params: Set<Parameter>): number {
+  let total = 0;
+  for (const param of params) {
+    if (param.impedance_correlation !== undefined) {
+      total += 1;
+    }
   }
+  return total;
+}
 
-  for (const spacing of stackup.spacings) {
-    separation_params.add(spacing.width);
-  }
+class Form {
+  layer_height_params = new Set<Parameter>();
+  layer_epsilon_params = new Set<Parameter>();
+  layer_trace_params = new Set<Parameter>();
+  trace_params = new Set<Parameter>();
+  separation_params = new Set<Parameter>();
 
-  // hide certain parameters base on presence or absence of trace or plane conductor
-  const layers_with_traces: Set<LayerId> = new Set();
-  const layers_with_plane: Set<LayerId> = new Set();
-  for (const conductor of stackup.conductors) {
-    switch (conductor.type) {
-      case "trace": {
-        layers_with_traces.add(conductor.position.layer_id);
-        break;
+  constructor(stackup: Stackup) {
+    for (const trace of stackup.conductors.filter(conductor => conductor.type == "trace")) {
+      this.trace_params.add(trace.width);
+    }
+
+    for (const spacing of stackup.spacings) {
+      this.separation_params.add(spacing.width);
+    }
+
+    // hide certain parameters base on presence or absence of trace or plane conductor
+    const layers_with_traces: Set<LayerId> = new Set();
+    const layers_with_plane: Set<LayerId> = new Set();
+    for (const conductor of stackup.conductors) {
+      switch (conductor.type) {
+        case "trace": {
+          layers_with_traces.add(conductor.position.layer_id);
+          break;
+        }
+        case "plane": {
+          layers_with_plane.add(conductor.position.layer_id);
+          break;
+        }
       }
-      case "plane": {
-        layers_with_plane.add(conductor.position.layer_id);
-        break;
+    }
+
+    for (const layer of stackup.layers) {
+      switch (layer.type) {
+        case "unmasked": break;
+        case "core": // @fallthrough
+        case "prepreg": {
+          this.layer_height_params.add(layer.height);
+          this.layer_epsilon_params.add(layer.epsilon);
+          break;
+        }
+        case "soldermask": {
+          if (!layers_with_plane.has(layer.id)) {
+            this.layer_height_params.add(layer.height);
+            this.layer_epsilon_params.add(layer.epsilon);
+          }
+          break;
+        }
+      }
+    }
+
+    for (const layer of stackup.layers) {
+      switch (layer.type) {
+        case "core": break;
+        case "prepreg": {
+          this.layer_trace_params.add(layer.trace_height);
+          if (layers_with_traces.has(layer.id)) {
+            this.layer_trace_params.add(layer.trace_taper);
+          }
+          break;
+        }
+        case "unmasked": // @fallthrough
+        case "soldermask": {
+          if (layers_with_traces.has(layer.id)) {
+            this.layer_trace_params.add(layer.trace_taper);
+            this.layer_trace_params.add(layer.trace_height);
+          }
+          break;
+        }
       }
     }
   }
 
-  for (const layer of stackup.layers) {
-    switch (layer.type) {
-      case "unmasked": break;
-      case "core": // @fallthrough
-      case "prepreg": {
-        layer_params.add(layer.height);
-        layer_params.add(layer.epsilon);
-        break;
+  get_layout(): FormFields[][] {
+    const column = [];
+    {
+      const row: FormFields[] = [];
+      if (this.layer_height_params.size > 0) {
+        row.push({
+          name: "Layer Heights",
+          parameters: this.layer_height_params,
+          has_group_search: get_total_searchable_parameters(this.layer_height_params) > 1,
+        });
       }
-      case "soldermask": {
-        if (!layers_with_plane.has(layer.id)) {
-          layer_params.add(layer.height);
-          layer_params.add(layer.epsilon);
-        }
-        break;
+      if (this.layer_epsilon_params.size > 0) {
+        row.push({
+          name: "Layer Dielectric",
+          parameters: this.layer_epsilon_params,
+          has_group_search: get_total_searchable_parameters(this.layer_epsilon_params) > 1,
+        });
       }
+      if (this.layer_trace_params.size > 0) {
+        row.push({
+          name: "Layer Copper",
+          parameters: this.layer_trace_params,
+          has_group_search: false,
+        });
+      }
+      column.push(row);
     }
-  }
-
-  for (const layer of stackup.layers) {
-    switch (layer.type) {
-      case "core": break;
-      case "prepreg": {
-        trace_params.add(layer.trace_height);
-        if (layers_with_traces.has(layer.id)) {
-          trace_params.add(layer.trace_taper);
-        }
-        break;
+    {
+      const row: FormFields[] = [];
+      if (this.trace_params.size > 0) {
+        row.push({
+          name: "Trace Size",
+          parameters: this.trace_params,
+          has_group_search: get_total_searchable_parameters(this.trace_params) > 1,
+        });
       }
-      case "unmasked": // @fallthrough
-      case "soldermask": {
-        if (layers_with_traces.has(layer.id)) {
-          trace_params.add(layer.trace_taper);
-          trace_params.add(layer.trace_height);
-        }
-        break;
+      if (this.separation_params.size > 0) {
+        row.push({
+          name: "Trace Separation",
+          parameters: this.separation_params,
+          has_group_search: get_total_searchable_parameters(this.separation_params) > 1,
+        });
       }
+      column.push(row);
     }
+    return column;
   }
+}
 
-  return [
-    { name: "Layers", params: layer_params, },
-    { name: "Traces", params: trace_params, },
-    { name: "Separations", params: separation_params, },
-  ];
-});
-
-const valid_form = computed(() => {
-  return form.value.filter(column => column.params.size > 0);
-});
+const form = computed(() => new Form(props.stackup));
 
 function get_input_class(param: Parameter): string {
   if (param.error !== undefined) {
@@ -104,33 +172,55 @@ function get_input_class(param: Parameter): string {
 </script>
 
 <template>
-<!--
- @NOTE: We need the actual class string somewhere in the source code for tailwindcss to compile it
- grid-cols-1 grid-cols-2 grid-cols-3
--->
-<form :class="`grid grid-cols-${valid_form.length} gap-x-2`">
-  <div v-for="({name, params}, col_index) in valid_form" :key="col_index">
-    <h2 class="font-medium mb-2">{{ name }}</h2>
-    <div class="grid grid-cols-[auto_auto] w-fit gap-x-2 gap-y-1">
-      <template v-for="(param, index) in params" :key="index">
-        <div class="h-full mt-1">
-          <label :for="param.name" class="label">{{  param.name }}</label>
-        </div>
-        <div class="w-full">
-          <input
-            :id="param.name"
-            :class="get_input_class(param)"
-            class="input input-sm"
-            type="number"
-            :min="param.min" :max="param.max" v-model.number="param.value"
-            :placeholder="param.description"
-          />
-          <div v-if="param.error" class="text-error text-xs flex flex-row py-1">
-            <TriangleAlert class="h-[1rem] w-[1rem] mr-1"/>
-            <span>{{ param.error }}</span>
+<form :class="`grid grid-cols-2 gap-x-5`">
+  <div
+    v-for="(col, col_index) in form.get_layout()" :key="col_index"
+    class="w-full"
+  >
+    <div v-for="(row, row_index) in col" :key="row_index" class="mb-4">
+      <div class="flex flex-row justify-between mb-2">
+        <h2 class="text-lg">{{ row.name }}</h2>
+        <template v-if="row.has_group_search">
+          <button
+            class="btn btn-sm btn-neutral px-2"
+            @click="emits('search', set_to_array(row.parameters))"
+          >
+            <SearchIcon class="h-[1rem] w-[1rem]"/>
+          </button>
+        </template>
+      </div>
+      <div class="grid grid-cols-[auto_auto] w-full gap-x-2 gap-y-1">
+        <template v-for="(param, param_index) in row.parameters" :key="param_index">
+          <div class="h-full mt-1">
+            <label :for="param.name" class="label">{{  param.name }}</label>
           </div>
-        </div>
-      </template>
+          <div class="join">
+            <div class="w-full">
+              <input
+                :id="param.name"
+                :class="get_input_class(param)"
+                class="input input-sm join-item"
+                type="number"
+                step="any"
+                :min="param.min" :max="param.max" v-model.number="param.value"
+                :placeholder="param.description"
+              />
+              <div v-if="param.error" class="text-error text-xs flex flex-row py-1">
+                <TriangleAlert class="h-[1rem] w-[1rem] mr-1"/>
+                <span>{{ param.error }}</span>
+              </div>
+            </div>
+            <template v-if="param.impedance_correlation !== undefined">
+              <button
+                class="btn btn-sm join-item px-2"
+                @click="emits('search', [param])"
+              >
+                <SearchIcon class="h-[1rem] w-[1rem]"/>
+              </button>
+            </template>
+          </div>
+        </template>
+      </div>
     </div>
   </div>
 </form>

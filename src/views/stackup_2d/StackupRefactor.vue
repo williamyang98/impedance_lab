@@ -243,19 +243,27 @@ async function calculate_impedance() {
 }
 
 const target_impedance = ref<number>(50.0);
-async function perform_search() {
-  const params = editor.value.parameters;
-  const search_params: Parameter[] = [
-    // params.W,
-    params.H.get(0),
-    params.H.get(1),
-  ];
-  const search_positive_correlation = true;
-  const raw_search_params = toRaw(search_params); // avoid triggering vue updates
+async function perform_search(search_params: Parameter[]) {
+  if (search_params.length <= 0) {
+    console.error("Got 0 parameters in parametric search");
+    return;
+  }
+  const impedance_correlation = search_params[0].impedance_correlation;
+  if (impedance_correlation === undefined) {
+    console.error("Got first parameter without a known impedance correlation", search_params);
+    return;
+  }
+
+  for (const param of search_params) {
+    if (param.impedance_correlation != impedance_correlation) {
+      console.warn("Impedance correlation mismatch between two parameters: ", param, search_params[0]);
+    }
+  }
 
   is_running.value = true;
   await sleep(0);
 
+  const raw_search_params = toRaw(search_params); // avoid triggering vue updates
   const new_profiler = new Profiler("perform_search");
 
   interface SearchResult {
@@ -310,7 +318,7 @@ async function perform_search() {
 
       const actual_impedance = measurement.type == "single" ? measurement.masked.Z0 : measurement.odd_masked.Z0;
       const error_impedance = raw_target_impedance-actual_impedance;
-      const error = search_positive_correlation ? -error_impedance : error_impedance;
+      const error = impedance_correlation == "positive" ? -error_impedance : error_impedance;
 
       metadata.target_impedance = `${raw_target_impedance.toPrecision(3)}`;
       metadata.actual_impedance = `${actual_impedance.toPrecision(3)}`;
@@ -358,6 +366,8 @@ async function perform_search() {
   // TODO: graph these results
   console.log(total_iterations, best_result);
   is_running.value = false;
+
+  await refresh_viewer();
 }
 
 interface DownloadLink {
@@ -416,10 +426,6 @@ function download_ndarray(link: DownloadLink) {
                     </option>
                   </select>
                 </div>
-                <div class="flex flex-row">
-                  <input class="input input-sm" type="number" v-model.number="target_impedance" min="0"/>
-                  <button class="btn btn-sm" @click="perform_search()">Search</button>
-                </div>
                 <EditorControls :editor="editor"></EditorControls>
               </div>
               <div
@@ -434,13 +440,17 @@ function download_ndarray(link: DownloadLink) {
       <div class="w-full card card-border bg-base-100 col-span-2">
         <div class="card-body">
           <h2 class="card-title">Parameters</h2>
-          <ParameterForm :stackup="simulation_stackup"></ParameterForm>
+          <ParameterForm :stackup="simulation_stackup" @search="perform_search"></ParameterForm>
         </div>
       </div>
       <div class="w-full card card-border bg-base-100 col-span-2">
         <div class="card-body">
           <h2 class="card-title">Impedance</h2>
           <div class="h-full">
+            <div class="w-full flex flex-row">
+              <label class="label mr-1">Z0 target </label>
+              <input class="input input-sm w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
+            </div>
             <template v-if="measurement">
               <MeasurementTable :measurement="measurement"></MeasurementTable>
             </template>

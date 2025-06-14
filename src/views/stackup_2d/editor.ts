@@ -192,8 +192,18 @@ export class StackupParameters {
         description: "Trace taper",
         get taper_suffix() { return `${this.parent.get_index(i)}`; },
         min: 0,
+        get max(): number | undefined {
+          let max_value = Infinity;
+          const W = this.parent.W.value;
+          const CW = this.parent.CW.value;
+          if (W !== undefined) max_value = Math.min(max_value, W);
+          if (CW !== undefined) max_value = Math.min(max_value, CW);
+          if (max_value != Infinity) return max_value;
+          return undefined;
+        },
         value: 0,
         placeholder_value: sizes.trace_taper,
+        impedance_correlation: "positive",
       };
     });
     this.T = new ParameterCache((i: number) => {
@@ -205,6 +215,7 @@ export class StackupParameters {
         min: 0,
         value: 0.035,
         placeholder_value: sizes.trace_height,
+        impedance_correlation: "negative",
       };
     });
     this.SH = new ParameterCache((i: number) => {
@@ -216,6 +227,7 @@ export class StackupParameters {
         min: 0,
         value: 0.0152,
         placeholder_value: sizes.soldermask_height,
+        impedance_correlation: "negative",
       };
     });
     this.H = new ParameterCache((i: number) => {
@@ -227,6 +239,7 @@ export class StackupParameters {
         min: 0,
         value: 0.15,
         placeholder_value: sizes.core_height,
+        impedance_correlation: "positive",
       };
     });
     this.ER = new ParameterCache((i: number) => {
@@ -237,6 +250,7 @@ export class StackupParameters {
         description: "Dielectric constant",
         min: 1,
         value: 4.1,
+        impedance_correlation: "negative",
       };
     });
     this.PH = {
@@ -251,6 +265,7 @@ export class StackupParameters {
       min: 0,
       value: 0.25,
       placeholder_value: sizes.signal_trace_width,
+      impedance_correlation: "negative",
     };
     this.CW = {
       type: "size",
@@ -259,6 +274,7 @@ export class StackupParameters {
       min: 0,
       value: 0.25,
       placeholder_value: sizes.ground_trace_width,
+      impedance_correlation: "negative",
     };
     this.S = {
       type: "size",
@@ -267,6 +283,7 @@ export class StackupParameters {
       min: 0,
       value: 0.25,
       placeholder_value: sizes.signal_width_separation,
+      impedance_correlation: "positive",
     };
     this.B = {
       type: "size",
@@ -275,6 +292,7 @@ export class StackupParameters {
       min: 0,
       value: 0,
       placeholder_value: sizes.broadside_width_separation,
+      impedance_correlation: "positive",
     };
     this.CS = {
       type: "size",
@@ -283,6 +301,7 @@ export class StackupParameters {
       min: 0,
       value: 0.25,
       placeholder_value: sizes.ground_width_separation,
+      impedance_correlation: "positive",
     };
   }
 

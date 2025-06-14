@@ -7,6 +7,7 @@ export interface Parameter {
   min?: number;
   max?: number;
   error?: string;
+  impedance_correlation?: "positive" | "negative";
 }
 
 export interface SizeParameter extends Parameter {
