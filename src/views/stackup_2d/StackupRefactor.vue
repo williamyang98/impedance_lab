@@ -46,6 +46,7 @@ import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
+import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 
 interface SelectedMap<K extends string, V> {
   selected: K;
@@ -243,6 +244,8 @@ async function calculate_impedance() {
 }
 
 const target_impedance = ref<number>(50.0);
+const search_results = ref<SearchResults | undefined>(undefined);
+
 async function perform_search(search_params: Parameter[]) {
   is_running.value = true;
   await sleep(0);
@@ -254,10 +257,10 @@ async function perform_search(search_params: Parameter[]) {
     return param.value!;
   }
 
-  let search_results: SearchResults | undefined = undefined;
+  let new_search_results: SearchResults | undefined = undefined;
   const new_profiler = new Profiler("perform_search");
   try {
-    search_results = search_parameters(
+    new_search_results = search_parameters(
       target_impedance.value,
       simulation_stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
@@ -272,7 +275,8 @@ async function perform_search(search_params: Parameter[]) {
     new_profiler.end_all();
   }
 
-  const best_result = search_results?.best_result;
+  search_results.value = new_search_results;
+  const best_result = new_search_results?.best_result;
   stackup_grid.value = best_result?.stackup_grid;
   measurement.value = best_result?.measurement;
   profiler.value = new_profiler;
@@ -284,7 +288,6 @@ async function perform_search(search_params: Parameter[]) {
       param.old_value = param.value;
     }
   }
-  console.log(search_results);
   is_running.value = false;
 
   await refresh_viewer();
@@ -451,6 +454,24 @@ function download_ndarray(link: DownloadLink) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Search"/>
+  <div class="tab-content bg-base-100 border-base-300 p-1">
+    <div class="w-full card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">Search</h2>
+        <template v-if="search_results">
+          <div class="w-full">
+            <ParameterSearchResultsGraph :results="search_results"></ParameterSearchResultsGraph>
+          </div>
+        </template>
+        <template v-else>
+          <div class="text-center">
+            <h1 class="text-2xl">Parameter search has not been conducted yet</h1>
+          </div>
+        </template>
       </div>
     </div>
   </div>
