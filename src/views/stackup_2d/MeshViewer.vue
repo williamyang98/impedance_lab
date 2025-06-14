@@ -92,6 +92,13 @@ function create_chart() {
       scales: {
         x: {
           type: "linear",
+          min: x_min,
+          max: x_max,
+        },
+        y: {
+          type: "linear",
+          min: y_min,
+          max: y_max,
         },
       },
       plugins: {
