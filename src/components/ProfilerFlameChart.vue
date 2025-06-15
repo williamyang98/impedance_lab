@@ -32,7 +32,6 @@ class FlameChart {
     const abs_width = trace.end_ms-trace.start_ms;
     const rel_width = abs_width/root_width;
     const rel_left = (trace.start_ms-root_left)/root_width;
-    if (rel_width == 0.0) return;
 
     let row: Row | undefined = undefined;
     if (this.rows.length <= level) {
