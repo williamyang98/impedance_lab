@@ -36,19 +36,20 @@ function get_total_searchable_parameters(params: Set<Parameter>): number {
 }
 
 class Form {
-  layer_height_params = new Set<Parameter>();
-  layer_epsilon_params = new Set<Parameter>();
-  layer_trace_params = new Set<Parameter>();
-  trace_params = new Set<Parameter>();
-  separation_params = new Set<Parameter>();
+  layer_dielectric_height_params = new Set<Parameter>();
+  layer_dielectric_epsilon_params = new Set<Parameter>();
+  layer_trace_height_params = new Set<Parameter>();
+  layer_trace_taper_params = new Set<Parameter>();
+  trace_width_params = new Set<Parameter>();
+  spacing_params = new Set<Parameter>();
 
   constructor(stackup: Stackup) {
     for (const trace of stackup.conductors.filter(conductor => conductor.type == "trace")) {
-      this.trace_params.add(trace.width);
+      this.trace_width_params.add(trace.width);
     }
 
     for (const spacing of stackup.spacings) {
-      this.separation_params.add(spacing.width);
+      this.spacing_params.add(spacing.width);
     }
 
     // hide certain parameters base on presence or absence of trace or plane conductor
@@ -72,14 +73,14 @@ class Form {
         case "unmasked": break;
         case "core": // @fallthrough
         case "prepreg": {
-          this.layer_height_params.add(layer.height);
-          this.layer_epsilon_params.add(layer.epsilon);
+          this.layer_dielectric_height_params.add(layer.height);
+          this.layer_dielectric_epsilon_params.add(layer.epsilon);
           break;
         }
         case "soldermask": {
           if (!layers_with_plane.has(layer.id)) {
-            this.layer_height_params.add(layer.height);
-            this.layer_epsilon_params.add(layer.epsilon);
+            this.layer_dielectric_height_params.add(layer.height);
+            this.layer_dielectric_epsilon_params.add(layer.epsilon);
           }
           break;
         }
@@ -90,17 +91,17 @@ class Form {
       switch (layer.type) {
         case "core": break;
         case "prepreg": {
-          this.layer_trace_params.add(layer.trace_height);
+          this.layer_trace_height_params.add(layer.trace_height);
           if (layers_with_traces.has(layer.id)) {
-            this.layer_trace_params.add(layer.trace_taper);
+            this.layer_trace_taper_params.add(layer.trace_taper);
           }
           break;
         }
         case "unmasked": // @fallthrough
         case "soldermask": {
           if (layers_with_traces.has(layer.id)) {
-            this.layer_trace_params.add(layer.trace_taper);
-            this.layer_trace_params.add(layer.trace_height);
+            this.layer_trace_taper_params.add(layer.trace_taper);
+            this.layer_trace_height_params.add(layer.trace_height);
           }
           break;
         }
@@ -110,49 +111,35 @@ class Form {
 
   get_layout(): FormFields[][] {
     const column = [];
+    const create_form_fields = (name: string, parameters: Set<Parameter>): FormFields | undefined => {
+      if (parameters.size <= 0) return undefined;
+      return {
+        name,
+        parameters,
+        has_group_search: get_total_searchable_parameters(parameters) > 1,
+      };
+    };
+    const push_form_fields = (row: FormFields[], form_fields?: FormFields) => {
+      if (form_fields) {
+        row.push(form_fields);
+      }
+    };
+
     {
-      const row: FormFields[] = [];
-      if (this.layer_height_params.size > 0) {
-        row.push({
-          name: "Layer Heights",
-          parameters: this.layer_height_params,
-          has_group_search: get_total_searchable_parameters(this.layer_height_params) > 1,
-        });
-      }
-      if (this.layer_epsilon_params.size > 0) {
-        row.push({
-          name: "Layer Dielectric",
-          parameters: this.layer_epsilon_params,
-          has_group_search: get_total_searchable_parameters(this.layer_epsilon_params) > 1,
-        });
-      }
-      if (this.layer_trace_params.size > 0) {
-        row.push({
-          name: "Layer Copper",
-          parameters: this.layer_trace_params,
-          has_group_search: false,
-        });
-      }
+      const row: FormFields[]  = [];
+      push_form_fields(row, create_form_fields("Dielectric Height", this.layer_dielectric_height_params));
+      push_form_fields(row, create_form_fields("Dielectric Constant", this.layer_dielectric_epsilon_params));
+      push_form_fields(row, create_form_fields("Trace Height", this.layer_trace_height_params));
       column.push(row);
     }
     {
-      const row: FormFields[] = [];
-      if (this.trace_params.size > 0) {
-        row.push({
-          name: "Trace Size",
-          parameters: this.trace_params,
-          has_group_search: get_total_searchable_parameters(this.trace_params) > 1,
-        });
-      }
-      if (this.separation_params.size > 0) {
-        row.push({
-          name: "Trace Separation",
-          parameters: this.separation_params,
-          has_group_search: get_total_searchable_parameters(this.separation_params) > 1,
-        });
-      }
+      const row: FormFields[]  = [];
+      push_form_fields(row, create_form_fields("Trace Width", this.trace_width_params));
+      push_form_fields(row, create_form_fields("Trace Taper", this.layer_trace_taper_params));
+      push_form_fields(row, create_form_fields("Spacing", this.spacing_params));
       column.push(row);
     }
+
     return column;
   }
 }
