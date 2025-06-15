@@ -162,6 +162,7 @@ const CommonRules = {
 
 export class StackupParameters {
   id_to_index: Partial<Record<LayerId, number>> = {};
+  required_trace_widths = new Set<SizeParameter>();
 
   get_index(id: LayerId): number {
     const index  = this.id_to_index[id];
@@ -193,12 +194,14 @@ export class StackupParameters {
         get taper_suffix() { return `${this.parent.get_index(i)}`; },
         min: 0,
         get max(): number | undefined {
-          let max_value = Infinity;
-          const W = this.parent.W.value;
-          const CW = this.parent.CW.value;
-          if (W !== undefined) max_value = Math.min(max_value, W);
-          if (CW !== undefined) max_value = Math.min(max_value, CW);
-          if (max_value != Infinity) return max_value;
+          // maximum taper size is equal to minimum trace width
+          let min_trace_width = Infinity;
+          for (const param of this.parent.required_trace_widths) {
+            if (param.value !== undefined) {
+              min_trace_width = Math.min(min_trace_width, param.value);
+            }
+          }
+          if (min_trace_width != Infinity) return min_trace_width;
           return undefined;
         },
         value: 0,
@@ -409,6 +412,16 @@ export abstract class StackupEditor {
     }
   }
 
+  regenerate_required_trace_widths() {
+    // keep track of which parameters effect trace taper geometry
+    this.parameters.required_trace_widths.clear();
+    for (const conductor of this.get_sim_conductors()) {
+      if (conductor.type == "trace") {
+        this.parameters.required_trace_widths.add(conductor.width);
+      }
+    }
+  }
+
   try_add_prepreg_layer(layer_index: number): (() => void) | undefined {
     const prev_layer = (layer_index > 0) ? this.layers[layer_index-1] : undefined;
     const curr_layer = (layer_index < this.layers.length) ? this.layers[layer_index] : undefined;
@@ -554,6 +567,7 @@ export class ColinearStackupEditor extends StackupEditor {
     this.regenerate_layer_id_to_index();
 
     this.trace = this.trace_template.create(this.parameters, trace_position, this.trace_ids);
+    this.regenerate_required_trace_widths();
   }
 
   set_trace_template(trace_template: ColinearTraceTemplate) {
@@ -562,6 +576,7 @@ export class ColinearStackupEditor extends StackupEditor {
       this.trace_ids.free(trace.id);
     }
     this.trace = this.trace_template.create(this.parameters, this.trace.position, this.trace_ids);
+    this.regenerate_required_trace_widths();
   }
 
   override get_sim_conductors(): Conductor[] {
@@ -591,6 +606,7 @@ export class ColinearStackupEditor extends StackupEditor {
         }
         const sim_trace = this.trace_template.create(this.parameters, conductor.position, this.trace_ids);
         this.trace = sim_trace;
+        this.regenerate_required_trace_widths();
       });
     }
 
@@ -724,6 +740,7 @@ export class BroadsideStackupEditor extends StackupEditor {
     this.left = this.trace_template.create_left(this.parameters, left_trace_position, this.trace_ids);
     this.right = this.trace_template.create_right(this.parameters, right_trace_position, this.trace_ids);
     this.broadside_spacing = this.create_broadside_spacing(this.left.root.id, this.right.root.id);
+    this.regenerate_required_trace_widths();
   }
 
   set_trace_template(trace_template: BroadsideTraceTemplate) {
@@ -733,6 +750,7 @@ export class BroadsideStackupEditor extends StackupEditor {
     this.left = this.trace_template.create_left(this.parameters, left_position, this.trace_ids);
     this.right = this.trace_template.create_right(this.parameters, right_position, this.trace_ids);
     this.broadside_spacing = this.create_broadside_spacing(this.left.root.id, this.right.root.id);
+    this.regenerate_required_trace_widths();
   }
 
   create_broadside_spacing(left_id: TraceId, right_id: TraceId): HorizontalSpacing {
@@ -778,6 +796,7 @@ export class BroadsideStackupEditor extends StackupEditor {
         const sim_spacing = this.create_broadside_spacing(sim_left.root.id, this.right.root.id);
         this.left = sim_left;
         this.broadside_spacing = sim_spacing;
+        this.regenerate_required_trace_widths();
       });
     }
 
@@ -795,6 +814,7 @@ export class BroadsideStackupEditor extends StackupEditor {
         const sim_spacing = this.create_broadside_spacing(this.left.root.id, sim_right.root.id);
         this.right = sim_right;
         this.broadside_spacing = sim_spacing;
+        this.regenerate_required_trace_widths();
       });
     }
 
