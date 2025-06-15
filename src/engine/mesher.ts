@@ -81,7 +81,7 @@ export class OpenGeometricMeshSegment implements IMeshSegment {
       const error = (pred_sum - sum)/2;
       return { error };
     }
-    const result = run_binary_search(search_r, 0, 1);
+    const result = run_binary_search(search_r, 1, 0, undefined);
     return result.best_value;
   }
 
@@ -137,7 +137,7 @@ export class ClosedGeometricMeshSegment implements IMeshSegment {
           const error = (A_pred-A_target)/A_target;
           return { mesh, error };
         }
-        const result = run_binary_search(search_r0, 0, 1);
+        const result = run_binary_search(search_r0, 1, 0, undefined);
         const mesh = result.best_result.mesh;
         const error = Math.max(Math.abs(1-mesh.left.r), Math.abs(1-mesh.right.r));
         return { mesh, error };

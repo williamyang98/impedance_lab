@@ -105,14 +105,27 @@ export function search_parameters(
   const min_value = params
     .map(param => param.min ?? 0)
     .reduce((a,b) => Math.min(a,b), Infinity);
-  const max_value = params
-    .map(param => param.max ?? min_value+1)
-    .reduce((a,b) => Math.max(a,b), -Infinity);
+  let max_value: number | undefined = undefined;
+  for (const param of params) {
+    if (param.max !== undefined) {
+      if (max_value === undefined) {
+        max_value = param.max;
+      } else {
+        max_value = Math.max(param.max, max_value);
+      }
+    }
+  }
+  const initial_value = ref_param.value;
   const max_steps = 16;
-  const threshold = 1e-2;
+  const threshold = 1e-3;
 
   profiler?.begin("run_binary_search");
-  const binary_search_results = run_binary_search(search_function, min_value, max_value, max_steps, threshold);
+  const binary_search_results = run_binary_search(
+    search_function,
+    initial_value,
+    min_value, max_value,
+    max_steps, threshold,
+  );
   profiler?.end();
 
   return {

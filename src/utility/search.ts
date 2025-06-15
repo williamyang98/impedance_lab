@@ -71,29 +71,62 @@ export interface BinarySearchResult<T extends SearchResult> {
 
 export function run_binary_search<T extends SearchResult>(
   func: SearchFunction<T>,
-  v_lower: number, v_upper: number,
+  v_initial?: number, v_min?: number, v_max?: number,
   max_steps?: number, threshold?: number,
 ): BinarySearchResult<T> {
+  v_min = v_min ?? 0; // unless specified default search to [0,Infinity)
+  if (v_max && v_max < v_min) {
+    throw Error(`Maximum search value ${v_max} is less than minimum search value ${v_min}`);
+  }
+
+  if (v_initial === undefined) {
+    if (v_max !== undefined) {
+      v_initial = (v_max+v_min)/2.0;
+    } else {
+      v_initial = v_min+1;
+    }
+  } else {
+    if (v_max !== undefined) {
+      if (v_initial > v_max) {
+        throw Error(`Initial search value ${v_initial} is greater than maximum search value ${v_max}`);
+      }
+    }
+  }
+
   max_steps = max_steps ?? 32;
   threshold = threshold ?? 1e-3;
+  let v_lower: number = v_min;
+  let v_upper: number | undefined = v_max;
+  let v_unbounded_search = v_initial; // used if v_upper is unknown
 
   let best_value: number | undefined = undefined;
   let best_result: T | undefined = undefined;
-  let is_found_upper = false;
 
   for (let curr_step = 0; curr_step < max_steps; curr_step++) {
-    const v_pivot = is_found_upper ? (v_lower+v_upper)/2.0 : v_upper*2;
-    const result = func(v_pivot);
+    // determine search value
+    let v_search: number | undefined;
+    if (curr_step == 0) {
+      v_search = v_initial;
+    } else if (v_upper == undefined) {
+      v_search = v_unbounded_search;
+    } else {
+      v_search = (v_lower+v_upper)/2.0;
+    }
+    const result = func(v_search);
     if (best_result === undefined || (Math.abs(result.error) < Math.abs(best_result.error))) {
       best_result = result;
-      best_value = v_pivot;
+      best_value = v_search;
     }
     if (Math.abs(result.error) < threshold) break;
+    if (v_upper && (Math.abs(v_lower-v_upper) < threshold)) break;
     if (result.error > 0) {
-      is_found_upper = true;
-      v_upper = v_pivot;
+      v_upper = v_search;
     } else {
-      v_lower = v_pivot;
+      v_lower = v_search;
+    }
+    // still searching for upper bound
+    if (v_upper === undefined) {
+      v_unbounded_search = v_search*2;
     }
   }
 
