@@ -88,17 +88,26 @@ function create_chart() {
       ),
     },
     options: {
+      responsive: true,
       animation: false,
       scales: {
         x: {
           type: "linear",
           min: x_min,
           max: x_max,
+          title: {
+            display: true,
+            text: "x",
+          },
         },
         y: {
           type: "linear",
           min: y_min,
           max: y_max,
+          title: {
+            display: true,
+            text: "y",
+          },
         },
       },
       plugins: {
@@ -121,5 +130,7 @@ watch(stackup_grid, () => {
 </script>
 
 <template>
-  <canvas ref="grid-canvas" :class="$attrs.class"></canvas>
+  <div class="relative" :class="$attrs.class">
+    <canvas ref="grid-canvas"></canvas>
+  </div>
 </template>
