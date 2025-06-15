@@ -22,10 +22,20 @@ function create_chart() {
   const x = results.map(result => result.value);
   const y = results.map(result => result.impedance);
 
-  const x_min = x.reduce((a,b) => Math.min(a,b), Infinity);
-  const x_max = x.reduce((a,b) => Math.max(a,b), -Infinity);
-  const y_min = y.reduce((a,b) => Math.min(a,b), Infinity);
-  const y_max = y.reduce((a,b) => Math.max(a,b), -Infinity);
+  let x_min = x.reduce((a,b) => Math.min(a,b), Infinity);
+  let x_max = x.reduce((a,b) => Math.max(a,b), -Infinity);
+  let y_min = y.reduce((a,b) => Math.min(a,b), Infinity);
+  let y_max = y.reduce((a,b) => Math.max(a,b), -Infinity);
+
+  // avoid zero size plot
+  if (x_min === x_max) {
+    x_min -= 0.5;
+    x_max += 0.5;
+  }
+  if (y_min === y_max) {
+    y_min -= 0.5;
+    y_max += 0.5;
+  }
 
   const markers = results.map(result => {
     return {
