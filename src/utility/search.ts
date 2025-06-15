@@ -79,6 +79,7 @@ export function run_binary_search<T extends SearchResult>(
     throw Error(`Maximum search value ${v_max} is less than minimum search value ${v_min}`);
   }
 
+  // determine initial search value
   if (v_initial === undefined) {
     if (v_max !== undefined) {
       v_initial = (v_max+v_min)/2.0;
@@ -91,6 +92,16 @@ export function run_binary_search<T extends SearchResult>(
         throw Error(`Initial search value ${v_initial} is greater than maximum search value ${v_max}`);
       }
     }
+  }
+
+  // avoid search stall since 0 value cannot be doubled
+  if (v_initial == 0.0) {
+    if (v_max !== undefined) {
+      v_initial = (v_min+v_max)/2.0;
+    } else {
+      v_initial = v_min+1.0;
+    }
+    console.warn(`Initial value was 0 and will be replaced with a non-zero finite value ${v_initial}`);
   }
 
   max_steps = max_steps ?? 32;
