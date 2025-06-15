@@ -269,7 +269,7 @@ async function perform_search(search_params: Parameter[]) {
     );
     new_profiler.end();
   } catch (error) {
-    console.log("perform_search() failed with: ", error);
+    console.error("perform_search() failed with: ", error);
   }
   if (!new_profiler.is_ended()) {
     new_profiler.end_all();

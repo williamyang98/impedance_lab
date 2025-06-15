@@ -87,10 +87,12 @@ export function run_binary_search<T extends SearchResult>(
       v_initial = v_min+1;
     }
   } else {
-    if (v_max !== undefined) {
-      if (v_initial > v_max) {
-        throw Error(`Initial search value ${v_initial} is greater than maximum search value ${v_max}`);
-      }
+    if (v_max !== undefined && v_initial > v_max) {
+      console.warn(`Decreasing initial search value ${v_initial} to maximum search value ${v_max}`);
+      v_initial = v_max;
+    } else if (v_initial < v_min) {
+      console.warn(`Increasing initial search value ${v_initial} to minimum search value ${v_max}`);
+      v_initial = v_min;
     }
   }
 
