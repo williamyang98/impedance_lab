@@ -94,13 +94,9 @@ export function run_binary_search<T extends SearchResult>(
     }
   }
 
-  // avoid search stall since 0 value cannot be doubled
-  if (v_initial == 0.0) {
-    if (v_max !== undefined) {
-      v_initial = (v_min+v_max)/2.0;
-    } else {
-      v_initial = v_min+1.0;
-    }
+  // avoid upper bound search stall since 0 value cannot be doubled
+  if (v_initial == 0.0 && v_max === undefined) {
+    v_initial = 1.0;
     console.warn(`Initial value was 0 and will be replaced with a non-zero finite value ${v_initial}`);
   }
 
