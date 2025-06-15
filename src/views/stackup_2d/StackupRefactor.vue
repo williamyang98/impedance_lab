@@ -14,6 +14,7 @@ import GridRegionTable from "./GridRegionTable.vue";
 import MeshViewer from "./MeshViewer.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
+import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
 // ts imports
@@ -45,8 +46,8 @@ import {
 import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { Ndarray } from "../../utility/ndarray.ts";
-import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
+import { type ModuleNdarray } from "../../utility/module_ndarray.ts";
+import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 
 interface SelectedMap<K extends string, V> {
   selected: K;
@@ -295,27 +296,27 @@ async function perform_search(search_params: Parameter[]) {
 
 interface DownloadLink {
   name: string;
-  data: Ndarray;
+  data: ModuleNdarray;
 }
 
 const download_links = computed<DownloadLink[] | undefined>(() => {
   const grid = toRaw(stackup_grid.value?.grid);
   if (grid === undefined) return undefined;
   return [
-    { name: "ex_field.npy", data: grid.ex_field.ndarray },
-    { name: "ey_field.npy", data: grid.ey_field.ndarray },
-    { name: "v_field.npy", data: grid.v_field.ndarray },
-    { name: "dx.npy", data: grid.dx.ndarray },
-    { name: "dy.npy", data: grid.dy.ndarray },
-    { name: "ek_table.npy", data: grid.ek_table.ndarray },
-    { name: "ek_index_beta.npy", data: grid.ek_index_beta.ndarray },
-    { name: "v_table.npy", data: grid.v_table.ndarray },
-    { name: "v_index_beta.npy", data: grid.v_index_beta.ndarray },
+    { name: "ex_field.npy", data: grid.ex_field },
+    { name: "ey_field.npy", data: grid.ey_field },
+    { name: "v_field.npy", data: grid.v_field },
+    { name: "dx.npy", data: grid.dx },
+    { name: "dy.npy", data: grid.dy },
+    { name: "ek_table.npy", data: grid.ek_table },
+    { name: "ek_index_beta.npy", data: grid.ek_index_beta },
+    { name: "v_table.npy", data: grid.v_table },
+    { name: "v_index_beta.npy", data: grid.v_index_beta },
   ]
 });
 
 function download_ndarray(link: DownloadLink) {
-  const bytecode = link.data.export_as_numpy_bytecode();
+  const bytecode = link.data.ndarray.export_as_numpy_bytecode();
   const blob = new Blob([bytecode], { type: "application/octet-stream" });
   const elem = document.createElement("a");
   elem.href = window.URL.createObjectURL(blob);
@@ -472,9 +473,19 @@ function download_ndarray(link: DownloadLink) {
           <h2 class="card-title">Export</h2>
           <template v-if="download_links">
             <table class="table table-sm w-fit">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Shape</th>
+                  <th>Size</th>
+                  <th></th>
+                </tr>
+              </thead>
               <tbody>
                 <tr v-for="(link, index) in download_links" :key="index">
                   <td>{{ link.name }}</td>
+                  <td>[{{ link.data.shape.join(',') }}]</td>
+                  <td>{{ with_standard_suffix(link.data.data_view.byteLength, "B") }}</td>
                   <td><button class="btn btn-sm" @click="download_ndarray(link)">Download</button></td>
                 </tr>
               </tbody>

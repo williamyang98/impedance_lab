@@ -1,5 +1,6 @@
 import { Ndarray } from "./ndarray.ts";
 import {
+  type IModuleBuffer,
   Uint8ModuleBuffer,
   Int8ModuleBuffer,
   Uint16ModuleBuffer,
@@ -10,7 +11,8 @@ import {
   Float64ModuleBuffer,
 } from "../wasm/index.ts";
 
-export interface ModuleNdarray {
+export interface ModuleNdarray extends IModuleBuffer {
+  readonly shape: number[];
   get ndarray(): Ndarray;
 }
 

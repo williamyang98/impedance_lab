@@ -46,7 +46,11 @@ type TypedArrayViewConstructor =
   Uint32ArrayConstructor | Int32ArrayConstructor |
   Float32ArrayConstructor | Float64ArrayConstructor;
 
-class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> implements ManagedObject {
+export interface IModuleBuffer extends ManagedObject {
+  get data_view(): Uint8Array;
+}
+
+class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> implements IModuleBuffer {
   readonly pin: T;
   readonly ctor: U;
 
@@ -61,6 +65,11 @@ class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstruct
       this.ctor = ctor;
       this.array_view.set(arg)
     }
+  }
+
+  get data_view() {
+    const array_view = this.array_view;
+    return new Uint8Array(array_view.buffer, array_view.byteOffset, array_view.byteLength);
   }
 
   get array_view() {
