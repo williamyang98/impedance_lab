@@ -329,28 +329,26 @@ function download_ndarray(link: DownloadLink) {
 <div class="tabs tabs-lift">
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Impedance" checked/>
   <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div class="grid grid-cols-7 gap-x-2">
-      <div class="w-full card card-border bg-base-100 col-span-3">
+    <div class="grid grid-cols-3 gap-x-2">
+      <div class="w-full card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Stackup</h2>
           <div class="bg-base-100 border-base-300 border-sm border-1">
-            <div class="flex flex-row gap-x-2">
-              <div class="min-w-[18rem]">
-                <div class="mb-2 w-full flex flex-row">
-                  <div><b>Layout: </b></div>
-                  <select v-model="selected_editor.selected">
-                    <option v-for="option in selected_editor.keys" :value="option" :key="option">
-                      {{ option }}
-                    </option>
-                  </select>
-                  <select v-model="selected_trace_template.selected">
-                    <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
-                      {{ option }}
-                    </option>
-                  </select>
-                </div>
-                <EditorControls :editor="editor"></EditorControls>
+            <div class="grid gap-y-2">
+              <div class="mb-2 w-full flex flex-row">
+                <div><b>Layout: </b></div>
+                <select v-model="selected_editor.selected">
+                  <option v-for="option in selected_editor.keys" :value="option" :key="option">
+                    {{ option }}
+                  </option>
+                </select>
+                <select v-model="selected_trace_template.selected">
+                  <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
+                    {{ option }}
+                  </option>
+                </select>
               </div>
+              <EditorControls :editor="editor"></EditorControls>
               <div
                 class="w-full h-full"
                 @mouseenter="is_viewer_hover = true" @mouseleave="is_viewer_hover = false">
@@ -360,13 +358,13 @@ function download_ndarray(link: DownloadLink) {
           </div>
         </div>
       </div>
-      <div class="w-full card card-border bg-base-100 col-span-2">
+      <div class="w-full card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Parameters</h2>
           <ParameterForm :stackup="simulation_stackup" @search="perform_search"></ParameterForm>
         </div>
       </div>
-      <div class="w-full card card-border bg-base-100 col-span-2">
+      <div class="w-full card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Impedance</h2>
           <div class="h-full">

@@ -99,16 +99,6 @@ watch(results, () => {
 <template>
 <div :class="$attrs.class">
   <div class="grid grid-cols-[auto_auto] gap-x-2 max-h-[100vh]">
-    <div class="w-full card card-border bg-base-100">
-      <div class="card-body">
-        <h2 class="card-title">Search Curve ({{ results.parameter_label }})</h2>
-        <!--https://www.chartjs.org/docs/latest/configuration/responsive.html#important-note-->
-        <!--chart.js plot needs specific requirements-->
-        <div class="relative min-w-[50%]">
-          <canvas ref="grid-canvas"></canvas>
-        </div>
-      </div>
-    </div>
     <div class="card card-border bg-base-100">
       <div class="card-body">
         <h2 class="card-title">Parameter Search Points</h2>
@@ -134,6 +124,16 @@ watch(results, () => {
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+    <div class="w-full card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">Search Curve ({{ results.parameter_label }})</h2>
+        <!--https://www.chartjs.org/docs/latest/configuration/responsive.html#important-note-->
+        <!--chart.js plot needs specific requirements-->
+        <div class="relative w-full">
+          <canvas ref="grid-canvas"></canvas>
         </div>
       </div>
     </div>
