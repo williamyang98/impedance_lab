@@ -117,14 +117,16 @@ export function search_parameters(
   }
   const initial_value = ref_param.value;
   const max_steps = 16;
-  const threshold = 1e-3;
+  const error_threshold = 1e-1; // impedance should just be within 0.1 ohms
+  const value_threshold = 1e-3; // precision of parameter search
 
   profiler?.begin("run_binary_search");
   const binary_search_results = run_binary_search(
     search_function,
     initial_value,
     min_value, max_value,
-    max_steps, threshold,
+    max_steps,
+    error_threshold, value_threshold,
   );
   profiler?.end();
 

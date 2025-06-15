@@ -72,7 +72,7 @@ export interface BinarySearchResult<T extends SearchResult> {
 export function run_binary_search<T extends SearchResult>(
   func: SearchFunction<T>,
   v_initial?: number, v_min?: number, v_max?: number,
-  max_steps?: number, threshold?: number,
+  max_steps?: number, error_threshold?: number, value_threshold?: number,
 ): BinarySearchResult<T> {
   v_min = v_min ?? 0; // unless specified default search to [0,Infinity)
   if (v_max && v_max < v_min) {
@@ -94,7 +94,9 @@ export function run_binary_search<T extends SearchResult>(
   }
 
   max_steps = max_steps ?? 32;
-  threshold = threshold ?? 1e-3;
+  error_threshold = error_threshold ?? 1e-3;
+  value_threshold = value_threshold ?? 1e-3;
+
   let v_lower: number = v_min;
   let v_upper: number | undefined = v_max;
   let v_unbounded_search = v_initial; // used if v_upper is unknown
@@ -117,8 +119,8 @@ export function run_binary_search<T extends SearchResult>(
       best_result = result;
       best_value = v_search;
     }
-    if (Math.abs(result.error) < threshold) break;
-    if (v_upper && (Math.abs(v_lower-v_upper) < threshold)) break;
+    if (Math.abs(result.error) < error_threshold) break;
+    if (v_upper && (Math.abs(v_lower-v_upper) < value_threshold)) break;
     if (result.error > 0) {
       v_upper = v_search;
     } else {
