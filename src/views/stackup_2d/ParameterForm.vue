@@ -181,8 +181,8 @@ function get_input_class(param: Parameter): string {
           <div class="h-full mt-1">
             <label :for="param.name" class="label">{{  param.name }}</label>
           </div>
-          <div class="join">
-            <div class="w-full">
+          <div class="w-full">
+            <div class="flex flex-row join">
               <input
                 :id="param.name"
                 :class="get_input_class(param)"
@@ -192,19 +192,19 @@ function get_input_class(param: Parameter): string {
                 :min="param.min" :max="param.max" v-model.number="param.value"
                 :placeholder="param.description"
               />
-              <div v-if="param.error" class="text-error text-xs flex flex-row py-1">
-                <TriangleAlert class="h-[1rem] w-[1rem] mr-1"/>
-                <span>{{ param.error }}</span>
-              </div>
+              <template v-if="param.impedance_correlation !== undefined">
+                <button
+                  class="btn btn-sm join-item px-2"
+                  @click="emits('search', [param])"
+                >
+                  <SearchIcon class="h-[1rem] w-[1rem]"/>
+                </button>
+              </template>
             </div>
-            <template v-if="param.impedance_correlation !== undefined">
-              <button
-                class="btn btn-sm join-item px-2"
-                @click="emits('search', [param])"
-              >
-                <SearchIcon class="h-[1rem] w-[1rem]"/>
-              </button>
-            </template>
+            <div v-if="param.error" class="text-error text-xs flex flex-row py-1 w-full">
+              <TriangleAlert class="h-[1rem] w-[1rem] mr-1"/>
+              <span>{{ param.error }}</span>
+            </div>
           </div>
         </template>
       </div>
