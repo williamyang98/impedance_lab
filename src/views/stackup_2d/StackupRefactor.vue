@@ -459,20 +459,11 @@ function download_ndarray(link: DownloadLink) {
   </div>
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Search"/>
   <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div class="w-full card card-border bg-base-100">
-      <div class="card-body">
-        <h2 class="card-title">Search</h2>
-        <template v-if="search_results">
-          <div class="w-full">
-            <ParameterSearchResultsGraph :results="search_results"></ParameterSearchResultsGraph>
-          </div>
-        </template>
-        <template v-else>
-          <div class="text-center">
-            <h1 class="text-2xl">Parameter search has not been conducted yet</h1>
-          </div>
-        </template>
-      </div>
+    <div v-if="search_results" class="w-full">
+      <ParameterSearchResultsGraph :results="search_results"></ParameterSearchResultsGraph>
+    </div>
+    <div v-else class="text-center">
+      <h1 class="text-2xl">Parameter search has not been conducted yet</h1>
     </div>
   </div>
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Export"/>

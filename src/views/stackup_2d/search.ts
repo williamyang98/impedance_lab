@@ -8,6 +8,7 @@ import { run_binary_search } from "../../utility/search.ts";
 export interface SearchResult {
   value: number;
   impedance: number;
+  iteration: number;
   error: number;
   layout: StackupLayout;
   stackup_grid: StackupGrid;
@@ -15,6 +16,7 @@ export interface SearchResult {
 }
 
 export interface SearchResults {
+  parameter_label: string;
   target_impedance: number;
   stackup: Stackup;
   best_result: SearchResult;
@@ -43,17 +45,22 @@ export function search_parameters(
     }
   }
 
+  const parameter_label = params
+    .map(param => param.name)
+    .filter(name => name !== undefined)
+    .join(",");
+
   const results: SearchResult[] = [];
   const search_function = (value: number): SearchResult => {
     for (const param of params) {
       param.value = value;
     }
 
-    const total_iterations = results.length;
+    const curr_iter = results.length;
     const metadata: Partial<Record<string, string>> = {
-      iteration: `${total_iterations}`,
+      iteration: `${curr_iter}`,
     };
-    profiler?.begin(`search_${total_iterations}`, undefined, metadata);
+    profiler?.begin(`search_${curr_iter}`, undefined, metadata);
 
     profiler?.begin("create_layout", "Create layout from transmission line stackup");
     const layout = create_layout_from_stackup(stackup, get_parameter, profiler);
@@ -85,6 +92,7 @@ export function search_parameters(
     const result: SearchResult = {
       value,
       error,
+      iteration: curr_iter,
       impedance: actual_impedance,
       layout,
       stackup_grid,
@@ -108,6 +116,7 @@ export function search_parameters(
   profiler?.end();
 
   return {
+    parameter_label,
     stackup,
     target_impedance,
     best_result: binary_search_results.best_result,

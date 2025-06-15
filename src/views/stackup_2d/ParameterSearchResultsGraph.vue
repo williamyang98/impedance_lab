@@ -46,16 +46,25 @@ function create_chart() {
     },
     options: {
       animation: false,
+      responsive: true,
       scales: {
         x: {
           type: "linear",
           min: x_min,
           max: x_max,
+          title: {
+            display: true,
+            text: "Value",
+          },
         },
         y: {
           type: "linear",
           min: y_min,
           max: y_max,
+          title: {
+            display: true,
+            text: "Impedance (Ω)",
+          },
         },
       },
       plugins: {
@@ -78,5 +87,46 @@ watch(results, () => {
 </script>
 
 <template>
-  <canvas ref="grid-canvas" :class="$attrs.class"></canvas>
+<div :class="$attrs.class">
+  <div class="grid grid-cols-[auto_auto] gap-x-2 max-h-[100vh]">
+    <div class="w-full card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">Search Curve ({{ results.parameter_label }})</h2>
+        <!--https://www.chartjs.org/docs/latest/configuration/responsive.html#important-note-->
+        <!--chart.js plot needs specific requirements-->
+        <div class="relative min-w-[50%]">
+          <canvas ref="grid-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="card card-border bg-base-100">
+      <div class="card-body">
+        <h2 class="card-title">Parameter Search Points</h2>
+        <div class="w-full overflow-auto">
+          <table class="w-full table table-sm">
+            <thead>
+              <tr>
+                <th>Iteration</th>
+                <th>{{ results.parameter_label }}</th>
+                <th>Impedance</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(result, index) in results.results" :key="index"
+                :class="`${result == results.best_result ? 'bg-green-200' : ''}`"
+              >
+                <td class="font-medium">{{ result.iteration }}</td>
+                <td>{{ result.value.toPrecision(3) }}</td>
+                <td>{{ result.impedance.toPrecision(3) }}</td>
+                <td>{{ result.error.toPrecision(3) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 </template>
