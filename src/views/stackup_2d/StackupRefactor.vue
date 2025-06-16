@@ -196,6 +196,8 @@ async function refresh_viewer() {
 }
 
 async function calculate_impedance() {
+  if (is_running.value) return;
+
   is_running.value = true;
   await sleep(0); // required so ui changes are reflected when is_running = True
 
@@ -248,6 +250,8 @@ const target_impedance = ref<number>(50.0);
 const search_results = ref<SearchResults | undefined>(undefined);
 
 async function perform_search(search_params: Parameter[]) {
+  if (is_running.value) return;
+
   is_running.value = true;
   await sleep(0);
 

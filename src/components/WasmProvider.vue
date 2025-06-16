@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { init as module_init } from "../wasm";
+import { Globals } from "../global.ts";
 
 type LoadState = "loading" | "failed" | "finished";
 const state = ref<LoadState>("loading");
@@ -8,7 +8,7 @@ const error_message = ref<string>();
 
 async function init() {
   try {
-    await module_init();
+    await Globals.init_wasm_module();
     state.value = "finished";
   } catch (error) {
     if (error instanceof Error) {

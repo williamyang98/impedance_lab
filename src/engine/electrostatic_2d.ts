@@ -1,8 +1,8 @@
 import {
   LU_Solver,
   Float32ModuleBuffer, Int32ModuleBuffer,
-  calculate_e_field, calculate_homogenous_energy_2d, calculate_inhomogenous_energy_2d,
 } from "../wasm";
+import { Globals } from "../global.ts";
 import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../utility/module_ndarray.ts";
 import { Profiler } from "../utility/profiler.ts";
 
@@ -43,29 +43,16 @@ export class Grid {
 
   constructor(Ny: number, Nx: number) {
     this.size = [Ny, Nx];
-    this.dx = new Float32ModuleNdarray([Nx]);
-    this.dy = new Float32ModuleNdarray([Ny]);
-    this.v_table = new Float32ModuleNdarray([3]);
-    this.v_index_beta = new Uint32ModuleNdarray([Ny+1,Nx+1]);
-    this.v_field = new Float32ModuleNdarray([Ny+1,Nx+1]);
-    this.ex_field = new Float32ModuleNdarray([Ny+1,Nx]);
-    this.ey_field = new Float32ModuleNdarray([Ny,Nx+1]);
-    this.ek_table = new Float32ModuleNdarray([Ny,Nx]);
-    this.ek_index_beta = new Uint32ModuleNdarray([Ny,Nx]);
+    this.dx = new Float32ModuleNdarray(Globals.wasm_module, [Nx]);
+    this.dy = new Float32ModuleNdarray(Globals.wasm_module, [Ny]);
+    this.v_table = new Float32ModuleNdarray(Globals.wasm_module, [3]);
+    this.v_index_beta = new Uint32ModuleNdarray(Globals.wasm_module, [Ny+1,Nx+1]);
+    this.v_field = new Float32ModuleNdarray(Globals.wasm_module, [Ny+1,Nx+1]);
+    this.ex_field = new Float32ModuleNdarray(Globals.wasm_module, [Ny+1,Nx]);
+    this.ey_field = new Float32ModuleNdarray(Globals.wasm_module, [Ny,Nx+1]);
+    this.ek_table = new Float32ModuleNdarray(Globals.wasm_module, [Ny,Nx]);
+    this.ek_index_beta = new Uint32ModuleNdarray(Globals.wasm_module, [Ny,Nx]);
     this.v_input = 1;
-  }
-
-  delete() {
-    this.dx.delete();
-    this.dy.delete();
-    this.v_table.delete();
-    this.v_index_beta.delete();
-    this.v_field.delete();
-    this.ex_field.delete();
-    this.ey_field.delete();
-    this.ek_table.delete();
-    this.ek_index_beta.delete();
-    this.lu_solver?.delete();
   }
 
   reset() {
@@ -167,29 +154,17 @@ export class Grid {
     }
 
     profiler?.begin("alloc_csr", "Allocate temporary CSR A matrix buffers inside WASM heap");
-    const pinned_A_data = new Float32ModuleBuffer(A_data.length);
-    const pinned_A_col_indices = new Int32ModuleBuffer(A_col_indices.length);
-    const pinned_A_row_index_ptr = new Int32ModuleBuffer(A_row_index_ptr.length);
+    const pinned_A_data = new Float32ModuleBuffer(Globals.wasm_module, A_data.length);
+    const pinned_A_col_indices = new Int32ModuleBuffer(Globals.wasm_module, A_col_indices.length);
+    const pinned_A_row_index_ptr = new Int32ModuleBuffer(Globals.wasm_module, A_row_index_ptr.length);
     pinned_A_data.array_view.set(A_data);
     pinned_A_col_indices.array_view.set(A_col_indices);
     pinned_A_row_index_ptr.array_view.set(A_row_index_ptr);
     profiler?.end();
 
-    if (this.lu_solver) {
-      profiler?.begin("free_old_lu_solver", "Free old LU factorisation");
-      this.lu_solver.delete();
-      profiler?.end();
-    }
-
     const total_voltages = (Ny+1)*(Nx+1);
     profiler?.begin("create_lu_solver", "Calculate new LU factorisations");
-    this.lu_solver = new LU_Solver(pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
-    profiler?.end();
-
-    profiler?.begin("free_csr", "Free temporary CSR A matrix buffers inside WASM heap");
-    pinned_A_data.delete();
-    pinned_A_col_indices.delete();
-    pinned_A_row_index_ptr.delete();
+    this.lu_solver = new LU_Solver(Globals.wasm_module, pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
     profiler?.end();
   }
 
@@ -221,7 +196,7 @@ export class Grid {
     profiler?.end();
 
     profiler?.begin("calc_e_field", "Calculate electric field from voltage field");
-    calculate_e_field(this.ex_field, this.ey_field, this.v_field, this.dx, this.dy);
+    Globals.wasm_module.calculate_e_field(this.ex_field, this.ey_field, this.v_field, this.dx, this.dy);
     profiler?.end();
 
     if (solve_info !== 0) {
@@ -231,14 +206,14 @@ export class Grid {
 
   calculate_impedance(profiler?: Profiler): ImpedanceResult {
     profiler?.begin("energy_homogenous", "Calculate energy stored without dielectric material");
-    const energy_homogenous = calculate_homogenous_energy_2d(
+    const energy_homogenous = Globals.wasm_module.calculate_homogenous_energy_2d(
       this.ex_field, this.ey_field,
       this.dx, this.dy,
     );
     profiler?.end();
 
     profiler?.begin("energy_inhomogenous", "Calculate energy stored with dielectric material");
-    const energy_inhomogenous = calculate_inhomogenous_energy_2d(
+    const energy_inhomogenous = Globals.wasm_module.calculate_inhomogenous_energy_2d(
       this.ex_field, this.ey_field,
       this.dx, this.dy,
       this.ek_table, this.ek_index_beta,

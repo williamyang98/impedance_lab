@@ -1,5 +1,6 @@
 import { Ndarray } from "./ndarray.ts";
 import {
+  WasmModule,
   type IModuleBuffer,
   Uint8ModuleBuffer,
   Int8ModuleBuffer,
@@ -19,9 +20,9 @@ export interface ModuleNdarray extends IModuleBuffer {
 export class Uint8ModuleNdarray extends Uint8ModuleBuffer implements ModuleNdarray {
   readonly shape: number[];
 
-  constructor(shape: number[]) {
+  constructor(module: WasmModule, shape: number[]) {
     const length = shape.reduce((a,b) => a*b, 1);
-    super(length);
+    super(module, length);
     this.shape = shape;
   }
 
@@ -33,9 +34,9 @@ export class Uint8ModuleNdarray extends Uint8ModuleBuffer implements ModuleNdarr
 export class Int8ModuleNdarray extends Int8ModuleBuffer implements ModuleNdarray {
   readonly shape: number[];
 
-  constructor(shape: number[]) {
+  constructor(module: WasmModule, shape: number[]) {
     const length = shape.reduce((a,b) => a*b, 1);
-    super(length);
+    super(module, length);
     this.shape = shape;
   }
 
@@ -47,9 +48,9 @@ export class Int8ModuleNdarray extends Int8ModuleBuffer implements ModuleNdarray
 export class Uint16ModuleNdarray extends Uint16ModuleBuffer implements ModuleNdarray {
   readonly shape: number[];
 
-  constructor(shape: number[]) {
+  constructor(module: WasmModule, shape: number[]) {
     const length = shape.reduce((a,b) => a*b, 1);
-    super(length);
+    super(module, length);
     this.shape = shape;
   }
 
@@ -61,9 +62,9 @@ export class Uint16ModuleNdarray extends Uint16ModuleBuffer implements ModuleNda
 export class Int16ModuleNdarray extends Int16ModuleBuffer implements ModuleNdarray {
   readonly shape: number[];
 
-  constructor(shape: number[]) {
+  constructor(module: WasmModule, shape: number[]) {
     const length = shape.reduce((a,b) => a*b, 1);
-    super(length);
+    super(module, length);
     this.shape = shape;
   }
 
@@ -75,9 +76,9 @@ export class Int16ModuleNdarray extends Int16ModuleBuffer implements ModuleNdarr
 export class Uint32ModuleNdarray extends Uint32ModuleBuffer implements ModuleNdarray {
   readonly shape: number[];
 
-  constructor(shape: number[]) {
+  constructor(module: WasmModule, shape: number[]) {
     const length = shape.reduce((a,b) => a*b, 1);
-    super(length);
+    super(module, length);
     this.shape = shape;
   }
 
@@ -89,9 +90,9 @@ export class Uint32ModuleNdarray extends Uint32ModuleBuffer implements ModuleNda
 export class Int32ModuleNdarray extends Int32ModuleBuffer implements ModuleNdarray {
   readonly shape: number[];
 
-  constructor(shape: number[]) {
+  constructor(module: WasmModule, shape: number[]) {
     const length = shape.reduce((a,b) => a*b, 1);
-    super(length);
+    super(module, length);
     this.shape = shape;
   }
 
@@ -103,9 +104,9 @@ export class Int32ModuleNdarray extends Int32ModuleBuffer implements ModuleNdarr
 export class Float32ModuleNdarray extends Float32ModuleBuffer implements ModuleNdarray {
   readonly shape: number[];
 
-  constructor(shape: number[]) {
+  constructor(module: WasmModule, shape: number[]) {
     const length = shape.reduce((a,b) => a*b, 1);
-    super(length);
+    super(module, length);
     this.shape = shape;
   }
 
@@ -117,9 +118,9 @@ export class Float32ModuleNdarray extends Float32ModuleBuffer implements ModuleN
 export class Float64ModuleNdarray extends Float64ModuleBuffer implements ModuleNdarray {
   readonly shape: number[];
 
-  constructor(shape: number[]) {
+  constructor(module: WasmModule, shape: number[]) {
     const length = shape.reduce((a,b) => a*b, 1);
-    super(length);
+    super(module, length);
     this.shape = shape;
   }
 

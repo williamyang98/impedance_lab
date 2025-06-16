@@ -3,7 +3,7 @@ import {
   Float32ModuleNdarray, Uint32ModuleNdarray, Uint16ModuleNdarray,
 } from "../../utility/module_ndarray.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
-import { convert_f32_to_f16 } from "../../wasm";
+import { Globals } from "../../global.ts";
 
 export class Renderer {
   adapter: GPUAdapter;
@@ -57,7 +57,7 @@ export class Renderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const voltage = new Float32ModuleNdarray([...shape, 2]);
+    const voltage = new Float32ModuleNdarray(Globals.wasm_module, [...shape, 2]);
     {
       const voltage_arr = voltage.array_view;
       const v_table_arr = v_table.array_view;
@@ -72,15 +72,14 @@ export class Renderer {
         }
       }
     }
-    const f16_data = new Uint16ModuleNdarray(voltage.shape);
-    convert_f32_to_f16(voltage, f16_data);
+    const f16_data = new Uint16ModuleNdarray(Globals.wasm_module, voltage.shape);
+    Globals.wasm_module.convert_f32_to_f16(voltage, f16_data);
     this.device.queue.writeTexture(
       { texture: this.v_force_texture },
       f16_data.array_view,
       { bytesPerRow: width*2*2 },
       { width, height },
     );
-    f16_data.delete();
   }
 
   _upload_v_field(v_field: Float32ModuleNdarray) {
@@ -103,15 +102,14 @@ export class Renderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const f16_data = new Uint16ModuleNdarray(shape);
-    convert_f32_to_f16(v_field, f16_data);
+    const f16_data = new Uint16ModuleNdarray(Globals.wasm_module, shape);
+    Globals.wasm_module.convert_f32_to_f16(v_field, f16_data);
     this.device.queue.writeTexture(
       { texture: this.v_field_texture },
       f16_data.array_view,
       { bytesPerRow: width*2 },
       { width, height },
     );
-    f16_data.delete();
   }
 
   _upload_epsilon(ek_table: Float32ModuleNdarray, ek_index_beta: Uint32ModuleNdarray) {
@@ -134,7 +132,7 @@ export class Renderer {
         usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       });
     }
-    const epsilon = new Float32ModuleNdarray([...shape, 2]);
+    const epsilon = new Float32ModuleNdarray(Globals.wasm_module, [...shape, 2]);
     {
       const ek_table_arr = ek_table.array_view;
       const ek_index_beta_arr = ek_index_beta.array_view;
@@ -149,15 +147,14 @@ export class Renderer {
         }
       }
     }
-    const f16_data = new Uint16ModuleNdarray(epsilon.shape);
-    convert_f32_to_f16(epsilon, f16_data);
+    const f16_data = new Uint16ModuleNdarray(Globals.wasm_module, epsilon.shape);
+    Globals.wasm_module.convert_f32_to_f16(epsilon, f16_data);
     this.device.queue.writeTexture(
       { texture: this.epsilon_texture },
       f16_data.array_view,
       { bytesPerRow: width*2*2 },
       { width, height },
     );
-    f16_data.delete();
   }
 
   _upload_e_field(ex_field: Float32ModuleNdarray, ey_field: Float32ModuleNdarray) {
@@ -180,7 +177,7 @@ export class Renderer {
       });
     }
     const shape = [Ny,Nx,2];
-    const f32_data = new Float32ModuleNdarray(shape);
+    const f32_data = new Float32ModuleNdarray(Globals.wasm_module, shape);
     {
       const ex_buf = ex_field.array_view;
       const ey_buf = ey_field.array_view;
@@ -196,16 +193,14 @@ export class Renderer {
       }
     }
 
-    const f16_data = new Uint16ModuleNdarray(shape);
-    convert_f32_to_f16(f32_data, f16_data);
+    const f16_data = new Uint16ModuleNdarray(Globals.wasm_module, shape);
+    Globals.wasm_module.convert_f32_to_f16(f32_data, f16_data);
     this.device.queue.writeTexture(
       { texture: this.e_field_texture },
       f16_data.array_view,
       { bytesPerRow: width*2*2 },
       { width, height },
     );
-    f32_data.delete();
-    f16_data.delete();
   }
 
   _upload_dy_spline(dy: Float32ModuleNdarray) {
@@ -229,15 +224,14 @@ export class Renderer {
       });
     }
 
-    const f16_data = new Uint16ModuleNdarray(dy.shape);
-    convert_f32_to_f16(dy, f16_data);
+    const f16_data = new Uint16ModuleNdarray(Globals.wasm_module, dy.shape);
+    Globals.wasm_module.convert_f32_to_f16(dy, f16_data);
     this.device.queue.writeTexture(
       { texture: this.spline_dy_texture },
       f16_data.array_view,
       { bytesPerRow: height*2 },
       { width: height, height: 1 },
     );
-    f16_data.delete();
   }
 
   _upload_dx_spline(dx: Float32ModuleNdarray) {
@@ -261,15 +255,14 @@ export class Renderer {
       });
     }
 
-    const f16_data = new Uint16ModuleNdarray(dx.shape);
-    convert_f32_to_f16(dx, f16_data);
+    const f16_data = new Uint16ModuleNdarray(Globals.wasm_module, dx.shape);
+    Globals.wasm_module.convert_f32_to_f16(dx, f16_data);
     this.device.queue.writeTexture(
       { texture: this.spline_dx_texture },
       f16_data.array_view,
       { bytesPerRow: width*2 },
       { width, height: 1 },
     );
-    f16_data.delete();
   }
 
   update_canvas(canvas_context: GPUCanvasContext, scale: number, axis: Axis) {
