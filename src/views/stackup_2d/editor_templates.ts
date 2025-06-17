@@ -10,7 +10,6 @@ import {
   StackupParameters,
   create_layer,
   create_ground_plane_conductor,
-  type IdStore,
   type ColinearTrace,
   type ColinearLayerTemplate,
   type ColinearTraceTemplate,
@@ -18,6 +17,7 @@ import {
   type BroadsideLayerTemplate,
   type BroadsideTraceTemplate,
 } from "./editor.ts";
+import { type IdStore } from "./id_store.ts";
 
 export class ColinearTraceDifferentialPair implements ColinearTraceTemplate {
   create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
