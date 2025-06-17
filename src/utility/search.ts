@@ -94,7 +94,7 @@ export function run_binary_search<T extends SearchResult>(
       console.warn(`Decreasing initial search value ${v_initial} to maximum search value ${v_max}`);
       v_initial = v_max;
     } else if (v_initial < v_min) {
-      console.warn(`Increasing initial search value ${v_initial} to minimum search value ${v_max}`);
+      console.warn(`Increasing initial search value ${v_initial} to minimum search value ${v_min}`);
       v_initial = v_min;
     }
   }

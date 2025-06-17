@@ -108,9 +108,11 @@ const CommonRules = {
   },
 };
 
+type RequiresParent = { parent: StackupParameters };
 export class StackupParameters {
   id_to_index: Partial<Record<LayerId, number>> = {};
   required_trace_widths = new Set<SizeParameter>();
+  required_trace_tapers = new Set<TaperSizeParameter>();
 
   get_index(id: LayerId): number {
     const index  = this.id_to_index[id];
@@ -120,14 +122,14 @@ export class StackupParameters {
     return index;
   }
 
-  dW: ParameterCache<number, TaperSizeParameter>;
-  T: ParameterCache<number, SizeParameter>;
-  SH: ParameterCache<number, SizeParameter>;
-  H: ParameterCache<number, SizeParameter>;
-  ER: ParameterCache<number, EpsilonParameter>;
+  dW: ParameterCache<number, TaperSizeParameter & RequiresParent>;
+  T: ParameterCache<number, SizeParameter & RequiresParent>;
+  SH: ParameterCache<number, SizeParameter & RequiresParent>;
+  H: ParameterCache<number, SizeParameter & RequiresParent>;
+  ER: ParameterCache<number, EpsilonParameter & RequiresParent>;
   PH: SizeParameter;
-  W: SizeParameter;
-  CW: SizeParameter;
+  W: SizeParameter & RequiresParent;
+  CW: SizeParameter & RequiresParent;
   S: SizeParameter;
   B: SizeParameter;
   CS: SizeParameter;
@@ -210,19 +212,39 @@ export class StackupParameters {
       placeholder_value: sizes.copper_layer_height,
     };
     this.W = {
+      parent: this,
       type: "size",
       name: "W",
       description: "Trace width",
-      min: 0,
+      get min(): number {
+        // minimum trace width is equal to maximum taper size
+        let max_taper_size = 0;
+        for (const param of this.parent.required_trace_tapers) {
+          if (param.value !== undefined) {
+            max_taper_size = Math.max(max_taper_size, param.value);
+          }
+        }
+        return max_taper_size;
+      },
       value: 0.25,
       placeholder_value: sizes.signal_trace_width,
       impedance_correlation: "negative",
     };
     this.CW = {
+      parent: this,
       type: "size",
       name: "CW",
       description: "Coplanar ground width",
-      min: 0,
+      get min(): number {
+        // minimum trace width is equal to maximum taper size
+        let max_taper_size = 0;
+        for (const param of this.parent.required_trace_tapers) {
+          if (param.value !== undefined) {
+            max_taper_size = Math.max(max_taper_size, param.value);
+          }
+        }
+        return max_taper_size;
+      },
       value: 0.25,
       placeholder_value: sizes.ground_trace_width,
       impedance_correlation: "negative",
@@ -360,12 +382,14 @@ export abstract class StackupEditor {
     }
   }
 
-  regenerate_required_trace_widths() {
-    // keep track of which parameters effect trace taper geometry
+  regenerate_trace_parameter_constraints() {
+    // keep track of which parameters effect trace and taper geometry
     this.parameters.required_trace_widths.clear();
+    this.parameters.required_trace_tapers.clear();
     for (const conductor of this.get_sim_conductors()) {
       if (conductor.type == "trace") {
         this.parameters.required_trace_widths.add(conductor.width);
+        this.parameters.required_trace_tapers.add(this.parameters.dW.get(conductor.position.layer_id));
       }
     }
   }
@@ -515,7 +539,7 @@ export class ColinearStackupEditor extends StackupEditor {
     this.regenerate_layer_id_to_index();
 
     this.trace = this.trace_template.create(this.parameters, trace_position, this.trace_ids);
-    this.regenerate_required_trace_widths();
+    this.regenerate_trace_parameter_constraints();
   }
 
   set_trace_template(trace_template: ColinearTraceTemplate) {
@@ -524,7 +548,7 @@ export class ColinearStackupEditor extends StackupEditor {
       this.trace_ids.free(trace.id);
     }
     this.trace = this.trace_template.create(this.parameters, this.trace.position, this.trace_ids);
-    this.regenerate_required_trace_widths();
+    this.regenerate_trace_parameter_constraints();
   }
 
   override get_sim_conductors(): Conductor[] {
@@ -554,7 +578,7 @@ export class ColinearStackupEditor extends StackupEditor {
         }
         const sim_trace = this.trace_template.create(this.parameters, conductor.position, this.trace_ids);
         this.trace = sim_trace;
-        this.regenerate_required_trace_widths();
+        this.regenerate_trace_parameter_constraints();
       });
     }
 
@@ -688,7 +712,7 @@ export class BroadsideStackupEditor extends StackupEditor {
     this.left = this.trace_template.create_left(this.parameters, left_trace_position, this.trace_ids);
     this.right = this.trace_template.create_right(this.parameters, right_trace_position, this.trace_ids);
     this.broadside_spacing = this.create_broadside_spacing(this.left.root.id, this.right.root.id);
-    this.regenerate_required_trace_widths();
+    this.regenerate_trace_parameter_constraints();
   }
 
   set_trace_template(trace_template: BroadsideTraceTemplate) {
@@ -698,7 +722,7 @@ export class BroadsideStackupEditor extends StackupEditor {
     this.left = this.trace_template.create_left(this.parameters, left_position, this.trace_ids);
     this.right = this.trace_template.create_right(this.parameters, right_position, this.trace_ids);
     this.broadside_spacing = this.create_broadside_spacing(this.left.root.id, this.right.root.id);
-    this.regenerate_required_trace_widths();
+    this.regenerate_trace_parameter_constraints();
   }
 
   create_broadside_spacing(left_id: TraceId, right_id: TraceId): HorizontalSpacing {
@@ -744,7 +768,7 @@ export class BroadsideStackupEditor extends StackupEditor {
         const sim_spacing = this.create_broadside_spacing(sim_left.root.id, this.right.root.id);
         this.left = sim_left;
         this.broadside_spacing = sim_spacing;
-        this.regenerate_required_trace_widths();
+        this.regenerate_trace_parameter_constraints();
       });
     }
 
@@ -762,7 +786,7 @@ export class BroadsideStackupEditor extends StackupEditor {
         const sim_spacing = this.create_broadside_spacing(this.left.root.id, sim_right.root.id);
         this.right = sim_right;
         this.broadside_spacing = sim_spacing;
-        this.regenerate_required_trace_widths();
+        this.regenerate_trace_parameter_constraints();
       });
     }
 
