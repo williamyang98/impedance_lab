@@ -145,13 +145,11 @@ export class WasmModule {
     const finalization_entry = this.heap_objects.weak_refs.get(parent);
     if (finalization_entry === undefined) {
       this.debug_console?.error("Tried to unregister children from parent object that isn't being tracked");
-      this.debug_console?.warn(new Error().stack);
       return;
     }
     for (const child of children) {
       if (!child.delete()) {
         this.debug_console?.warn("Tried to unregister and delete a child from parent that was already deleted: ", child);
-        this.debug_console?.warn(new Error().stack);
       }
       finalization_entry.children.delete(child);
     }
@@ -162,19 +160,16 @@ export class WasmModule {
     const finalization_entry = this.heap_objects.weak_refs.get(parent);
     if (finalization_entry === undefined) {
       this.debug_console?.error("Tried to unregister a parent that isn't being tracked");
-      this.debug_console?.warn(new Error().stack);
       return;
     }
     if (!this.finalisation_registry.unregister(finalization_entry)) {
       this.debug_console?.error("Failed to unregister parent object from finalization entry: ", parent);
-      this.debug_console?.warn(new Error().stack);
     }
     this.heap_objects.weak_refs.delete(parent);
     this.heap_objects.size -= 1;
     for (const child of finalization_entry.children) {
       if (!child.delete()) {
         this.debug_console?.warn("Tried to unregister and delete a child object that was already deleted: ", child);
-        this.debug_console?.warn(new Error().stack);
       }
     }
   }
