@@ -1,4 +1,5 @@
 import { type EpsilonParameter, type Voltage } from "./stackup.ts";
+import { type ManagedObject } from "../../wasm/index.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 import { Globals } from "../../global.ts";
@@ -92,7 +93,9 @@ interface EpsilonValue {
   value: number;
 }
 
-export class StackupGrid {
+export class StackupGrid implements ManagedObject {
+  readonly module = Globals.wasm_module;
+  _is_deleted: boolean = false;
   layout: StackupLayout;
   voltage_indexes: {
     v_table: Record<Voltage, number>,
@@ -144,8 +147,20 @@ export class StackupGrid {
     this.setup_fill_voltage_regions();
 
     // fit voltage and epsilon_k table
-    this.grid.v_table = new Float32ModuleNdarray(Globals.wasm_module, [3]);
-    this.grid.ek_table = new Float32ModuleNdarray(Globals.wasm_module, [this.epsilon_indexes.ek_table.length]);
+    this.grid.v_table = new Float32ModuleNdarray(this.module, [3]);
+    this.grid.ek_table = new Float32ModuleNdarray(this.module, [this.epsilon_indexes.ek_table.length]);
+    this.module.register_parent_and_children(this, this.grid);
+  }
+
+  delete(): boolean {
+    if (this._is_deleted) return false;
+    this._is_deleted = true;
+    this.module.unregister_parent_and_children(this);
+    return true;
+  }
+
+  is_deleted(): boolean {
+    return this._is_deleted;
   }
 
   get_infinite_plane_region(shape: InfinitePlaneShape): InfinitePlaneRegion {

@@ -4,23 +4,86 @@ import { StackupGrid } from "./grid.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { run_binary_search } from "../../utility/search.ts";
+import { type ManagedObject } from "../../wasm/index.ts";
+import { Globals } from "../../global.ts";
 
-export interface SearchResult {
-  value: number;
-  impedance: number;
-  iteration: number;
-  error: number;
-  layout: StackupLayout;
-  stackup_grid: StackupGrid;
-  measurement: Measurement;
+export class SearchResult implements ManagedObject {
+  readonly module = Globals.wasm_module;
+  _is_deleted: boolean = false;
+  readonly value: number;
+  readonly impedance: number;
+  readonly iteration: number;
+  readonly error: number;
+  readonly layout: StackupLayout;
+  readonly stackup_grid: StackupGrid;
+  readonly measurement: Measurement;
+
+  constructor(
+    value: number,
+    impedance: number,
+    iteration: number,
+    error: number,
+    layout: StackupLayout,
+    stackup_grid: StackupGrid,
+    measurement: Measurement,
+  ) {
+    this.value = value;
+    this.impedance = impedance;
+    this.iteration = iteration;
+    this.error = error;
+    this.layout = layout;
+    this.stackup_grid = stackup_grid;
+    this.measurement = measurement;
+    this.module.register_parent_and_children(this, this.stackup_grid);
+  }
+
+  delete(): boolean {
+    if (this._is_deleted) return false;
+    this._is_deleted = true;
+    this.module.unregister_parent_and_children(this);
+    return true;
+  }
+
+  is_deleted(): boolean {
+    return this._is_deleted;
+  }
 }
 
-export interface SearchResults {
-  parameter_label: string;
-  target_impedance: number;
-  stackup: Stackup;
-  best_result: SearchResult;
-  results: SearchResult[];
+export class SearchResults implements ManagedObject {
+  readonly module = Globals.wasm_module;
+  _is_deleted: boolean = false;
+
+  readonly parameter_label: string;
+  readonly target_impedance: number;
+  readonly stackup: Stackup;
+  readonly best_result: SearchResult;
+  readonly results: SearchResult[];
+
+  constructor(
+    parameter_label: string,
+    target_impedance: number,
+    stackup: Stackup,
+    best_result: SearchResult,
+    results: SearchResult[],
+  ) {
+    this.parameter_label = parameter_label;
+    this.target_impedance = target_impedance;
+    this.stackup = stackup;
+    this.best_result = best_result;
+    this.results = results;
+    this.module.register_parent_and_children(this, ...this.results);
+  }
+
+  delete(): boolean {
+    if (this._is_deleted) return false;
+    this._is_deleted = true;
+    this.module.unregister_parent_and_children(this);
+    return true;
+  }
+
+  is_deleted(): boolean {
+    return this._is_deleted;
+  }
 }
 
 export function search_parameters(
@@ -89,15 +152,15 @@ export function search_parameters(
     metadata.error_impedance = `${error_impedance.toPrecision(3)}`;
     metadata.error = `${error.toPrecision(3)}`;
 
-    const result: SearchResult = {
+    const result = new SearchResult(
       value,
+      actual_impedance,
+      curr_iter,
       error,
-      iteration: curr_iter,
-      impedance: actual_impedance,
       layout,
       stackup_grid,
       measurement,
-    };
+    );
     results.push(result);
     return result;
   };
@@ -130,11 +193,11 @@ export function search_parameters(
   );
   profiler?.end();
 
-  return {
+  return new SearchResults(
     parameter_label,
-    stackup,
     target_impedance,
-    best_result: binary_search_results.best_result,
+    stackup,
+    binary_search_results.best_result,
     results,
-  };
+  );
 }

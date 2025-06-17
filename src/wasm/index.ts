@@ -8,31 +8,52 @@ import {
   type LU_Solver as _LU_Solver,
 } from "./build/wasm_module.js";
 
-interface ManagedObject {
-  module: WasmModule;
+export interface ManagedObject {
+  readonly module: WasmModule;
+  delete(): boolean;
+  is_deleted(): boolean;
+}
+
+class ManagedHandle<T extends ClassHandle> implements ManagedObject {
+  readonly module: WasmModule;
+  handle: T;
+
+  constructor(module: WasmModule, handle: T) {
+    this.module = module;
+    this.handle = handle;
+  }
+
+  delete(): boolean {
+    if (this.handle.isDeleted()) return false;
+    this.handle.delete();
+    return true;
+  }
+
+  is_deleted(): boolean {
+    return this.handle.isDeleted();
+  }
+}
+
+type StackTrace = string;
+interface FinalizationEntry {
+  children: Set<ManagedObject>;
+  parent_stack_trace?: StackTrace; // need to track this separately since parent is deallocated
 }
 
 // Wrap around the emscripten typescript bindings with something less jank
 export class WasmModule {
   main: MainModule;
   heap_objects = {
-    weak_refs: new WeakSet<ManagedObject>(),
+    stack_trace: new WeakMap<ManagedObject, StackTrace>(),
+    weak_refs: new WeakMap<ManagedObject, FinalizationEntry>(),
     size: 0,
   };
-  finalisation_registry: FinalizationRegistry<ClassHandle>;
+  finalisation_registry: FinalizationRegistry<FinalizationEntry>;
+  debug_console?: Console = import.meta.env.DEV ? console : undefined;
 
   private constructor(main: MainModule) {
     this.main = main;
-
-    // NOTE: manually cleanup entries
-    //       emscripten generates [Symbol.dispose] which is only supported on ESNext.
-    //       Instead we will target ES2022 which is widely available and has FinalizationRegistry
-    this.finalisation_registry = new FinalizationRegistry<ClassHandle>((handle) => {
-      if (!handle.isDeleted()) {
-        handle.delete();
-        this.heap_objects.size -= 1;
-      }
-    });
+    this.finalisation_registry = this.create_finalization_registry();
   }
 
   static async init(): Promise<WasmModule> {
@@ -51,24 +72,111 @@ export class WasmModule {
     }
   }
 
-  register_heap(object: ManagedObject, handle: ClassHandle) {
-    this.assert_owned(object);
-    if (this.heap_objects.weak_refs.has(object)) {
-      throw Error("Tried to register a heap object again");
-    }
-    this.heap_objects.size += 1;
-    this.heap_objects.weak_refs.add(object);
-    this.finalisation_registry.register(object, handle);
+  // NOTE: Our manual memory management setup to free/track parent/children allocations
+  // 1. We should always try to use register/unregister to perform manual cleanup of children.
+  //    This has to be done anyway to avoid WASM memory leaks, so we should by default rely on it
+  //    to free memory dependencies between parent and child ManagedObjects.
+  // 2. Cannot rely on javascript engine to garbage collect ManagedObjects in a timely manner.
+  //    This delay in garbage collection causes the WASM linear heap to grow to an extremely large size.
+  //    Since the WASM heap cannot shrink (https://github.com/WebAssembly/design/issues/1397) this results
+  //    in a permanent waste of heap space.
+  //    By freeing manually we keep the heap size to a relatively small size.
+  // 3. Additionally even though emscripten generates [Symbol.dispose] this is only supported on ESNext.
+  //    The proposal is not finalised: (https://github.com/tc39/proposal-explicit-resource-management).
+  //    Instead we will target ES2022 which is widely available and has FinalizationRegistry.
+  //    Compatability matrix: (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/FinalizationRegistry#browser_compatibility).
+  create_finalization_registry() {
+    return new FinalizationRegistry<FinalizationEntry>((entry) => {
+      const children = entry.children;
+      const total_children = children.size;
+      const dangling_children = [];
+      for (const child of entry.children) {
+        if (!child.is_deleted()) {
+          dangling_children.push(child);
+        }
+      }
+      if (dangling_children.length > 0) {
+        this.debug_console?.warn(`Manually cleaning up after parent object which left ${dangling_children.length}/${total_children} child objects dangling`);
+        if (entry.parent_stack_trace) {
+          this.debug_console?.warn(entry.parent_stack_trace);
+        }
+        for (let i = 0; i < dangling_children.length; i++) {
+          this.debug_console?.warn(`Deleting child object ${i+1}/${total_children}`);
+          const child = dangling_children[i];
+          child.delete();
+          if (this.debug_console) {
+            const stack_trace = this.heap_objects.stack_trace.get(child);
+            if (stack_trace) {
+              this.debug_console.warn(stack_trace);
+            }
+          }
+        }
+      }
+      this.heap_objects.size -= 1;
+    });
   }
 
-  unregister_heap(object: ManagedObject) {
-    this.assert_owned(object);
-    if (!this.heap_objects.weak_refs.has(object)) {
-      throw Error("Tried to unregister a heap object that isn't being tracked");
+  register_parent_and_children(parent: ManagedObject, ...children: ManagedObject[]) {
+    this.assert_owned(parent);
+    let finalization_entry = this.heap_objects.weak_refs.get(parent);
+    if (finalization_entry === undefined) {
+      let stack_trace: StackTrace | undefined = undefined;
+      if (import.meta.env.DEV) {
+        stack_trace = new Error().stack
+      }
+      if (stack_trace) {
+        this.heap_objects.stack_trace.set(parent, stack_trace);
+      }
+      finalization_entry = {
+        parent_stack_trace: stack_trace,
+        children: new Set(),
+      };
+      this.heap_objects.weak_refs.set(parent, finalization_entry);
+      this.heap_objects.size += 1;
+      this.finalisation_registry.register(parent, finalization_entry, finalization_entry);
     }
+    for (const child of children) {
+      finalization_entry.children.add(child);
+    }
+  }
+
+  unregister_children_from_parent(parent: ManagedObject, ...children: ManagedObject[]) {
+    this.assert_owned(parent);
+    const finalization_entry = this.heap_objects.weak_refs.get(parent);
+    if (finalization_entry === undefined) {
+      this.debug_console?.error("Tried to unregister children from parent object that isn't being tracked");
+      this.debug_console?.warn(new Error().stack);
+      return;
+    }
+    for (const child of children) {
+      if (!child.delete()) {
+        this.debug_console?.warn("Tried to unregister and delete a child from parent that was already deleted: ", child);
+        this.debug_console?.warn(new Error().stack);
+      }
+      finalization_entry.children.delete(child);
+    }
+  }
+
+  unregister_parent_and_children(parent: ManagedObject) {
+    this.assert_owned(parent);
+    const finalization_entry = this.heap_objects.weak_refs.get(parent);
+    if (finalization_entry === undefined) {
+      this.debug_console?.error("Tried to unregister a parent that isn't being tracked");
+      this.debug_console?.warn(new Error().stack);
+      return;
+    }
+    if (!this.finalisation_registry.unregister(finalization_entry)) {
+      this.debug_console?.error("Failed to unregister parent object from finalization entry: ", parent);
+      this.debug_console?.warn(new Error().stack);
+    }
+    this.heap_objects.weak_refs.delete(parent);
     this.heap_objects.size -= 1;
-    this.heap_objects.weak_refs.delete(object);
-    this.finalisation_registry.unregister(object);
+    for (const child of finalization_entry.children) {
+      if (!child.delete()) {
+        this.debug_console?.warn("Tried to unregister and delete a child object that was already deleted: ", child);
+        this.debug_console?.warn(new Error().stack);
+      }
+    }
   }
 
   // module functions
@@ -146,6 +254,7 @@ class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstruct
   readonly module: WasmModule;
   readonly pin: T;
   readonly ctor: U;
+  _is_deleted: boolean = false;
 
   constructor(module: WasmModule, arg: number | ArrayLike<number>, get_pin: (length: number) => T, ctor: U) {
     this.module = module;
@@ -159,7 +268,18 @@ class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstruct
       this.ctor = ctor;
       this.array_view.set(arg)
     }
-    this.module.register_heap(this, this.pin);
+    this.module.register_parent_and_children(this, new ManagedHandle(module, this.pin));
+  }
+
+  delete(): boolean {
+    if (this._is_deleted) return false;
+    this._is_deleted = true;
+    this.module.unregister_parent_and_children(this);
+    return true;
+  }
+
+  is_deleted(): boolean {
+    return this._is_deleted;
   }
 
   get data_view() {
@@ -240,7 +360,8 @@ export type TypedModuleBuffer =
 
 export class LU_Solver implements ManagedObject {
   readonly inner: _LU_Solver;
-  module: WasmModule;
+  readonly module: WasmModule;
+  _is_deleted: boolean = false;
 
   constructor(
     module: WasmModule,
@@ -262,10 +383,21 @@ export class LU_Solver implements ManagedObject {
       throw Error("WASM module LU_Solver.create returned null");
     }
     this.inner = inner;
-    module.register_heap(this, this.inner);
+    module.register_parent_and_children(this, new ManagedHandle(module, this.inner));
   }
 
   solve(b: Float32ModuleBuffer): number {
     return this.inner.solve(b.pin);
+  }
+
+  delete(): boolean {
+    if (this._is_deleted) return false;
+    this._is_deleted = true;
+    this.module.unregister_parent_and_children(this);
+    return true;
+  }
+
+  is_deleted(): boolean {
+    return this._is_deleted;
   }
 }

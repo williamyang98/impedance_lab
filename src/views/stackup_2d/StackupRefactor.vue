@@ -5,6 +5,7 @@ import {
   //       otherwise emscripten will panic on upcastCheck() use to upcast/downcast virtual pointers
   //       this is because it performs a comparison between the entity's "class" descriptor
   //       and since a comparison between a proxy and the original object is false this breaks this check
+  //       this also applied to .delete() calls which register/unregister from a weakmap. proxy breaks the key check.
   toRaw,
 } from "vue";
 // subcomponents
@@ -238,6 +239,7 @@ async function calculate_impedance() {
   if (!new_profiler.is_ended()) {
     new_profiler.end_all();
   }
+  toRaw(stackup_grid.value)?.delete();
   stackup_grid.value = new_stackup;
   measurement.value = new_measurement;
   profiler.value = new_profiler;
@@ -280,8 +282,10 @@ async function perform_search(search_params: Parameter[]) {
     new_profiler.end_all();
   }
 
+  toRaw(search_results.value)?.delete();
   search_results.value = new_search_results;
   const best_result = new_search_results?.best_result;
+  toRaw(stackup_grid.value)?.delete();
   stackup_grid.value = best_result?.stackup_grid;
   measurement.value = best_result?.measurement;
   profiler.value = new_profiler;
