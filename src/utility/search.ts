@@ -130,8 +130,8 @@ export function run_binary_search<T extends SearchResult>(
   };
 
   if (search_endpoints) {
-    run_search(v_lower);
-    if (v_upper !== undefined) run_search(v_upper);
+    run_search(v_min);
+    if (v_max !== undefined) run_search(v_max);
   }
 
   for (let curr_step = 0; curr_step < max_steps; curr_step++) {
@@ -139,6 +139,10 @@ export function run_binary_search<T extends SearchResult>(
     let v_search: number | undefined;
     if (curr_step == 0) {
       v_search = v_initial;
+      // skip endpoints if searched already
+      if (search_endpoints && (v_search == v_min || v_search == v_max)) {
+        continue;
+      }
     } else if (v_upper == undefined) {
       v_search = v_unbounded_search;
     } else {
@@ -146,8 +150,8 @@ export function run_binary_search<T extends SearchResult>(
     }
     const result = run_search(v_search);
     if (Math.abs(result.error) < error_threshold) break;
-    if (v_upper && (Math.abs(v_upper-v_search) < value_threshold)) break;
-    if ((Math.abs(v_lower-v_search) < value_threshold)) break;
+    // exit if search range reaches target resolution
+    if (v_upper && (Math.abs(v_upper-v_lower) < value_threshold)) break;
     if (result.error > 0) {
       v_upper = v_search;
     } else {
