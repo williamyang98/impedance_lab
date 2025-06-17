@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const emits = defineEmits<{
   search: [parameters: Parameter[]],
+  submit: [],
 }>();
 
 interface FormFields {
@@ -156,10 +157,20 @@ function get_input_class(param: Parameter): string {
   return "";
 }
 
+function on_submit(ev: Event) {
+  ev.preventDefault();
+  emits("submit");
+}
+
+function on_search(ev: MouseEvent, params: Parameter[]) {
+  ev.preventDefault();
+  emits("search", params);
+}
+
 </script>
 
 <template>
-<form :class="`grid grid-cols-2 gap-x-5`">
+<form :class="`grid grid-cols-2 gap-x-5`" @submit="on_submit">
   <div
     v-for="(col, col_index) in form.get_layout()" :key="col_index"
     class="w-full"
@@ -170,7 +181,8 @@ function get_input_class(param: Parameter): string {
         <template v-if="row.has_group_search">
           <button
             class="btn btn-sm btn-neutral px-2"
-            @click="emits('search', set_to_array(row.parameters))"
+            @click="(ev) => on_search(ev, set_to_array(row.parameters))"
+            type="button"
           >
             <SearchIcon class="h-[1rem] w-[1rem]"/>
           </button>
@@ -195,7 +207,8 @@ function get_input_class(param: Parameter): string {
               <template v-if="param.impedance_correlation !== undefined">
                 <button
                   class="btn btn-sm join-item px-2"
-                  @click="emits('search', [param])"
+                  @click="(ev) => on_search(ev, [param])"
+                  type="button"
                 >
                   <SearchIcon class="h-[1rem] w-[1rem]"/>
                 </button>
@@ -210,6 +223,8 @@ function get_input_class(param: Parameter): string {
       </div>
     </div>
   </div>
+  <!--Make form submit on enter (https://stackoverflow.com/a/477699)-->
+  <input type="submit" hidden/>
 </form>
 
 </template>

@@ -370,7 +370,11 @@ function download_ndarray(link: DownloadLink) {
       <div class="w-full card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Parameters</h2>
-          <ParameterForm :stackup="simulation_stackup" @search="perform_search"></ParameterForm>
+          <ParameterForm
+            :stackup="simulation_stackup"
+            @search="perform_search"
+            @submit="calculate_impedance"
+          ></ParameterForm>
         </div>
       </div>
       <div class="w-full card card-border bg-base-100">
