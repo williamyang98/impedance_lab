@@ -147,6 +147,8 @@ export function search_parameters(
     const error_impedance = target_impedance-actual_impedance;
     const error = impedance_correlation == "positive" ? -error_impedance : error_impedance;
 
+    metadata.name = parameter_label;
+    metadata.value = `${value.toPrecision(3)}`;
     metadata.target_impedance = `${target_impedance.toPrecision(3)}`;
     metadata.actual_impedance = `${actual_impedance.toPrecision(3)}`;
     metadata.error_impedance = `${error_impedance.toPrecision(3)}`;
@@ -182,6 +184,7 @@ export function search_parameters(
   const max_steps = 16;
   const error_threshold = 1e-1; // impedance should just be within 0.1 ohms
   const value_threshold = 1e-3; // precision of parameter search
+  const is_search_endpoints = true;
 
   profiler?.begin("run_binary_search");
   const binary_search_results = run_binary_search(
@@ -190,6 +193,7 @@ export function search_parameters(
     min_value, max_value,
     max_steps,
     error_threshold, value_threshold,
+    is_search_endpoints,
   );
   profiler?.end();
 

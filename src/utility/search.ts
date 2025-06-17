@@ -72,8 +72,11 @@ export interface BinarySearchResult<T extends SearchResult> {
 export function run_binary_search<T extends SearchResult>(
   func: SearchFunction<T>,
   v_initial?: number, v_min?: number, v_max?: number,
-  max_steps?: number, error_threshold?: number, value_threshold?: number,
+  max_steps?: number,
+  error_threshold?: number, value_threshold?: number,
+  search_endpoints?: boolean,
 ): BinarySearchResult<T> {
+  search_endpoints = search_endpoints ?? false;
   v_min = v_min ?? 0; // unless specified default search to [0,Infinity)
   if (v_max && v_max < v_min) {
     throw Error(`Maximum search value ${v_max} is less than minimum search value ${v_min}`);
@@ -117,6 +120,20 @@ export function run_binary_search<T extends SearchResult>(
   let best_value: number | undefined = undefined;
   let best_result: T | undefined = undefined;
 
+  const run_search = (v_search: number): T => {
+    const result = func(v_search);
+    if (best_result === undefined || (Math.abs(result.error) < Math.abs(best_result.error))) {
+      best_result = result;
+      best_value = v_search;
+    }
+    return result;
+  };
+
+  if (search_endpoints) {
+    run_search(v_lower);
+    if (v_upper !== undefined) run_search(v_upper);
+  }
+
   for (let curr_step = 0; curr_step < max_steps; curr_step++) {
     // determine search value
     let v_search: number | undefined;
@@ -127,13 +144,10 @@ export function run_binary_search<T extends SearchResult>(
     } else {
       v_search = (v_lower+v_upper)/2.0;
     }
-    const result = func(v_search);
-    if (best_result === undefined || (Math.abs(result.error) < Math.abs(best_result.error))) {
-      best_result = result;
-      best_value = v_search;
-    }
+    const result = run_search(v_search);
     if (Math.abs(result.error) < error_threshold) break;
-    if (v_upper && (Math.abs(v_lower-v_upper) < value_threshold)) break;
+    if (v_upper && (Math.abs(v_upper-v_search) < value_threshold)) break;
+    if ((Math.abs(v_lower-v_search) < value_threshold)) break;
     if (result.error > 0) {
       v_upper = v_search;
     } else {
