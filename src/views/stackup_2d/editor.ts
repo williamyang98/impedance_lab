@@ -165,7 +165,7 @@ export class StackupParameters {
         parent: this,
         get name() { return `T${this.parent.get_index(i)}`; },
         description: "Trace thickness",
-        min: 0,
+        min: 0.001,
         value: 0.035,
         placeholder_value: sizes.trace_height,
         impedance_correlation: "negative",
@@ -189,7 +189,7 @@ export class StackupParameters {
         parent: this,
         get name() { return `H${this.parent.get_index(i)}`; },
         description: "Dielectric height",
-        min: 0,
+        min: 0.001,
         value: 0.15,
         placeholder_value: sizes.core_height,
         impedance_correlation: "positive",
@@ -224,7 +224,8 @@ export class StackupParameters {
             max_taper_size = Math.max(max_taper_size, param.value);
           }
         }
-        return max_taper_size;
+        const min_trace_width = 0.001;
+        return Math.max(min_trace_width, max_taper_size);
       },
       value: 0.25,
       placeholder_value: sizes.signal_trace_width,
@@ -243,7 +244,8 @@ export class StackupParameters {
             max_taper_size = Math.max(max_taper_size, param.value);
           }
         }
-        return max_taper_size;
+        const min_trace_width = 0.001;
+        return Math.max(min_trace_width, max_taper_size);
       },
       value: 0.25,
       placeholder_value: sizes.ground_trace_width,
@@ -253,7 +255,7 @@ export class StackupParameters {
       type: "size",
       name: "S",
       description: "Signal separation",
-      min: 0,
+      min: 0.001,
       value: 0.25,
       placeholder_value: sizes.signal_width_separation,
       impedance_correlation: "positive",
@@ -271,7 +273,7 @@ export class StackupParameters {
       type: "size",
       name: "CS",
       description: "Coplanar ground separation",
-      min: 0,
+      min: 0.001,
       value: 0.25,
       placeholder_value: sizes.ground_width_separation,
       impedance_correlation: "positive",
