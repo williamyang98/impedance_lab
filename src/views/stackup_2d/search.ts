@@ -6,7 +6,7 @@ import { Profiler } from "../../utility/profiler.ts";
 import { type ManagedObject } from "../../wasm/index.ts";
 import { Globals } from "../../global.ts";
 
-function run_binary_search<T extends { error: number }>(
+function run_parameter_search<T extends { error: number }>(
   func: (value: number) => T,
   v_initial?: number, v_min?: number, v_max?: number,
 ): T {
@@ -47,46 +47,89 @@ function run_binary_search<T extends { error: number }>(
   }
 
   let v_lower: number = v_min;
+  let e_lower: number = -Infinity;
   let v_upper: number | undefined = v_max;
+  let e_upper: number = Infinity;
   let v_unbounded_search = v_initial; // used if v_upper is unknown
 
   let best_result: T | undefined = undefined;
-  const run_search = (v_search: number): T => {
+
+  // parameter search should include endpoints and initial value
+  const v_required_search: number[] = [];
+  if (v_max && v_max != v_initial) v_required_search.push(v_max);
+  if (v_min != v_initial) v_required_search.push(v_min);
+  v_required_search.push(v_initial);
+
+  function clamp(value: number, min: number, max: number) {
+    return Math.max(Math.min(value, max), min);
+  }
+
+  for (let curr_step = 0; curr_step < max_steps; curr_step++) {
+    let v_search: number | undefined;
+    // phase 1: endpoints and initial value
+    const v_required = v_required_search.pop();
+    if (v_required !== undefined) {
+      v_search = v_required;
+    // phase 2: find upper bound
+    } else if (v_upper == undefined) {
+      v_search = v_unbounded_search;
+    // phase 3: weighted bisection search for faster convergence of naiive binary search
+    } else {
+      let ratio = 0.5;
+      if (e_lower !== -Infinity && e_upper !== Infinity) {
+        ratio = e_upper/(e_upper-e_lower);
+      }
+      const ratio_margin = 0.05;
+      ratio = clamp(ratio, ratio_margin, 1-ratio_margin);
+      v_search = v_lower*ratio+v_upper*(1-ratio);
+    }
+
+    // exit if search range reaches target resolution while narrowing upper and lower bound
+    if (
+      v_required === undefined &&
+      v_upper !== undefined &&
+      (Math.abs(v_upper-v_lower) < value_threshold)
+    ) {
+      break;
+    }
+
     const result = func(v_search);
     if (best_result === undefined || (Math.abs(result.error) < Math.abs(best_result.error))) {
       best_result = result;
     }
-    return result;
-  };
-
-  // parameter search should include endpoints
-  const pre_search_values: number[] = [];
-  if (v_max) pre_search_values.push(v_max);
-  pre_search_values.push(v_min, v_initial);
-
-  for (let curr_step = 0; curr_step < max_steps; curr_step++) {
-    // determine search value
-    let v_search: number | undefined;
-    const pre_search_value = pre_search_values.pop();
-    if (pre_search_value !== undefined) {
-      v_search = pre_search_value;
-    } else if (v_upper == undefined) {
-      v_search = v_unbounded_search;
-    } else {
-      v_search = (v_lower+v_upper)/2.0;
-    }
-    const result = run_search(v_search);
     if (Math.abs(result.error) < error_threshold) break;
-    // exit if search range reaches target resolution
-    if (v_upper && (Math.abs(v_upper-v_lower) < value_threshold)) break;
-    if (result.error > 0) {
+
+    // narrow upper bound
+    let is_search_narrowed = false;
+    if (result.error > 0 && e_upper > result.error) {
       v_upper = v_search;
-    } else {
+      e_upper = result.error;
+      is_search_narrowed = true;
+    }
+    // narrow lower bound
+    if (result.error < 0 && e_lower < result.error) {
       v_lower = v_search;
+      e_lower = result.error;
+      is_search_narrowed = true;
+    }
+    // keep going through required search values
+    if (v_required !== undefined) {
+      continue;
     }
     // still searching for upper bound
     if (v_upper === undefined) {
       v_unbounded_search = v_search*2;
+      continue;
+    }
+    // search range will not converge
+    if (e_lower > 0 || e_upper < 0) {
+      console.warn("Exiting parameter search since search range doesn't include solution");
+      break;
+    }
+    // search function no longer monotonic
+    if (!is_search_narrowed) {
+      console.warn("Exiting parameter search early due to search function no longer being monotonic");
+      break;
     }
   }
 
@@ -272,7 +315,7 @@ export function search_parameters(
   }
   profiler?.begin("run_binary_search");
   const initial_value = ref_param.value;
-  const best_result = run_binary_search(
+  const best_result = run_parameter_search(
     search_function,
     initial_value,
     min_value, max_value,
