@@ -3,9 +3,99 @@ import { create_layout_from_stackup, type StackupLayout } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { run_binary_search } from "../../utility/search.ts";
 import { type ManagedObject } from "../../wasm/index.ts";
 import { Globals } from "../../global.ts";
+
+function run_binary_search<T extends { error: number }>(
+  func: (value: number) => T,
+  v_initial?: number, v_min?: number, v_max?: number,
+): T {
+  const max_steps = 16;
+  const error_threshold = 1e-1; // impedance should just be within 0.1 ohms
+  const value_threshold = 1e-3; // precision of parameter search
+
+  v_min = v_min ?? 0; // unless specified default search to [0,Infinity)
+  if (v_max && v_max < v_min) {
+    throw Error(`Maximum search value ${v_max} is less than minimum search value ${v_min}`);
+  }
+
+  // determine initial search value
+  if (v_initial === undefined) {
+    if (v_max !== undefined) {
+      v_initial = (v_max+v_min)/2.0;
+    } else {
+      v_initial = v_min+1;
+    }
+  } else {
+    if (v_max !== undefined && v_initial > v_max) {
+      console.warn(`Decreasing initial search value ${v_initial} to maximum search value ${v_max}`);
+      v_initial = v_max;
+    } else if (v_initial < v_min) {
+      console.warn(`Increasing initial search value ${v_initial} to minimum search value ${v_min}`);
+      v_initial = v_min;
+    }
+  }
+
+  // avoid upper bound search stall since 0 value cannot be doubled
+  if (v_initial == 0.0) {
+    if (v_max === undefined) {
+      v_initial = 1.0;
+    } else {
+      v_initial = (v_max+v_min)/2.0;
+    }
+    console.warn(`Initial value was 0 and will be replaced with a non-zero finite value ${v_initial}`);
+  }
+
+  let v_lower: number = v_min;
+  let v_upper: number | undefined = v_max;
+  let v_unbounded_search = v_initial; // used if v_upper is unknown
+
+  let best_result: T | undefined = undefined;
+  const run_search = (v_search: number): T => {
+    const result = func(v_search);
+    if (best_result === undefined || (Math.abs(result.error) < Math.abs(best_result.error))) {
+      best_result = result;
+    }
+    return result;
+  };
+
+  // parameter search should include endpoints
+  const pre_search_values: number[] = [];
+  if (v_max) pre_search_values.push(v_max);
+  pre_search_values.push(v_min, v_initial);
+
+  for (let curr_step = 0; curr_step < max_steps; curr_step++) {
+    // determine search value
+    let v_search: number | undefined;
+    const pre_search_value = pre_search_values.pop();
+    if (pre_search_value !== undefined) {
+      v_search = pre_search_value;
+    } else if (v_upper == undefined) {
+      v_search = v_unbounded_search;
+    } else {
+      v_search = (v_lower+v_upper)/2.0;
+    }
+    const result = run_search(v_search);
+    if (Math.abs(result.error) < error_threshold) break;
+    // exit if search range reaches target resolution
+    if (v_upper && (Math.abs(v_upper-v_lower) < value_threshold)) break;
+    if (result.error > 0) {
+      v_upper = v_search;
+    } else {
+      v_lower = v_search;
+    }
+    // still searching for upper bound
+    if (v_upper === undefined) {
+      v_unbounded_search = v_search*2;
+    }
+  }
+
+  if (best_result === undefined) {
+    throw Error("Failed to find any best result");
+  }
+  return best_result;
+}
+
 
 export class SearchResult implements ManagedObject {
   readonly module = Globals.wasm_module;
@@ -180,20 +270,12 @@ export function search_parameters(
       }
     }
   }
-  const initial_value = ref_param.value;
-  const max_steps = 16;
-  const error_threshold = 1e-1; // impedance should just be within 0.1 ohms
-  const value_threshold = 1e-3; // precision of parameter search
-  const is_search_endpoints = true;
-
   profiler?.begin("run_binary_search");
-  const binary_search_results = run_binary_search(
+  const initial_value = ref_param.value;
+  const best_result = run_binary_search(
     search_function,
     initial_value,
     min_value, max_value,
-    max_steps,
-    error_threshold, value_threshold,
-    is_search_endpoints,
   );
   profiler?.end();
 
@@ -201,7 +283,7 @@ export function search_parameters(
     parameter_label,
     target_impedance,
     stackup,
-    binary_search_results.best_result,
+    best_result,
     results,
   );
 }
