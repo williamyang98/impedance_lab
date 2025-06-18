@@ -47,24 +47,25 @@ function run_parameter_search<T extends { error: number }>(
   }
 
   let v_lower: number = v_min;
-  let e_lower: number = -Infinity;
+  let e_lower: number | undefined = undefined;
   let v_upper: number | undefined = v_max;
-  let e_upper: number = Infinity;
+  let e_upper: number | undefined = undefined;
   let v_unbounded_search = v_initial; // used if v_upper is unknown
 
   let best_result: T | undefined = undefined;
 
   // parameter search should include endpoints and initial value
   const v_required_search: number[] = [];
-  if (v_max && v_max != v_initial) v_required_search.push(v_max);
-  if (v_min != v_initial) v_required_search.push(v_min);
-  v_required_search.push(v_initial);
+  if (v_max !== undefined) v_required_search.push(v_max);
+  v_required_search.push(v_min, v_initial);
 
   function clamp(value: number, min: number, max: number) {
     return Math.max(Math.min(value, max), min);
   }
 
-  for (let curr_step = 0; curr_step < max_steps; curr_step++) {
+  const results = new Map<number, T>();
+  let curr_step = 0;
+  while (curr_step < max_steps) {
     let v_search: number | undefined;
     // phase 1: endpoints and initial value
     const v_required = v_required_search.pop();
@@ -76,7 +77,7 @@ function run_parameter_search<T extends { error: number }>(
     // phase 3: weighted bisection search for faster convergence of naiive binary search
     } else {
       let ratio = 0.5;
-      if (e_lower !== -Infinity && e_upper !== Infinity) {
+      if (e_lower !== undefined && e_upper !== undefined) {
         ratio = e_upper/(e_upper-e_lower);
       }
       const ratio_margin = 0.05;
@@ -93,7 +94,13 @@ function run_parameter_search<T extends { error: number }>(
       break;
     }
 
-    const result = func(v_search);
+    let result = results.get(v_search);
+    if (result === undefined) {
+      result = func(v_search);
+      curr_step += 1;
+      results.set(v_search, result);
+    }
+
     if (best_result === undefined || (Math.abs(result.error) < Math.abs(best_result.error))) {
       best_result = result;
     }
@@ -101,16 +108,20 @@ function run_parameter_search<T extends { error: number }>(
 
     // narrow upper bound
     let is_search_narrowed = false;
-    if (result.error > 0 && e_upper > result.error) {
-      v_upper = v_search;
-      e_upper = result.error;
-      is_search_narrowed = true;
+    if (result.error > 0) {
+      if (v_upper === undefined || e_upper === undefined || v_search < v_upper) {
+        v_upper = v_search;
+        e_upper = result.error;
+        is_search_narrowed = true;
+      }
     }
     // narrow lower bound
-    if (result.error < 0 && e_lower < result.error) {
-      v_lower = v_search;
-      e_lower = result.error;
-      is_search_narrowed = true;
+    if (result.error < 0) {
+      if (e_lower === undefined || v_search > v_lower) {
+        v_lower = v_search;
+        e_lower = result.error;
+        is_search_narrowed = true;
+      }
     }
     // keep going through required search values
     if (v_required !== undefined) {
@@ -121,14 +132,9 @@ function run_parameter_search<T extends { error: number }>(
       v_unbounded_search = v_search*2;
       continue;
     }
-    // search range will not converge
-    if (e_lower > 0 || e_upper < 0) {
-      console.warn("Exiting parameter search since search range doesn't include solution");
-      break;
-    }
-    // search function no longer monotonic
+    // search range did not narrow
     if (!is_search_narrowed) {
-      console.warn("Exiting parameter search early due to search function no longer being monotonic");
+      console.warn("Exiting parameter search early due to search range not being narrowed");
       break;
     }
   }
