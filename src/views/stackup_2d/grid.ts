@@ -290,8 +290,9 @@ export class StackupGrid implements ManagedObject {
     this.profiler?.begin("merge_grid_lines");
     const x_region_sizes = this.x_region_lines_builder.to_regions();
     const y_region_sizes = this.y_region_lines_builder.to_regions();
+    // TODO: determine best way of setting these very small epsilon values for merging mesh lines
     const region_sizes = [...x_region_sizes, ...y_region_sizes]
-      .filter(size => size > 0); // avoid normalising to 0 which causes infinities
+      .filter(size => size > 1e-5); // avoid normalising to 0 which causes infinities
     const log_mean = get_log_median(region_sizes);
     const merge_threshold = log_mean*1e-3;
     this.x_region_lines_builder.merge(merge_threshold);
