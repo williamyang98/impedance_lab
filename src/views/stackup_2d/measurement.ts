@@ -43,10 +43,6 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
   const is_single_ended = !stackup.is_differential_pair();
   let measurement: Measurement | undefined = undefined;
   if (is_single_ended) {
-    stackup.configure_single_ended_voltage();
-    stackup.configure_masked_dielectric();
-    const masked = calculate("masked");
-
     let unmasked = undefined;
     if (stackup.has_soldermask()) {
       stackup.configure_single_ended_voltage();
@@ -54,26 +50,31 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
       unmasked = calculate("unmasked");
     }
 
+    stackup.configure_single_ended_voltage();
+    stackup.configure_masked_dielectric();
+    const masked = calculate("masked");
+
     measurement = {
       type: "single",
       masked,
       unmasked,
     }
   } else {
-    stackup.configure_odd_mode_diffpair_voltage();
-    stackup.configure_masked_dielectric();
-    const odd_masked = calculate("odd_masked");
-
-    stackup.configure_even_mode_diffpair_voltage();
-    stackup.configure_masked_dielectric();
-    const even_masked = calculate("even_masked");
-
     let odd_unmasked = undefined;
     if (stackup.has_soldermask()) {
       stackup.configure_odd_mode_diffpair_voltage();
       stackup.configure_unmasked_dielectric();
       odd_unmasked = calculate("odd_unmasked");
     }
+
+    stackup.configure_even_mode_diffpair_voltage();
+    stackup.configure_masked_dielectric();
+    const even_masked = calculate("even_masked");
+
+    // NOTE: do this last so that final grid setup has expected differential voltage and soldermask
+    stackup.configure_odd_mode_diffpair_voltage();
+    stackup.configure_masked_dielectric();
+    const odd_masked = calculate("odd_masked");
 
     const Z_odd = odd_masked.Z0;
     const Z_even = even_masked.Z0;
