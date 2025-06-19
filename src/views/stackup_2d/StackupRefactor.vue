@@ -18,6 +18,7 @@ import ParameterForm from "./ParameterForm.vue";
 import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
+import { PencilIcon, EyeIcon } from "lucide-vue-next";
 // ts imports
 import { validate_parameter, type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
@@ -160,12 +161,12 @@ const editor = computed<StackupEditor>(() => selected_editor.value.value.editor)
 const selected_trace_template = computed(() => selected_editor.value.value);
 
 const simulation_stackup = computed(() => editor.value.get_simulation_stackup());
-const is_viewer_hover = ref<boolean>(false);
+const is_editing = ref<boolean>(true);
 const viewer_stackup = computed(() => {
-  if (is_viewer_hover.value) {
+  if (is_editing.value) {
     return editor.value.get_viewer_stackup();
   } else {
-    return editor.value.get_simulation_stackup();
+    return simulation_stackup.value;
   }
 });
 
@@ -342,27 +343,30 @@ function download_ndarray(link: DownloadLink) {
       <div class="w-full card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Stackup</h2>
-          <div class="bg-base-100 border-base-300 border-sm border-1">
-            <div class="grid gap-y-2">
-              <div class="mb-2 w-full flex flex-row">
-                <div><b>Layout: </b></div>
-                <select v-model="selected_editor.selected">
-                  <option v-for="option in selected_editor.keys" :value="option" :key="option">
-                    {{ option }}
-                  </option>
-                </select>
-                <select v-model="selected_trace_template.selected">
-                  <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
-                    {{ option }}
-                  </option>
-                </select>
-              </div>
-              <EditorControls :editor="editor"></EditorControls>
-              <div
-                class="w-full h-full"
-                @mouseenter="is_viewer_hover = true" @mouseleave="is_viewer_hover = false">
-                <StackupViewer :stackup="viewer_stackup"/>
-              </div>
+          <div class="w-full flex flex-col gap-y-1">
+            <div class="w-full flex flex-row gap-x-1">
+              <select class="select select-sm" v-model="selected_editor.selected" :disabled="!is_editing">
+                <option v-for="option in selected_editor.keys" :value="option" :key="option">
+                  {{ option }}
+                </option>
+              </select>
+              <select class="select select-sm" v-model="selected_trace_template.selected" :disabled="!is_editing">
+                <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
+                  {{ option }}
+                </option>
+              </select>
+              <template v-if="is_editing">
+                <button class="btn btn-sm edit-toggle" @click="is_editing = false"><EyeIcon/></button>
+              </template>
+              <template v-else>
+                <button class="btn btn-sm edit-toggle" @click="is_editing = true"><PencilIcon/></button>
+              </template>
+            </div>
+            <div class="w-full border border-1 border-base-300 bg-base-100 p-1" v-if="is_editing">
+              <EditorControls :editor="editor"/>
+            </div>
+            <div class="w-full border border-1 border-base-300 bg-base-100 p-1">
+              <StackupViewer :stackup="viewer_stackup"/>
             </div>
           </div>
         </div>
@@ -512,4 +516,18 @@ function download_ndarray(link: DownloadLink) {
 </template>
 
 <style scoped>
+button.edit-toggle {
+  padding: 0.25rem;
+  background: var(--color-base-200);
+  color: var(--color-base-content);
+}
+
+button.edit-toggle:hover {
+  background: var(--color-base-300);
+}
+
+button.edit-toggle svg {
+  height: 1.25rem;
+  width: 1.25rem;
+}
 </style>
