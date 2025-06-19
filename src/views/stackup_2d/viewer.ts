@@ -1,7 +1,8 @@
-import { type Orientation, type LayerId, type TraceId } from "./stackup.ts";
+import { type Orientation, type LayerId, type TraceId, type Voltage } from "./stackup.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 
 export const font_size = 9;
+export const voltage_size = 12;
 
 export const sizes = {
   soldermask_height: 17,
@@ -61,6 +62,12 @@ export interface EpsilonLabel {
   text: string;
 }
 
+export interface VoltageLabel {
+  x_offset: number;
+  y_offset: number;
+  voltage: Voltage;
+}
+
 export interface CopperTrace {
   type: "trace";
   id: TraceId;
@@ -108,6 +115,7 @@ export class Viewer {
   width_labels: WidthLabel[] = [];
   epsilon_labels: EpsilonLabel[] = [];
   epsilon_label_x_offset: number;
+  voltage_labels: VoltageLabel[] = [];
   height_label_config: {
     x_min: number;
     width: number;
@@ -371,6 +379,17 @@ export class Viewer {
     return label;
   }
 
+  create_voltage_label(shape: TrapezoidShape, voltage: Voltage) {
+    const y_offset = (shape.y_base+shape.y_taper)/2;
+    const x_offset = (shape.x_left+shape.x_right)/2;
+    const label: VoltageLabel = {
+      y_offset,
+      x_offset,
+      voltage,
+    };
+    return label;
+  }
+
   create_copper_traces() {
     const trace_taper_suffixes: Partial<Record<LayerId, string>> = {};
     for (const layer_layout of this.layout.layers) {
@@ -392,7 +411,7 @@ export class Viewer {
       const trace = trace_layout.parent;
       const display_type = trace.viewer?.display || "solid";
       const z_offset = (trace.viewer?.z_offset !== undefined) ? trace.viewer?.z_offset : 0;
-      if (display_type === "none") continue;
+      if (display_type == "none") continue;
       // trace labels
       const trace_width_name = get_name(trace.width);
       let is_labeled = false;
@@ -413,6 +432,10 @@ export class Viewer {
           const label = this.create_inline_width_label(offset, width, `${trace_width_name}${trace_taper_suffix}`, drag_up);
           this.width_labels.push(label);
         }
+      }
+      if (display_type == "solid") {
+        const voltage_label = this.create_voltage_label(shape, trace.voltage);
+        this.voltage_labels.push(voltage_label);
       }
       // trace shape
       this.conductors.push({

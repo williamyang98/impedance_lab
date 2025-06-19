@@ -2,7 +2,8 @@
 import { defineProps, computed, ref, watch } from "vue";
 import { type Stackup, type SizeParameter, type TaperSizeParameter } from "./stackup.ts";
 import { create_layout_from_stackup, type TrapezoidShape, type SoldermaskLayerLayout, type Position } from "./layout.ts";
-import { Viewer, font_size } from "./viewer.ts";
+import { Viewer, font_size, voltage_size } from "./viewer.ts";
+import { CirclePlusIcon, CircleMinusIcon } from "lucide-vue-next";
 
 const props = defineProps<{
   stackup: Stackup,
@@ -109,6 +110,24 @@ const soldermask_layer_layout_to_points = (layout: SoldermaskLayerLayout): Posit
   return points;
 }
 
+const voltage_labels = computed(() => {
+  return viewer.value.voltage_labels
+    .filter(label => label.voltage !== "ground")
+    .map(label => {
+      let icon = undefined;
+      switch (label.voltage) {
+        case "ground": break;
+        case "negative": icon = CircleMinusIcon; break;
+        case "positive": icon = CirclePlusIcon; break;
+      }
+      return {
+        x: label.x_offset,
+        y: label.y_offset,
+        icon,
+      };
+    });
+});
+
 </script>
 
 <template>
@@ -175,6 +194,15 @@ const soldermask_layer_layout_to_points = (layout: SoldermaskLayerLayout): Posit
         @click="() => conductor.on_click?.()"
       ></rect>
     </template>
+  </template>
+  <!-- Voltage labels -->
+  <template v-for="(label, index) in voltage_labels" :key="index">
+    <g
+      v-if="label.icon !== undefined"
+      :transform="`translate(${label.x},${label.y}) scale(${voltage_size})`"
+    >
+      <component :is="label.icon" x="-0.5" y="-0.5" width="1" height="1"/>
+    </g>
   </template>
   <!-- Height labels -->
   <template v-for="(label, index) in viewer.height_labels" :key="index">
