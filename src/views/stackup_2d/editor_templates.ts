@@ -9,7 +9,7 @@ import {
 import {
   StackupParameters,
   create_layer,
-  create_ground_plane_conductor,
+  create_plane,
   type ColinearTrace,
   type ColinearLayerTemplate,
   type ColinearTraceTemplate,
@@ -89,7 +89,7 @@ export class ColinearLayerMicrostrip implements ColinearLayerTemplate {
     const layer_1 = create_layer.core(params, id_store.own());
     const layer_2 = create_layer.unmasked(params, id_store.own(), "up");
 
-    const plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: layer_2.orientation });
+    const plane = create_plane(params, { layer_id: layer_2.id, orientation: layer_2.orientation });
 
     return {
       layers: [layer_0, layer_1, layer_2],
@@ -109,8 +109,8 @@ export class ColinearLayerStripline implements ColinearLayerTemplate {
     const layer_1 = create_layer.core(params, id_store.own());
     const layer_2 = create_layer.unmasked(params, id_store.own(), "up");
 
-    const top_plane = create_ground_plane_conductor(params, { layer_id: layer_0.id, orientation: "up" });
-    const bottom_plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: layer_2.orientation });
+    const top_plane = create_plane(params, { layer_id: layer_0.id, orientation: "up" });
+    const bottom_plane = create_plane(params, { layer_id: layer_2.id, orientation: layer_2.orientation });
 
     return {
       layers: [layer_0, layer_1, layer_2],
@@ -151,8 +151,8 @@ export class BroadsideLayerStripline implements BroadsideLayerTemplate {
     const layer_1 = create_layer.core(params, id_store.own());
     const layer_2 = create_layer.prepreg(params, id_store.own());
 
-    const top_plane = create_ground_plane_conductor(params, { layer_id: layer_0.id, orientation: "up" });
-    const bottom_plane = create_ground_plane_conductor(params, { layer_id: layer_2.id, orientation: "down" });
+    const top_plane = create_plane(params, { layer_id: layer_0.id, orientation: "up" });
+    const bottom_plane = create_plane(params, { layer_id: layer_2.id, orientation: "down" });
 
     return {
       layers: [layer_0, layer_1, layer_2],

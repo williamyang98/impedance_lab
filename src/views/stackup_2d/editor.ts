@@ -348,7 +348,7 @@ export const create_layer = {
   }
 }
 
-export function create_ground_plane_conductor(params: StackupParameters, position: TracePosition): CopperPlane {
+export function create_plane(params: StackupParameters, position: TracePosition): CopperPlane {
   return {
     type: "plane" ,
     position,
@@ -452,45 +452,49 @@ export abstract class StackupEditor {
   }
 
   // add/delete ground planes
-  remove_plane(plane: CopperPlane) {
-    const index = this.plane_conductors.indexOf(plane);
+  remove_plane(position: TracePosition) {
+    const index = this.plane_conductors.findIndex(plane => {
+      return plane.position.layer_id == position.layer_id &&
+        plane.position.orientation == position.orientation;
+    });
     if (index >= 0) {
       this.plane_conductors.splice(index, 1);
     }
   }
 
   // TODO: viewer styling and action bindings??? (why is this done separately???)
-  make_plane_removable(plane: CopperPlane) {
+  hide_spacing(spacing: HorizontalSpacing): HorizontalSpacing {
+    if (spacing.viewer === undefined) spacing.viewer = {};
+    spacing.viewer.is_display = false;
+    return spacing;
+  }
+
+  make_plane_removable(plane: CopperPlane): CopperPlane {
     plane.grid = {
       override_total_divisions: 1,
     };
     plane.viewer = {
-      on_click: () => this.remove_plane(plane),
+      on_click: () => this.remove_plane(plane.position),
     };
+    return plane;
   }
 
-  hide_spacings(spacings: HorizontalSpacing[]) {
-    for (const spacing of spacings) {
-      if (spacing.viewer === undefined) spacing.viewer = {};
-      spacing.viewer.is_display = false;
-    }
-  }
-
-  make_plane_conductor_selectable(plane: CopperPlane) {
+  make_plane_selectable(plane: CopperPlane): CopperPlane {
     plane.viewer = {
       is_labeled: false,
       display: "selectable",
       on_click: () => {
-        const sim_plane = create_ground_plane_conductor(this.parameters, plane.position);
+        const sim_plane = create_plane(this.parameters, plane.position);
         this.plane_conductors.push(sim_plane);
       },
     };
     plane.layout = {
       shrink_trace_layer: false,
     };
+    return plane;
   }
 
-  make_trace_conductor_selectable(trace: CopperTrace, group_tag: string, on_click: () => void) {
+  make_trace_selectable(trace: CopperTrace, group_tag: string, on_click: () => void): CopperTrace {
     let viewer = trace.viewer ?? {};
     viewer = {
       is_labeled: false,
@@ -500,16 +504,7 @@ export abstract class StackupEditor {
       ...viewer,
     };
     trace.viewer = viewer;
-  }
-
-  get_sim_conductors_clickable(): Conductor[] {
-    return this.get_sim_conductors()
-      .map((conductor) => {
-        if (conductor.type == "plane") {
-          this.make_plane_removable(conductor);
-        }
-        return conductor;
-      });
+    return trace;
   }
 }
 
@@ -566,7 +561,7 @@ export class ColinearStackupEditor extends StackupEditor {
   }
 
   override get_simulation_stackup(): Stackup {
-    const conductors = this.get_sim_conductors_clickable();
+    const conductors = this.get_sim_conductors();
     const spacings = this.get_sim_spacings();
     return {
       layers: this.layers,
@@ -578,7 +573,7 @@ export class ColinearStackupEditor extends StackupEditor {
   make_colinear_trace_conductors_selectable(trace: ColinearTrace) {
     const group_tag = `${trace.position.layer_id}_${trace.position.orientation}`;
     for (const conductor of trace.conductors) {
-      this.make_trace_conductor_selectable(conductor, group_tag, () => {
+      this.make_trace_selectable(conductor, group_tag, () => {
         for (const old_conductor of this.trace.conductors) {
           this.trace_ids.free(old_conductor.id)
         }
@@ -587,8 +582,9 @@ export class ColinearStackupEditor extends StackupEditor {
         this.regenerate_trace_parameter_constraints();
       });
     }
-
-    this.hide_spacings(trace.spacings);
+    for (const spacing of trace.spacings) {
+      this.hide_spacing(spacing);
+    }
   }
 
   create_parallel_spacing(left: TraceId, right: TraceId): HorizontalSpacing {
@@ -603,10 +599,21 @@ export class ColinearStackupEditor extends StackupEditor {
   }
 
   override get_viewer_stackup(): Stackup {
-    const sim_conductors = this.get_sim_conductors_clickable();
+    const sim_conductors = this.get_sim_conductors();
     const sim_spacings = this.get_sim_spacings();
     const viewer_conductors = [];
     const viewer_spacings = [];
+
+    for (let conductor of sim_conductors) {
+      if (conductor.type == "plane") {
+        conductor = this.make_plane_removable({ ...conductor })
+      }
+      viewer_conductors.push(conductor);
+    }
+
+    for (const spacing of sim_spacings) {
+      viewer_spacings.push(spacing);
+    }
 
     const occupied_locations: Partial<Record<LayerId, Set<Orientation>>> = {};
     for (const conductor of sim_conductors) {
@@ -652,14 +659,14 @@ export class ColinearStackupEditor extends StackupEditor {
             viewer_spacings.push(spacing);
           }
           const parallel_spacing = this.create_parallel_spacing(this.trace.conductors[0].id, new_trace.conductors[0].id);
-          this.hide_spacings([parallel_spacing]);
+          this.hide_spacing(parallel_spacing);
           viewer_spacings.push(parallel_spacing);
         }
 
         // add ground plane
-        const new_plane = create_ground_plane_conductor(this.parameters, new_position);
+        const new_plane = create_plane(this.parameters, new_position);
         if (!is_shorting([...sim_conductors, new_plane])) {
-          this.make_plane_conductor_selectable(new_plane);
+          this.make_plane_selectable(new_plane);
           viewer_conductors.push(new_plane);
         }
       }
@@ -667,8 +674,8 @@ export class ColinearStackupEditor extends StackupEditor {
 
     return {
       layers: this.layers,
-      conductors: [...sim_conductors, ...viewer_conductors],
-      spacings: [...sim_spacings, ...viewer_spacings],
+      conductors: viewer_conductors,
+      spacings: viewer_spacings,
     }
   }
 }
@@ -754,7 +761,7 @@ export class BroadsideStackupEditor extends StackupEditor {
   }
 
   override get_simulation_stackup(): Stackup {
-    const conductors = this.get_sim_conductors_clickable()
+    const conductors = this.get_sim_conductors()
     const spacings = this.get_sim_spacings();
     return {
       layers: this.layers,
@@ -766,7 +773,7 @@ export class BroadsideStackupEditor extends StackupEditor {
   make_left_trace_selectable(left: BroadsideTrace) {
     const group_tag = `${left.position.layer_id}_${left.position.orientation}_left`;
     for (const conductor of left.conductors) {
-      this.make_trace_conductor_selectable(conductor, group_tag, () => {
+      this.make_trace_selectable(conductor, group_tag, () => {
         for (const trace of this.left.conductors) {
           this.trace_ids.free(trace.id);
         }
@@ -777,14 +784,15 @@ export class BroadsideStackupEditor extends StackupEditor {
         this.regenerate_trace_parameter_constraints();
       });
     }
-
-    this.hide_spacings(left.spacings);
+    for (const spacing of left.spacings) {
+      this.hide_spacing(spacing);
+    }
   }
 
   make_right_trace_selectable(right: BroadsideTrace) {
     const group_tag = `${right.position.layer_id}_${right.position.orientation}_right`;
     for (const conductor of right.conductors) {
-      this.make_trace_conductor_selectable(conductor, group_tag, () => {
+      this.make_trace_selectable(conductor, group_tag, () => {
         for (const trace of this.right.conductors) {
           this.trace_ids.free(trace.id);
         }
@@ -795,15 +803,27 @@ export class BroadsideStackupEditor extends StackupEditor {
         this.regenerate_trace_parameter_constraints();
       });
     }
-
-    this.hide_spacings(right.spacings);
+    for (const spacing of right.spacings) {
+      this.hide_spacing(spacing);
+    }
   }
 
   override get_viewer_stackup(): Stackup {
-    const sim_conductors = this.get_sim_conductors_clickable();
+    const sim_conductors = this.get_sim_conductors();
     const sim_spacings = this.get_sim_spacings();
     const viewer_conductors = [];
     const viewer_spacings = [];
+
+    for (let conductor of sim_conductors) {
+      if (conductor.type == "plane") {
+        conductor = this.make_plane_removable({ ...conductor })
+      }
+      viewer_conductors.push(conductor);
+    }
+
+    for (const spacing of sim_spacings) {
+      viewer_spacings.push(spacing);
+    }
 
     const occupied_locations: Partial<Record<LayerId, Set<Orientation>>> = {};
     for (const conductor of sim_conductors) {
@@ -849,7 +869,7 @@ export class BroadsideStackupEditor extends StackupEditor {
             viewer_spacings.push(spacing);
           }
           const broadside_spacing = this.create_broadside_spacing(new_left.root.id, this.right.root.id);
-          this.hide_spacings([broadside_spacing]);
+          this.hide_spacing(broadside_spacing);
           viewer_spacings.push(broadside_spacing);
         }
 
@@ -864,14 +884,14 @@ export class BroadsideStackupEditor extends StackupEditor {
             viewer_spacings.push(spacing);
           }
           const broadside_spacing = this.create_broadside_spacing(this.left.root.id, new_right.root.id);
-          this.hide_spacings([broadside_spacing]);
+          this.hide_spacing(broadside_spacing);
           viewer_spacings.push(broadside_spacing);
         }
 
         // add ground plane
-        const new_plane = create_ground_plane_conductor(this.parameters, new_position);
+        const new_plane = create_plane(this.parameters, new_position);
         if (!is_shorting([...sim_conductors, new_plane])) {
-          this.make_plane_conductor_selectable(new_plane);
+          this.make_plane_selectable(new_plane);
           viewer_conductors.push(new_plane);
         }
       }
@@ -879,8 +899,8 @@ export class BroadsideStackupEditor extends StackupEditor {
 
     return {
       layers: this.layers,
-      conductors: [...sim_conductors, ...viewer_conductors],
-      spacings: [...sim_spacings, ...viewer_spacings],
+      conductors: viewer_conductors,
+      spacings: viewer_spacings,
     }
   }
 }
