@@ -230,6 +230,7 @@ export function search_parameters(
   stackup: Stackup, params: Parameter[],
   get_parameter: (param: Parameter) => number,
   profiler?: Profiler,
+  minimum_grid_resolution?: number,
 ): SearchResults {
   if (params.length <= 0) {
     throw Error("Got 0 parameters in parametric search");
@@ -269,7 +270,7 @@ export function search_parameters(
     profiler?.end();
 
     profiler?.begin("create_grid", "Create simulation grid from layout");
-    const stackup_grid = new StackupGrid(layout, get_parameter, profiler);
+    const stackup_grid = new StackupGrid(layout, get_parameter, profiler, minimum_grid_resolution);
     profiler?.end();
 
     profiler?.begin("run", "Perform impedance measurements", {

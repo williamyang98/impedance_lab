@@ -111,6 +111,7 @@ export class StackupGrid implements ManagedObject {
   y_region_lines_builder: LinesBuilder;
   x_region_to_grid_map: RegionToGridMap;
   y_region_to_grid_map: RegionToGridMap;
+  minimum_grid_resolution: number;
   grid: Grid;
   profiler?: Profiler;
 
@@ -118,7 +119,9 @@ export class StackupGrid implements ManagedObject {
     layout: StackupLayout,
     get_epsilon: (param: EpsilonParameter) => number,
     profiler: Profiler | undefined,
+    minimum_grid_resolution?: number,
   ) {
+    this.minimum_grid_resolution = minimum_grid_resolution ?? 1e-3;
     this.layout = layout;
     this.x_region_lines_builder = new LinesBuilder();
     this.y_region_lines_builder = new LinesBuilder();
@@ -290,13 +293,12 @@ export class StackupGrid implements ManagedObject {
     this.profiler?.begin("merge_grid_lines");
     const x_region_sizes = this.x_region_lines_builder.to_regions();
     const y_region_sizes = this.y_region_lines_builder.to_regions();
-    // TODO: determine best way of setting these very small epsilon values for merging mesh lines
-    const region_sizes = [...x_region_sizes, ...y_region_sizes]
-      .filter(size => size > 1e-5); // avoid normalising to 0 which causes infinities
+    const merge_size = 0.99*this.minimum_grid_resolution;
+    const region_sizes = [...x_region_sizes, ...y_region_sizes].filter(size => size > merge_size);
+    this.x_region_lines_builder.merge(merge_size);
+    this.y_region_lines_builder.merge(merge_size);
+    // rescale for best accuracy for 32bit floating point
     const log_mean = get_log_median(region_sizes);
-    const merge_threshold = log_mean*1e-3;
-    this.x_region_lines_builder.merge(merge_threshold);
-    this.y_region_lines_builder.merge(merge_threshold);
     this.x_region_lines_builder.apply_scale(1.0/log_mean);
     this.y_region_lines_builder.apply_scale(1.0/log_mean);
     this.profiler?.end();

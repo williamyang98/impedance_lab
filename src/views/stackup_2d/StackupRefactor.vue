@@ -219,7 +219,11 @@ async function calculate_impedance() {
     new_profiler.end();
 
     new_profiler.begin("create_grid", "Create simulation grid from layout");
-    new_stackup = new StackupGrid(layout, get_parameter, new_profiler);
+    new_stackup = new StackupGrid(
+      layout, get_parameter,
+      new_profiler,
+      editor.value.parameters.minimum_feature_size,
+    );
     new_profiler.end();
 
     new_profiler.begin("run", "Perform impedance measurements", {
@@ -274,6 +278,7 @@ async function perform_search(search_params: Parameter[]) {
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
       get_parameter,
       new_profiler,
+      editor.value.parameters.minimum_feature_size,
     );
     new_profiler.end();
   } catch (error) {
@@ -291,9 +296,11 @@ async function perform_search(search_params: Parameter[]) {
   measurement.value = best_result?.measurement;
   profiler.value = new_profiler;
   if (best_result) {
+    // set form field to best fit parameter values
     for (const param of search_params) {
       param.value = best_result.value;
     }
+    // mark form values as unmodified
     for (const param of used_parameters) {
       param.old_value = param.value;
     }

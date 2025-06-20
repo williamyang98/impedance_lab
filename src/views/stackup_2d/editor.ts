@@ -113,6 +113,7 @@ export class StackupParameters {
   id_to_index: Partial<Record<LayerId, number>> = {};
   required_trace_widths = new Set<SizeParameter>();
   required_trace_tapers = new Set<TaperSizeParameter>();
+  minimum_feature_size: number = 0.001;
 
   get_index(id: LayerId): number {
     const index  = this.id_to_index[id];
@@ -130,9 +131,9 @@ export class StackupParameters {
   PH: SizeParameter;
   W: SizeParameter & RequiresParent;
   CW: SizeParameter & RequiresParent;
-  S: SizeParameter;
-  B: SizeParameter;
-  CS: SizeParameter;
+  S: SizeParameter & RequiresParent;
+  B: SizeParameter & RequiresParent;
+  CS: SizeParameter & RequiresParent;
 
   constructor() {
     this.dW = new ParameterCache((i: number) => {
@@ -165,7 +166,7 @@ export class StackupParameters {
         parent: this,
         get name() { return `T${this.parent.get_index(i)}`; },
         description: "Trace thickness",
-        min: 0.001,
+        get min(): number { return this.parent.minimum_feature_size; },
         value: 0.035,
         placeholder_value: sizes.trace_height,
         impedance_correlation: "negative",
@@ -189,7 +190,7 @@ export class StackupParameters {
         parent: this,
         get name() { return `H${this.parent.get_index(i)}`; },
         description: "Dielectric height",
-        min: 0.001,
+        get min(): number { return this.parent.minimum_feature_size; },
         value: 0.15,
         placeholder_value: sizes.core_height,
         impedance_correlation: "positive",
@@ -224,7 +225,7 @@ export class StackupParameters {
             max_taper_size = Math.max(max_taper_size, param.value);
           }
         }
-        const min_trace_width = 0.001;
+        const min_trace_width = this.parent.minimum_feature_size;
         return Math.max(min_trace_width, max_taper_size);
       },
       value: 0.25,
@@ -244,7 +245,7 @@ export class StackupParameters {
             max_taper_size = Math.max(max_taper_size, param.value);
           }
         }
-        const min_trace_width = 0.001;
+        const min_trace_width = this.parent.minimum_feature_size;
         return Math.max(min_trace_width, max_taper_size);
       },
       value: 0.25,
@@ -252,28 +253,31 @@ export class StackupParameters {
       impedance_correlation: "negative",
     };
     this.S = {
+      parent: this,
       type: "size",
       name: "S",
       description: "Signal separation",
-      min: 0.001,
+      get min(): number { return this.parent.minimum_feature_size; },
       value: 0.25,
       placeholder_value: sizes.signal_width_separation,
       impedance_correlation: "positive",
     };
     this.B = {
+      parent: this,
       type: "size",
       name: "BS",
       description: "Broadside separation",
-      min: 0,
+      get min(): number { return this.parent.minimum_feature_size; },
       value: 0,
       placeholder_value: sizes.broadside_width_separation,
       impedance_correlation: "positive",
     };
     this.CS = {
+      parent: this,
       type: "size",
       name: "CS",
       description: "Coplanar ground separation",
-      min: 0.001,
+      get min(): number { return this.parent.minimum_feature_size; },
       value: 0.25,
       placeholder_value: sizes.ground_width_separation,
       impedance_correlation: "positive",
