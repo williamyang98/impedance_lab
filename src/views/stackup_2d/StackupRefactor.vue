@@ -18,7 +18,7 @@ import ParameterForm from "./ParameterForm.vue";
 import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 import { Viewer2D } from "../../components/viewer_2d/index.ts";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
-import { PencilIcon, EyeIcon } from "lucide-vue-next";
+import { PencilIcon, EyeIcon, InfoIcon } from "lucide-vue-next";
 // ts imports
 import { validate_parameter, type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
@@ -380,7 +380,15 @@ function download_ndarray(link: DownloadLink) {
       </div>
       <div class="w-full card card-border bg-base-100">
         <div class="card-body">
-          <h2 class="card-title">Parameters</h2>
+          <div class="flex flex-row items-center gap-x-1">
+            <h2 class="card-title">Parameters</h2>
+            <div
+              class="tooltip tooltip-bottom"
+              data-tip="Physical dimensions must all be in the same unit"
+            >
+              <InfoIcon class="w-[1rem] h-[1rem]"/>
+            </div>
+          </div>
           <ParameterForm
             :stackup="simulation_stackup"
             @search="perform_search"

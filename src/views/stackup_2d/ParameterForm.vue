@@ -5,7 +5,7 @@ import {
   type LayerId,
 } from "./stackup.ts";
 import { defineProps, defineEmits, computed } from "vue";
-import { TriangleAlert, SearchIcon } from "lucide-vue-next";
+import { TriangleAlert, SearchIcon, InfoIcon } from "lucide-vue-next";
 
 const props = defineProps<{
   stackup: Stackup,
@@ -18,6 +18,7 @@ const emits = defineEmits<{
 
 interface FormFields {
   name: string;
+  description: string;
   parameters: Set<Parameter>;
   has_group_search: boolean;
 }
@@ -111,35 +112,56 @@ class Form {
   }
 
   get_layout(): FormFields[][] {
-    const column = [];
-    const create_form_fields = (name: string, parameters: Set<Parameter>): FormFields | undefined => {
-      if (parameters.size <= 0) return undefined;
-      return {
+    const column: FormFields[][] = [];
+    let row: FormFields[] = [];
+    const push_row = () => {
+      column.push(row);
+      row = [];
+    };
+    const create_form_fields = (name: string, description: string, parameters: Set<Parameter>) => {
+      if (parameters.size <= 0) return;
+      const field: FormFields = {
         name,
+        description,
         parameters,
         has_group_search: get_total_searchable_parameters(parameters) > 1,
       };
-    };
-    const push_form_fields = (row: FormFields[], form_fields?: FormFields) => {
-      if (form_fields) {
-        row.push(form_fields);
-      }
+      row.push(field);
     };
 
-    {
-      const row: FormFields[]  = [];
-      push_form_fields(row, create_form_fields("Dielectric Height", this.layer_dielectric_height_params));
-      push_form_fields(row, create_form_fields("Dielectric Constant", this.layer_dielectric_epsilon_params));
-      push_form_fields(row, create_form_fields("Trace Height", this.layer_trace_height_params));
-      column.push(row);
-    }
-    {
-      const row: FormFields[]  = [];
-      push_form_fields(row, create_form_fields("Trace Width", this.trace_width_params));
-      push_form_fields(row, create_form_fields("Trace Taper", this.layer_trace_taper_params));
-      push_form_fields(row, create_form_fields("Spacing", this.spacing_params));
-      column.push(row);
-    }
+    create_form_fields(
+      "Dielectric Height",
+      "Height of stackup layer",
+      this.layer_dielectric_height_params,
+    );
+    create_form_fields(
+      "Dielectric Constant",
+      "Relative permittivity of dielectric in stackup layer",
+      this.layer_dielectric_epsilon_params,
+    );
+    create_form_fields(
+      "Trace Height",
+      "Height of copper in stackup layer",
+      this.layer_trace_height_params,
+    );
+    push_row();
+
+    create_form_fields(
+      "Trace Width",
+      "Width of transmission line trace",
+      this.trace_width_params,
+    );
+    create_form_fields(
+      "Trace Taper",
+      "Taper of trace in a specific stackup layer",
+      this.layer_trace_taper_params,
+    );
+    create_form_fields(
+      "Spacing",
+      "Separation between transmission line traces",
+      this.spacing_params,
+    );
+    push_row();
 
     return column;
   }
@@ -177,10 +199,15 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   >
     <div v-for="(row, row_index) in col" :key="row_index" class="mb-4">
       <div class="flex flex-row justify-between mb-2">
-        <h2 class="text-lg">{{ row.name }}</h2>
+        <div class="flex flex-row gap-x-1 items-center">
+          <h2 class="font-medium">{{ row.name }}</h2>
+          <div class="tooltip tooltip-bottom" :data-tip="row.description">
+            <InfoIcon class="w-[1rem] h-[1rem] cursor-help"/>
+          </div>
+        </div>
         <template v-if="row.has_group_search">
           <button
-            class="btn btn-sm btn-neutral px-2"
+            class="btn btn-sm px-2"
             @click="(ev) => on_search(ev, set_to_array(row.parameters))"
             type="button"
           >
@@ -188,7 +215,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
           </button>
         </template>
       </div>
-      <div class="grid grid-cols-[auto_auto] w-full gap-x-2 gap-y-1">
+      <div class="grid grid-cols-[2rem_auto] w-full gap-x-2 gap-y-1">
         <template v-for="(param, param_index) in row.parameters" :key="param_index">
           <div class="h-full mt-1">
             <label :for="param.name" class="label">{{  param.name }}</label>
