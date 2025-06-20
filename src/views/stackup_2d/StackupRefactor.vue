@@ -89,7 +89,7 @@ function create_editor() {
     set selected(selected) {
       this._selected = selected;
       this.editor.set_trace_template(this.value);
-      this.editor.parameters.map(mark_parameter_changed);
+      this.editor.parameters.for_each(mark_parameter_changed);
     }
     get value() {
       return this.options[this.selected];
@@ -120,7 +120,7 @@ function create_editor() {
     set selected(selected) {
       this._selected = selected;
       this.editor.set_trace_template(this.value);
-      this.editor.parameters.map(mark_parameter_changed);
+      this.editor.parameters.for_each(mark_parameter_changed);
     }
     get value() {
       return this.options[this.selected];
@@ -145,7 +145,7 @@ function create_editor() {
     }
     set selected(selected) {
       this._selected = selected;
-      this.parameters.map(mark_parameter_changed);
+      this.parameters.for_each(mark_parameter_changed);
     }
     get value() {
       return this.options[this.selected];

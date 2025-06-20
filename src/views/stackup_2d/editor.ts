@@ -34,7 +34,7 @@ export class ParameterCache<K extends string | number, V extends Parameter> {
     return value;
   }
 
-  map(func: (param: Parameter) => void) {
+  for_each(func: (param: Parameter) => void) {
     for (const param of this.cache.values()) {
       func(param);
     }
@@ -284,12 +284,12 @@ export class StackupParameters {
     };
   }
 
-  map(func: (param: Parameter) => void) {
-    this.dW.map(func);
-    this.T.map(func);
-    this.SH.map(func);
-    this.H.map(func);
-    this.ER.map(func);
+  for_each(func: (param: Parameter) => void) {
+    this.dW.for_each(func);
+    this.T.for_each(func);
+    this.SH.for_each(func);
+    this.H.for_each(func);
+    this.ER.for_each(func);
     func(this.PH);
     func(this.W);
     func(this.CW);
