@@ -178,8 +178,8 @@ export class StackupParameters {
         parent: this,
         get name() { return `H${this.parent.get_index(i)}` },
         description: "Soldermask thickness",
-        min: 0,
-        value: 0.0152,
+        get min(): number { return this.parent.minimum_feature_size; },
+        value: 0.015,
         placeholder_value: sizes.soldermask_height,
         impedance_correlation: "negative",
       };
