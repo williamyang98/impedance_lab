@@ -1,5 +1,5 @@
 import { KernelCopyToTexture, ShaderRenderTexture } from "./kernels.ts";
-import { GpuGrid } from "../../engine/fdtd_3d.ts";
+import { GpuGrid } from "../../engine/fdtd_3d/grid.ts";
 
 export type GridDisplayMode = "x" | "y" | "z" | "mag";
 export type FieldDisplayMode = "e_field" | "h_field";

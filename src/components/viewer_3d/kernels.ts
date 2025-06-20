@@ -1,4 +1,6 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
+import shader_copy_slice_wgsl from "./shader_copy_slice.wgsl?raw";
+import shader_render_field_wgsl from "./shader_render_field.wgsl?raw";
 
 export class KernelCopyToTexture {
   label: string;
@@ -25,47 +27,7 @@ export class KernelCopyToTexture {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = /*wgsl*/`
-      struct Params {
-        size_x: u32,
-        size_y: u32,
-        size_z: u32,
-        copy_x: u32,
-      }
-
-      @group(0) @binding(0) var<uniform> params: Params;
-      @group(0) @binding(1) var<storage, read> grid: array<f32>;
-      @group(0) @binding(2) var grid_tex: texture_storage_2d<rgba16float, write>;
-
-      @compute
-      @workgroup_size(${this.workgroup_size.join(",")})
-      fn main(@builtin(global_invocation_id) _i: vec3<u32>) {
-        let width = textureDimensions(grid_tex).x;
-        let height = textureDimensions(grid_tex).y;
-        let iy = _i.x;
-        let iz = _i.y;
-        if (iz >= width) { return; }
-        if (iy >= height) { return; }
-
-        let Nx = params.size_x;
-        let Ny = params.size_y;
-        let Nz = params.size_z;
-        let Nzy = Ny*Nz;
-        let src_x = params.copy_x;
-
-        let n_dims = u32(3);
-        let src_i = n_dims*(src_x*Nzy + iy*Nz + iz);
-        let dst_i = vec2<u32>(u32(iz), u32(iy));
-
-        let Ex: f32 = grid[src_i+0];
-        let Ey: f32 = grid[src_i+1];
-        let Ez: f32 = grid[src_i+2];
-        let E: vec3<f32> = vec3<f32>(Ex,Ey,Ez);
-        let E_mag: f32 = length(E);
-        let colour = vec4<f32>(Ex,Ey,Ez,E_mag);
-        textureStore(grid_tex, dst_i, colour);
-      }
-    `;
+    this.shader_source = shader_copy_slice_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
     });
@@ -98,6 +60,10 @@ export class KernelCopyToTexture {
       compute: {
         module: this.shader_module,
         entryPoint: "main",
+        constants: {
+          workgroup_size_x: this.workgroup_size[0],
+          workgroup_size_y: this.workgroup_size[1],
+        },
       },
     });
   }
@@ -174,49 +140,7 @@ export class ShaderRenderTexture {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = /*wgsl*/`
-      struct Params {
-        scale: f32,
-        axis: u32,
-      }
-
-      @group(0) @binding(0) var<uniform> params: Params;
-      @group(0) @binding(1) var grid_sampler: sampler;
-      @group(0) @binding(2) var grid_texture: texture_2d<f32>;
-
-      struct VertexOut {
-        @builtin(position) vertex_position : vec4f,
-        @location(0) frag_position: vec2f,
-      }
-
-      @vertex
-      fn vertex_main(@location(0) position: vec2f) -> VertexOut {
-        var output : VertexOut;
-        output.vertex_position = vec4f(position.x*2.0 - 1.0, position.y*2.0 - 1.0, 0.0, 1.0);
-        output.frag_position = vec2f(position.x, position.y);
-        return output;
-      }
-
-      @fragment
-      fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
-        let data = textureSampleLevel(grid_texture, grid_sampler, vertex.frag_position, 0.0);
-        var color: vec4f = vec4f(0.0, 0.0, 0.0, 0.0);
-        if (params.axis == 0) {
-          let value = data.r*params.scale;
-          color = vec4f(max(value, 0), max(-value, 0), 0, 1.0);
-        } else if (params.axis == 1) {
-          let value = data.g*params.scale;
-          color = vec4f(max(value, 0), max(-value, 0), 0, 1.0);
-        } else if (params.axis == 2) {
-          let value = data.b*params.scale;
-          color = vec4f(max(value, 0), max(-value, 0), 0, 1.0);
-        } else if (params.axis == 3) {
-          let value = data.a*params.scale;
-          color = vec4f(value, value, value, 1.0);
-        }
-        return color;
-      }
-    `;
+    this.shader_source = shader_render_field_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
     });

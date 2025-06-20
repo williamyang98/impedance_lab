@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { type GridDisplayMode, type FieldDisplayMode, Renderer } from "./renderer.ts";
-import { GpuGrid } from "../../engine/fdtd_3d.ts";
+import { GpuGrid } from "../../engine/fdtd_3d/grid.ts";
 
 import {
   ref, watch, computed, inject, useTemplateRef, defineExpose,

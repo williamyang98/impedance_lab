@@ -2,7 +2,7 @@
 import { Viewer3D } from "../../components/viewer_3d";
 
 import { create_simulation_setup } from "./app_3d.ts";
-import { GpuGrid, GpuEngine } from "../../engine/fdtd_3d.ts";
+import { GpuGrid, GpuEngine } from "../../engine/fdtd_3d/grid.ts";
 import {
   ref, computed, inject, useTemplateRef, onMounted, onBeforeUnmount,
   type ComputedRef,
