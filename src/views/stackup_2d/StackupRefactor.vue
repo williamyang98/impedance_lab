@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  computed, ref, useId, useTemplateRef,
+  computed, ref, useId,
   // NOTE: we need use toRaw(...) to unwrap the proxy on wasm module objects
   //       otherwise emscripten will panic on upcastCheck() use to upcast/downcast virtual pointers
   //       this is because it performs a comparison between the entity's "class" descriptor
@@ -16,7 +16,7 @@ import MeshViewer from "./MeshViewer.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
 import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
-import { Viewer2D } from "../../components/viewer_2d/index.ts";
+import GridViewer from "./GridViewer.vue";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
 import { PencilIcon, EyeIcon, InfoIcon } from "lucide-vue-next";
 // ts imports
@@ -170,7 +170,6 @@ const viewer_stackup = computed(() => {
   }
 });
 
-const viewer_2d = useTemplateRef<typeof Viewer2D>("viewer_2d");
 const uid = {
   tab_global: useId(),
   tab_result: useId(),
@@ -185,16 +184,6 @@ const profiler = ref<Profiler | undefined>(undefined);
 
 async function sleep(millis: number) {
   await new Promise(resolve => setTimeout(resolve, millis));
-}
-
-async function refresh_viewer() {
-  if (viewer_2d.value === null) return;
-  if (stackup_grid.value === undefined) return;
-  const viewer = viewer_2d.value;
-  const grid = toRaw(stackup_grid.value.grid);
-  if (grid === undefined) return;
-  viewer.upload_grid(grid);
-  await viewer.refresh_canvas();
 }
 
 async function calculate_impedance() {
@@ -249,8 +238,6 @@ async function calculate_impedance() {
   measurement.value = new_measurement;
   profiler.value = new_profiler;
   is_running.value = false;
-
-  await refresh_viewer();
 }
 
 const target_impedance = ref<number>(50.0);
@@ -306,8 +293,6 @@ async function perform_search(search_params: Parameter[]) {
     }
   }
   is_running.value = false;
-
-  await refresh_viewer();
 }
 
 interface DownloadLink {
@@ -456,8 +441,9 @@ function download_ndarray(link: DownloadLink) {
     <div class="w-full card card-border bg-base-100">
       <div class="card-body">
         <h2 class="card-title">Viewer</h2>
-        <div class="max-h-full">
-          <Viewer2D ref="viewer_2d"></Viewer2D>
+        <GridViewer v-if="stackup_grid" :grid="stackup_grid.grid"/>
+        <div v-else class="text-center">
+          <h1 class="text-2xl">Grid has not been created yet. Run a calculation first.</h1>
         </div>
       </div>
     </div>

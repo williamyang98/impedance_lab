@@ -63,8 +63,8 @@ fn vertex_main(
 fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
     let magnitude = min(vertex.magnitude, 1.0);
     let alpha = sqrt(magnitude);
-    const low_colour = vec3<f32>(0.4,0.0,0.1);
-    const high_colour = vec3<f32>(0.2,0.0,0.6);
+    const low_colour = vec3<f32>(0.3,0.0,0.1);
+    const high_colour = vec3<f32>(0.1,0.0,0.3);
     let colour = mix(low_colour, high_colour, magnitude);
     return vec4<f32>(colour.rgb, alpha);
 }
