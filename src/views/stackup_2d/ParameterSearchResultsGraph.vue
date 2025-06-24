@@ -100,10 +100,10 @@ watch(results, () => {
 <div :class="$attrs.class">
   <div class="grid grid-cols-[auto_auto] gap-x-2 max-h-[100vh]">
     <div class="card card-border bg-base-100">
-      <div class="card-body">
+      <div class="card-body p-3">
         <h2 class="card-title">Parameter Search Points</h2>
         <div class="w-full overflow-auto">
-          <table class="w-full table table-sm">
+          <table class="w-full table">
             <thead>
               <tr>
                 <th>Iteration</th>
@@ -128,7 +128,7 @@ watch(results, () => {
       </div>
     </div>
     <div class="w-full card card-border bg-base-100">
-      <div class="card-body">
+      <div class="card-body p-3">
         <h2 class="card-title">Search Curve ({{ results.parameter_label }})</h2>
         <!--https://www.chartjs.org/docs/latest/configuration/responsive.html#important-note-->
         <!--chart.js plot needs specific requirements-->

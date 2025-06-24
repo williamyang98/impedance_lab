@@ -207,7 +207,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
         </div>
         <template v-if="row.has_group_search">
           <button
-            class="btn btn-sm px-2"
+            class="btn btn-sm btn-primary px-2"
             @click="(ev) => on_search(ev, set_to_array(row.parameters))"
             type="button"
           >
@@ -217,7 +217,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
       </div>
       <div class="grid grid-cols-[2rem_auto] w-full gap-x-2 gap-y-1">
         <template v-for="(param, param_index) in row.parameters" :key="param_index">
-          <div class="h-full mt-1">
+          <div class="h-full flex flex-col justify-center">
             <label :for="param.name" class="label">{{  param.name }}</label>
           </div>
           <div class="w-full">
@@ -225,7 +225,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
               <input
                 :id="param.name"
                 :class="get_input_class(param)"
-                class="input input-sm join-item"
+                class="input join-item"
                 type="number"
                 step="any"
                 :min="param.min" :max="param.max" v-model.number="param.value"
@@ -233,7 +233,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
               />
               <template v-if="param.impedance_correlation !== undefined">
                 <button
-                  class="btn btn-sm join-item px-2"
+                  class="btn join-item px-2"
                   @click="(ev) => on_search(ev, [param])"
                   type="button"
                 >

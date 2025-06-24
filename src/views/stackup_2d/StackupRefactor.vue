@@ -330,7 +330,7 @@ function download_ndarray(link: DownloadLink) {
   }
 }
 
-function download_all_ndarrays() {
+function download_all_ndarrays(name: string) {
   const links = download_links.value;
   if (links === undefined) return;
   const module = links[0].data.module;
@@ -356,7 +356,7 @@ function download_all_ndarrays() {
     const blob = new Blob([zip_data.data_view], { type: "application/octet-stream" });
     const elem = document.createElement("a");
     elem.href = window.URL.createObjectURL(blob);
-    elem.download = "grid_data.zip";
+    elem.download = name;
     elem.click();
   } catch (err) {
     console.error("download_all_ndarrays failed with: ", err);
@@ -370,29 +370,29 @@ function download_all_ndarrays() {
 
 <template>
 <div class="tabs tabs-lift">
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Impedance" checked/>
+  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Calculator" checked/>
   <div class="tab-content bg-base-100 border-base-300 p-1">
     <div class="grid grid-cols-3 gap-x-2">
       <div class="w-full card card-border bg-base-100">
-        <div class="card-body">
+        <div class="card-body p-3">
           <h2 class="card-title">Stackup</h2>
           <div class="w-full flex flex-col gap-y-1">
             <div class="w-full flex flex-row gap-x-1">
-              <select class="select select-sm" v-model="selected_editor.selected" :disabled="!is_editing">
+              <select class="select" v-model="selected_editor.selected" :disabled="!is_editing">
                 <option v-for="option in selected_editor.keys" :value="option" :key="option">
                   {{ option }}
                 </option>
               </select>
-              <select class="select select-sm" v-model="selected_trace_template.selected" :disabled="!is_editing">
+              <select class="select" v-model="selected_trace_template.selected" :disabled="!is_editing">
                 <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
                   {{ option }}
                 </option>
               </select>
               <template v-if="is_editing">
-                <button class="btn btn-sm edit-toggle" @click="is_editing = false"><EyeIcon/></button>
+                <button class="btn edit-toggle" @click="is_editing = false"><EyeIcon/></button>
               </template>
               <template v-else>
-                <button class="btn btn-sm edit-toggle" @click="is_editing = true"><PencilIcon/></button>
+                <button class="btn edit-toggle" @click="is_editing = true"><PencilIcon/></button>
               </template>
             </div>
             <div class="w-full border border-1 border-base-300 bg-base-100 p-1" v-if="is_editing">
@@ -405,7 +405,7 @@ function download_all_ndarrays() {
         </div>
       </div>
       <div class="w-full card card-border bg-base-100">
-        <div class="card-body">
+        <div class="card-body p-3">
           <div class="flex flex-row items-center gap-x-1">
             <h2 class="card-title">Parameters</h2>
             <div
@@ -423,12 +423,12 @@ function download_all_ndarrays() {
         </div>
       </div>
       <div class="w-full card card-border bg-base-100">
-        <div class="card-body">
+        <div class="card-body p-3">
           <h2 class="card-title">Impedance</h2>
           <div class="h-full">
             <div class="w-full flex flex-row">
-              <label class="label mr-1">Z0 target </label>
-              <input class="input input-sm w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
+              <label class="label mr-2">Z0 target </label>
+              <input class="input input w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
             </div>
             <template v-if="measurement">
               <MeasurementTable :measurement="measurement"></MeasurementTable>
@@ -446,26 +446,50 @@ function download_all_ndarrays() {
       </div>
     </div>
   </div>
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Grid"/>
+  <label class="tab">
+    <input type="radio" :name="uid.tab_global"/>
+    <div class="flex flex-row gap-x-2 items-center">
+      <span>Parameter Search</span>
+      <div v-if="search_results" class="badge badge-sm badge-secondary">{{ search_results.results.length }}</div>
+    </div>
+  </label>
+  <div class="tab-content bg-base-100 border-base-300 p-1">
+    <div v-if="search_results" class="w-full">
+      <ParameterSearchResultsGraph :results="search_results"></ParameterSearchResultsGraph>
+    </div>
+    <div v-else class="text-center py-2">
+      <h1 class="text-2xl">Perform parameter search to see search curve</h1>
+    </div>
+  </div>
+  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Visualiser"/>
+  <div class="tab-content bg-base-100 border-base-300 p-1">
+    <div v-if="stackup_grid" class="w-full">
+      <GridViewer :grid="stackup_grid.grid"/>
+    </div>
+    <div v-else class="text-center py-2">
+      <h1 class="text-2xl">Calculate impedance to see visualisation</h1>
+    </div>
+  </div>
+  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Mesh"/>
   <div class="tab-content bg-base-100 border-base-300 p-1">
     <div v-if="stackup_grid" class="grid grid-cols-2 gap-x-2">
       <div class="w-full card card-border bg-base-100">
-        <div class="card-body">
+        <div class="card-body p-3">
           <h2 class="card-title">Mesh</h2>
           <MeshViewer :stackup_grid="stackup_grid"></MeshViewer>
         </div>
       </div>
       <div class="w-full card card-border bg-base-100">
-        <div class="card-body">
+        <div class="card-body p-3">
           <h2 class="card-title">Grid</h2>
           <div>
             <div class="tabs tabs-lift">
               <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="X" checked/>
-              <div class="tab-content bg-base-100 border-base-300 max-h-[25rem] overflow-scroll">
+              <div class="tab-content bg-base-100 border-base-300 max-h-[70vh] overflow-auto">
                 <GridRegionTable :region_to_grid_map="stackup_grid.x_region_to_grid_map"></GridRegionTable>
               </div>
               <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="Y"/>
-              <div class="tab-content bg-base-100 border-base-300 max-h-[25rem] overflow-scroll">
+              <div class="tab-content bg-base-100 border-base-300 max-h-[70vh] overflow-auto">
                 <GridRegionTable :region_to_grid_map="stackup_grid.y_region_to_grid_map"></GridRegionTable>
               </div>
             </div>
@@ -473,84 +497,53 @@ function download_all_ndarrays() {
         </div>
       </div>
     </div>
-    <div v-else class="text-center">
-      <h1 class="text-2xl">Calculation has not been run yet</h1>
-    </div>
-  </div>
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Viewer"/>
-  <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div class="w-full card card-border bg-base-100">
-      <div class="card-body">
-        <h2 class="card-title">Viewer</h2>
-        <GridViewer v-if="stackup_grid" :grid="stackup_grid.grid"/>
-        <div v-else class="text-center">
-          <h1 class="text-2xl">Grid has not been created yet. Run a calculation first.</h1>
-        </div>
-      </div>
+    <div v-else class="text-center py-2">
+      <h1 class="text-2xl">Calculate impedance to see mesh</h1>
     </div>
   </div>
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Profiler"/>
   <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div class="w-full card card-border bg-base-100">
-      <div class="card-body">
-        <h2 class="card-title">Profiler</h2>
-        <template v-if="profiler">
-          <div class="w-full">
-            <ProfilerFlameChart :profiler="profiler"></ProfilerFlameChart>
-          </div>
-        </template>
-        <template v-else>
-          <div class="text-center">
-            <h1 class="text-2xl">Calculation has not been run yet</h1>
-          </div>
-        </template>
-        <div class="card-actions justify-end">
-          <div class="mt-1">
-            <div class="flex justify-end gap-x-2 mt-3">
-              <button class="btn" @click="calculate_impedance()" :disabled="is_running">Calculate</button>
-            </div>
-          </div>
+    <div class="w-full">
+      <template v-if="profiler">
+        <ProfilerFlameChart :profiler="profiler"></ProfilerFlameChart>
+      </template>
+      <template v-else>
+        <div class="text-center py-2">
+          <h1 class="text-2xl">Calculate impedance to see execution profile</h1>
         </div>
-      </div>
-    </div>
-  </div>
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Search"/>
-  <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div v-if="search_results" class="w-full">
-      <ParameterSearchResultsGraph :results="search_results"></ParameterSearchResultsGraph>
-    </div>
-    <div v-else class="text-center">
-      <h1 class="text-2xl">Parameter search has not been conducted yet</h1>
+      </template>
     </div>
   </div>
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Export"/>
   <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div class="grid grid-cols-1 gap-x-2">
-      <div class="w-full card card-border bg-base-100">
-        <div class="card-body">
-          <h2 class="card-title">Export</h2>
-          <button class="w-fit btn btn-neutral" @click="download_all_ndarrays()">Download All</button>
-          <template v-if="download_links">
-            <table class="table table-sm w-fit">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Shape</th>
-                  <th>Size</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(link, index) in download_links" :key="index">
-                  <td>{{ link.name }}</td>
-                  <td>[{{ link.data.shape.join(',') }}]</td>
-                  <td>{{ with_standard_suffix(link.data.data_view.byteLength, "B") }}</td>
-                  <td><button class="btn btn-sm" @click="download_ndarray(link)">Download</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </template>
-        </div>
+    <div class="w-full">
+      <div v-if="download_links" class="flex flex-row justify-center">
+        <table class="table w-fit border border-base-300 bg-base-100">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Shape</th>
+              <th>Size</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(link, index) in download_links" :key="index">
+              <td class="font-medium">{{ link.name }}</td>
+              <td>[{{ link.data.shape.join(',') }}]</td>
+              <td>{{ with_standard_suffix(link.data.data_view.byteLength, "B") }}</td>
+              <td><button class="btn btn-sm float-right" @click="download_ndarray(link)">Download</button></td>
+            </tr>
+            <tr>
+              <td colspan="4">
+                <button class="w-fit btn btn-primary float-right" @click="download_all_ndarrays('grid_data.zip')">Download All</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="text-center py-2">
+        <h1 class="text-2xl">Calculate impedance to export simulation data</h1>
       </div>
     </div>
   </div>

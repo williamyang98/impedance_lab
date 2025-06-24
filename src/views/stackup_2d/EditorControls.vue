@@ -44,17 +44,17 @@ const append_layer_to_end = computed(() => editor.try_add_prepreg_layer(editor.l
   <div class="grid grid-cols-[1.5rem_auto_2rem] gap-x-1 gap-y-0">
     <template v-for="(layer, layer_index) in layers" :key="layer.id">
       <div v-if="layer.add_above" class="add-button col-span-3" @click="layer.add_above()"></div>
-      <div class="inline-flex items-baseline"><b>L{{ layer_index }}:</b></div>
-      <div>
-        <select v-model="layer.type.value" class="w-full select select-sm">
-          <template v-for="(type, index) in layer.valid_types" :key="index">
-            <option :value="type">{{ type }}</option>
-          </template>
-        </select>
+      <div class="flex flex-col justify-center font-medium ml-1">L{{ layer_index }}:</div>
+      <select v-model="layer.type.value" class="w-full select">
+        <template v-for="(type, index) in layer.valid_types" :key="index">
+          <option :value="type">{{ type }}</option>
+        </template>
+      </select>
+      <div class="flex flex-col justify-center">
+        <button class="delete-button" @click="layer.delete?.()" :disabled="layer.delete === undefined">
+          <Trash2Icon/>
+        </button>
       </div>
-      <button class="delete-button" @click="layer.delete?.()" :disabled="layer.delete === undefined">
-        <Trash2Icon/>
-      </button>
     </template>
     <div v-if="append_layer_to_end" class="add-button col-span-3" @click="append_layer_to_end()"></div>
   </div>
