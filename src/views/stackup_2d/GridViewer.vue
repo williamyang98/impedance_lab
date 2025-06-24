@@ -165,7 +165,7 @@ defineExpose({
     <!--Hover info-->
     <template v-if="is_mouse_over && hover_info !== undefined">
       <div
-        class="absolute card card-border bg-base-100 z-1 m-2 min-w-[12rem]"
+        class="absolute pointer-events-none z-1 card card-border bg-base-100 m-2 min-w-[12rem]"
         :style="`left: ${hover_info.x.toFixed(0)}px; top: ${hover_info.y.toFixed(0)}px`"
       >
         <div class="card-body p-1">
