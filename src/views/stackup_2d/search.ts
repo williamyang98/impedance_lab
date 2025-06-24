@@ -80,7 +80,7 @@ function run_parameter_search<T extends { error: number }>(
       if (e_lower !== undefined && e_upper !== undefined) {
         ratio = e_upper/(e_upper-e_lower);
       }
-      const ratio_margin = 0.05;
+      const ratio_margin = 0.2;
       ratio = clamp(ratio, ratio_margin, 1-ratio_margin);
       v_search = v_lower*ratio+v_upper*(1-ratio);
     }
