@@ -206,23 +206,21 @@ defineExpose({
           <option :value="'absolute_value'">|Value|</option>
         </select>
       </fieldset>
-      <fieldset class="fieldset" v-if="selected_renderer.mode !== 'index'">
-        <legend for="scale" class="fieldset-legend">Scale</legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="2" step="0.01"/>
-      </fieldset>
       <fieldset class="fieldset">
-        <legend for="alpha" class="fieldset-legend">Alpha</legend>
-        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" @input="refresh()" min="0" max="10" step="0.01"/>
+        <legend for="scale" class="fieldset-legend w-full flex flex-row justify-between">
+          <span>Scale</span>
+          <span>{{ selected_renderer.scale.toFixed(1) }}</span>
+        </legend>
+        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
       </fieldset>
     </template>
     <template v-if="selected_renderer.type === 'v_field'">
       <fieldset class="fieldset">
-        <legend for="scale" class="fieldset-legend">Scale</legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="10" step="0.1"/>
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend for="alpha" class="fieldset-legend">Alpha</legend>
-        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" @input="refresh()" min="0" max="10" step="0.1"/>
+        <legend for="scale" class="fieldset-legend w-full flex flex-row justify-between">
+          <span>Scale</span>
+          <span>{{ selected_renderer.scale.toFixed(1) }}</span>
+        </legend>
+        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
       </fieldset>
     </template>
     <template v-if="selected_renderer.type === 'e_field'">
@@ -237,16 +235,18 @@ defineExpose({
         </select>
       </fieldset>
       <fieldset class="fieldset">
-        <legend for="scale" class="fieldset-legend">Scale</legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="10" step="0.1"/>
+        <legend for="scale" class="fieldset-legend w-full flex flex-row justify-between">
+          <span>Scale</span>
+          <span>{{ selected_renderer.scale.toFixed(1) }}</span>
+        </legend>
+        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
       </fieldset>
       <fieldset class="fieldset" v-if="selected_renderer.mode == 'quiver'">
-        <legend for="quiver_size" class="fieldset-legend">Quiver Size</legend>
+        <legend for="quiver_size" class="fieldset-legend w-full flex flex-row justify-between">
+          <span>Quiver Size</span>
+          <span>{{ selected_renderer.quiver_size.toFixed(0) }}</span>
+        </legend>
         <input id="quiver_size" class="range" type="range" v-model.number="selected_renderer.quiver_size" @input="refresh()" min="10" max="100" step="1"/>
-      </fieldset>
-      <fieldset class="fieldset" v-else>
-        <legend for="alpha" class="fieldset-legend">Alpha</legend>
-        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" @input="refresh()" min="0" max="10" step="0.1"/>
       </fieldset>
     </template>
   </div>

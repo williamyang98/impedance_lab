@@ -164,10 +164,12 @@ export class ShaderComponentViewer {
     scale: number, axis_mask: number, colour_mode: ColourMode,
     alpha_scale?: number,
   ) {
+    alpha_scale = alpha_scale ?? 1.0;
+
     this.params.set("scale", scale);
     this.params.set("axis", axis_mask);
     this.params.set("colour", get_colour_mode_index(colour_mode));
-    this.params.set("alpha_scale", alpha_scale ?? 100.0);
+    this.params.set("alpha_scale", alpha_scale);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
     const bind_group = this.device.createBindGroup({
@@ -573,9 +575,11 @@ export class ShaderIndexBeta {
     scale: number, mode: IndexBetaMode,
     alpha?: number,
   ) {
+    alpha = alpha ?? 1.0;
+
     this.params.set("scale", scale);
     this.params.set("mode", get_index_beta_mode_index(mode));
-    this.params.set("alpha", alpha ?? 100.0);
+    this.params.set("alpha", alpha);
     this.params.set("texture_width", index_beta_size.width);
     this.params.set("texture_height", index_beta_size.height);
     this.params.set("table_size", table_size);
