@@ -35,10 +35,10 @@ const canvas_context = computed<GPUCanvasContext>(() => {
 const renderer_core = new RendererCore(toRaw(props.grid), gpu_device);
 const master_renderer = ref(new MasterRenderer(renderer_core));
 const selected_renderer = computed(() => master_renderer.value.selected);
+// each renderer is mapped to a different buffer, and we only reupload data for that specific renderer on demand
+const is_uploaded = new Set<typeof master_renderer.value.mode>();
 
-async function refresh(is_upload?: boolean) {
-  is_upload = is_upload ?? false;
-
+async function refresh() {
   // can't render to 0 sized canvas
   const canvas = canvas_element.value;
   if (canvas === null || canvas.width === 0 || canvas.height == 0) return;
@@ -56,7 +56,10 @@ async function refresh(is_upload?: boolean) {
   };
   const command_encoder = gpu_device.createCommandEncoder();
   const renderer = toRaw(master_renderer.value);
-  if (is_upload) renderer.upload_data();
+  if (!is_uploaded.has(renderer.mode)) {
+    renderer.upload_data();
+    is_uploaded.add(renderer.mode);
+  }
   renderer.create_pass(command_encoder, canvas_texture, canvas_size);
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone();
@@ -102,13 +105,14 @@ function on_mouse_leave(ev: MouseEvent) {
 async function update_grid(grid: Grid) {
   grid = toRaw(grid);
   renderer_core.grid = grid;
+  is_uploaded.clear();
   let aspect_ratio = grid.size[1]/grid.size[0];
   aspect_ratio = Math.min(aspect_ratio, 2);
   const elem = canvas_element.value;
   if (elem !== null) {
     elem.style.setProperty("aspect-ratio", aspect_ratio.toFixed(3), "important");
   }
-  await refresh(true);
+  await refresh();
 }
 
 watch(props, async () => {
@@ -183,10 +187,9 @@ defineExpose({
   </div>
   <!--Viewer controls-->
   <div class="flex flex-col gap-y-2 min-w-[15rem]">
-    <button class="btn" @click="refresh(true)">Refresh</button>
     <fieldset class="fieldset">
       <legend for="selected" class="fieldset-legend">Data</legend>
-      <select id="selected" class="select" v-model="master_renderer.mode">
+      <select id="selected" class="select" v-model="master_renderer.mode" @change="refresh()">
         <option :value="'v_field'">V-field</option>
         <option :value="'e_field'">E-field</option>
         <option :value="'v_force'">V-force</option>
@@ -196,36 +199,36 @@ defineExpose({
     <template v-if="selected_renderer.type === 'v_force' || selected_renderer.type === 'epsilon'">
       <fieldset class="fieldset">
         <legend for="mode" class="fieldset-legend">Mode</legend>
-        <select id="mode" class="select" v-model="selected_renderer.mode">
+        <select id="mode" class="select" v-model="selected_renderer.mode" @change="refresh()">
           <option :value="'index'">Index</option>
           <option :value="'beta'">Beta</option>
           <option :value="'signed_value'">Value</option>
           <option :value="'absolute_value'">|Value|</option>
         </select>
       </fieldset>
-      <fieldset class="fieldset">
+      <fieldset class="fieldset" v-if="selected_renderer.mode !== 'index'">
         <legend for="scale" class="fieldset-legend">Scale</legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" min="0" max="2" step="0.01"/>
+        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="2" step="0.01"/>
       </fieldset>
       <fieldset class="fieldset">
         <legend for="alpha" class="fieldset-legend">Alpha</legend>
-        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" min="0" max="10" step="0.01"/>
+        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" @input="refresh()" min="0" max="10" step="0.01"/>
       </fieldset>
     </template>
     <template v-if="selected_renderer.type === 'v_field'">
       <fieldset class="fieldset">
         <legend for="scale" class="fieldset-legend">Scale</legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" min="0" max="10" step="0.1"/>
+        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="10" step="0.1"/>
       </fieldset>
       <fieldset class="fieldset">
         <legend for="alpha" class="fieldset-legend">Alpha</legend>
-        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" min="0" max="10" step="0.1"/>
+        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" @input="refresh()" min="0" max="10" step="0.1"/>
       </fieldset>
     </template>
     <template v-if="selected_renderer.type === 'e_field'">
       <fieldset class="fieldset">
         <legend for="mode" class="fieldset-legend">Mode</legend>
-        <select id="mode" class="select" v-model="selected_renderer.mode">
+        <select id="mode" class="select" v-model="selected_renderer.mode" @change="refresh()">
           <option :value="'x'">Ex</option>
           <option :value="'y'">Ey</option>
           <option :value="'mag'">|E|</option>
@@ -235,15 +238,15 @@ defineExpose({
       </fieldset>
       <fieldset class="fieldset">
         <legend for="scale" class="fieldset-legend">Scale</legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" min="0" max="10" step="0.1"/>
-      </fieldset>
-      <fieldset class="fieldset">
-        <legend for="alpha" class="fieldset-legend">Alpha</legend>
-        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" min="0" max="10" step="0.1"/>
+        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="10" step="0.1"/>
       </fieldset>
       <fieldset class="fieldset" v-if="selected_renderer.mode == 'quiver'">
         <legend for="quiver_size" class="fieldset-legend">Quiver Size</legend>
-        <input id="quiver_size" class="range" type="range" v-model.number="selected_renderer.quiver_size" min="10" max="100" step="1"/>
+        <input id="quiver_size" class="range" type="range" v-model.number="selected_renderer.quiver_size" @input="refresh()" min="10" max="100" step="1"/>
+      </fieldset>
+      <fieldset class="fieldset" v-else>
+        <legend for="alpha" class="fieldset-legend">Alpha</legend>
+        <input id="alpha" class="range" type="range" v-model.number="selected_renderer.alpha" @input="refresh()" min="0" max="10" step="0.1"/>
       </fieldset>
     </template>
   </div>
