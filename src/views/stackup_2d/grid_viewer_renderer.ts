@@ -473,7 +473,7 @@ export class MasterRenderer implements Renderer {
   e_field_renderer: ElectricFieldRenderer;
   v_force_renderer: VoltageForceRenderer;
   epsilon_renderer: EpsilonRenderer;
-  mode: "v_field" | "e_field" | "v_force" | "epsilon" = "v_field";
+  mode: "v_field" | "e_field" | "v_force" | "epsilon" = "e_field";
 
   constructor(core: RendererCore) {
     this.core = core;
