@@ -267,7 +267,7 @@ export class StackupParameters {
       type: "size",
       name: "BS",
       description: "Broadside separation",
-      get min(): number { return this.parent.minimum_feature_size; },
+      min: 0,
       value: 0,
       placeholder_value: sizes.broadside_width_separation,
       impedance_correlation: "positive",
