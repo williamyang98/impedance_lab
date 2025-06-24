@@ -1,6 +1,7 @@
 #include <emscripten/bind.h>
 #include "./PinnedArray.hpp"
 #include "./LU_Solver.hpp"
+#include "./ZipFile.hpp"
 #include "./energy_integral.hpp"
 #include "./convert_f32_to_f16.hpp"
 #include <memory>
@@ -31,6 +32,14 @@ namespace emscripten {
             .class_function("weak_pin_from_address_length(address, length)", &PinnedArray::weak_pin_from_address_length)
             .property("address", &PinnedArray::get_address)
             .property("length", &PinnedArray::get_length);
+        class_<ZipFile>("ZipFile")
+            .smart_ptr<std::shared_ptr<ZipFile>>("ZipFile")
+            .class_function(
+                "create()", 
+                &ZipFile::create
+            )
+            .function("write_file(name, data)", &ZipFile::write_file)
+            .function("get_bytes()", &ZipFile::get_bytes);
         BIND_TYPED_PINNED_ARRAY("Int8", int8_t);
         BIND_TYPED_PINNED_ARRAY("Uint8", uint8_t);
         BIND_TYPED_PINNED_ARRAY("Int16", int16_t);

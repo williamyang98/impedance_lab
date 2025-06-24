@@ -48,8 +48,10 @@ import {
 import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { type ModuleNdarray } from "../../utility/module_ndarray.ts";
+import { Uint8ArrayNdarrayWriter } from "../../utility/ndarray.ts";
+import { type IModuleNdarray, ModuleNdarrayWriter } from "../../utility/module_ndarray.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
+import { ZipFile } from "../../wasm";
 
 interface SelectedMap<K extends string, V> {
   selected: K;
@@ -297,7 +299,7 @@ async function perform_search(search_params: Parameter[]) {
 
 interface DownloadLink {
   name: string;
-  data: ModuleNdarray;
+  data: IModuleNdarray;
 }
 
 const download_links = computed<DownloadLink[] | undefined>(() => {
@@ -317,12 +319,51 @@ const download_links = computed<DownloadLink[] | undefined>(() => {
 });
 
 function download_ndarray(link: DownloadLink) {
-  const bytecode = link.data.ndarray.export_as_numpy_bytecode();
-  const blob = new Blob([bytecode], { type: "application/octet-stream" });
-  const elem = document.createElement("a");
-  elem.href = window.URL.createObjectURL(blob);
-  elem.download = link.name;
-  elem.click();
+  const writer = new Uint8ArrayNdarrayWriter();
+  link.data.ndarray.export_as_numpy_bytecode(writer);
+  if (writer.buffer !== undefined) {
+    const blob = new Blob([writer.buffer], { type: "application/octet-stream" });
+    const elem = document.createElement("a");
+    elem.href = window.URL.createObjectURL(blob);
+    elem.download = link.name;
+    elem.click();
+  }
+}
+
+function download_all_ndarrays() {
+  const links = download_links.value;
+  if (links === undefined) return;
+  const module = links[0].data.module;
+  let zip_file = undefined;
+  let zip_data = undefined;
+  try {
+    zip_file = new ZipFile(module);
+    for (let link of links) {
+      link = toRaw(link);
+      const writer = new ModuleNdarrayWriter(link.data.module);
+      try {
+        link.data.ndarray.export_as_numpy_bytecode(writer);
+        if (writer.write_buffer !== undefined) {
+          zip_file.write_file(link.name, writer.write_buffer);
+        }
+      } catch (err) {
+        console.error(`failed to write file '${link.name}' with: `, err);
+      }
+      writer.delete();
+    }
+    zip_data = zip_file.get_bytes();
+
+    const blob = new Blob([zip_data.data_view], { type: "application/octet-stream" });
+    const elem = document.createElement("a");
+    elem.href = window.URL.createObjectURL(blob);
+    elem.download = "grid_data.zip";
+    elem.click();
+  } catch (err) {
+    console.error("download_all_ndarrays failed with: ", err);
+  } finally {
+    zip_file?.delete();
+    zip_data?.delete();
+  }
 }
 
 </script>
@@ -488,6 +529,7 @@ function download_ndarray(link: DownloadLink) {
       <div class="w-full card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title">Export</h2>
+          <button class="w-fit btn btn-neutral" @click="download_all_ndarrays()">Download All</button>
           <template v-if="download_links">
             <table class="table table-sm w-fit">
               <thead>

@@ -1,6 +1,6 @@
 import {
   Float32ModuleNdarray, Uint32ModuleNdarray, Uint16ModuleNdarray,
-  type ModuleNdarray,
+  type IModuleNdarray,
 } from "../../utility/module_ndarray.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
 import { Grid } from "../../engine/electrostatic_2d.ts";
@@ -23,11 +23,11 @@ const assert = {
     this.texture_size(texture, width, height);
     this.texture_format(texture, format);
   },
-  array_dim(arr: ModuleNdarray, total_dims: number) {
+  array_dim(arr: IModuleNdarray, total_dims: number) {
     if (arr.shape.length === total_dims) return;
     throw Error(`Unexpected array dimensionality, got: ${arr.shape.length}, expected: ${total_dims}`);
   },
-  array_shape(arr: ModuleNdarray, shape: (number | undefined)[]) {
+  array_shape(arr: IModuleNdarray, shape: (number | undefined)[]) {
     function shape_str(): string[] {
       return shape.map(x => x === undefined ? '?' : `${x}`);
     }
@@ -54,7 +54,7 @@ const upload_texture = {
     const module = table.module;
     const total_channels = 2;
     const sizeof_f16 = 2;
-    const f32_data = new Float32ModuleNdarray(module, [...shape, total_channels]);
+    const f32_data = Float32ModuleNdarray.from_shape(module, [...shape, total_channels]);
     {
       const data_arr = f32_data.array_view;
       const table_arr = table.array_view;
@@ -69,7 +69,7 @@ const upload_texture = {
         }
       }
     }
-    const f16_data = new Uint16ModuleNdarray(module, f32_data.shape);
+    const f16_data = Uint16ModuleNdarray.from_shape(module, f32_data.shape);
     module.convert_f32_to_f16(f32_data, f16_data);
     gpu_device.queue.writeTexture(
       { texture },
@@ -88,7 +88,7 @@ const upload_texture = {
     const module = f32_data.module;
     const total_channels = 1;
     const sizeof_f16 = 2;
-    const f16_data = new Uint16ModuleNdarray(module, f32_data.shape);
+    const f16_data = Uint16ModuleNdarray.from_shape(module, f32_data.shape);
     module.convert_f32_to_f16(f32_data, f16_data);
     gpu_device.queue.writeTexture(
       { texture },
@@ -113,7 +113,7 @@ const upload_texture = {
     const total_channels = 2;
     const sizeof_f16 = 2;
     const shape = [Ny,Nx,total_channels];
-    const f32_data = new Float32ModuleNdarray(module, shape);
+    const f32_data = Float32ModuleNdarray.from_shape(module, shape);
     {
       const x_arr = x_data.array_view;
       const y_arr = y_data.array_view;
@@ -128,7 +128,7 @@ const upload_texture = {
         }
       }
     }
-    const f16_data = new Uint16ModuleNdarray(module, shape);
+    const f16_data = Uint16ModuleNdarray.from_shape(module, shape);
     module.convert_f32_to_f16(f32_data, f16_data);
     gpu_device.queue.writeTexture(
       { texture },

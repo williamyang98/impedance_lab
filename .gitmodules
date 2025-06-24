@@ -4,3 +4,6 @@
 [submodule "src/wasm/vendor/superlu"]
 	path = src/wasm/vendor/superlu
 	url = https://github.com/xiaoyeli/superlu.git
+[submodule "src/wasm/vendor/zip"]
+	path = src/wasm/vendor/zip
+	url = https://github.com/kuba--/zip.git

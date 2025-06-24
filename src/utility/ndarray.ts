@@ -484,7 +484,7 @@ export class Ndarray extends NdarrayView {
     return this;
   }
 
-  export_as_numpy_bytecode = (): ArrayBuffer => {
+  export_as_numpy_bytecode = (writer: NdarrayWriter) => {
     // NUMPY file format
     // header | descriptor_length | descriptor | padding | newline
     //        | 2 bytes           |            |         | 1 byte
@@ -528,28 +528,39 @@ export class Ndarray extends NdarrayView {
     const total_data_bytes = total_elems*this.data.BYTES_PER_ELEMENT;
 
     // assemble
-    const buffer = new ArrayBuffer(padded_length+total_data_bytes);
-    const buffer_view = new DataView(buffer);
+    const u8_buf = writer.init(padded_length+total_data_bytes);
+    const data_view = new DataView(u8_buf.buffer, u8_buf.byteOffset, u8_buf.byteLength);
     // header
     let write_offset = 0;
-    new Uint8Array(buffer, write_offset, header.length).set(header);
+    u8_buf.set(header, write_offset);
     write_offset += header.length;
     // descriptor size
     const is_little_endian = true;
-    buffer_view.setUint16(write_offset, descriptor.length+total_padding+1, is_little_endian);
+    data_view.setUint16(write_offset, descriptor.length+total_padding+1, is_little_endian);
     write_offset += 2;
     // descriptor
-    new Uint8Array(buffer, write_offset, descriptor.length).set(descriptor);
+    u8_buf.set(descriptor, write_offset);
     write_offset += descriptor.length;
     // padding and newline
     const [space, newline] = text_encoder.encode(" \n");
-    new Uint8Array(buffer, write_offset, total_padding).fill(space);
+    u8_buf.fill(space, write_offset, write_offset+total_padding);
     write_offset += total_padding;
-    buffer_view.setUint8(write_offset, newline);
+    data_view.setUint8(write_offset, newline);
     write_offset += 1;
     // data
     const T = get_array_constructor_from_dtype(this.dtype);
-    new T(buffer, write_offset, total_elems).set(this.data)
-    return buffer;
+    new T(u8_buf.buffer, u8_buf.byteOffset+write_offset, total_elems).set(this.data)
+  }
+}
+
+export interface NdarrayWriter {
+  init: (size: number) => Uint8Array;
+}
+
+export class Uint8ArrayNdarrayWriter implements NdarrayWriter {
+  buffer?: Uint8Array;
+  init(size: number): Uint8Array {
+    this.buffer = new Uint8Array(size);
+    return this.buffer;
   }
 }

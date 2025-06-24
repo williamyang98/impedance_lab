@@ -150,8 +150,8 @@ export class StackupGrid implements ManagedObject {
     this.setup_fill_voltage_regions();
 
     // fit voltage and epsilon_k table
-    this.grid.v_table = new Float32ModuleNdarray(this.module, [3]);
-    this.grid.ek_table = new Float32ModuleNdarray(this.module, [this.epsilon_indexes.ek_table.length]);
+    this.grid.v_table = Float32ModuleNdarray.from_shape(this.module, [3]);
+    this.grid.ek_table = Float32ModuleNdarray.from_shape(this.module, [this.epsilon_indexes.ek_table.length]);
     this.module.register_parent_and_children(this, this.grid);
   }
 

@@ -6,6 +6,14 @@ import {
   type Uint32PinnedArray, type Int32PinnedArray,
   type Float32PinnedArray, type Float64PinnedArray,
   type LU_Solver as _LU_Solver,
+  type ZipFile as _ZipFile,
+} from "./build/wasm_module.js";
+
+export {
+  type Uint8PinnedArray, type Int8PinnedArray,
+  type Uint16PinnedArray, type Int16PinnedArray,
+  type Uint32PinnedArray, type Int32PinnedArray,
+  type Float32PinnedArray, type Float64PinnedArray,
 } from "./build/wasm_module.js";
 
 export interface ManagedObject {
@@ -229,13 +237,13 @@ export class WasmModule {
   }
 }
 
-type TypedPinnedArray =
+export type TypedPinnedArray =
   Uint8PinnedArray | Int8PinnedArray |
   Uint16PinnedArray | Int16PinnedArray |
   Uint32PinnedArray | Int32PinnedArray |
   Float32PinnedArray | Float64PinnedArray;
 
-type TypedArrayViewConstructor =
+export type TypedArrayViewConstructor =
   Uint8ArrayConstructor | Int8ArrayConstructor |
   Uint16ArrayConstructor | Int16ArrayConstructor |
   Uint32ArrayConstructor | Int32ArrayConstructor |
@@ -243,33 +251,32 @@ type TypedArrayViewConstructor =
 
 export interface IModuleBuffer extends ManagedObject {
   get data_view(): Uint8Array;
+  get module_data_view(): Uint8ModuleBuffer;
 }
 
-class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> implements IModuleBuffer {
+export class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> implements IModuleBuffer {
   readonly module: WasmModule;
   readonly pin: T;
   readonly ctor: U;
+  readonly is_owned: boolean;
   _is_deleted: boolean = false;
 
-  constructor(module: WasmModule, arg: number | ArrayLike<number>, get_pin: (length: number) => T, ctor: U) {
+  constructor(module: WasmModule, pin: T, ctor: U, is_owned: boolean) {
     this.module = module;
-    if (typeof arg === "number") {
-      const length = arg;
-      this.pin = get_pin(length);
-      this.ctor = ctor;
-    } else {
-      const length = arg.length;
-      this.pin = get_pin(length);
-      this.ctor = ctor;
-      this.array_view.set(arg)
+    this.pin = pin;
+    this.ctor = ctor;
+    this.is_owned = is_owned;
+    if (this.is_owned) {
+      this.module.register_parent_and_children(this, new ManagedHandle(module, this.pin));
     }
-    this.module.register_parent_and_children(this, new ManagedHandle(module, this.pin));
   }
 
   delete(): boolean {
     if (this._is_deleted) return false;
     this._is_deleted = true;
-    this.module.unregister_parent_and_children(this);
+    if (this.is_owned) {
+      this.module.unregister_parent_and_children(this);
+    }
     return true;
   }
 
@@ -280,6 +287,12 @@ class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstruct
   get data_view() {
     const array_view = this.array_view;
     return new Uint8Array(array_view.buffer, array_view.byteOffset, array_view.byteLength);
+  }
+
+  get module_data_view(): Uint8ModuleBuffer {
+    const pin = this.module.main.Uint8PinnedArray.from_pin(this.pin.pin);
+    if (pin === null) throw Error("Uint8PinnedArray.from_pin returned null");
+    return new Uint8ModuleBuffer(this.module, pin, false);
   }
 
   get array_view() {
@@ -296,50 +309,122 @@ class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstruct
 }
 
 export class Uint8ModuleBuffer extends ModuleBuffer<Uint8PinnedArray, Uint8ArrayConstructor> {
-  constructor(module: WasmModule, arg: number | ArrayLike<number>) {
-    super(module, arg, N => module.main.Uint8PinnedArray.owned_pin_from_malloc(N)!, Uint8Array);
+  constructor(module: WasmModule, pin: Uint8PinnedArray, is_owned: boolean) {
+    super(module, pin, Uint8Array, is_owned);
+  }
+
+  static create(module: WasmModule, arg: number | ArrayLike<number>): Uint8ModuleBuffer {
+    const length = (typeof arg === "number") ? arg : arg.length;
+    const pin = module.main.Uint8PinnedArray.owned_pin_from_malloc(length);
+    if (pin === null) throw Error("Uint8PinnedArray.owned_pin_from_malloc returned null");
+    const buffer = new Uint8ModuleBuffer(module, pin, true);
+    if (typeof arg !== "number") buffer.array_view.set(arg);
+    return buffer;
   }
 }
 
 export class Int8ModuleBuffer extends ModuleBuffer<Int8PinnedArray, Int8ArrayConstructor> {
-  constructor(module: WasmModule, arg: number | ArrayLike<number>) {
-    super(module, arg, N => module.main.Int8PinnedArray.owned_pin_from_malloc(N)!, Int8Array);
+  constructor(module: WasmModule, pin: Int8PinnedArray, is_owned: boolean) {
+    super(module, pin, Int8Array, is_owned);
+  }
+
+  static create(module: WasmModule, arg: number | ArrayLike<number>): Int8ModuleBuffer {
+    const length = (typeof arg === "number") ? arg : arg.length;
+    const pin = module.main.Int8PinnedArray.owned_pin_from_malloc(length);
+    if (pin === null) throw Error("Int8PinnedArray.owned_pin_from_malloc returned null");
+    const buffer = new Int8ModuleBuffer(module, pin, true);
+    if (typeof arg !== "number") buffer.array_view.set(arg);
+    return buffer;
   }
 }
 
 export class Uint16ModuleBuffer extends ModuleBuffer<Uint16PinnedArray, Uint16ArrayConstructor> {
-  constructor(module: WasmModule, arg: number | ArrayLike<number>) {
-    super(module, arg, N => module.main.Uint16PinnedArray.owned_pin_from_malloc(N)!, Uint16Array);
+  constructor(module: WasmModule, pin: Uint16PinnedArray, is_owned: boolean) {
+    super(module, pin, Uint16Array, is_owned);
+  }
+
+  static create(module: WasmModule, arg: number | ArrayLike<number>): Uint16ModuleBuffer {
+    const length = (typeof arg === "number") ? arg : arg.length;
+    const pin = module.main.Uint16PinnedArray.owned_pin_from_malloc(length);
+    if (pin === null) throw Error("Uint16PinnedArray.owned_pin_from_malloc returned null");
+    const buffer = new Uint16ModuleBuffer(module, pin, true);
+    if (typeof arg !== "number") buffer.array_view.set(arg);
+    return buffer;
   }
 }
 
 export class Int16ModuleBuffer extends ModuleBuffer<Int16PinnedArray, Int16ArrayConstructor> {
-  constructor(module: WasmModule, arg: number | ArrayLike<number>) {
-    super(module, arg, N => module.main.Int16PinnedArray.owned_pin_from_malloc(N)!, Int16Array);
+  constructor(module: WasmModule, pin: Int16PinnedArray, is_owned: boolean) {
+    super(module, pin, Int16Array, is_owned);
+  }
+
+  static create(module: WasmModule, arg: number | ArrayLike<number>): Int16ModuleBuffer {
+    const length = (typeof arg === "number") ? arg : arg.length;
+    const pin = module.main.Int16PinnedArray.owned_pin_from_malloc(length);
+    if (pin === null) throw Error("Int16PinnedArray.owned_pin_from_malloc returned null");
+    const buffer = new Int16ModuleBuffer(module, pin, true);
+    if (typeof arg !== "number") buffer.array_view.set(arg);
+    return buffer;
   }
 }
 
 export class Uint32ModuleBuffer extends ModuleBuffer<Uint32PinnedArray, Uint32ArrayConstructor> {
-  constructor(module: WasmModule, arg: number | ArrayLike<number>) {
-    super(module, arg, N => module.main.Uint32PinnedArray.owned_pin_from_malloc(N)!, Uint32Array);
+  constructor(module: WasmModule, pin: Uint32PinnedArray, is_owned: boolean) {
+    super(module, pin, Uint32Array, is_owned);
+  }
+
+  static create(module: WasmModule, arg: number | ArrayLike<number>): Uint32ModuleBuffer {
+    const length = (typeof arg === "number") ? arg : arg.length;
+    const pin = module.main.Uint32PinnedArray.owned_pin_from_malloc(length);
+    if (pin === null) throw Error("Uint32PinnedArray.owned_pin_from_malloc returned null");
+    const buffer = new Uint32ModuleBuffer(module, pin, true);
+    if (typeof arg !== "number") buffer.array_view.set(arg);
+    return buffer;
   }
 }
 
 export class Int32ModuleBuffer extends ModuleBuffer<Int32PinnedArray, Int32ArrayConstructor> {
-  constructor(module: WasmModule, arg: number | ArrayLike<number>) {
-    super(module, arg, N => module.main.Int32PinnedArray.owned_pin_from_malloc(N)!, Int32Array);
+  constructor(module: WasmModule, pin: Int32PinnedArray, is_owned: boolean) {
+    super(module, pin, Int32Array, is_owned);
+  }
+
+  static create(module: WasmModule, arg: number | ArrayLike<number>): Int32ModuleBuffer {
+    const length = (typeof arg === "number") ? arg : arg.length;
+    const pin = module.main.Int32PinnedArray.owned_pin_from_malloc(length);
+    if (pin === null) throw Error("Int32PinnedArray.owned_pin_from_malloc returned null");
+    const buffer = new Int32ModuleBuffer(module, pin, true);
+    if (typeof arg !== "number") buffer.array_view.set(arg);
+    return buffer;
   }
 }
 
 export class Float32ModuleBuffer extends ModuleBuffer<Float32PinnedArray, Float32ArrayConstructor> {
-  constructor(module: WasmModule, arg: number | ArrayLike<number>) {
-    super(module, arg, N => module.main.Float32PinnedArray.owned_pin_from_malloc(N)!, Float32Array);
+  constructor(module: WasmModule, pin: Float32PinnedArray, is_owned: boolean) {
+    super(module, pin, Float32Array, is_owned);
+  }
+
+  static create(module: WasmModule, arg: number | ArrayLike<number>): Float32ModuleBuffer {
+    const length = (typeof arg === "number") ? arg : arg.length;
+    const pin = module.main.Float32PinnedArray.owned_pin_from_malloc(length);
+    if (pin === null) throw Error("Float32PinnedArray.owned_pin_from_malloc returned null");
+    const buffer = new Float32ModuleBuffer(module, pin, true);
+    if (typeof arg !== "number") buffer.array_view.set(arg);
+    return buffer;
   }
 }
 
 export class Float64ModuleBuffer extends ModuleBuffer<Float64PinnedArray, Float64ArrayConstructor> {
-  constructor(module: WasmModule, arg: number | ArrayLike<number>) {
-    super(module, arg, N => module.main.Float64PinnedArray.owned_pin_from_malloc(N)!, Float64Array);
+  constructor(module: WasmModule, pin: Float64PinnedArray, is_owned: boolean) {
+    super(module, pin, Float64Array, is_owned);
+  }
+
+  static create(module: WasmModule, arg: number | ArrayLike<number>): Float64ModuleBuffer {
+    const length = (typeof arg === "number") ? arg : arg.length;
+    const pin = module.main.Float64PinnedArray.owned_pin_from_malloc(length);
+    if (pin === null) throw Error("Float64PinnedArray.owned_pin_from_malloc returned null");
+    const buffer = new Float64ModuleBuffer(module, pin, true);
+    if (typeof arg !== "number") buffer.array_view.set(arg);
+    return buffer;
   }
 }
 
@@ -383,6 +468,44 @@ export class LU_Solver implements ManagedObject {
 
   solve(b: Float32ModuleBuffer): number {
     return this.inner.solve(b.pin);
+  }
+
+  delete(): boolean {
+    if (this._is_deleted) return false;
+    this._is_deleted = true;
+    this.module.unregister_parent_and_children(this);
+    return true;
+  }
+
+  is_deleted(): boolean {
+    return this._is_deleted;
+  }
+}
+
+export class ZipFile implements ManagedObject {
+  readonly inner: _ZipFile;
+  readonly module: WasmModule;
+  _is_deleted: boolean = false;
+
+  constructor(
+    module: WasmModule,
+  ) {
+    this.module = module;
+    const inner = module.main.ZipFile.create();
+    if (inner === null) throw Error("WASM module ZipFile.create returned null");
+    this.inner = inner;
+    module.register_parent_and_children(this, new ManagedHandle(module, this.inner));
+  }
+
+  write_file(name: string, data: Uint8ModuleBuffer) {
+    this.module.assert_owned(data);
+    this.inner.write_file(name, data.pin);
+  }
+
+  get_bytes(): Uint8ModuleBuffer {
+    const data = this.inner.get_bytes();
+    if (data === null) throw Error("ZipFile.get_bytes returned null");
+    return new Uint8ModuleBuffer(this.module, data, true);
   }
 
   delete(): boolean {

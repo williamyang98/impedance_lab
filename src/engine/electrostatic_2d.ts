@@ -46,17 +46,17 @@ export class Grid implements ManagedObject {
 
   constructor(Ny: number, Nx: number) {
     this.size = [Ny, Nx];
-    this.dx = new Float32ModuleNdarray(this.module, [Nx]);
-    this.dy = new Float32ModuleNdarray(this.module, [Ny]);
-    this.v_index_beta = new Uint32ModuleNdarray(this.module, [Ny+1,Nx+1]);
-    this.v_field = new Float32ModuleNdarray(this.module, [Ny+1,Nx+1]);
-    this.ex_field = new Float32ModuleNdarray(this.module, [Ny+1,Nx]);
-    this.ey_field = new Float32ModuleNdarray(this.module, [Ny,Nx+1]);
-    this.ek_index_beta = new Uint32ModuleNdarray(this.module, [Ny,Nx]);
+    this.dx = Float32ModuleNdarray.from_shape(this.module, [Nx]);
+    this.dy = Float32ModuleNdarray.from_shape(this.module, [Ny]);
+    this.v_index_beta = Uint32ModuleNdarray.from_shape(this.module, [Ny+1,Nx+1]);
+    this.v_field = Float32ModuleNdarray.from_shape(this.module, [Ny+1,Nx+1]);
+    this.ex_field = Float32ModuleNdarray.from_shape(this.module, [Ny+1,Nx]);
+    this.ey_field = Float32ModuleNdarray.from_shape(this.module, [Ny,Nx+1]);
+    this.ek_index_beta = Uint32ModuleNdarray.from_shape(this.module, [Ny,Nx]);
     this.v_input = 1;
 
-    this._v_table = new Float32ModuleNdarray(this.module, [3]);
-    this._ek_table = new Float32ModuleNdarray(this.module, [Ny,Nx]);
+    this._v_table = Float32ModuleNdarray.from_shape(this.module, [3]);
+    this._ek_table = Float32ModuleNdarray.from_shape(this.module, [Ny,Nx]);
     this.module.register_parent_and_children(this,
       this.dx,
       this.dy,
@@ -212,9 +212,9 @@ export class Grid implements ManagedObject {
     }
 
     profiler?.begin("alloc_csr", "Allocate temporary CSR A matrix buffers inside WASM heap");
-    const pinned_A_data = new Float32ModuleBuffer(this.module, A_data.length);
-    const pinned_A_col_indices = new Int32ModuleBuffer(this.module, A_col_indices.length);
-    const pinned_A_row_index_ptr = new Int32ModuleBuffer(this.module, A_row_index_ptr.length);
+    const pinned_A_data = Float32ModuleBuffer.create(this.module, A_data.length);
+    const pinned_A_col_indices = Int32ModuleBuffer.create(this.module, A_col_indices.length);
+    const pinned_A_row_index_ptr = Int32ModuleBuffer.create(this.module, A_row_index_ptr.length);
     pinned_A_data.array_view.set(A_data);
     pinned_A_col_indices.array_view.set(A_col_indices);
     pinned_A_row_index_ptr.array_view.set(A_row_index_ptr);
