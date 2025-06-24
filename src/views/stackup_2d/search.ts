@@ -80,6 +80,7 @@ function run_parameter_search<T extends { error: number }>(
       if (e_lower !== undefined && e_upper !== undefined) {
         ratio = e_upper/(e_upper-e_lower);
       }
+      // avoid trusting the weights too much since a bad curve can cause convergence to be extremely slow
       const ratio_margin = 0.2;
       ratio = clamp(ratio, ratio_margin, 1-ratio_margin);
       v_search = v_lower*ratio+v_upper*(1-ratio);
@@ -307,19 +308,18 @@ export function search_parameters(
     return result;
   };
 
-  const min_value = params
-    .map(param => param.min ?? 0)
-    .reduce((a,b) => Math.min(a,b), Infinity);
+  // get search range that satisfies all parameters constraints
+  let min_value: number | undefined = undefined;
   let max_value: number | undefined = undefined;
   for (const param of params) {
-    if (param.max !== undefined) {
-      if (max_value === undefined) {
-        max_value = param.max;
-      } else {
-        max_value = Math.max(param.max, max_value);
-      }
+    if (param.max !== undefined && (max_value === undefined || max_value > param.max)) {
+      max_value = param.max;
+    }
+    if (param.min !== undefined && (min_value === undefined || min_value < param.min)) {
+      min_value = param.min;
     }
   }
+
   profiler?.begin("run_binary_search");
   const initial_value = ref_param.value;
   const best_result = run_parameter_search(
