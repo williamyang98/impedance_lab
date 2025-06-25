@@ -201,7 +201,7 @@ const voltage_labels = computed(() => {
       v-if="label.icon !== undefined"
       :transform="`translate(${label.x},${label.y}) scale(${voltage_size})`"
     >
-      <component :is="label.icon" x="-0.5" y="-0.5" width="1" height="1"/>
+      <component :is="label.icon" x="-0.5" y="-0.5" width="1" height="1" stroke="black"/>
     </g>
   </template>
   <!-- Height labels -->

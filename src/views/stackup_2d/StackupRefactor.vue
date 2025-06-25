@@ -398,7 +398,7 @@ function download_all_ndarrays(name: string) {
             <div class="w-full border border-1 border-base-300 bg-base-100 p-1" v-if="is_editing">
               <EditorControls :editor="editor"/>
             </div>
-            <div class="w-full border border-1 border-base-300 bg-base-100 p-1">
+            <div class="w-full border border-1 rounded-sm border-base-300 bg-white p-1">
               <StackupViewer :stackup="viewer_stackup"/>
             </div>
           </div>

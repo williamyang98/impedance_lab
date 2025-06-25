@@ -64,16 +64,16 @@ const append_layer_to_end = computed(() => editor.try_add_prepreg_layer(editor.l
 .add-button {
   height: 0.45rem;
   width: 100%;
-  background-color: #99999977;
+  background-color: var(--color-base-300);
   cursor: cell;
   padding: none;
   user-select: none;
-  margin-top: 0px;
-  margin-bottom: 0px;
+  margin-top: 0.15rem;
+  margin-bottom: 0.15rem;
 }
 
 .add-button:hover {
-  background-color: #0000bb77;
+  background-color: var(--color-primary);
 }
 
 button.delete-button {

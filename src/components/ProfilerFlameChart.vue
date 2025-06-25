@@ -117,7 +117,7 @@ function on_span_enter(ev: MouseEvent) {
           :style="`background: ${get_span_colour(span)}`"
           @mouseenter="ev => on_span_enter(ev)"
         >
-          <span class="chart-span-label">
+          <span class="chart-span-label text-black">
             {{ span.trace.label }}
             <span v-if="row_index == 0 && root_trace !== base_trace">*</span>
           </span>

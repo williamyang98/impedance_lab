@@ -115,7 +115,7 @@ watch(results, () => {
             <tbody>
               <tr
                 v-for="(result, index) in results.results" :key="index"
-                :class="`${result == results.best_result ? 'bg-green-200' : ''}`"
+                :class="`${result == results.best_result ? 'bg-success' : ''}`"
               >
                 <td class="font-medium">{{ result.iteration }}</td>
                 <td>{{ result.value.toPrecision(3) }}</td>
