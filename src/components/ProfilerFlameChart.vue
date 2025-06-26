@@ -224,7 +224,7 @@ function on_span_enter(ev: MouseEvent) {
 }
 
 .table-separator {
-  border-bottom: 2px solid var(--color-base-300);
+  border-bottom: calc(2*var(--border)) solid color-mix(in oklch, var(--color-base-content) 5%, #0000);
 }
 
 </style>
