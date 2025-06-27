@@ -2,11 +2,12 @@
 import { defineProps, computed, ref, watch } from "vue";
 import { type Stackup, type SizeParameter, type TaperSizeParameter } from "./stackup.ts";
 import { create_layout_from_stackup, type TrapezoidShape, type SoldermaskLayerLayout, type Position } from "./layout.ts";
-import { Viewer, font_size, voltage_size } from "./viewer.ts";
+import { Viewer, type ViewerConfig, font_size, voltage_size } from "./viewer.ts";
 import { CirclePlusIcon, CircleMinusIcon } from "lucide-vue-next";
 
 const props = defineProps<{
   stackup: Stackup,
+  config?: ViewerConfig,
 }>();
 
 const viewer = computed(() => {
@@ -14,7 +15,7 @@ const viewer = computed(() => {
     return param.placeholder_value;
   };
   const layout = create_layout_from_stackup(props.stackup, get_size);
-  const viewer = new Viewer(layout);
+  const viewer = new Viewer(layout, props.config);
   return viewer;
 });
 

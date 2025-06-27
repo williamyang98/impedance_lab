@@ -8,6 +8,7 @@ import {
   //       this also applied to .delete() calls which register/unregister from a weakmap. proxy breaks the key check.
   toRaw,
 } from "vue";
+import { useRoute } from "vue-router";
 // subcomponents
 import EditorControls from "./EditorControls.vue";
 import StackupViewer from "./StackupViewer.vue";
@@ -32,18 +33,8 @@ import {
   type ColinearTraceTemplate,
 } from "./editor.ts";
 import {
-  // BroadsideLayerMicrostrip,
-  BroadsideLayerStripline,
-  BroadsideTracePair,
-  BroadsideTraceCoplanarPair,
-  BroadsideTraceMirroredPair,
-  BroadsideTraceCoplanarMirroredPair,
-  // ColinearLayerMicrostrip,
-  ColinearLayerStripline,
-  ColinearTraceSingleEnded,
-  ColinearTraceCoplanarSingleEnded,
-  ColinearTraceDifferentialPair,
-  ColinearTraceCoplanarDifferentialPair,
+  broadside_layer_templates, broadside_trace_templates,
+  colinear_layer_templates, colinear_trace_templates,
 } from "./editor_templates.ts";
 import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
@@ -60,6 +51,76 @@ interface SelectedMap<K extends string, V> {
   keys: K[];
 }
 
+const route = useRoute();
+
+interface DefaultTemplateKeys {
+  stackup_type: "colinear" | "broadside";
+  colinear_trace: keyof typeof colinear_trace_templates;
+  broadside_trace: keyof typeof broadside_trace_templates;
+  colinear_layer: keyof typeof colinear_layer_templates;
+  broadside_layer: keyof typeof broadside_layer_templates;
+}
+
+const default_template_keys: DefaultTemplateKeys = {
+  stackup_type: "colinear",
+  colinear_trace: "single ended",
+  broadside_trace: "pair",
+  colinear_layer: "microstrip",
+  broadside_layer: "microstrip",
+};
+
+const is_editing = ref<boolean>(true);
+
+// read query parameters
+{
+  const get_query_param = (key: string) => {
+    if (!(key in route.query)) return undefined;
+    const value = route.query[key];
+    if (typeof(value) !== "string") return undefined;
+    return value;
+  };
+  const stackup_type = get_query_param("type");
+  const trace_template = get_query_param("trace");
+  const layer_template = get_query_param("layer");
+  if (stackup_type === "colinear") {
+    default_template_keys.stackup_type = "colinear";
+    if (trace_template) {
+      if (trace_template in colinear_trace_templates) {
+        default_template_keys.colinear_trace = trace_template as keyof typeof colinear_trace_templates;
+      } else {
+        console.error(`Unknown colinear trace template: ${trace_template}`);
+      }
+    }
+    if (layer_template) {
+      if (layer_template in colinear_layer_templates) {
+        default_template_keys.colinear_layer = layer_template as keyof typeof colinear_layer_templates;
+      } else {
+        console.error(`Unknown colinear layer template: ${layer_template}`);
+      }
+    }
+    is_editing.value = false;
+  } else if (stackup_type === "broadside") {
+    default_template_keys.stackup_type = "broadside";
+    if (trace_template) {
+      if (trace_template in broadside_trace_templates) {
+        default_template_keys.broadside_trace = trace_template as keyof typeof broadside_trace_templates;
+      } else {
+        console.error(`Unknown broadside trace template: ${trace_template}`);
+      }
+    }
+    if (layer_template) {
+      if (layer_template in broadside_layer_templates) {
+        default_template_keys.broadside_layer = layer_template as keyof typeof broadside_layer_templates;
+      } else {
+        console.error(`Unknown broadside layer template: ${layer_template}`);
+      }
+    }
+    is_editing.value = false;
+  } else if (stackup_type !== undefined) {
+    console.error(`Unknown stackup type: ${stackup_type}`);
+  }
+}
+
 function create_editor() {
   const parameters = new StackupParameters();
 
@@ -68,22 +129,15 @@ function create_editor() {
     param.error = undefined;
   }
 
-  const broadside_trace_templates = {
-    "pair": new BroadsideTracePair(),
-    "coplanar_pair": new BroadsideTraceCoplanarPair(),
-    "mirrored_pair": new BroadsideTraceMirroredPair(),
-    "coplanar_mirrored_pair": new BroadsideTraceCoplanarMirroredPair(),
-  };
-
   type K0 = keyof typeof broadside_trace_templates;
   class BroadsideEditor implements SelectedMap<K0, BroadsideTraceTemplate> {
-    _selected: K0 = "pair";
+    _selected: K0 = default_template_keys.broadside_trace;
     options = broadside_trace_templates;
     keys = Object.keys(broadside_trace_templates) as K0[];
     editor = new BroadsideStackupEditor(
       parameters,
       broadside_trace_templates[this._selected],
-      new BroadsideLayerStripline(),
+      broadside_layer_templates[default_template_keys.broadside_layer],
     );
     get selected() {
       return this._selected;
@@ -99,22 +153,15 @@ function create_editor() {
   }
   const broadside_editor = new BroadsideEditor();
 
-  const colinear_trace_templates = {
-    "single": new ColinearTraceSingleEnded(),
-    "coplanar_single": new ColinearTraceCoplanarSingleEnded(),
-    "pair": new ColinearTraceDifferentialPair(),
-    "coplanar_pair": new ColinearTraceCoplanarDifferentialPair(),
-  };
-
   type K1 = keyof typeof colinear_trace_templates;
   class ColinearEditor implements SelectedMap<K1, ColinearTraceTemplate> {
-    _selected: K1 = "single";
+    _selected: K1 = default_template_keys.colinear_trace;
     options = colinear_trace_templates;
     keys = Object.keys(colinear_trace_templates) as K1[];
     editor = new ColinearStackupEditor(
       parameters,
       colinear_trace_templates[this._selected],
-      new ColinearLayerStripline(),
+      colinear_layer_templates[default_template_keys.colinear_layer],
     );
     get selected() {
       return this._selected;
@@ -138,7 +185,7 @@ function create_editor() {
   type K2 = keyof typeof editors;
   type V2 = typeof editors[K2];
   class Editor implements SelectedMap<K2, V2> {
-    _selected: K2 = "colinear";
+    _selected: K2 = default_template_keys.stackup_type;
     options = editors;
     keys = Object.keys(editors) as K2[];
     parameters: StackupParameters = parameters;
@@ -158,12 +205,9 @@ function create_editor() {
 }
 
 const selected_editor = ref(create_editor());
-
 const editor = computed<StackupEditor>(() => selected_editor.value.value.editor);
 const selected_trace_template = computed(() => selected_editor.value.value);
-
 const simulation_stackup = computed(() => editor.value.get_simulation_stackup());
-const is_editing = ref<boolean>(true);
 const viewer_stackup = computed(() => {
   if (is_editing.value) {
     return editor.value.get_viewer_stackup();
@@ -180,7 +224,6 @@ const uid = {
 };
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
-
 const measurement = ref<Measurement | undefined>(undefined);
 const profiler = ref<Profiler | undefined>(undefined);
 
