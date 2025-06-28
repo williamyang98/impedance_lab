@@ -21,7 +21,13 @@ interface Tag {
 };
 
 function tag_to_title(tag: Tag): string {
-  return `${tag.type} ${tag.layer} ${tag.trace}`;
+  return [tag.type, tag.layer, tag.trace]
+    .join(' ')
+    .split(' ')
+    .map(word => {
+      return word.at(0)?.toUpperCase() + word.substring(1).toLowerCase();
+    })
+    .join(' ');
 }
 
 function tag_to_query_string(tag: Tag): string {
