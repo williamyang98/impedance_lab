@@ -34,18 +34,18 @@ function tag_to_query_string(tag: Tag): string {
   return `type=${tag.type}&layer=${tag.layer}&trace=${tag.trace}`;
 }
 
-interface TaggedEditor {
+interface Template {
   tag: Tag;
   editor: StackupEditor;
 }
 
-const editors: TaggedEditor[] = [];
+const templates: Template[] = [];
 
 {
   for (const [layer_name, layer_template] of Object.entries(broadside_layer_templates)) {
     for (const [trace_name, trace_template] of Object.entries(broadside_trace_templates)) {
       const editor = new BroadsideStackupEditor(parameters, trace_template, layer_template);
-      editors.push({
+      templates.push({
         editor,
         tag: {
           type: "broadside",
@@ -61,7 +61,7 @@ const editors: TaggedEditor[] = [];
   for (const [layer_name, layer_template] of Object.entries(colinear_layer_templates)) {
     for (const [trace_name, trace_template] of Object.entries(colinear_trace_templates)) {
       const editor = new ColinearStackupEditor(parameters, trace_template, layer_template);
-      editors.push({
+      templates.push({
         editor,
         tag: {
           type: "colinear",
@@ -81,28 +81,28 @@ const viewer_config: ViewerConfig = {
 
 const router = useRouter();
 
-async function on_editor_select(tagged_editor: TaggedEditor) {
-  // TODO: need to store relevant metadata to create query parameters for editor route
+function get_template_url(tagged_editor: Template): string {
   const query_string = tag_to_query_string(tagged_editor.tag);
-  await router.push(`/stackup_2d/editor?${query_string}`);
+  const url = `/stackup_2d/editor?${query_string}`;
+  return router.resolve(url).href;
 }
 
 </script>
 
 <template>
 <div class="w-full grid grid-cols-4 gap-x-2 gap-y-2">
-  <template v-for="(tagged_editor, index) in editors" :key="index">
-    <div
+  <template v-for="(template, index) in templates" :key="index">
+    <a
       class="card card-border bg-base-100 select-none cursor-pointer"
-      @click="on_editor_select(tagged_editor)"
+      :href="get_template_url(template)"
     >
       <div class="card-body p-3">
-        <div class="card-title">{{ tag_to_title(tagged_editor.tag) }}</div>
+        <div class="card-title">{{ tag_to_title(template.tag) }}</div>
         <div class="w-full h-full flex flex-col justify-center">
-          <StackupViewer :stackup="tagged_editor.editor.get_simulation_stackup()" :config="viewer_config"/>
+          <StackupViewer :stackup="template.editor.get_simulation_stackup()" :config="viewer_config"/>
         </div>
       </div>
-    </div>
+    </a>
   </template>
 </div>
 </template>
