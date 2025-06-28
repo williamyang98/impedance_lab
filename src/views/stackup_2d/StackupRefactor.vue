@@ -7,8 +7,9 @@ import {
   //       and since a comparison between a proxy and the original object is false this breaks this check
   //       this also applied to .delete() calls which register/unregister from a weakmap. proxy breaks the key check.
   toRaw,
+  watch,
 } from "vue";
-import { useRoute } from "vue-router";
+import { useRoute, type LocationQuery } from "vue-router";
 // subcomponents
 import EditorControls from "./EditorControls.vue";
 import StackupViewer from "./StackupViewer.vue";
@@ -72,10 +73,10 @@ const default_template_keys: DefaultTemplateKeys = {
 const is_editing = ref<boolean>(true);
 
 // read query parameters
-{
+function read_query_parameters(query: LocationQuery) {
   const get_query_param = (key: string) => {
-    if (!(key in route.query)) return undefined;
-    const value = route.query[key];
+    if (!(key in query)) return undefined;
+    const value = query[key];
     if (typeof(value) !== "string") return undefined;
     return value;
   };
@@ -120,6 +121,7 @@ const is_editing = ref<boolean>(true);
     console.error(`Unknown stackup type: ${stackup_type}`);
   }
 }
+read_query_parameters(route.query);
 
 function create_editor() {
   const parameters = new StackupParameters();
@@ -408,6 +410,12 @@ function download_all_ndarrays(name: string) {
     zip_data?.delete();
   }
 }
+
+// update editor if query parameters change
+watch(() => route.query, (new_query) => {
+  read_query_parameters(new_query);
+  selected_editor.value = create_editor();
+});
 
 </script>
 
