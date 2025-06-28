@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { useRouter } from "vue-router";
 import StackupViewer from "./StackupViewer.vue";
+import { StackupParameters } from "./parameters.ts";
 import {
   StackupEditor,
-  StackupParameters,
   BroadsideStackupEditor,
   ColinearStackupEditor,
 } from "./editor.ts";

@@ -7,7 +7,6 @@ import {
   type CopperPlane,
 } from "./stackup.ts";
 import {
-  StackupParameters,
   create_layer,
   create_plane,
   type ColinearTrace,
@@ -17,6 +16,7 @@ import {
   type BroadsideLayerTemplate,
   type BroadsideTraceTemplate,
 } from "./editor.ts";
+import { StackupParameters } from "./parameters.ts";
 import { type IdStore } from "./id_store.ts";
 
 export const colinear_trace_templates = {

@@ -150,6 +150,7 @@ export interface PrepregLayer {
 }
 
 export type Layer = UnmaskedLayer | SoldermaskLayer | CoreLayer | PrepregLayer;
+export type LayerType = "unmasked" | "soldermask" | "core" | "prepreg";
 
 export interface Stackup {
   spacings: HorizontalSpacing[];

@@ -25,9 +25,9 @@ import { PencilIcon, EyeIcon, InfoIcon } from "lucide-vue-next";
 import { validate_parameter, type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { StackupGrid } from "./grid.ts";
+import { StackupParameters } from "./parameters.ts";
 import {
   StackupEditor,
-  StackupParameters,
   BroadsideStackupEditor,
   type BroadsideTraceTemplate,
   ColinearStackupEditor,

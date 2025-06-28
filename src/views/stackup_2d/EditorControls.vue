@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { StackupEditor, type LayerType } from "./editor.ts";
+import { type LayerType } from "./stackup.ts";
+import { StackupEditor } from "./editor.ts";
 import { computed, defineProps } from "vue";
 import { Trash2Icon } from "lucide-vue-next";
 
