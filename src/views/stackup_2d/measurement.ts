@@ -6,6 +6,7 @@ export interface SingleEndedMeasurement {
   type: "single";
   masked: ImpedanceResult;
   unmasked?: ImpedanceResult;
+  effective_er: number;
 }
 
 export interface DifferentialMeasurement {
@@ -14,6 +15,7 @@ export interface DifferentialMeasurement {
   even_masked: ImpedanceResult;
   odd_unmasked?: ImpedanceResult;
   coupling_factor: number;
+  effective_er: number;
 }
 
 export type Measurement = SingleEndedMeasurement | DifferentialMeasurement;
@@ -54,10 +56,13 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
     stackup.configure_masked_dielectric();
     const masked = calculate("masked");
 
+    const effective_er = masked.Cih/masked.Ch;
+
     measurement = {
       type: "single",
       masked,
       unmasked,
+      effective_er,
     }
   } else {
     let odd_unmasked = undefined;
@@ -80,12 +85,15 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
     const Z_even = even_masked.Z0;
     const coupling_factor = (Z_even-Z_odd)/(Z_even+Z_odd);
 
+    const effective_er = odd_masked.Cih/odd_masked.Ch;
+
     measurement = {
       type: "differential",
       odd_masked,
       even_masked,
       odd_unmasked,
       coupling_factor,
+      effective_er,
     }
   }
   profiler?.end();

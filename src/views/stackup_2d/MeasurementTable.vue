@@ -26,6 +26,7 @@ const _props = defineProps<{
       <tr><td class="font-medium">Propagation Delay</td><td>{{ (measurement.masked.propagation_delay*1e12/1e2).toPrecision(3) }} ps/cm</td></tr>
       <tr><td class="font-medium">Inductance</td><td>{{ (measurement.masked.Lh*1e9/1e2).toPrecision(3) }} nH/cm</td></tr>
       <tr><td class="font-medium">Capacitance</td><td>{{ (measurement.masked.Cih*1e12/1e2).toPrecision(3) }} pF/cm</td></tr>
+      <tr><td class="font-medium">Effective Dielectric Constant</td><td>{{ (measurement.effective_er).toFixed(2) }}</td></tr>
     </template>
     <template v-if="measurement.type == 'differential'">
       <tr><td class="font-medium">Type</td><td>Differential</td></tr>
@@ -44,6 +45,7 @@ const _props = defineProps<{
       <tr><td class="font-medium">Even Mode Impedance</td><td>{{ (measurement.even_masked.Z0/2).toPrecision(3) }} Ω</td></tr>
       <tr><td class="font-medium">Even Mode Propagation Delay</td><td>{{ (measurement.even_masked.propagation_delay*1e12/1e2).toPrecision(3) }} ps/cm</td></tr>
       <tr><td class="font-medium">Odd Mode Propagation Delay</td><td>{{ (measurement.odd_masked.propagation_delay*1e12/1e2).toPrecision(3) }} ps/cm</td></tr>
+      <tr><td class="font-medium">Effective Dielectric Constant</td><td>{{ (measurement.effective_er).toFixed(2) }}</td></tr>
     </template>
   </tbody>
 </table>

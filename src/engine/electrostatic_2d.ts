@@ -8,7 +8,11 @@ import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../utility/module_nda
 import { Profiler } from "../utility/profiler.ts";
 
 export interface ImpedanceResult {
+  voltage: number;
+  energy_homogenous: number;
+  energy_inhomogenous: number;
   Z0: number;
+  Ch: number;
   Cih: number;
   Lh: number;
   propagation_speed: number;
@@ -295,7 +299,11 @@ export class Grid implements ManagedObject {
     const propagation_delay = 1/propagation_speed;
 
     return {
+      voltage: v0,
+      energy_homogenous,
+      energy_inhomogenous,
       Z0,
+      Ch,
       Cih,
       Lh,
       propagation_speed,
