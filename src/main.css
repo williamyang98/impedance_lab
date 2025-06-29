@@ -15,3 +15,10 @@
 .drawer-side {
   transition: opacity 0.05s ease-out 0.05s allow-discrete, visibility 0.05s ease-out 0.05s allow-discrete;
 }
+
+/* Fix selected form fields being ontop of tooltip */
+.tooltip {
+  > .tooltip-content, &[data-tip]:before {
+    z-index: 2;
+  }
+}
