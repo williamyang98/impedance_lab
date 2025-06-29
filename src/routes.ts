@@ -10,7 +10,7 @@ export interface CustomRoute {
 };
 
 export const routes: CustomRoute[] = [
-  {
+  import.meta.env.DEV && {
     name: "3D Simulator",
     path: "/3d_calculator",
     view_component: () => import("./views/app_3d/App3DView.vue"),
@@ -28,4 +28,4 @@ export const routes: CustomRoute[] = [
     view_component: () => import("./views/stackup_2d/TemplatesView.vue"),
     icon_component: Grid2x2Icon,
   },
-];
+].filter(route => route !== false);
