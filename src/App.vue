@@ -23,10 +23,10 @@ import { Moon, Sun, MenuIcon } from 'lucide-vue-next';
           <div class="hidden flex-none lg:block">
             <ul class="menu menu-horizontal py-0">
               <li>
-                <label class="swap swap-rotate">
-                  <input type="checkbox" class="theme-controller" value="dark"/>
-                  <Sun class="swap-off h-5 w-5"/>
-                  <Moon class="swap-on h-5 w-5"/>
+                <label class="flex cursor-pointer gap-2">
+                  <Sun class="h-5 w-5"/>
+                  <input type="checkbox" class="toggle theme-controller" value="dark"/>
+                  <Moon class="h-5 w-5"/>
                 </label>
               </li>
             </ul>
