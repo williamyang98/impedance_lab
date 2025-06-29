@@ -99,7 +99,9 @@ function get_template_url(tagged_editor: Template): string {
       <div class="card-body p-3">
         <div class="card-title">{{ tag_to_title(template.tag) }}</div>
         <div class="w-full h-full flex flex-col justify-center">
-          <StackupViewer :stackup="template.editor.get_simulation_stackup()" :config="viewer_config"/>
+          <div class="w-full border border-1 rounded-sm border-base-300 bg-white p-1">
+            <StackupViewer :stackup="template.editor.get_simulation_stackup()" :config="viewer_config"/>
+          </div>
         </div>
       </div>
     </a>
