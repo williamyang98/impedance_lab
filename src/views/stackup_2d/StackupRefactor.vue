@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  computed, ref, useId,
+  computed, ref, useId, inject, type Ref,
   // NOTE: we need use toRaw(...) to unwrap the proxy on wasm module objects
   //       otherwise emscripten will panic on upcastCheck() use to upcast/downcast virtual pointers
   //       this is because it performs a comparison between the entity's "class" descriptor
@@ -44,6 +44,11 @@ import { Uint8ArrayNdarrayWriter } from "../../utility/ndarray.ts";
 import { type IModuleNdarray, ModuleNdarrayWriter } from "../../utility/module_ndarray.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 import { ZipFile } from "../../wasm";
+import { ToastManager } from "../../components/toast/toast.ts";
+
+const toast_inject = inject<Ref<ToastManager>>("toast_manager");
+if (toast_inject === undefined) throw Error("Expected toast_manager to be injected from provider");
+const toast = toast_inject.value;
 
 interface SelectedMap<K extends string, V> {
   selected: K;
@@ -89,14 +94,14 @@ function read_query_parameters(query: LocationQuery) {
       if (trace_template in colinear_trace_templates) {
         default_template_keys.colinear_trace = trace_template as keyof typeof colinear_trace_templates;
       } else {
-        console.error(`Unknown colinear trace template: ${trace_template}`);
+        toast.error(`Unknown colinear trace template: ${trace_template}`);
       }
     }
     if (layer_template) {
       if (layer_template in colinear_layer_templates) {
         default_template_keys.colinear_layer = layer_template as keyof typeof colinear_layer_templates;
       } else {
-        console.error(`Unknown colinear layer template: ${layer_template}`);
+        toast.error(`Unknown colinear layer template: ${layer_template}`);
       }
     }
     is_editing.value = false;
@@ -106,19 +111,19 @@ function read_query_parameters(query: LocationQuery) {
       if (trace_template in broadside_trace_templates) {
         default_template_keys.broadside_trace = trace_template as keyof typeof broadside_trace_templates;
       } else {
-        console.error(`Unknown broadside trace template: ${trace_template}`);
+        toast.error(`Unknown broadside trace template: ${trace_template}`);
       }
     }
     if (layer_template) {
       if (layer_template in broadside_layer_templates) {
         default_template_keys.broadside_layer = layer_template as keyof typeof broadside_layer_templates;
       } else {
-        console.error(`Unknown broadside layer template: ${layer_template}`);
+        toast.error(`Unknown broadside layer template: ${layer_template}`);
       }
     }
     is_editing.value = false;
   } else if (stackup_type !== undefined) {
-    console.error(`Unknown stackup type: ${stackup_type}`);
+    toast.error(`Unknown stackup type: ${stackup_type}`);
   }
 }
 read_query_parameters(route.query);
@@ -275,7 +280,7 @@ async function calculate_impedance() {
     }
     new_profiler.end();
   } catch (error) {
-    console.error("calculate_impedance() failed with: ", error);
+    toast.error(`calculate_impedance() failed with: ${String(error)}`);
   }
   if (!new_profiler.is_ended()) {
     new_profiler.end_all();
@@ -316,7 +321,7 @@ async function perform_search(search_params: Parameter[]) {
     );
     new_profiler.end();
   } catch (error) {
-    console.error("perform_search() failed with: ", error);
+    toast.error(`perform_search() failed with: ${String(error)}`);
   }
   if (!new_profiler.is_ended()) {
     new_profiler.end_all();
@@ -392,7 +397,7 @@ function download_all_ndarrays(name: string) {
           zip_file.write_file(link.name, writer.write_buffer);
         }
       } catch (err) {
-        console.error(`failed to write file '${link.name}' with: `, err);
+        toast.error(`failed to write numpy file '${link.name}' to zip with: ${String(err)}`);
       }
       writer.delete();
     }
@@ -404,7 +409,7 @@ function download_all_ndarrays(name: string) {
     elem.download = name;
     elem.click();
   } catch (err) {
-    console.error("download_all_ndarrays failed with: ", err);
+    toast.error(`download_all_ndarrays failed with: ${String(err)}`);
   } finally {
     zip_file?.delete();
     zip_data?.delete();
