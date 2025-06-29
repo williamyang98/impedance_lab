@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, provide, onMounted } from "vue";
+import { ref, provide, onMounted } from "vue";
 
 type LoadState = "loading" | "failed" | "finished";
 const state = ref<LoadState>("loading");
-const adapter = ref<GPUAdapter>();
-const device = ref<GPUDevice>();
+const adapter = ref<GPUAdapter | undefined>(undefined);
+const device = ref<GPUDevice | undefined>(undefined);
 const error_message = ref<string>();
 
-provide("gpu_adapter", computed(() => adapter.value));
-provide("gpu_device", computed(() => device.value));
+provide("gpu_adapter", adapter);
+provide("gpu_device", device);
 
 async function create_gpu_instance() {
   if (!navigator.gpu) {
@@ -31,16 +31,23 @@ async function create_gpu_instance() {
 }
 
 onMounted(async () => {
-  await create_gpu_instance();
+  try {
+    await create_gpu_instance();
+  } catch (error) {
+    error_message.value = String(error);
+    state.value = "failed";
+  }
 });
 </script>
 
 <template>
   <slot v-if="state == 'finished'"/>
-  <div v-if="state == 'failed'" class="w-screen h-screen flex items-center justify-center bg-red-950">
-    <div class="p-4 rounded-sm shadow bg-white">
-      <h2>Failed to initialise WebGPU device</h2>
-      <p>{{ error_message }}</p>
+  <div v-if="state == 'failed'" class="w-screen h-screen flex items-center justify-center bg-error">
+    <div class="card card-border bg-base-100">
+      <div class="card-body p-3">
+        <div class="card-title">Failed to initialise WebGPU device</div>
+        <p>{{ error_message }}</p>
+      </div>
     </div>
   </div>
 </template>
