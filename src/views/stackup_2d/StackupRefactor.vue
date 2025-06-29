@@ -429,7 +429,7 @@ watch(() => route.query, (new_query) => {
           <h2 class="card-title">Stackup</h2>
           <div class="w-full flex flex-col gap-y-1">
             <div class="w-full flex flex-row gap-x-1">
-              <select class="select" v-model="selected_editor.selected" :disabled="!is_editing">
+              <select class="select w-fit" v-model="selected_editor.selected" :disabled="!is_editing">
                 <option v-for="option in selected_editor.keys" :value="option" :key="option">
                   {{ option }}
                 </option>

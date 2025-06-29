@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, watch, computed } from "vue";
 import { useRouter } from "vue-router";
 import StackupViewer from "./StackupViewer.vue";
 import { StackupParameters } from "./parameters.ts";
@@ -12,10 +13,13 @@ import {
   colinear_layer_templates, colinear_trace_templates,
 } from "./editor_templates.ts";
 import { type ViewerConfig, get_default_viewer_config } from "./viewer";
+import { SearchIcon } from "lucide-vue-next";
+import "fuzzysort";
+import fuzzysort from "fuzzysort";
 
 const parameters = new StackupParameters();
 interface Tag {
-  type: "broadside" | "colinear";
+  type: string;
   layer: string;
   trace: string;
 };
@@ -37,37 +41,43 @@ function tag_to_query_string(tag: Tag): string {
 interface Template {
   tag: Tag;
   editor: StackupEditor;
+  title: string;
+  prepared_title: Fuzzysort.Prepared;
 }
 
 const templates: Template[] = [];
 
-{
-  for (const [layer_name, layer_template] of Object.entries(broadside_layer_templates)) {
-    for (const [trace_name, trace_template] of Object.entries(broadside_trace_templates)) {
-      const editor = new BroadsideStackupEditor(parameters, trace_template, layer_template);
-      templates.push({
-        editor,
-        tag: {
-          type: "broadside",
-          trace: trace_name,
-          layer: layer_name,
-        },
-      });
-    }
-  }
-}
+const stackup_types = [
+  {
+    name: "broadside",
+    ctor: BroadsideStackupEditor,
+    layer_templates: broadside_layer_templates,
+    trace_templates: broadside_trace_templates,
+  },
+  {
+    name: "colinear",
+    ctor: ColinearStackupEditor,
+    layer_templates: colinear_layer_templates,
+    trace_templates: colinear_trace_templates,
+  },
+];
 
-{
-  for (const [layer_name, layer_template] of Object.entries(colinear_layer_templates)) {
-    for (const [trace_name, trace_template] of Object.entries(colinear_trace_templates)) {
-      const editor = new ColinearStackupEditor(parameters, trace_template, layer_template);
+for (const stackup of stackup_types) {
+  for (const [layer_name, layer_template] of Object.entries(stackup.layer_templates)) {
+    for (const [trace_name, trace_template] of Object.entries(stackup.trace_templates)) {
+      const editor = new stackup.ctor(parameters, trace_template, layer_template);
+      const tag: Tag = {
+        type: stackup.name,
+        trace: trace_name,
+        layer: layer_name,
+      };
+      const title = tag_to_title(tag);
+      const prepared_title = fuzzysort.prepare(title);
       templates.push({
         editor,
-        tag: {
-          type: "colinear",
-          trace: trace_name,
-          layer: layer_name,
-        },
+        tag,
+        title,
+        prepared_title,
       });
     }
   }
@@ -87,24 +97,71 @@ function get_template_url(tagged_editor: Template): string {
   return router.resolve(url).href;
 }
 
+interface SearchResult {
+  template: Template;
+  result: Fuzzysort.Result;
+}
+const search_string = ref<string | undefined>(undefined);
+const search_results = ref<SearchResult[] | undefined>(undefined);
+const sorted_templates = computed(() => {
+  const results = search_results.value;
+  if (results === undefined) return templates;
+  return results.map(result => result.template);
+});
+
+function perform_search(search_string: string | undefined) {
+  if (search_string === undefined || search_string.length === 0) {
+    search_results.value = undefined;
+    return;
+  };
+
+  const results: SearchResult[] = [];
+  for (const template of templates) {
+    const result = fuzzysort.single(search_string, template.prepared_title);
+    if (result === null) continue;
+    results.push({
+      template,
+      result,
+    });
+  }
+  results.sort((a,b) => b.result.score-a.result.score);
+  search_results.value = results;
+}
+
+watch(search_string, (new_search_string) => {
+  perform_search(new_search_string);
+});
+
 </script>
 
 <template>
-<div class="w-full grid grid-cols-4 gap-x-2 gap-y-2">
-  <template v-for="(template, index) in templates" :key="index">
-    <a
-      class="card card-border bg-base-100 select-none cursor-pointer"
-      :href="get_template_url(template)"
-    >
-      <div class="card-body p-3">
-        <div class="card-title">{{ tag_to_title(template.tag) }}</div>
-        <div class="w-full h-full flex flex-col justify-center">
-          <div class="w-full border border-1 rounded-sm border-base-300 bg-white p-1">
-            <StackupViewer :stackup="template.editor.get_simulation_stackup()" :config="viewer_config"/>
+<div class="w-full">
+  <div class="flex flex-row justify-center w-full mb-2">
+    <label class="input">
+      <SearchIcon class="w-[1.25rem] h-[1.25rem]"/>
+      <input type="search" placeholder="Search" v-model="search_string"/>
+    </label>
+  </div>
+  <div class="w-full grid grid-cols-4 gap-x-2 gap-y-2 overflow-auto">
+    <template v-for="(template, index) in sorted_templates" :key="index">
+      <a
+        class="card card-border bg-base-100 select-none cursor-pointer rounded-xs"
+        :href="get_template_url(template)"
+      >
+        <div class="card-body p-3">
+          <div class="card-title">{{ tag_to_title(template.tag) }}</div>
+          <div class="w-full h-full flex flex-col justify-center">
+            <div class="w-full rounded-sm bg-white">
+              <StackupViewer :stackup="template.editor.get_simulation_stackup()" :config="viewer_config"/>
+            </div>
           </div>
         </div>
-      </div>
-    </a>
-  </template>
+      </a>
+    </template>
+  </div>
+  <div v-if="sorted_templates.length === 0" class="text-center py-2 w-full">
+    <h1 class="text-2xl">No search results</h1>
+  </div>
 </div>
+
 </template>

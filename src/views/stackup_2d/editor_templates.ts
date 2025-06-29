@@ -20,7 +20,7 @@ import { StackupParameters } from "./parameters.ts";
 import { type IdStore } from "./id_store.ts";
 
 export const colinear_trace_templates = {
-  "differential": {
+  "pair": {
     create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
       const ids = Array.from({ length: 2 }, (_) => id_store.own());
       const conductors: CopperTrace[] = [
@@ -33,7 +33,7 @@ export const colinear_trace_templates = {
       return { position, conductors, spacings };
     }
   } as ColinearTraceTemplate,
-  "coplanar differential": {
+  "coplanar pair": {
     create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
       const ids = Array.from({ length: 4 }, (_) => id_store.own());
       const conductors: CopperTrace[] = [
