@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router';
 import AppSidebar from "./AppSidebar.vue";
-import GpuProvider from "./components/GpuProvider.vue";
-import WasmProvider from "./components/WasmProvider.vue";
-import ToastProvider from "./components/toast/ToastProvider.vue";
+import GpuProvider from "./providers/GpuProvider.vue";
+import WasmProvider from "./providers/WasmProvider.vue";
+import ToastProvider from "./providers/toast/ToastProvider.vue";
 import { Moon, Sun, MenuIcon } from 'lucide-vue-next';
 </script>
 

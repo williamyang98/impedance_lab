@@ -1,23 +1,17 @@
 <script setup lang="ts">
 import {
   toRaw,
-  ref, computed, watch, inject, useTemplateRef, defineExpose, onMounted, onBeforeUnmount, defineProps,
-  type ComputedRef,
+  ref, computed, watch, useTemplateRef, defineExpose, onMounted, onBeforeUnmount, defineProps,
 } from "vue";
-
 import { Grid } from "../../engine/electrostatic_2d.ts";
 import { MasterRenderer, RendererCore, type Tooltip } from "./grid_viewer_renderer.ts";
+import { providers } from "../../providers/providers.ts";
 
 const props = defineProps<{
   grid: Grid;
 }>();
 
-const gpu_device_inject = inject<ComputedRef<GPUDevice>>("gpu_device");
-const gpu_adapter_inject = inject<ComputedRef<GPUAdapter>>("gpu_adapter");
-if (gpu_device_inject === undefined) throw Error(`Expected gpu_device to be injected from provider`);
-if (gpu_adapter_inject === undefined) throw Error(`Expected gpu_adapter to be injected from provider`);
-const gpu_device = gpu_device_inject.value;
-const _gpu_adapter = gpu_adapter_inject.value;
+const gpu_device = providers.gpu_device.value;
 
 const canvas_element = useTemplateRef<HTMLCanvasElement>("grid-canvas");
 const canvas_context = computed<GPUCanvasContext>(() => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  computed, ref, useId, inject, type Ref,
+  computed, ref, useId,
   // NOTE: we need use toRaw(...) to unwrap the proxy on wasm module objects
   //       otherwise emscripten will panic on upcastCheck() use to upcast/downcast virtual pointers
   //       this is because it performs a comparison between the entity's "class" descriptor
@@ -44,11 +44,9 @@ import { Uint8ArrayNdarrayWriter } from "../../utility/ndarray.ts";
 import { type IModuleNdarray, ModuleNdarrayWriter } from "../../utility/module_ndarray.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 import { ZipFile } from "../../wasm";
-import { ToastManager } from "../../components/toast/toast.ts";
+import { providers } from "../../providers/providers.ts";
 
-const toast_inject = inject<Ref<ToastManager>>("toast_manager");
-if (toast_inject === undefined) throw Error("Expected toast_manager to be injected from provider");
-const toast = toast_inject.value;
+const toast = providers.toast_manager.value;
 
 interface SelectedMap<K extends string, V> {
   selected: K;

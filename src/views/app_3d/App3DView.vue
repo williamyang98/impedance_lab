@@ -4,16 +4,12 @@ import { Viewer3D } from "../../components/viewer_3d";
 import { create_simulation_setup } from "./app_3d.ts";
 import { GpuGrid, GpuEngine } from "../../engine/fdtd_3d/grid.ts";
 import {
-  ref, computed, inject, useTemplateRef, onMounted, onBeforeUnmount,
-  type ComputedRef,
+  ref, computed, useTemplateRef, onMounted, onBeforeUnmount,
 } from "vue";
+import { providers } from "../../providers/providers.ts";
 
-const gpu_device_inject = inject<ComputedRef<GPUDevice>>("gpu_device");
-const gpu_adapter_inject = inject<ComputedRef<GPUAdapter>>("gpu_adapter");
-if (gpu_device_inject === undefined) throw Error(`Expected gpu_device to be injected from provider`);
-if (gpu_adapter_inject === undefined) throw Error(`Expected gpu_adapter to be injected from provider`);
-const gpu_device = gpu_device_inject.value;
-const gpu_adapter = gpu_adapter_inject.value;
+const gpu_device = providers.gpu_device.value;
+const gpu_adapter = providers.gpu_adapter.value;
 
 const setup = create_simulation_setup();
 const gpu_grid = new GpuGrid(gpu_adapter, gpu_device, setup);

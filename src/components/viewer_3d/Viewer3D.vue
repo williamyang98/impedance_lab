@@ -1,19 +1,14 @@
 <script setup lang="ts">
 import { type GridDisplayMode, type FieldDisplayMode, Renderer } from "./renderer.ts";
 import { GpuGrid } from "../../engine/fdtd_3d/grid.ts";
+import { providers } from "../../providers/providers.ts";
 
 import {
-  ref, watch, computed, inject, useTemplateRef, defineExpose,
-  type ComputedRef
+  ref, watch, computed, useTemplateRef, defineExpose,
 } from "vue";
 
-const gpu_device_inject = inject<ComputedRef<GPUDevice>>("gpu_device");
-const gpu_adapter_inject = inject<ComputedRef<GPUAdapter>>("gpu_adapter");
-if (gpu_device_inject === undefined) throw Error(`Expected gpu_device to be injected from provider`);
-if (gpu_adapter_inject === undefined) throw Error(`Expected gpu_adapter to be injected from provider`);
-const gpu_device = gpu_device_inject.value;
-const gpu_adapter = gpu_adapter_inject.value;
-
+const gpu_device = providers.gpu_device.value;
+const gpu_adapter = providers.gpu_adapter.value;
 const gpu_renderer = new Renderer(gpu_adapter, gpu_device);
 
 const gpu_grid = ref<GpuGrid | undefined>(undefined);
