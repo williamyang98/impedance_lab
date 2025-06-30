@@ -20,7 +20,7 @@ import ParameterForm from "./ParameterForm.vue";
 import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 import GridViewer from "./GridViewer.vue";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
-import { PencilIcon, EyeIcon, InfoIcon } from "lucide-vue-next";
+import { PencilIcon, EyeIcon, InfoIcon, DownloadIcon } from "lucide-vue-next";
 // ts imports
 import { validate_parameter, type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
@@ -423,10 +423,11 @@ watch(() => route.query, (new_query) => {
 </script>
 
 <template>
-<div class="tabs tabs-lift">
+<div class="tabs tabs-box">
+  <!--Calculator tab-->
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Calculator" checked/>
-  <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div class="grid grid-cols-3 gap-x-2">
+  <div class="tab-content p-1">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-x-2 gap-y-2">
       <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
           <h2 class="card-title">Stackup</h2>
@@ -500,6 +501,7 @@ watch(() => route.query, (new_query) => {
       </div>
     </div>
   </div>
+  <!--Parameter search tab-->
   <label class="tab">
     <input type="radio" :name="uid.tab_global"/>
     <div class="flex flex-row gap-x-2 items-center">
@@ -507,7 +509,7 @@ watch(() => route.query, (new_query) => {
       <div v-if="search_results" class="badge badge-sm badge-secondary">{{ search_results.results.length }}</div>
     </div>
   </label>
-  <div class="tab-content bg-base-100 border-base-300 p-1">
+  <div class="tab-content p-1">
     <div v-if="search_results" class="w-full">
       <ParameterSearchResultsGraph :results="search_results"></ParameterSearchResultsGraph>
     </div>
@@ -515,8 +517,9 @@ watch(() => route.query, (new_query) => {
       <h1 class="text-2xl">Perform parameter search to see search curve</h1>
     </div>
   </div>
+  <!--Visualisation tab-->
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Visualiser"/>
-  <div class="tab-content bg-base-100 border-base-300 p-1">
+  <div class="tab-content p-1">
     <div v-if="stackup_grid" class="w-full">
       <GridViewer :grid="stackup_grid.grid"/>
     </div>
@@ -524,9 +527,10 @@ watch(() => route.query, (new_query) => {
       <h1 class="text-2xl">Calculate impedance to see visualisation</h1>
     </div>
   </div>
+  <!--Mesh tab-->
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Mesh"/>
-  <div class="tab-content bg-base-100 border-base-300 p-1">
-    <div v-if="stackup_grid" class="grid grid-cols-2 gap-x-2">
+  <div class="tab-content p-1">
+    <div v-if="stackup_grid" class="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-2">
       <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
           <h2 class="card-title">Mesh</h2>
@@ -537,13 +541,13 @@ watch(() => route.query, (new_query) => {
         <div class="card-body p-3">
           <h2 class="card-title">Grid</h2>
           <div>
-            <div class="tabs tabs-lift">
+            <div class="tabs tabs-box">
               <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="X" checked/>
-              <div class="tab-content bg-base-100 border-base-300 max-h-[70vh] overflow-auto">
+              <div class="tab-content max-h-[70vh] overflow-auto">
                 <GridRegionTable :region_to_grid_map="stackup_grid.x_region_to_grid_map"></GridRegionTable>
               </div>
               <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="Y"/>
-              <div class="tab-content bg-base-100 border-base-300 max-h-[70vh] overflow-auto">
+              <div class="tab-content max-h-[70vh] overflow-auto">
                 <GridRegionTable :region_to_grid_map="stackup_grid.y_region_to_grid_map"></GridRegionTable>
               </div>
             </div>
@@ -555,8 +559,9 @@ watch(() => route.query, (new_query) => {
       <h1 class="text-2xl">Calculate impedance to see mesh</h1>
     </div>
   </div>
+  <!--Profiler tab-->
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Profiler"/>
-  <div class="tab-content bg-base-100 border-base-300 p-1">
+  <div class="tab-content p-1">
     <div class="w-full">
       <template v-if="profiler">
         <ProfilerFlameChart :profiler="profiler"></ProfilerFlameChart>
@@ -568,8 +573,9 @@ watch(() => route.query, (new_query) => {
       </template>
     </div>
   </div>
+  <!--Data export tab-->
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Export"/>
-  <div class="tab-content bg-base-100 border-base-300 p-1">
+  <div class="tab-content p-1">
     <div class="w-full">
       <div v-if="download_links" class="flex flex-row justify-center">
         <table class="table w-fit border border-base-300 bg-base-100">
@@ -585,8 +591,12 @@ watch(() => route.query, (new_query) => {
             <tr v-for="(link, index) in download_links" :key="index">
               <td class="font-medium">{{ link.name }}</td>
               <td>[{{ link.data.shape.join(',') }}]</td>
-              <td>{{ with_standard_suffix(link.data.data_view.byteLength, "B") }}</td>
-              <td><button class="btn btn-sm float-right" @click="download_ndarray(link)">Download</button></td>
+              <td class="text-nowrap">{{ with_standard_suffix(link.data.data_view.byteLength, "B") }}</td>
+              <td>
+                <button class="btn btn-sm float-right p-1" @click="download_ndarray(link)">
+                  <DownloadIcon class="w-[1.25rem] h-[1.25rem]"/>
+                </button>
+              </td>
             </tr>
             <tr>
               <td colspan="4">

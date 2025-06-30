@@ -192,7 +192,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
 </script>
 
 <template>
-<form :class="`grid grid-cols-2 gap-x-5`" @submit="on_submit">
+<form :class="`grid grid-cols-1 sm:grid-cols-2 gap-x-5`" @submit="on_submit">
   <div
     v-for="(col, col_index) in form.get_layout()" :key="col_index"
     class="w-full"
@@ -225,7 +225,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
               <input
                 :id="param.name"
                 :class="get_input_class(param)"
-                class="input join-item"
+                class="input w-full join-item"
                 type="number"
                 step="any"
                 :min="param.min" :max="param.max" v-model.number="param.value"

@@ -98,7 +98,7 @@ watch(results, () => {
 
 <template>
 <div :class="$attrs.class">
-  <div class="grid grid-cols-[auto_auto] gap-x-2 max-h-[100vh]">
+  <div class="grid grid-cols-1 sm:grid-cols-[auto_auto] gap-x-2 gap-y-2 max-h-[100vh]">
     <div class="card card-border bg-base-100">
       <div class="card-body p-3">
         <h2 class="card-title">Parameter Search Points</h2>

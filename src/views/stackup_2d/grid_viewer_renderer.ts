@@ -458,7 +458,7 @@ class EpsilonRenderer extends IndexBetaRenderer {
   constructor(core: RendererCore) {
     super(core);
     this.scale = 1/4.0; // common dielectric value is around 4
-    this.mode = "absolute_value"; // no reason to use signed value renderer
+    this.mode = "index"; // more useful to view types of dielectric present
   }
   override get_name(): string { return "Epsilon"; };
   override get_unit(): string { return ""; };

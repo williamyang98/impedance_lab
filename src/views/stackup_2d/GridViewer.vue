@@ -150,7 +150,7 @@ defineExpose({
 </script>
 
 <template>
-<div class="w-full flex flex-row gap-x-2">
+<div class="w-full grid grid-cols-1 sm:grid-cols-[auto_15rem] gap-x-2 gap-y-2">
   <div class="relative w-full h-fit">
     <canvas
       ref="grid-canvas"
@@ -180,10 +180,10 @@ defineExpose({
     </template>
   </div>
   <!--Viewer controls-->
-  <div class="flex flex-col gap-y-2 min-w-[15rem]">
+  <div class="flex flex-col gap-y-2 w-full">
     <fieldset class="fieldset">
       <legend for="selected" class="fieldset-legend">Data</legend>
-      <select id="selected" class="select" v-model="master_renderer.mode" @change="refresh()">
+      <select id="selected" class="select w-full" v-model="master_renderer.mode" @change="refresh()">
         <option :value="'v_field'">V-field</option>
         <option :value="'e_field'">E-field</option>
         <option :value="'v_force'">V-force</option>
@@ -193,7 +193,7 @@ defineExpose({
     <template v-if="selected_renderer.type === 'v_force' || selected_renderer.type === 'epsilon'">
       <fieldset class="fieldset">
         <legend for="mode" class="fieldset-legend">Mode</legend>
-        <select id="mode" class="select" v-model="selected_renderer.mode" @change="refresh()">
+        <select id="mode" class="select w-full" v-model="selected_renderer.mode" @change="refresh()">
           <option :value="'index'">Index</option>
           <option :value="'beta'">Beta</option>
           <option :value="'signed_value'">Value</option>
@@ -205,7 +205,7 @@ defineExpose({
           <span>Scale</span>
           <span>{{ selected_renderer.scale.toFixed(1) }}</span>
         </legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
+        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
       </fieldset>
     </template>
     <template v-if="selected_renderer.type === 'v_field'">
@@ -214,13 +214,13 @@ defineExpose({
           <span>Scale</span>
           <span>{{ selected_renderer.scale.toFixed(1) }}</span>
         </legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
+        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
       </fieldset>
     </template>
     <template v-if="selected_renderer.type === 'e_field'">
       <fieldset class="fieldset">
         <legend for="mode" class="fieldset-legend">Mode</legend>
-        <select id="mode" class="select" v-model="selected_renderer.mode" @change="refresh()">
+        <select id="mode" class="select w-full" v-model="selected_renderer.mode" @change="refresh()">
           <option :value="'x'">Ex</option>
           <option :value="'y'">Ey</option>
           <option :value="'mag'">|E|</option>
@@ -233,14 +233,14 @@ defineExpose({
           <span>Scale</span>
           <span>{{ selected_renderer.scale.toFixed(1) }}</span>
         </legend>
-        <input id="scale" class="range" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
+        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
       </fieldset>
       <fieldset class="fieldset" v-if="selected_renderer.mode == 'quiver'">
         <legend for="quiver_size" class="fieldset-legend w-full flex flex-row justify-between">
           <span>Quiver Size</span>
           <span>{{ selected_renderer.quiver_size.toFixed(0) }}</span>
         </legend>
-        <input id="quiver_size" class="range" type="range" v-model.number="selected_renderer.quiver_size" @input="refresh()" min="10" max="100" step="1"/>
+        <input id="quiver_size" class="range w-full" type="range" v-model.number="selected_renderer.quiver_size" @input="refresh()" min="10" max="100" step="1"/>
       </fieldset>
     </template>
   </div>
