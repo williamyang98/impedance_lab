@@ -6,6 +6,7 @@ import {
 import { Grid } from "../../engine/electrostatic_2d.ts";
 import { MasterRenderer, RendererCore, type Tooltip } from "./grid_viewer_renderer.ts";
 import { providers } from "../../providers/providers.ts";
+import { debounce_animation_frame, debounce_animation_frame_async } from "../../utility/debounce.ts";
 
 const props = defineProps<{
   grid: Grid;
@@ -32,7 +33,8 @@ const selected_renderer = computed(() => master_renderer.value.selected);
 // each renderer is mapped to a different buffer, and we only reupload data for that specific renderer on demand
 const is_uploaded = new Set<typeof master_renderer.value.mode>();
 
-async function refresh() {
+
+const refresh = debounce_animation_frame_async(async () => {
   // can't render to 0 sized canvas
   const canvas = canvas_element.value;
   if (canvas === null || canvas.width === 0 || canvas.height == 0) return;
@@ -56,8 +58,8 @@ async function refresh() {
   }
   renderer.create_pass(command_encoder, canvas_texture, canvas_size);
   gpu_device.queue.submit([command_encoder.finish()]);
-  await gpu_device.queue.onSubmittedWorkDone();
-}
+  await gpu_device.queue.onSubmittedWorkDone()
+});
 
 // tooltip
 const is_mouse_over = ref<boolean>(false);
@@ -69,7 +71,7 @@ interface HoverInfo {
 }
 const hover_info = ref<HoverInfo | undefined>(undefined);
 
-function on_mouse_move(ev: MouseEvent) {
+const on_mouse_move = debounce_animation_frame((ev: MouseEvent) => {
   if (!is_mouse_over.value) return;
   if (ev.target === null) return;
   const target = ev.target as HTMLCanvasElement;
@@ -84,7 +86,7 @@ function on_mouse_move(ev: MouseEvent) {
     y: dy,
     tooltip,
   };
-}
+});
 
 function on_mouse_enter(ev: MouseEvent) {
   ev.stopPropagation();
@@ -96,7 +98,7 @@ function on_mouse_leave(ev: MouseEvent) {
   is_mouse_over.value = false;
 }
 
-async function update_grid(grid: Grid) {
+function update_grid(grid: Grid) {
   grid = toRaw(grid);
   renderer_core.grid = grid;
   is_uploaded.clear();
@@ -106,11 +108,11 @@ async function update_grid(grid: Grid) {
   if (elem !== null) {
     elem.style.setProperty("aspect-ratio", aspect_ratio.toFixed(3), "important");
   }
-  await refresh();
+  refresh();
 }
 
-watch(props, async () => {
-  await update_grid(props.grid);
+watch(props, () => {
+  update_grid(props.grid);
 });
 
 // rerender grid if canvas was resized
@@ -133,8 +135,8 @@ watch(canvas_element, (elem) => {
   resize_observer.observe(elem);
 });
 
-onMounted(async () => {
-  await update_grid(props.grid);
+onMounted(() => {
+  update_grid(props.grid);
 })
 
 onBeforeUnmount(() => {
