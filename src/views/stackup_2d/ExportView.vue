@@ -97,7 +97,7 @@ function download_all_ndarrays(name: string) {
   </thead>
   <tbody>
     <tr v-for="(link, index) in download_links" :key="index">
-      <td class="font-medium">{{ link.name }}</td>
+      <td class="font-medium text-nowrap">{{ link.name }}</td>
       <td>[{{ link.data.shape.join(',') }}]</td>
       <td>{{ link.data.ndarray.dtype }}</td>
       <td class="text-nowrap">{{ with_standard_suffix(link.data.data_view.byteLength, "B") }}</td>

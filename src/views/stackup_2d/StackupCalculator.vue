@@ -505,7 +505,8 @@ watch(() => route.query, (new_query) => {
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Export"/>
   <div class="tab-content p-1">
     <div class="w-full">
-      <div v-if="stackup_grid" class="flex flex-row justify-center">
+      <!--NOTE: justify-center-safe is required since flex centering with overflow is broken (https://stackoverflow.com/a/78181725)-->
+      <div v-if="stackup_grid" class="w-full flex justify-center-safe overflow-x-auto">
         <ExportView :grid="stackup_grid.grid" class="w-fit border border-base-300 bg-base-100"/>
       </div>
       <div v-else class="text-center py-2">
