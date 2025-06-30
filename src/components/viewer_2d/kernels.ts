@@ -32,8 +32,6 @@ export class ShaderComponentViewer {
   device: GPUDevice;
   params = new StructView({
     scale: "f32",
-    axis: "u32",
-    colour: "u32",
     alpha_scale: "f32",
   });
   params_uniform: GPUBuffer;
@@ -41,7 +39,7 @@ export class ShaderComponentViewer {
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
   pipeline_layout: GPUPipelineLayout;
-  render_pipeline: GPURenderPipeline;
+  render_pipelines = new Map<string, GPURenderPipeline>();
   vertices: Float32Array;
   indices: Uint16Array;
   vertex_buffer: GPUBuffer;
@@ -113,46 +111,60 @@ export class ShaderComponentViewer {
     this.pipeline_layout = device.createPipelineLayout({
       bindGroupLayouts: [this.bind_group_layout],
     });
-    this.render_pipeline = device.createRenderPipeline({
-      vertex: {
-        module: this.shader_module,
-        entryPoint: "vertex_main",
-        buffers: [this.vertex_buffer_layout],
-      },
-      fragment: {
-        module: this.shader_module,
-        entryPoint: "fragment_main",
-        targets: [
-          {
-            // we are output to canvas texture
-            format: navigator.gpu.getPreferredCanvasFormat(),
-            // alpha blending
-            blend: {
-              color: {
-                srcFactor: 'src-alpha',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-              alpha: {
-                srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-            },
-            writeMask: GPUColorWrite.ALL,
-          },
-        ],
-      },
-      layout: this.pipeline_layout,
-      primitive: {
-        topology: "triangle-list",
-      },
-    });
     this.clear_colour = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
     this.grid_sampler = device.createSampler({
       magFilter: "nearest",
       minFilter: "nearest",
     });
+  }
+
+  get_render_pipeline(axis_mode: number, colour_mode: ColourMode): GPURenderPipeline {
+    const colour_mode_index = get_colour_mode_index(colour_mode);
+    const key = `${axis_mode}_${colour_mode_index}`;
+    let pipeline = this.render_pipelines.get(key);
+    if (pipeline === undefined) {
+      pipeline = this.device.createRenderPipeline({
+        vertex: {
+          module: this.shader_module,
+          entryPoint: "vertex_main",
+          buffers: [this.vertex_buffer_layout],
+        },
+        fragment: {
+          module: this.shader_module,
+          entryPoint: "fragment_main",
+          constants: {
+            "axis_mode": axis_mode,
+            "colour_mode": colour_mode_index,
+          },
+          targets: [
+            {
+              // we are output to canvas texture
+              format: navigator.gpu.getPreferredCanvasFormat(),
+              // alpha blending
+              blend: {
+                color: {
+                  srcFactor: 'src-alpha',
+                  dstFactor: 'one-minus-src-alpha',
+                  operation: 'add',
+                },
+                alpha: {
+                  srcFactor: 'one',
+                  dstFactor: 'one-minus-src-alpha',
+                  operation: 'add',
+                },
+              },
+              writeMask: GPUColorWrite.ALL,
+            },
+          ],
+        },
+        layout: this.pipeline_layout,
+        primitive: {
+          topology: "triangle-list",
+        },
+      });
+      this.render_pipelines.set(key, pipeline);
+    }
+    return pipeline;
   }
 
   // axis_mask selects which components to render
@@ -167,8 +179,6 @@ export class ShaderComponentViewer {
     alpha_scale = alpha_scale ?? 1.0;
 
     this.params.set("scale", scale);
-    this.params.set("axis", axis_mask);
-    this.params.set("colour", get_colour_mode_index(colour_mode));
     this.params.set("alpha_scale", alpha_scale);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
@@ -205,7 +215,8 @@ export class ShaderComponentViewer {
       canvas_size.width, canvas_size.height,
       0, 1,
     );
-    render_pass.setPipeline(this.render_pipeline);
+    const render_pipeline = this.get_render_pipeline(axis_mask, colour_mode);
+    render_pass.setPipeline(render_pipeline);
     render_pass.setBindGroup(0, bind_group);
     render_pass.setVertexBuffer(0, this.vertex_buffer);
     render_pass.setIndexBuffer(this.index_buffer, "uint16");
@@ -439,7 +450,6 @@ export class ShaderIndexBeta {
   device: GPUDevice;
   params = new StructView({
     scale: "f32",
-    mode: "u32",
     alpha: "f32",
     texture_width: "u32",
     texture_height: "u32",
@@ -450,7 +460,7 @@ export class ShaderIndexBeta {
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
   pipeline_layout: GPUPipelineLayout;
-  render_pipeline: GPURenderPipeline;
+  render_pipelines = new Map<number, GPURenderPipeline>();
   vertices: Float32Array;
   indices: Uint16Array;
   vertex_buffer: GPUBuffer;
@@ -525,42 +535,54 @@ export class ShaderIndexBeta {
     this.pipeline_layout = device.createPipelineLayout({
       bindGroupLayouts: [this.bind_group_layout],
     });
-    this.render_pipeline = device.createRenderPipeline({
-      vertex: {
-        module: this.shader_module,
-        entryPoint: "vertex_main",
-        buffers: [this.vertex_buffer_layout],
-      },
-      fragment: {
-        module: this.shader_module,
-        entryPoint: "fragment_main",
-        targets: [
-          {
-            // we are output to canvas texture
-            format: navigator.gpu.getPreferredCanvasFormat(),
-            // alpha blending
-            blend: {
-              color: {
-                srcFactor: 'src-alpha',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-              alpha: {
-                srcFactor: 'one',
-                dstFactor: 'one-minus-src-alpha',
-                operation: 'add',
-              },
-            },
-            writeMask: GPUColorWrite.ALL,
-          },
-        ],
-      },
-      layout: this.pipeline_layout,
-      primitive: {
-        topology: "triangle-list",
-      },
-    });
     this.clear_colour = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+  }
+
+  get_render_pipeline(mode: IndexBetaMode) {
+    const mode_index = get_index_beta_mode_index(mode);
+    let pipeline = this.render_pipelines.get(mode_index);
+    if (pipeline === undefined) {
+      pipeline = this.device.createRenderPipeline({
+        vertex: {
+          module: this.shader_module,
+          entryPoint: "vertex_main",
+          buffers: [this.vertex_buffer_layout],
+        },
+        fragment: {
+          module: this.shader_module,
+          entryPoint: "fragment_main",
+          constants: {
+            "colour_mode": mode_index,
+          },
+          targets: [
+            {
+              // we are output to canvas texture
+              format: navigator.gpu.getPreferredCanvasFormat(),
+              // alpha blending
+              blend: {
+                color: {
+                  srcFactor: 'src-alpha',
+                  dstFactor: 'one-minus-src-alpha',
+                  operation: 'add',
+                },
+                alpha: {
+                  srcFactor: 'one',
+                  dstFactor: 'one-minus-src-alpha',
+                  operation: 'add',
+                },
+              },
+              writeMask: GPUColorWrite.ALL,
+            },
+          ],
+        },
+        layout: this.pipeline_layout,
+        primitive: {
+          topology: "triangle-list",
+        },
+      });
+      this.render_pipelines.set(mode_index, pipeline);
+    }
+    return pipeline;
   }
 
   // axis_mask selects which components to render
@@ -578,7 +600,6 @@ export class ShaderIndexBeta {
     alpha = alpha ?? 1.0;
 
     this.params.set("scale", scale);
-    this.params.set("mode", get_index_beta_mode_index(mode));
     this.params.set("alpha", alpha);
     this.params.set("texture_width", index_beta_size.width);
     this.params.set("texture_height", index_beta_size.height);
@@ -618,7 +639,8 @@ export class ShaderIndexBeta {
       canvas_size.width, canvas_size.height,
       0, 1,
     );
-    render_pass.setPipeline(this.render_pipeline);
+    const render_pipeline = this.get_render_pipeline(mode);
+    render_pass.setPipeline(render_pipeline);
     render_pass.setBindGroup(0, bind_group);
     render_pass.setVertexBuffer(0, this.vertex_buffer);
     render_pass.setIndexBuffer(this.index_buffer, "uint16");

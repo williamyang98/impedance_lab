@@ -1,13 +1,14 @@
 struct Params {
     scale: f32,
-    axis: u32,
-    colour: u32,
     alpha_scale: f32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var grid_sampler: sampler;
 @group(0) @binding(2) var grid: texture_2d<f32>;
+
+override axis_mode = 0;
+override colour_mode = 0;
 
 struct VertexOut {
     @builtin(position) vertex_position : vec4f,
@@ -43,15 +44,15 @@ fn hsv_to_rgb(c: vec3<f32>) -> vec3<f32> {
 
 fn get_1d_colour(value: f32) -> vec4<f32> {
     var colour = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-    if (params.colour == 0) {
+    if (colour_mode == 0) {
         let mag: f32 = value*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
         colour = vec4f(-mag, mag, 0.0, alpha);
-    } else if (params.colour == 1) {
+    } else if (colour_mode == 1) {
         let mag: f32 = value*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
         colour = vec4f(red_green_cmap(mag), alpha);
-    } else if (params.colour == 2) {
+    } else if (colour_mode == 2) {
         let mag: f32 = value*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
         colour = vec4f(mag, mag, mag, alpha);
@@ -61,11 +62,11 @@ fn get_1d_colour(value: f32) -> vec4<f32> {
 
 fn get_2d_colour(value: vec2<f32>) -> vec4<f32> {
     var colour = vec4(0.0, 0.0, 0.0, 0.0);
-    if (params.colour == 0) {
+    if (colour_mode == 0) {
         let mag: f32 = length(value)*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
         colour = vec4f(-mag, mag, 0.0, alpha);
-    } else if (params.colour == 1) {
+    } else if (colour_mode == 1) {
         let mag = length(value)*params.scale;
         let alpha = mag*params.alpha_scale;
 
@@ -74,11 +75,11 @@ fn get_2d_colour(value: vec2<f32>) -> vec4<f32> {
         let saturation = 1.0;
         let rgb = hsv_to_rgb(vec3<f32>(hue, saturation, mag));
         colour = vec4<f32>(rgb.r, rgb.g, rgb.b, alpha);
-    } else if (params.colour == 2) {
+    } else if (colour_mode == 2) {
         let mag: f32 = length(value)*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
         colour = vec4f(mag, mag, mag, alpha);
-    } else if (params.colour == 16) {
+    } else if (colour_mode == 16) {
         let mag = value.r*params.scale;
         let beta = value.g*params.scale;
         let alpha = abs(beta)*params.alpha_scale;
@@ -89,15 +90,15 @@ fn get_2d_colour(value: vec2<f32>) -> vec4<f32> {
 
 fn get_3d_colour(value: vec3<f32>) -> vec4<f32> {
     var colour = vec4(0.0, 0.0, 0.0, 0.0);
-    if (params.colour == 0) {
+    if (colour_mode == 0) {
         let mag: f32 = length(value)*params.scale;
         let alpha = mag*params.alpha_scale;
         colour = vec4f(-mag, mag, 0.0, alpha);
-    } else if (params.colour == 1) {
+    } else if (colour_mode == 1) {
         let mag: f32 = length(value)*params.scale;
         let alpha = mag*params.alpha_scale;
         colour = vec4f(abs(value.r), abs(value.g), abs(value.b), alpha);
-    } else if (params.colour == 2) {
+    } else if (colour_mode == 2) {
         let mag: f32 = length(value)*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
         colour = vec4f(mag, mag, mag, alpha);
@@ -107,23 +108,19 @@ fn get_3d_colour(value: vec3<f32>) -> vec4<f32> {
 
 fn get_4d_colour(value: vec4<f32>) -> vec4<f32> {
     var colour = vec4(0.0, 0.0, 0.0, 0.0);
-    if (params.colour == 0) {
+    if (colour_mode == 0) {
         let mag: f32 = length(value)*params.scale;
         let alpha = mag*params.alpha_scale;
         colour = vec4f(-mag, mag, 0.0, alpha);
-    } else if (params.colour == 1) {
+    } else if (colour_mode == 1) {
         let mag: f32 = length(value)*params.scale;
         colour = vec4f(abs(value.r), abs(value.g), abs(value.b), abs(value.a));
-    } else if (params.colour == 2) {
+    } else if (colour_mode == 2) {
         let mag: f32 = length(value)*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
         colour = vec4f(mag, mag, mag, alpha);
     }
     return colour;
-}
-
-fn test_mask(mask: u32) -> bool {
-    return (params.axis & mask) == mask;
 }
 
 @fragment
@@ -132,38 +129,38 @@ fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
     var colour = vec4(0.0, 0.0, 0.0, 0.0);
 
     // 4d
-    if (test_mask(1 | 2 | 4 | 8)) {
+    if (axis_mode == (1 | 2 | 4 | 8)) {
         colour = get_4d_colour(sample.rgba);
     // 3d
-    } else if (test_mask(1 | 2 | 4)) {
+    } else if (axis_mode == (1 | 2 | 4)) {
         colour = get_3d_colour(sample.rgb);
-    } else if (test_mask(1 | 2 | 8)) {
+    } else if (axis_mode == (1 | 2 | 8)) {
         colour = get_3d_colour(sample.rga);
-    } else if (test_mask(1 | 4 | 8)) {
+    } else if (axis_mode == (1 | 4 | 8)) {
         colour = get_3d_colour(sample.rba);
-    } else if (test_mask(2 | 4 | 8)) {
+    } else if (axis_mode == (2 | 4 | 8)) {
         colour = get_3d_colour(sample.gba);
     // 2d
-    } else if (test_mask(1 | 2)) {
+    } else if (axis_mode == (1 | 2)) {
         colour = get_2d_colour(sample.rg);
-    } else if (test_mask(1 | 4)) {
+    } else if (axis_mode == (1 | 4)) {
         colour = get_2d_colour(sample.rb);
-    } else if (test_mask(1 | 8)) {
+    } else if (axis_mode == (1 | 8)) {
         colour = get_2d_colour(sample.ra);
-    } else if (test_mask(2 | 4)) {
+    } else if (axis_mode == (2 | 4)) {
         colour = get_2d_colour(sample.gb);
-    } else if (test_mask(2 | 8)) {
+    } else if (axis_mode == (2 | 8)) {
         colour = get_2d_colour(sample.ga);
-    } else if (test_mask(4 | 8)) {
+    } else if (axis_mode == (4 | 8)) {
         colour = get_2d_colour(sample.ba);
     // 1d
-    } else if (test_mask(1)) {
+    } else if (axis_mode == (1)) {
         colour = get_1d_colour(sample.r);
-    } else if (test_mask(2)) {
+    } else if (axis_mode == (2)) {
         colour = get_1d_colour(sample.g);
-    } else if (test_mask(4)) {
+    } else if (axis_mode == (4)) {
         colour = get_1d_colour(sample.b);
-    } else if (test_mask(8)) {
+    } else if (axis_mode == (8)) {
         colour = get_1d_colour(sample.a);
     }
     return colour;

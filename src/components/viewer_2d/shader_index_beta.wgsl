@@ -1,6 +1,5 @@
 struct Params {
     scale: f32,
-    mode: u32,
     alpha_scale: f32,
     texture_width: u32,
     texture_height: u32,
@@ -10,6 +9,8 @@ struct Params {
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var table: texture_2d<f32>;
 @group(0) @binding(2) var index_beta: texture_2d<u32>;
+
+override colour_mode = 0;
 
 struct VertexOut {
     @builtin(position) vertex_position : vec4f,
@@ -70,16 +71,16 @@ fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
 
     var colour = vec4(0.0, 0.0, 0.0, 0.0);
     // index
-    if (params.mode == 0) {
+    if (colour_mode == 0) {
         colour = vec4(index_cmap(index), alpha);
     // beta
-    } else if (params.mode == 1) {
+    } else if (colour_mode == 1) {
         colour = vec4(red_green_cmap(beta), alpha);
     // signed value
-    } else if (params.mode == 2) {
+    } else if (colour_mode == 2) {
         colour = vec4(red_green_cmap(value*params.scale), alpha);
     // absolute value
-    } else if (params.mode == 3) {
+    } else if (colour_mode == 3) {
         colour = vec4(vec3(abs(value*params.scale)), alpha);
     }
     return colour;
