@@ -1,7 +1,7 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
-import shader_current_source_wgsl from "./shader_current_source.wgsl?raw";
-import shader_update_e_field_wgsl from "./shader_update_e_field.wgsl?raw";
-import shader_update_h_field_wgsl from "./shader_update_h_field.wgsl?raw";
+import compute_current_source_wgsl from "./compute_current_source.wgsl?raw";
+import compute_update_e_field_wgsl from "./compute_update_e_field.wgsl?raw";
+import compute_update_h_field_wgsl from "./compute_update_h_field.wgsl?raw";
 
 export class KernelCurrentSource {
   label: string;
@@ -34,7 +34,7 @@ export class KernelCurrentSource {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = shader_current_source_wgsl;
+    this.shader_source = compute_current_source_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
     });
@@ -130,7 +130,7 @@ export class KernelUpdateElectricField {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = shader_update_e_field_wgsl;
+    this.shader_source = compute_update_e_field_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
     });
@@ -236,7 +236,7 @@ export class KernelUpdateMagneticField {
       size: this.params.buffer.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    this.shader_source = shader_update_h_field_wgsl;
+    this.shader_source = compute_update_h_field_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
     });

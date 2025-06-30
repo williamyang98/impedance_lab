@@ -3,7 +3,7 @@ import {
   toRaw,
   ref, computed, watch, useTemplateRef, defineExpose, onMounted, onBeforeUnmount, defineProps,
 } from "vue";
-import { Grid } from "../../engine/electrostatic_2d.ts";
+import { Grid } from "./electrostatic_2d.ts";
 import { MasterRenderer, RendererCore, type Tooltip } from "./grid_viewer_renderer.ts";
 import { providers } from "../../providers/providers.ts";
 import { debounce_animation_frame, debounce_animation_frame_async } from "../../utility/debounce.ts";

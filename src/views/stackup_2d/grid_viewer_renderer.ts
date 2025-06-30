@@ -3,11 +3,11 @@ import {
   type IModuleNdarray,
 } from "../../utility/module_ndarray.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
-import { Grid } from "../../engine/electrostatic_2d.ts";
+import { Grid } from "./electrostatic_2d.ts";
 import {
   ShaderComponentViewer, ShaderQuiverGrid, ShaderIndexBeta,
   type IndexBetaMode,
-} from "../../components/viewer_2d/kernels.ts";
+} from "../../wgpu_kernels/view_2d/index.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 
 const assert = {
@@ -253,7 +253,7 @@ class VoltageFieldRenderer implements Renderer {
     const texture_view = texture.createView({ dimension: "2d" });
     this.core.shader_component.create_pass(
       command_encoder, output_texture,
-      texture_view, canvas_size, this.scale, 1, "single_component", this.alpha,
+      texture_view, canvas_size, this.scale, 1, "single_component", this.alpha, "nearest",
     );
   }
 
@@ -302,22 +302,22 @@ class ElectricFieldRenderer implements Renderer {
     if (this.mode == "x") {
       this.core.shader_component.create_pass(
         command_encoder, output_texture,
-        texture_view, canvas_size, this.scale, 1, "single_component", this.alpha,
+        texture_view, canvas_size, this.scale, 1, "single_component", this.alpha, "nearest",
       );
     } else if (this.mode == "y") {
       this.core.shader_component.create_pass(
         command_encoder, output_texture,
-        texture_view, canvas_size, this.scale, 2, "single_component", this.alpha,
+        texture_view, canvas_size, this.scale, 2, "single_component", this.alpha, "nearest",
       );
     } else if (this.mode == "vec") {
       this.core.shader_component.create_pass(
         command_encoder, output_texture,
-        texture_view, canvas_size, this.scale, (1 | 2), "vector", this.alpha,
+        texture_view, canvas_size, this.scale, (1 | 2), "vector", this.alpha, "nearest",
       );
     } else if (this.mode == "mag") {
       this.core.shader_component.create_pass(
         command_encoder, output_texture,
-        texture_view, canvas_size, this.scale, (1 | 2), "magnitude", this.alpha,
+        texture_view, canvas_size, this.scale, (1 | 2), "magnitude", this.alpha, "nearest",
       );
     } else if (this.mode == "quiver") {
       this.core.shader_quiver.create_pass(

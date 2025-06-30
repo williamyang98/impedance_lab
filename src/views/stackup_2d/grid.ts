@@ -4,9 +4,9 @@ import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 import { Globals } from "../../global.ts";
 
-import { Grid } from "../../engine/electrostatic_2d.ts";
-import { LinesBuilder } from "../../engine/lines_builder.ts";
-import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../../engine/regions.ts";
+import { Grid } from "./electrostatic_2d.ts";
+import { LinesBuilder } from "../../utility/lines_builder.ts";
+import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../../utility/regions.ts";
 import { Profiler } from "../../utility/profiler.ts";
 
 function get_log_median(dims: number[]): number {

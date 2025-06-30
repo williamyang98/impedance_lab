@@ -2,10 +2,10 @@ import {
   type ManagedObject,
   LU_Solver,
   Float32ModuleBuffer, Int32ModuleBuffer,
-} from "../wasm";
-import { Globals } from "../global.ts";
-import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../utility/module_ndarray.ts";
-import { Profiler } from "../utility/profiler.ts";
+} from "../../wasm/index.ts";
+import { Globals } from "../../global.ts";
+import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../../utility/module_ndarray.ts";
+import { Profiler } from "../../utility/profiler.ts";
 
 export interface ImpedanceResult {
   voltage: number;

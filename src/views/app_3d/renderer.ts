@@ -1,5 +1,6 @@
-import { KernelCopyToTexture, ShaderRenderTexture } from "./kernels.ts";
-import { GpuGrid } from "../../engine/fdtd_3d/grid.ts";
+import { ComputeCopyToTexture } from "../../wgpu_kernels/view_3d/index.ts";
+import { ShaderComponentViewer } from "../../wgpu_kernels/view_2d/index.ts";
+import { GpuGrid } from "./grid.ts";
 
 export type GridDisplayMode = "x" | "y" | "z" | "mag";
 export type FieldDisplayMode = "e_field" | "h_field";
@@ -12,16 +13,16 @@ export class Renderer {
   display_texture_view?: GPUTextureView;
   display_size?: [number, number];
 
-  kernel_copy_to_texture: KernelCopyToTexture;
-  shader_render_texture: ShaderRenderTexture;
+  kernel_copy_to_texture: ComputeCopyToTexture;
+  shader_component_viewer: ShaderComponentViewer;
 
   constructor(adapter: GPUAdapter, device: GPUDevice) {
     this.adapter = adapter;
     this.device = device;
 
     const texture_copy_workgroup_size: [number, number] = [1, 256];
-    this.kernel_copy_to_texture = new KernelCopyToTexture(texture_copy_workgroup_size, device);
-    this.shader_render_texture = new ShaderRenderTexture(device);
+    this.kernel_copy_to_texture = new ComputeCopyToTexture(texture_copy_workgroup_size, device);
+    this.shader_component_viewer = new ShaderComponentViewer(device);
 
   }
 
@@ -67,33 +68,60 @@ export class Renderer {
     );
   }
 
-  update_display(command_encoder: GPUCommandEncoder, canvas_context: GPUCanvasContext, scale: number, axis_mode: GridDisplayMode) {
+  update_display(
+    command_encoder: GPUCommandEncoder,
+    canvas_context: GPUCanvasContext, canvas_size: { width: number, height: number },
+    scale: number, axis_mode: GridDisplayMode,
+  ) {
     canvas_context.configure({
       device: this.device,
       format: navigator.gpu.getPreferredCanvasFormat(),
       alphaMode: "premultiplied",
     });
 
-    const get_display_id = (mode: GridDisplayMode): number => {
-      switch (mode) {
-      case "x": return 0;
-      case "y": return 1;
-      case "z": return 2;
-      case "mag": return 3;
-      }
-    };
-
-    const axis_id = get_display_id(axis_mode);
     if (this.display_texture_view === undefined) {
       throw Error(`Attempted to update render texture without perform an initial upload`);
     }
 
     // NOTE: canvas texture view has to be retrieved here since the browser swaps it out in the swapchain
     const canvas_texture_view = canvas_context.getCurrentTexture().createView();
-    this.shader_render_texture.create_pass(
-      command_encoder,
-      canvas_texture_view, this.display_texture_view,
-      scale, axis_id,
-    );
+    switch (axis_mode) {
+      case "x": {
+        this.shader_component_viewer.create_pass(
+          command_encoder,
+          canvas_texture_view, this.display_texture_view,
+          canvas_size,
+          scale, 1, "single_component",
+        );
+        break;
+      }
+      case "y": {
+        this.shader_component_viewer.create_pass(
+          command_encoder,
+          canvas_texture_view, this.display_texture_view,
+          canvas_size,
+          scale, 2, "single_component",
+        );
+        break;
+      }
+      case "z": {
+        this.shader_component_viewer.create_pass(
+          command_encoder,
+          canvas_texture_view, this.display_texture_view,
+          canvas_size,
+          scale, 4, "single_component",
+        );
+        break;
+      }
+      case "mag": {
+        this.shader_component_viewer.create_pass(
+          command_encoder,
+          canvas_texture_view, this.display_texture_view,
+          canvas_size,
+          scale, (1 | 2 | 4), "magnitude",
+        );
+        break;
+      }
+    }
   }
 }

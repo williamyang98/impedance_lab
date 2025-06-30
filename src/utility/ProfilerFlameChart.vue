@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Profiler, ProfilerTrace } from "../utility/profiler.ts";
+import { Profiler, ProfilerTrace } from "./profiler.ts";
 import { defineProps, ref, useTemplateRef, computed, watch } from "vue";
 
 const props = defineProps<{

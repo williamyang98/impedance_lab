@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { Viewer3D } from "../../components/viewer_3d";
+import Viewer3D from "./Viewer3D.vue";
 
 import { create_simulation_setup } from "./app_3d.ts";
-import { GpuGrid, GpuEngine } from "../../engine/fdtd_3d/grid.ts";
+import { GpuGrid, GpuEngine } from "./grid.ts";
 import {
   ref, computed, useTemplateRef, onMounted, onBeforeUnmount,
 } from "vue";

@@ -46,7 +46,7 @@ export class ShaderComponentViewer {
   index_buffer: GPUBuffer;
   vertex_buffer_layout: GPUVertexBufferLayout;
   clear_colour: GPUColor;
-  grid_sampler: GPUSampler;
+  grid_samplers = new Map<GPUFilterMode, GPUSampler>();
 
   constructor(device: GPUDevice) {
     this.label = " component_shader";
@@ -112,10 +112,18 @@ export class ShaderComponentViewer {
       bindGroupLayouts: [this.bind_group_layout],
     });
     this.clear_colour = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
-    this.grid_sampler = device.createSampler({
-      magFilter: "nearest",
-      minFilter: "nearest",
-    });
+  }
+
+  get_grid_sampler(mode: GPUFilterMode): GPUSampler {
+    let sampler = this.grid_samplers.get(mode);
+    if (sampler === undefined) {
+      sampler = this.device.createSampler({
+        magFilter: mode,
+        minFilter: mode,
+      });
+      this.grid_samplers.set(mode, sampler);
+    }
+    return sampler;
   }
 
   get_render_pipeline(axis_mode: number, colour_mode: ColourMode): GPURenderPipeline {
@@ -174,14 +182,16 @@ export class ShaderComponentViewer {
     grid_texture_view: GPUTextureView,
     canvas_size: { width: number, height: number },
     scale: number, axis_mask: number, colour_mode: ColourMode,
-    alpha_scale?: number,
+    alpha_scale?: number, interpolation?: GPUFilterMode,
   ) {
     alpha_scale = alpha_scale ?? 1.0;
+    interpolation = interpolation ?? "linear";
 
     this.params.set("scale", scale);
     this.params.set("alpha_scale", alpha_scale);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
+    const grid_sampler = this.get_grid_sampler(interpolation);
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
@@ -191,7 +201,7 @@ export class ShaderComponentViewer {
         },
         {
           binding: 1,
-          resource: this.grid_sampler,
+          resource: grid_sampler,
         },
         {
           binding: 2,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineProps, computed } from "vue";
-import { RegionToGridMap } from "../../engine/regions.ts";
+import { RegionToGridMap } from "../../utility/regions.ts";
 
 const props = defineProps<{
   region_to_grid_map: RegionToGridMap,

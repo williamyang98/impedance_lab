@@ -19,7 +19,7 @@ import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
 import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 import GridViewer from "./GridViewer.vue";
-import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
+import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
 import { PencilIcon, EyeIcon, InfoIcon, DownloadIcon } from "lucide-vue-next";
 // ts imports
 import { validate_parameter, type Parameter } from "./stackup.ts";
@@ -43,7 +43,7 @@ import { Profiler } from "../../utility/profiler.ts";
 import { Uint8ArrayNdarrayWriter } from "../../utility/ndarray.ts";
 import { type IModuleNdarray, ModuleNdarrayWriter } from "../../utility/module_ndarray.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
-import { ZipFile } from "../../wasm";
+import { ZipFile } from "../../wasm/index.ts";
 import { providers } from "../../providers/providers.ts";
 
 const toast = providers.toast_manager.value;

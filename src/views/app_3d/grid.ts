@@ -1,5 +1,5 @@
 import { Ndarray } from "../../utility/ndarray.ts";
-import { KernelCurrentSource, KernelUpdateElectricField, KernelUpdateMagneticField } from "./kernels.ts";
+import { KernelCurrentSource, KernelUpdateElectricField, KernelUpdateMagneticField } from "../../wgpu_kernels/fdtd_3d/index.ts";
 
 export class SimulationGrid {
   size: [number, number, number];

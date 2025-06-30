@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { type GridDisplayMode, type FieldDisplayMode, Renderer } from "./renderer.ts";
-import { GpuGrid } from "../../engine/fdtd_3d/grid.ts";
+import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
 
 import {
@@ -57,7 +57,11 @@ function update_display(command_encoder: GPUCommandEncoder) {
   };
   const scale_offset = get_scale_offset(field_mode.value);
   const scale = 10**(scale_db.value+scale_offset);
-  gpu_renderer.update_display(command_encoder, canvas_context.value, scale, axis_mode.value);
+  const canvas_size = {
+    width: canvas_context.value.canvas.width,
+    height: canvas_context.value.canvas.height,
+  };
+  gpu_renderer.update_display(command_encoder, canvas_context.value, canvas_size, scale, axis_mode.value);
 }
 
 watch(copy_z, async (_new_value, _old_value) => {

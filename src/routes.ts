@@ -19,7 +19,7 @@ export const routes: CustomRoute[] = [
   {
     name: "Stackup 2D",
     path: "/stackup_2d/editor",
-    view_component: () => import("./views/stackup_2d/StackupRefactor.vue"),
+    view_component: () => import("./views/stackup_2d/StackupCalculator.vue"),
     icon_component: PencilIcon,
   },
   {
