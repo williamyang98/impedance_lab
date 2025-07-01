@@ -62,6 +62,8 @@ export const navigation_tree: NavigationItem[] = [
   },
 ].filter(item => item !== false);
 
+export const default_route_name = "stackup_2d_templates";
+
 export const routes = navigation_tree
   .flatMap((item) => {
     switch (item.type) {
