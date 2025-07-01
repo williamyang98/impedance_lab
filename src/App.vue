@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, useTemplateRef } from "vue";
+import { watch, useTemplateRef, ref } from "vue";
 import { useRouter, useRoute, RouterView } from "vue-router";
 import GpuProvider from "./providers/GpuProvider.vue";
 import WasmProvider from "./providers/WasmProvider.vue";
@@ -27,6 +27,15 @@ watch(() => curr_route.fullPath, () => {
 function get_navigation_class(item: NavigationEndpoint): string {
   return curr_route.name === item.route.name ? "menu-active" : "";
 }
+
+const is_dark_mode = ref<boolean>(localStorage.getItem("is_dark_mode") === "true");
+watch(is_dark_mode, (new_is_dark_mode) => {
+  try {
+    localStorage.setItem("is_dark_mode", new_is_dark_mode ? "true" : "false");
+  } catch (error) {
+    console.error(`Failed to set is_dark_mode=${new_is_dark_mode} with: ${String(error)}`);
+  }
+});
 
 </script>
 
@@ -118,7 +127,7 @@ function get_navigation_class(item: NavigationEndpoint): string {
           </a>
           <label class="flex cursor-pointer gap-2">
             <Sun class="h-5 w-5"/>
-            <input type="checkbox" class="toggle theme-controller" value="dark"/>
+            <input type="checkbox" v-model="is_dark_mode" class="toggle theme-controller" value="dark"/>
             <Moon class="h-5 w-5"/>
           </label>
         </div>
