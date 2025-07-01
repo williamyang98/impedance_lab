@@ -269,7 +269,7 @@ class VoltageFieldRenderer implements Renderer {
 class ElectricFieldRenderer implements Renderer {
   readonly type = "e_field";
   core: RendererCore;
-  scale: number = 1.0;
+  scale: number = 5.0; // e-field is generally small so this shouldn't be 0
   alpha: number = 1.0;
   quiver_size: number = 15.0;
   mode: "x" | "y" | "vec" | "mag" | "quiver" = "quiver";

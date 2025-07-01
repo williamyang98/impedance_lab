@@ -192,6 +192,7 @@ defineExpose({
         <option :value="'epsilon'">Epsilon</option>
       </select>
     </fieldset>
+    <!--Epsilon/V-force-->
     <template v-if="selected_renderer.type === 'v_force' || selected_renderer.type === 'epsilon'">
       <fieldset class="fieldset">
         <legend for="mode" class="fieldset-legend">Mode</legend>
@@ -207,18 +208,20 @@ defineExpose({
           <span>Scale</span>
           <span>{{ selected_renderer.scale.toFixed(1) }}</span>
         </legend>
-        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
+        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.1"/>
       </fieldset>
     </template>
+    <!--V-field-->
     <template v-if="selected_renderer.type === 'v_field'">
       <fieldset class="fieldset">
         <legend for="scale" class="fieldset-legend w-full flex flex-row justify-between">
           <span>Scale</span>
           <span>{{ selected_renderer.scale.toFixed(1) }}</span>
         </legend>
-        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
+        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.1"/>
       </fieldset>
     </template>
+    <!--E-field-->
     <template v-if="selected_renderer.type === 'e_field'">
       <fieldset class="fieldset">
         <legend for="mode" class="fieldset-legend">Mode</legend>
@@ -235,7 +238,7 @@ defineExpose({
           <span>Scale</span>
           <span>{{ selected_renderer.scale.toFixed(1) }}</span>
         </legend>
-        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="5" step="0.01"/>
+        <input id="scale" class="range w-full" type="range" v-model.number="selected_renderer.scale" @input="refresh()" min="0" max="10" step="0.1"/>
       </fieldset>
       <fieldset class="fieldset" v-if="selected_renderer.mode == 'quiver'">
         <legend for="quiver_size" class="fieldset-legend w-full flex flex-row justify-between">
