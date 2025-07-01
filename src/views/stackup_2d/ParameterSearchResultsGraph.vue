@@ -57,6 +57,7 @@ function create_chart() {
     options: {
       animation: false,
       responsive: true,
+      maintainAspectRatio: false,
       scales: {
         x: {
           type: "linear",
@@ -64,7 +65,11 @@ function create_chart() {
           max: x_max,
           title: {
             display: true,
-            text: "Value",
+            text: props.results.parameter_label,
+            font: {
+              weight: "bold",
+              size: 14,
+            },
           },
         },
         y: {
@@ -74,13 +79,24 @@ function create_chart() {
           title: {
             display: true,
             text: "Impedance (Ω)",
+            font: {
+              weight: "bold",
+              size: 14,
+            },
           },
         },
       },
       plugins: {
         legend: {
           display: false,
-        }
+        },
+        title: {
+          display: true,
+          text: `Search Curve (${props.results.parameter_label})`,
+          font: {
+            size: 16,
+          },
+        },
       },
     },
   });
@@ -97,44 +113,38 @@ watch(results, () => {
 </script>
 
 <template>
-<div :class="$attrs.class">
-  <div class="grid grid-cols-1 sm:grid-cols-[auto_auto] gap-x-2 gap-y-2 max-h-[100vh]">
-    <div class="card card-border bg-base-100">
-      <div class="card-body p-3">
-        <h2 class="card-title">Parameter Search Points</h2>
-        <div class="w-full overflow-auto">
-          <table class="w-full table">
-            <thead>
-              <tr>
-                <th>Iteration</th>
-                <th>{{ results.parameter_label }}</th>
-                <th>Impedance</th>
-                <th>Error</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="(result, index) in results.results" :key="index"
-                :class="`${result == results.best_result ? 'bg-success' : ''}`"
-              >
-                <td class="font-medium">{{ result.iteration }}</td>
-                <td>{{ result.value.toPrecision(3) }}</td>
-                <td>{{ result.impedance.toPrecision(3) }}</td>
-                <td>{{ result.error.toPrecision(3) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+<div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-2 w-full">
+  <div class="w-full card card-border bg-base-100">
+    <div class="card-body p-3">
+      <div class="relative w-full h-full bg-white">
+        <canvas ref="grid-canvas"></canvas>
       </div>
     </div>
-    <div class="w-full card card-border bg-base-100">
-      <div class="card-body p-3">
-        <h2 class="card-title">Search Curve ({{ results.parameter_label }})</h2>
-        <!--https://www.chartjs.org/docs/latest/configuration/responsive.html#important-note-->
-        <!--chart.js plot needs specific requirements-->
-        <div class="relative w-full">
-          <canvas ref="grid-canvas"></canvas>
-        </div>
+  </div>
+  <div class="w-full card card-border bg-base-100">
+    <div class="card-body p-3">
+      <div class="w-full max-h-[75vh] overflow-y-auto">
+        <table class="w-full table">
+          <thead>
+            <tr>
+              <th>Step</th>
+              <th>{{ results.parameter_label }}</th>
+              <th>Z0 (Ω)</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(result, index) in results.results" :key="index"
+              :class="`${result == results.best_result ? 'bg-success' : ''}`"
+            >
+              <td class="font-medium">{{ result.iteration }}</td>
+              <td>{{ result.value.toPrecision(3) }}</td>
+              <td>{{ result.impedance.toPrecision(3) }}</td>
+              <td>{{ result.error.toPrecision(3) }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>

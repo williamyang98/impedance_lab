@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { defineProps, ref, useTemplateRef, watch, computed } from "vue";
+import GridRegionTable from "./GridRegionTable.vue";
+import { defineProps, ref, useTemplateRef, watch, computed, useId } from "vue";
 import { StackupGrid } from "./grid.ts";
 import Chart from "chart.js/auto";
 
@@ -37,30 +38,6 @@ function create_chart() {
     type: "line",
     data: {
       datasets: Array.prototype.concat(
-        x_grid_lines.map((x) => {
-          return {
-            data: [
-              { x, y: y_min, },
-              { x, y: y_max, },
-            ],
-            borderColor: "rgba(0,0,255,0.3)",
-            fill: false,
-            pointRadius: 0,
-            showLine: true,
-          }
-        }),
-        y_grid_lines.map((y) => {
-          return {
-            data: [
-              { x: x_min, y },
-              { x: x_max, y },
-            ],
-            borderColor: "rgba(0,0,255,0.3)",
-            fill: false,
-            pointRadius: 0,
-            showLine: true,
-          }
-        }),
         x_region_lines.map((x) => {
           return {
             data: [
@@ -68,6 +45,7 @@ function create_chart() {
               { x, y: y_max, },
             ],
             borderColor: "rgba(255,0,0,1.0)",
+            borderWidth: 1.5,
             fill: false,
             pointRadius: 0,
             showLine: true,
@@ -80,6 +58,33 @@ function create_chart() {
               { x: x_max, y },
             ],
             borderColor: "rgba(255,0,0,1.0)",
+            borderWidth: 1.5,
+            fill: false,
+            pointRadius: 0,
+            showLine: true,
+          }
+        }),
+        x_grid_lines.map((x) => {
+          return {
+            data: [
+              { x, y: y_min, },
+              { x, y: y_max, },
+            ],
+            borderColor: "rgba(0,186,254,1.0)",
+            borderWidth: 1,
+            fill: false,
+            pointRadius: 0,
+            showLine: true,
+          }
+        }),
+        y_grid_lines.map((y) => {
+          return {
+            data: [
+              { x: x_min, y },
+              { x: x_max, y },
+            ],
+            borderColor: "rgba(0,186,254,1.0)",
+            borderWidth: 1,
             fill: false,
             pointRadius: 0,
             showLine: true,
@@ -88,8 +93,9 @@ function create_chart() {
       ),
     },
     options: {
-      responsive: true,
       animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
       scales: {
         x: {
           type: "linear",
@@ -97,7 +103,11 @@ function create_chart() {
           max: x_max,
           title: {
             display: true,
-            text: "x",
+            text: "X",
+            font: {
+              weight: "bold",
+              size: 14,
+            },
           },
         },
         y: {
@@ -106,18 +116,33 @@ function create_chart() {
           max: y_max,
           title: {
             display: true,
-            text: "y",
+            text: "Y",
+            font: {
+              weight: "bold",
+              size: 14,
+            },
           },
         },
       },
       plugins: {
         legend: {
           display: false,
-        }
+        },
+        title: {
+          display: true,
+          text: "Simulation mesh",
+          font: {
+            size: 16,
+          },
+        },
       },
     },
   });
 }
+
+const uid = {
+  tab_region_grid: useId(),
+};
 
 watch(grid_canvas_elem, () => {
   create_chart();
@@ -130,7 +155,35 @@ watch(stackup_grid, () => {
 </script>
 
 <template>
-  <div class="relative" :class="$attrs.class">
-    <canvas ref="grid-canvas"></canvas>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-2 w-full">
+  <div class="w-full card card-border bg-base-100">
+    <div class="card-body p-3">
+      <div class="relative w-full h-full bg-white">
+        <canvas ref="grid-canvas"></canvas>
+      </div>
+    </div>
   </div>
+  <div class="w-full card card-border bg-base-100">
+    <div class="card-body p-3">
+      <div>
+        <div class="tabs tabs-box">
+          <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="X" checked/>
+          <div class="tab-content max-h-[70vh] overflow-auto">
+            <GridRegionTable
+              :region_to_grid_map="stackup_grid.x_region_to_grid_map"
+              class="bg-base-100 mt-1"
+            />
+          </div>
+          <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="Y"/>
+          <div class="tab-content max-h-[70vh] overflow-auto">
+            <GridRegionTable
+              :region_to_grid_map="stackup_grid.y_region_to_grid_map"
+              class="bg-base-100 mt-1"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 </template>

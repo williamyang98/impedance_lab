@@ -13,7 +13,6 @@ import { useRoute, type LocationQuery } from "vue-router";
 // subcomponents
 import EditorControls from "./EditorControls.vue";
 import StackupViewer from "./StackupViewer.vue";
-import GridRegionTable from "./GridRegionTable.vue";
 import MeshViewer from "./MeshViewer.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
@@ -221,7 +220,6 @@ const viewer_stackup = computed(() => {
 const uid = {
   tab_global: useId(),
   tab_result: useId(),
-  tab_region_grid: useId(),
   tab_simulation: useId(),
 };
 const is_running = ref<boolean>(false);
@@ -438,9 +436,7 @@ watch(() => route.query, (new_query) => {
     </div>
   </label>
   <div class="tab-content p-1">
-    <div v-if="search_results" class="w-full">
-      <ParameterSearchResultsGraph :results="search_results"></ParameterSearchResultsGraph>
-    </div>
+    <ParameterSearchResultsGraph v-if="search_results" :results="search_results"/>
     <div v-else class="text-center py-2">
       <h1 class="text-2xl">Perform parameter search to see search curve</h1>
     </div>
@@ -458,37 +454,7 @@ watch(() => route.query, (new_query) => {
   <!--Mesh tab-->
   <input type="radio" :name="uid.tab_global" class="tab" aria-label="Mesh"/>
   <div class="tab-content p-1">
-    <div v-if="stackup_grid" class="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-2">
-      <div class="w-full card card-border bg-base-100">
-        <div class="card-body p-3">
-          <h2 class="card-title">Mesh</h2>
-          <MeshViewer :stackup_grid="stackup_grid"></MeshViewer>
-        </div>
-      </div>
-      <div class="w-full card card-border bg-base-100">
-        <div class="card-body p-3">
-          <h2 class="card-title">Grid</h2>
-          <div>
-            <div class="tabs tabs-box">
-              <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="X" checked/>
-              <div class="tab-content max-h-[70vh] overflow-auto">
-                <GridRegionTable
-                  :region_to_grid_map="stackup_grid.x_region_to_grid_map"
-                  class="bg-base-100 mt-1"
-                />
-              </div>
-              <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="Y"/>
-              <div class="tab-content max-h-[70vh] overflow-auto">
-                <GridRegionTable
-                  :region_to_grid_map="stackup_grid.y_region_to_grid_map"
-                  class="bg-base-100 mt-1"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <MeshViewer v-if="stackup_grid" :stackup_grid="stackup_grid"></MeshViewer>
     <div v-else class="text-center py-2">
       <h1 class="text-2xl">Calculate impedance to see mesh</h1>
     </div>
