@@ -93,6 +93,30 @@ interface EpsilonValue {
   value: number;
 }
 
+export interface StackupGridConfig {
+  minimum_grid_resolution: number; // smallest possible region size before it is ignored
+  padding_size_multiplier: number; // amount of air padding to add around simulation region
+  max_x_ratio: number; // maximum rate at which grid regions can grow/shrink relative to their neighbour
+  min_x_subdivisions: number; // minimum number of grid lines each region should have
+  max_y_ratio: number; // maximum rate at which grid regions can grow/shrink relative to their neighbour
+  min_y_subdivisions: number; // minimum number of grid lines each region should have
+  min_epsilon_resolution: number; // smallest possible difference in dielectric epsilon values before they are considered the same
+  signal_amplitude: number; // voltage value to use for +/- signals
+}
+
+export function get_default_stackup_grid_config(): StackupGridConfig {
+  return {
+    minimum_grid_resolution: 1e-3,
+    padding_size_multiplier: 5,
+    max_x_ratio: 0.7,
+    min_x_subdivisions: 5,
+    max_y_ratio: 0.7,
+    min_y_subdivisions: 5,
+    min_epsilon_resolution: 0.01,
+    signal_amplitude: 1,
+  }
+}
+
 export class StackupGrid implements ManagedObject {
   readonly module = Globals.wasm_module;
   _is_deleted: boolean = false;
@@ -111,7 +135,7 @@ export class StackupGrid implements ManagedObject {
   y_region_lines_builder: LinesBuilder;
   x_region_to_grid_map: RegionToGridMap;
   y_region_to_grid_map: RegionToGridMap;
-  minimum_grid_resolution: number;
+  config: StackupGridConfig;
   grid: Grid;
   profiler?: Profiler;
 
@@ -119,9 +143,9 @@ export class StackupGrid implements ManagedObject {
     layout: StackupLayout,
     get_epsilon: (param: EpsilonParameter) => number,
     profiler: Profiler | undefined,
-    minimum_grid_resolution?: number,
+    config?: StackupGridConfig,
   ) {
-    this.minimum_grid_resolution = minimum_grid_resolution ?? 1e-3;
+    this.config = config ?? get_default_stackup_grid_config();
     this.layout = layout;
     this.x_region_lines_builder = new LinesBuilder();
     this.y_region_lines_builder = new LinesBuilder();
@@ -268,7 +292,7 @@ export class StackupGrid implements ManagedObject {
     const y_max = this.y_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
     const stackup_width = x_max-x_min;
     const stackup_height = y_max-y_min;
-    const padding_size = Math.max(stackup_width, stackup_height);
+    const padding_size = Math.max(stackup_width, stackup_height)*this.config.padding_size_multiplier;
     this.x_region_lines_builder.push(x_min-padding_size);
     this.x_region_lines_builder.push(x_max+padding_size);
     // only pad y-axis if copper planes don't exist at the ends
@@ -293,7 +317,7 @@ export class StackupGrid implements ManagedObject {
     this.profiler?.begin("merge_grid_lines");
     const x_region_sizes = this.x_region_lines_builder.to_regions();
     const y_region_sizes = this.y_region_lines_builder.to_regions();
-    const merge_size = 0.99*this.minimum_grid_resolution;
+    const merge_size = 0.99*this.config.minimum_grid_resolution;
     const region_sizes = [...x_region_sizes, ...y_region_sizes].filter(size => size > merge_size);
     this.x_region_lines_builder.merge(merge_size);
     this.y_region_lines_builder.merge(merge_size);
@@ -313,9 +337,7 @@ export class StackupGrid implements ManagedObject {
     };
     const x_region_sizes = this.x_region_lines_builder.to_regions();
     const x_region_specs: RegionSpecification[] = x_region_sizes.map(size_to_region_spec);
-    const x_max_ratio = 0.7;
-    const x_min_subdivisions = 5;
-    const x_region_segments = generate_region_mesh_segments(x_region_specs, x_min_subdivisions, x_max_ratio);
+    const x_region_segments = generate_region_mesh_segments(x_region_specs, this.config.min_x_subdivisions, this.config.max_x_ratio);
     this.profiler?.end();
     return new RegionToGridMap(this.x_region_lines_builder, x_region_segments);
   }
@@ -341,9 +363,7 @@ export class StackupGrid implements ManagedObject {
       }
     }
 
-    const y_max_ratio = 0.7;
-    const y_min_subdivisions = 5;
-    const y_region_segments = generate_region_mesh_segments(y_region_specs, y_min_subdivisions, y_max_ratio);
+    const y_region_segments = generate_region_mesh_segments(y_region_specs, this.config.min_y_subdivisions, this.config.max_y_ratio);
     this.profiler?.end();
     return new RegionToGridMap(this.y_region_lines_builder, y_region_segments);
   }
@@ -360,14 +380,13 @@ export class StackupGrid implements ManagedObject {
     return grid;
   }
 
-  push_epsilon(epsilon_k: number, category: EpsilonCategory, threshold?: number): number {
-    threshold = threshold ?? 1e-3;
+  push_epsilon(epsilon_k: number, category: EpsilonCategory): number {
     const ek_table = this.epsilon_indexes.ek_table;
     for (let i = 0; i < ek_table.length; i++) {
       const elem = ek_table[i];
       if (elem.category != category) continue;
       const delta = Math.abs(elem.value-epsilon_k);
-      if (delta < threshold) return i;
+      if (delta < this.config.min_epsilon_resolution) return i;
     }
     const index = ek_table.length;
     ek_table.push({
@@ -663,25 +682,25 @@ export class StackupGrid implements ManagedObject {
   configure_odd_mode_diffpair_voltage() {
     const v_table = this.grid.v_table.array_view;
     v_table[0] = 0;
-    v_table[1] = 1;
-    v_table[2] = -1;
-    this.grid.v_input = 2;
+    v_table[1] = this.config.signal_amplitude;
+    v_table[2] = -this.config.signal_amplitude;
+    this.grid.v_input = 2*this.config.signal_amplitude;
   }
 
   configure_even_mode_diffpair_voltage() {
     const v_table = this.grid.v_table.array_view;
     v_table[0] = 0;
-    v_table[1] = 1;
-    v_table[2] = 1;
-    this.grid.v_input = 2;
+    v_table[1] = this.config.signal_amplitude;
+    v_table[2] = this.config.signal_amplitude;
+    this.grid.v_input = 2*this.config.signal_amplitude;
   }
 
   configure_single_ended_voltage() {
     const v_table = this.grid.v_table.array_view;
     v_table[0] = 0;
-    v_table[1] = 1;
-    v_table[2] = 1;
-    this.grid.v_input = 1;
+    v_table[1] = this.config.signal_amplitude;
+    v_table[2] = 0;
+    this.grid.v_input = this.config.signal_amplitude;
   }
 
   configure_masked_dielectric() {

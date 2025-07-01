@@ -24,7 +24,7 @@ import { PencilIcon, EyeIcon, InfoIcon } from "lucide-vue-next";
 // ts imports
 import { validate_parameter, type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
-import { StackupGrid } from "./grid.ts";
+import { get_default_stackup_grid_config, StackupGrid } from "./grid.ts";
 import { StackupParameters } from "./parameters.ts";
 import {
   StackupEditor,
@@ -216,6 +216,11 @@ const viewer_stackup = computed(() => {
     return simulation_stackup.value;
   }
 });
+const stackup_grid_config = computed(() => {
+  const config = get_default_stackup_grid_config();
+  config.minimum_grid_resolution = editor.value.parameters.minimum_feature_size;
+  return config;
+});
 
 const uid = {
   tab_global: useId(),
@@ -256,7 +261,7 @@ async function calculate_impedance() {
     new_stackup = new StackupGrid(
       layout, get_parameter,
       new_profiler,
-      editor.value.parameters.minimum_feature_size,
+      stackup_grid_config.value,
     );
     new_profiler.end();
 
@@ -309,7 +314,7 @@ async function perform_search(search_params: Parameter[]) {
       simulation_stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
       get_parameter,
-      editor.value.parameters.minimum_feature_size,
+      stackup_grid_config.value,
       new_profiler, toast,
     );
     new_profiler.end();
