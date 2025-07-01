@@ -199,7 +199,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   >
     <div v-for="(row, row_index) in col" :key="row_index" class="mb-4">
       <div class="flex flex-row justify-between mb-2">
-        <div class="flex flex-row gap-x-1 items-center">
+        <div class="flex flex-row gap-x-1 items-center mr-1">
           <h2 class="font-medium">{{ row.name }}</h2>
           <div class="tooltip tooltip-bottom" :data-tip="row.description">
             <InfoIcon class="w-[1rem] h-[1rem] cursor-help"/>
