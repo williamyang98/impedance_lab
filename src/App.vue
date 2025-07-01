@@ -125,7 +125,7 @@ watch(is_dark_mode, (new_is_dark_mode) => {
           <a class="cursor-pointer mx-1" href="https://github.com/williamyang98/impedance_lab">
             <GithubIcon class="w-[1.75rem] h-[1.75rem]" style="fill: var(--color-base-content)"/>
           </a>
-          <label class="flex cursor-pointer gap-2">
+          <label class="flex flex-row items-center cursor-pointer gap-x-1">
             <Sun class="h-5 w-5"/>
             <input type="checkbox" v-model="is_dark_mode" class="toggle theme-controller" value="dark"/>
             <Moon class="h-5 w-5"/>
