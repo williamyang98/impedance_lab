@@ -114,6 +114,7 @@ function create_chart() {
           type: "linear",
           min: y_min,
           max: y_max,
+          reverse: true,
           title: {
             display: true,
             text: "Y",
