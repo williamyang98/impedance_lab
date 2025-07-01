@@ -311,8 +311,8 @@ async function perform_search(search_params: Parameter[]) {
       simulation_stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
       get_parameter,
-      new_profiler,
       editor.value.parameters.minimum_feature_size,
+      new_profiler, toast,
     );
     new_profiler.end();
   } catch (error) {

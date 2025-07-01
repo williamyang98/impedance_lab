@@ -5,6 +5,7 @@ import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { type ManagedObject } from "../../wasm/index.ts";
 import { Globals } from "../../global.ts";
+import { ToastManager } from "../../providers/toast/toast.ts";
 
 function run_parameter_search<T extends { error: number }>(
   func: (value: number) => T,
@@ -230,8 +231,8 @@ export function search_parameters(
   target_impedance: number,
   stackup: Stackup, params: Parameter[],
   get_parameter: (param: Parameter) => number,
-  profiler?: Profiler,
-  minimum_grid_resolution?: number,
+  minimum_grid_resolution: number,
+  profiler: Profiler, toast: ToastManager,
 ): SearchResults {
   if (params.length <= 0) {
     throw Error("Got 0 parameters in parametric search");
@@ -264,25 +265,25 @@ export function search_parameters(
     const metadata: Partial<Record<string, string>> = {
       iteration: `${curr_iter}`,
     };
-    profiler?.begin(`search_${curr_iter}`, undefined, metadata);
+    profiler.begin(`search_${curr_iter}`, undefined, metadata);
 
-    profiler?.begin("create_layout", "Create layout from transmission line stackup");
+    profiler.begin("create_layout", "Create layout from transmission line stackup");
     const layout = create_layout_from_stackup(stackup, get_parameter, profiler);
-    profiler?.end();
+    profiler.end();
 
-    profiler?.begin("create_grid", "Create simulation grid from layout");
+    profiler.begin("create_grid", "Create simulation grid from layout");
     const stackup_grid = new StackupGrid(layout, get_parameter, profiler, minimum_grid_resolution);
-    profiler?.end();
+    profiler.end();
 
-    profiler?.begin("run", "Perform impedance measurements", {
+    profiler.begin("run", "Perform impedance measurements", {
       "Total Columns": `${stackup_grid.grid.width}`,
       "Total Rows": `${stackup_grid.grid.height}`,
       "Total Cells": `${stackup_grid.grid.width*stackup_grid.grid.height}`,
     });
     const measurement = perform_measurement(stackup_grid, profiler);
-    profiler?.end();
+    profiler.end();
 
-    profiler?.end();
+    profiler.end();
 
     const actual_impedance = measurement.type == "single" ? measurement.masked.Z0 : measurement.odd_masked.Z0;
     const error_impedance = target_impedance-actual_impedance;
@@ -320,14 +321,34 @@ export function search_parameters(
     }
   }
 
-  profiler?.begin("run_binary_search");
+  profiler.begin("run_binary_search");
   const initial_value = ref_param.value;
-  const best_result = run_parameter_search(
-    search_function,
-    initial_value,
-    min_value, max_value,
-  );
-  profiler?.end();
+  let best_result = undefined;
+  try {
+    best_result = run_parameter_search(
+      search_function,
+      initial_value,
+      min_value, max_value,
+    );
+  } catch (error) {
+    const curr_iter = results.length;
+    toast.warning(`Search function failed early at step ${curr_iter+1} with: ${String(error)}`);
+  }
+  if (best_result === undefined) {
+    let min_error = undefined;
+    for (const result of results) {
+      const error = Math.abs(result.error);
+      if (min_error === undefined || (min_error > error)) {
+        min_error = error;
+        best_result = result;
+      }
+    }
+  }
+  profiler.end();
+
+  if (best_result === undefined) {
+    throw Error("Parameter search failed to generate any results");
+  }
 
   return new SearchResults(
     parameter_label,

@@ -11,7 +11,7 @@ export type ToastTimeout = number | undefined | null;
 export class ToastManager {
   head_id: number = 0;
   toasts: Toast[] = [];
-  default_timeout_ms: number = 3000;
+  default_timeout_ms: number = 5000;
   push_toast(message: string, type?: ToastType): number {
     const id = this.head_id++;
     this.toasts.push({ id, message, type });
