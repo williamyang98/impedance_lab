@@ -361,12 +361,12 @@ watch(() => route.query, (new_query) => {
           <h2 class="card-title">Stackup</h2>
           <div class="w-full flex flex-col gap-y-1">
             <div class="w-full flex flex-row gap-x-1">
-              <select class="select w-fit" v-model="selected_editor.selected" :disabled="!is_editing">
+              <select class="select w-full" v-model="selected_editor.selected" :disabled="!is_editing">
                 <option v-for="option in selected_editor.keys" :value="option" :key="option">
                   {{ option }}
                 </option>
               </select>
-              <select class="select" v-model="selected_trace_template.selected" :disabled="!is_editing">
+              <select class="select w-full" v-model="selected_trace_template.selected" :disabled="!is_editing">
                 <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
                   {{ option }}
                 </option>
@@ -472,11 +472,17 @@ watch(() => route.query, (new_query) => {
             <div class="tabs tabs-box">
               <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="X" checked/>
               <div class="tab-content max-h-[70vh] overflow-auto">
-                <GridRegionTable :region_to_grid_map="stackup_grid.x_region_to_grid_map"></GridRegionTable>
+                <GridRegionTable
+                  :region_to_grid_map="stackup_grid.x_region_to_grid_map"
+                  class="bg-base-100 mt-1"
+                />
               </div>
               <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="Y"/>
               <div class="tab-content max-h-[70vh] overflow-auto">
-                <GridRegionTable :region_to_grid_map="stackup_grid.y_region_to_grid_map"></GridRegionTable>
+                <GridRegionTable
+                  :region_to_grid_map="stackup_grid.y_region_to_grid_map"
+                  class="bg-base-100 mt-1"
+                />
               </div>
             </div>
           </div>

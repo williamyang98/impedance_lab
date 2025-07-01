@@ -145,7 +145,7 @@ watch(search_string, (new_search_string) => {
   <div class="w-full grid grid-cols-[repeat(auto-fit,minmax(20rem,1fr))] gap-x-2 gap-y-2 overflow-auto">
     <template v-for="(template, index) in sorted_templates" :key="index">
       <a
-        class="card card-border bg-base-100 select-none cursor-pointer rounded-xs"
+        class="card card-border bg-base-100 hover:bg-base-300 select-none cursor-pointer"
         :href="get_template_url(template)"
       >
         <div class="card-body p-3">

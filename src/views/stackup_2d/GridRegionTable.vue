@@ -22,7 +22,7 @@ function rescale(x: number): number {
 </script>
 
 <template>
-<table class="table">
+<table class="table" :class="$attrs.class">
   <thead>
     <tr>
       <th></th>
