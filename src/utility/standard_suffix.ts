@@ -9,6 +9,8 @@ export function get_standard_suffix(value: number, threshold?: number): Standard
   if (threshold !== undefined && value <= threshold) {
     return { scale: 1, suffix: "" };
   }
+  if (value >= 1e15) return { scale: 1e15, suffix: "P" };
+  if (value >= 1e12) return { scale: 1e12, suffix: "T" };
   if (value >= 1e9) return { scale: 1e9, suffix: "G" };
   if (value >= 1e6) return { scale: 1e6, suffix: "M" };
   if (value >= 1e3) return { scale: 1e3, suffix: "k" };

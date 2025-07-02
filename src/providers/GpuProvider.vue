@@ -24,7 +24,13 @@ async function create_gpu_instance() {
     return;
   }
 
-  const requested_device = await requested_adapter.requestDevice();
+  const desired_features: GPUFeatureName[] = ["shader-f16", "timestamp-query", "float32-filterable"];
+  const requested_features = desired_features.filter((feature) => {
+    return requested_adapter.features.has(feature);
+  });
+  const requested_device = await requested_adapter.requestDevice({
+    requiredFeatures: requested_features,
+  });
   adapter.value = requested_adapter;
   device.value = requested_device;
   state.value = "finished";

@@ -1,6 +1,6 @@
 import type { FunctionalComponent } from 'vue';
 import { type RouteComponent } from 'vue-router';
-import { LayersIcon, CircuitBoardIcon } from 'lucide-vue-next';
+import { LayersIcon, CircuitBoardIcon, TimerIcon } from 'lucide-vue-next';
 
 export interface CustomRoute {
   name: string;
@@ -59,6 +59,16 @@ export const navigation_tree: NavigationItem[] = [
         },
       },
     ],
+  },
+  import.meta.env.DEV && {
+    type: "endpoint" as const,
+    name: "Benchmark",
+    icon_component: TimerIcon,
+    route: {
+      name: "benchmark",
+      path: "/benchmark",
+      view_component: () => import("./views/benchmark/BenchmarkView.vue"),
+    },
   },
 ].filter(item => item !== false);
 
