@@ -20,6 +20,17 @@ import { StackupParameters } from "./parameters.ts";
 import { type IdStore } from "./id_store.ts";
 
 export const colinear_trace_templates = {
+  "single ended": {
+    create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
+      const ids = Array.from({ length: 1 }, (_) => id_store.own());
+      const conductors: CopperTrace[] = [
+        { type: "trace", id: ids[0], position, width: params.W, voltage: "positive" },
+      ];
+      const spacings: HorizontalSpacing[] = [];
+      return { position, conductors, spacings };
+
+    }
+  } as ColinearTraceTemplate,
   "pair": {
     create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
       const ids = Array.from({ length: 2 }, (_) => id_store.own());
@@ -48,17 +59,6 @@ export const colinear_trace_templates = {
         { left_trace: { id: ids[2], attach: "right" }, right_trace: { id: ids[3], attach: "left" }, width: params.CS },
       ];
       return { position, conductors, spacings };
-    }
-  } as ColinearTraceTemplate,
-  "single ended": {
-    create(params: StackupParameters, position: TracePosition, id_store: IdStore): ColinearTrace {
-      const ids = Array.from({ length: 1 }, (_) => id_store.own());
-      const conductors: CopperTrace[] = [
-        { type: "trace", id: ids[0], position, width: params.W, voltage: "positive" },
-      ];
-      const spacings: HorizontalSpacing[] = [];
-      return { position, conductors, spacings };
-
     }
   } as ColinearTraceTemplate,
   "coplanar single ended": {

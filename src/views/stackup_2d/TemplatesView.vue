@@ -49,16 +49,16 @@ const templates: Template[] = [];
 
 const stackup_types = [
   {
-    name: "broadside",
-    ctor: BroadsideStackupEditor,
-    layer_templates: broadside_layer_templates,
-    trace_templates: broadside_trace_templates,
-  },
-  {
     name: "colinear",
     ctor: ColinearStackupEditor,
     layer_templates: colinear_layer_templates,
     trace_templates: colinear_trace_templates,
+  },
+  {
+    name: "broadside",
+    ctor: BroadsideStackupEditor,
+    layer_templates: broadside_layer_templates,
+    trace_templates: broadside_trace_templates,
   },
 ];
 
