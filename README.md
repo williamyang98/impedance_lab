@@ -10,6 +10,8 @@
 # Impedance Lab
 > A collection of tools for transmission line design, analysis and visualisation.
 
+[Open in your browser here](https://williamyang98.github.io/impedance_lab/)
+
 ## ⚡️2D PCB Stackup
 - Transmission line impedance calculator
 - Configurable PCB stackup (e.g. microstrip, stripline, ...)
