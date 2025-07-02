@@ -1,0 +1,63 @@
+name: Deploy Github Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+jobs:
+  skip_check:
+    continue-on-error: false
+    runs-on: ubuntu-22.04
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip }}
+    steps:
+    - id: skip_check
+      uses: fkirc/skip-duplicate-actions@v5
+      with:
+        concurrent_skipping: 'same_content'
+        cancel_others: 'true'
+        skip_after_successful_duplicate: 'true'
+        paths_ignore: '["**/README.md**", "**LICENSE**"]'
+        do_not_skip: '["workflow_dispatch", "schedule"]'
+  build:
+    needs: skip_check
+    if: needs.skip_check.outputs.should_skip != 'true'
+    runs-on: ubuntu-22.04
+    env:
+      VITE_BASE_URL: /impedance_lab/
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Setup Pages
+      id: pages
+      uses: actions/configure-pages@v5
+
+    - name: Install and activate emscripten
+      working-directory: ./src/wasm/vendor/emsdk
+      run: |
+        python ./emsdk.py install 4.0.10
+        python ./emsdk.py activate 4.0.10
+    
+    - name: Install typescript compiler for emscripten
+      working-directory: ./src/wasm/vendor/emsdk/upstream/emscripten
+      run: npm install typescript
+
+    - name: Compile emscripten WASM module
+      working-directory: ./src/wasm
+      run: |
+        eval $(python ./vendor/emsdk/emsdk.py construct_env)
+        emcmake cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        cmake --build build
+
+    - name: Build website
+      run: npm run build
+
+    - name: Deploy to gh-pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ${{ github.workspace }}/dist

@@ -1,6 +1,6 @@
 {
-  "name": "vue_app",
-  "version": "0.0.0",
+  "name": "impedance_lab",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
-    "lint": "eslint . --fix",
-    "build-wasm": "cd ./src/wasm/ && wasm-pack build --target web --release"
+    "lint": "eslint . --fix"
   },
   "dependencies": {
     "@vueuse/core": "^13.1.0",
