@@ -114,7 +114,7 @@ watch(results, () => {
 
 <template>
 <div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-2 w-full">
-  <div class="w-full card card-border bg-base-100">
+  <div class="w-full min-h-[75vh] card card-border bg-base-100">
     <div class="card-body p-3">
       <div class="relative w-full h-full bg-white">
         <canvas ref="grid-canvas"></canvas>
