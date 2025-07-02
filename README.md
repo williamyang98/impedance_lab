@@ -2,6 +2,9 @@
   <a href="https://github.com/williamyang98/impedance_lab/actions/workflows/github_pages.yml">
     <img src="https://github.com/williamyang98/impedance_lab/actions/workflows/github_pages.yml/badge.svg" alt="github_pages_workflow_status">
   </a>
+  <a href="https://github.com/williamyang98/impedance_lab/actions/workflows/linter.yml">
+    <img src="https://github.com/williamyang98/impedance_lab/actions/workflows/linter.yml/badge.svg" alt="linter_workflow_status">
+  </a>
 </p>
 
 # Impedance Lab
