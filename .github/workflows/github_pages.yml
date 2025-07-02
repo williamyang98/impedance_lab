@@ -53,6 +53,9 @@ jobs:
         emcmake cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
         cmake --build build
 
+    - name: Install npm modules
+      run: npm install
+
     - name: Build website
       run: npm run build
 

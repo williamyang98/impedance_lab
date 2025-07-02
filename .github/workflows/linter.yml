@@ -47,6 +47,9 @@ jobs:
         emcmake cmake . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
         cmake --build build
 
+    - name: Install npm modules
+      run: npm install
+
     - name: Lint check 
       run: npm run lint
 
