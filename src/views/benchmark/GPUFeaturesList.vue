@@ -8,24 +8,24 @@ const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
 
 const all_features: GPUFeatureName[] = [
+  "bgra8unorm-storage",
+  "clip-distances",
+  "core-features-and-limits",
   "depth-clip-control",
   "depth32float-stencil8",
+  "dual-source-blending",
+  "float32-blendable",
+  "float32-filterable",
+  "indirect-first-instance",
+  "rg11b10ufloat-renderable",
+  "shader-f16",
+  "subgroups",
+  "texture-compression-astc",
+  "texture-compression-astc-sliced-3d",
   "texture-compression-bc",
   "texture-compression-bc-sliced-3d",
   "texture-compression-etc2",
-  "texture-compression-astc",
-  "texture-compression-astc-sliced-3d",
   "timestamp-query",
-  "indirect-first-instance",
-  "shader-f16",
-  "rg11b10ufloat-renderable",
-  "bgra8unorm-storage",
-  "float32-filterable",
-  "float32-blendable",
-  "clip-distances",
-  "dual-source-blending",
-  "subgroups",
-  "core-features-and-limits",
 ]
 
 interface PreparedFeature {
@@ -88,7 +88,7 @@ watch(search_string, (new_search_string) => {
         <SearchIcon class="w-[1.25rem] h-[1.25rem]"/>
         <input type="search" placeholder="Search" v-model="search_string"/>
       </label>
-      <div class="max-h-[75vh] overflow-y-auto w-full">
+      <div class="max-h-[65vh] sm:max-h-[75vh] overflow-y-auto w-full">
         <table class="table w-full">
           <thead>
             <tr>

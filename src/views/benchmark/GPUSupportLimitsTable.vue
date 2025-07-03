@@ -9,41 +9,41 @@ const gpu_adapter = providers.gpu_adapter.value;
 
 type LimitField = keyof GPUSupportedLimits;
 const all_limit_fields: LimitField[] = [
-  "maxTextureDimension1D",
-  "maxTextureDimension2D",
-  "maxTextureDimension3D",
-  "maxTextureArrayLayers",
   "maxBindGroups",
   "maxBindGroupsPlusVertexBuffers",
   "maxBindingsPerBindGroup",
-  "maxDynamicUniformBuffersPerPipelineLayout",
-  "maxDynamicStorageBuffersPerPipelineLayout",
-  "maxSampledTexturesPerShaderStage",
-  "maxSamplersPerShaderStage",
-  "maxStorageBuffersPerShaderStage",
-  "maxStorageTexturesPerShaderStage",
-  "maxUniformBuffersPerShaderStage",
-  "maxUniformBufferBindingSize",
-  "maxStorageBufferBindingSize",
-  "minUniformBufferOffsetAlignment",
-  "minStorageBufferOffsetAlignment",
-  "maxVertexBuffers",
   "maxBufferSize",
-  "maxVertexAttributes",
-  "maxVertexBufferArrayStride",
-  "maxInterStageShaderVariables",
-  "maxColorAttachments",
   "maxColorAttachmentBytesPerSample",
-  "maxComputeWorkgroupStorageSize",
+  "maxColorAttachments",
   "maxComputeInvocationsPerWorkgroup",
   "maxComputeWorkgroupSizeX",
   "maxComputeWorkgroupSizeY",
   "maxComputeWorkgroupSizeZ",
+  "maxComputeWorkgroupStorageSize",
   "maxComputeWorkgroupsPerDimension",
-  "maxStorageBuffersInVertexStage",
+  "maxDynamicStorageBuffersPerPipelineLayout",
+  "maxDynamicUniformBuffersPerPipelineLayout",
+  "maxInterStageShaderVariables",
+  "maxSampledTexturesPerShaderStage",
+  "maxSamplersPerShaderStage",
+  "maxStorageBufferBindingSize",
   "maxStorageBuffersInFragmentStage",
-  "maxStorageTexturesInVertexStage",
+  "maxStorageBuffersInVertexStage",
+  "maxStorageBuffersPerShaderStage",
   "maxStorageTexturesInFragmentStage",
+  "maxStorageTexturesInVertexStage",
+  "maxStorageTexturesPerShaderStage",
+  "maxTextureArrayLayers",
+  "maxTextureDimension1D",
+  "maxTextureDimension2D",
+  "maxTextureDimension3D",
+  "maxUniformBufferBindingSize",
+  "maxUniformBuffersPerShaderStage",
+  "maxVertexAttributes",
+  "maxVertexBufferArrayStride",
+  "maxVertexBuffers",
+  "minStorageBufferOffsetAlignment",
+  "minUniformBufferOffsetAlignment",
 ];
 
 const prepared_limit_fields = all_limit_fields.map((field) => {
@@ -101,7 +101,7 @@ watch(search_string, (new_search_string) => {
         <SearchIcon class="w-[1.25rem] h-[1.25rem]"/>
         <input type="search" placeholder="Search" v-model="search_string"/>
       </label>
-      <div class="max-h-[75vh] overflow-y-auto w-full">
+      <div class="max-h-[65vh] sm:max-h-[75vh] overflow-y-auto w-full">
         <table class="table w-full">
           <thead>
             <tr>
@@ -112,7 +112,7 @@ watch(search_string, (new_search_string) => {
           </thead>
           <tbody>
             <tr v-for="field in limit_fields" :key="field">
-              <td>{{ field }}</td>
+              <td class="break-all">{{ field }}</td>
               <td>{{ gpu_adapter.limits[field] }}</td>
               <td>{{ gpu_device.limits[field] }}</td>
             </tr>
