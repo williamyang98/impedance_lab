@@ -92,8 +92,9 @@ watch(is_dark_mode, (new_is_dark_mode) => {
                 <component v-if="item.icon_component" :is="item.icon_component"/>
                 <span class="whitespace-nowrap">{{ item.name }}</span>
               </a>
-              <div v-if="item.type === 'group'" class="dropdown dropdown-center dropdown-bottom">
-                <div class="w-full flex flex-row gap-x-2 items-center" tabindex="0" role="button">
+              <div v-if="item.type === 'group'" class="dropdown dropdown-center dropdown-bottom p-0">
+                <!-- NOTE: remove padding from parent div to button div so entire click region will activate popup -->
+                <div class="w-full flex flex-row gap-x-2 items-center p-2" tabindex="0" role="button">
                   <component v-if="item.icon_component" :is="item.icon_component"/>
                   <div class="flex flex-row gap-x-1">
                     <span class="whitespace-nowrap">{{ item.name }}</span>
