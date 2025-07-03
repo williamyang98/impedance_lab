@@ -100,6 +100,7 @@ const kernel = new KernelBenchmark(gpu_device);
 
 interface BenchmarkResult {
   type: BenchmarkType;
+  is_supported: boolean;
   base_outer_loops: number;
   curr_step?: number;
   total_steps?: number;
@@ -108,12 +109,19 @@ interface BenchmarkResult {
   iop_unit: string;
 }
 
-const benchmark_results = ref<BenchmarkResult[]>([
-  { type: "f16", base_outer_loops: 4, iop_unit: "Flop/s" },
-  { type: "f32", base_outer_loops: 2, iop_unit: "Flop/s" },
-  { type: "u32", base_outer_loops: 1, iop_unit: "Iop/s" },
-  { type: "i32", base_outer_loops: 1, iop_unit: "Iop/s" },
-]);
+function get_supported_benchmarks(): BenchmarkResult[] {
+  const benchmarks: BenchmarkResult[] = [];
+  const features = gpu_device.features as ReadonlySet<GPUFeatureName>;
+  benchmarks.push(
+    { type: "f16", base_outer_loops: 4, iop_unit: "Flop/s", is_supported: features.has("shader-f16") },
+    { type: "f32", base_outer_loops: 2, iop_unit: "Flop/s", is_supported: true },
+    { type: "u32", base_outer_loops: 1, iop_unit: "Iop/s", is_supported: true },
+    { type: "i32", base_outer_loops: 1, iop_unit: "Iop/s", is_supported: true },
+  )
+  return benchmarks;
+}
+
+const benchmark_results = ref<BenchmarkResult[]>(get_supported_benchmarks());
 
 const total_compute_units = ref<number>(12);
 const total_warmup_steps = ref<number>(4);
@@ -158,6 +166,8 @@ async function run_benchmarks() {
 
   try {
     for (const result of benchmark_results.value) {
+      if (!result.is_supported) continue;
+
       const type_size_bytes = kernel.get_type_size_bytes(result.type);
       const gpu_A = gpu_device.createBuffer({
         size: total_elements*type_size_bytes,
@@ -279,15 +289,14 @@ async function on_submit(ev: Event) {
             <tr v-for="result of benchmark_results" :key="result.type">
               <td class="font-medium">{{ result.type }}</td>
               <td>
+                <span class="font-medium" v-if="!result.is_supported">Not supported</span>
                 <progress
-                  v-if="result.iop_rate === undefined"
-                  class="w-full h-[0.5rem] progress progress-info"
+                  v-else-if="result.iop_rate === undefined"
+                  class="w-full h-[1rem] progress progress-info"
                   :value="(result.curr_step ?? 0) / (result.total_steps ?? 1) * 100"
                   max="100"
                 />
-                <template v-else>
-                  {{ with_standard_suffix(result.iop_rate, result.iop_unit, 3) }}
-                </template>
+                <template v-else>{{ with_standard_suffix(result.iop_rate, result.iop_unit, 3) }}</template>
               </td>
             </tr>
           </tbody>
