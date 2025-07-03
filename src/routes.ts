@@ -27,11 +27,11 @@ export type NavigationItem = NavigationEndpoint | NavigationGroup;
 export const navigation_tree: NavigationItem[] = [
   import.meta.env.DEV && {
     type: "endpoint" as const,
-    name: "3D Simulator",
+    name: "3D Stackup",
     icon_component: LayersIcon,
     route: {
-      name: "3d_calculator",
-      path: "/3d_calculator",
+      name: "3d_stackup",
+      path: "/3d_stackup",
       view_component: () => import("./views/app_3d/App3DView.vue"),
     },
   },
@@ -44,8 +44,8 @@ export const navigation_tree: NavigationItem[] = [
         type: "endpoint" as const,
         name: "Impedance Calculator",
         route: {
-          name: "stackup_2d_editor",
-          path: "/stackup_2d/editor",
+          name: "2d_stackup_editor",
+          path: "/2d_stackup/editor",
           view_component: () => import("./views/stackup_2d/StackupCalculator.vue"),
         },
       },
@@ -53,26 +53,32 @@ export const navigation_tree: NavigationItem[] = [
         type: "endpoint" as const,
         name: "Example Stackups",
         route: {
-          name: "stackup_2d_templates",
-          path: "/stackup_2d/templates",
+          name: "2d_stackup_templates",
+          path: "/2d_stackup/templates",
           view_component: () => import("./views/stackup_2d/TemplatesView.vue"),
         },
       },
     ],
   },
   import.meta.env.DEV && {
-    type: "endpoint" as const,
-    name: "Benchmark",
+    type: "group" as const,
+    name: "Benchmarks",
     icon_component: TimerIcon,
-    route: {
-      name: "benchmark",
-      path: "/benchmark",
-      view_component: () => import("./views/benchmark/BenchmarkView.vue"),
-    },
+    endpoints: [
+      {
+        type: "endpoint" as const,
+        name: "GPU Benchmark",
+        route: {
+          name: "benchmark",
+          path: "/benchmark",
+          view_component: () => import("./views/benchmark/BenchmarkView.vue"),
+        },
+      }
+    ],
   },
 ].filter(item => item !== false);
 
-export const default_route_name = "stackup_2d_templates";
+export const default_route_name = "2d_stackup_templates";
 
 export const routes = navigation_tree
   .flatMap((item) => {

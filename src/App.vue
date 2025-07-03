@@ -1,26 +1,19 @@
 <script setup lang="ts">
-import { watch, useTemplateRef, ref } from "vue";
+import { watch, ref } from "vue";
 import { useRouter, useRoute, RouterView } from "vue-router";
 import GpuProvider from "./providers/GpuProvider.vue";
 import WasmProvider from "./providers/WasmProvider.vue";
 import ToastProvider from "./providers/toast/ToastProvider.vue";
-import { Moon, Sun, MenuIcon } from 'lucide-vue-next';
+import { MoonIcon, SunIcon, MenuIcon, ChevronDownIcon } from 'lucide-vue-next';
 import { navigation_tree, type NavigationEndpoint } from "./routes.ts";
 import GithubIcon from "./assets/github.svg";
 
 const router = useRouter();
 const curr_route = useRoute();
 
-const desktop_nav_menu = useTemplateRef<HTMLUListElement>("desktop-nav-menu");
-
 watch(() => curr_route.fullPath, () => {
   if (document.activeElement) {
     (document.activeElement as HTMLElement).blur();
-  }
-  if (desktop_nav_menu.value) {
-    desktop_nav_menu.value
-      .querySelectorAll("details[open]")
-      .forEach(elem => elem.removeAttribute("open"));
   }
 });
 
@@ -89,35 +82,36 @@ watch(is_dark_mode, (new_is_dark_mode) => {
         </div>
         <!--Desktop navigation menu-->
         <div class="navbar-center hidden md:flex">
-          <ul class="menu menu-horizontal px-1 gap-x-1 z-1 p-0" ref="desktop-nav-menu">
+          <ul class="menu menu-horizontal px-1 gap-x-1 z-1 p-0">
             <li v-for="item in navigation_tree" :key="item.name">
               <a
                 v-if="item.type === 'endpoint'"
                 :href="router.resolve(item.route.path).href"
-                class="w-full group" :class="get_navigation_class(item)"
+                class="w-full flex flex-row gap-x-2 items-center" :class="get_navigation_class(item)"
               >
                 <component v-if="item.icon_component" :is="item.icon_component"/>
                 <span class="whitespace-nowrap">{{ item.name }}</span>
               </a>
-              <template v-if="item.type === 'group'">
-                <details>
-                  <summary class="w-full group">
-                    <component v-if="item.icon_component" :is="item.icon_component"/>
+              <div v-if="item.type === 'group'" class="dropdown dropdown-center dropdown-bottom">
+                <div class="w-full flex flex-row gap-x-2 items-center" tabindex="0" role="button">
+                  <component v-if="item.icon_component" :is="item.icon_component"/>
+                  <div class="flex flex-row gap-x-1">
                     <span class="whitespace-nowrap">{{ item.name }}</span>
-                  </summary>
-                  <ul class="p-2">
-                    <li v-for="endpoint in item.endpoints" :key="endpoint.name">
-                      <a
-                        :href="router.resolve(endpoint.route.path).href"
-                        class="w-full group" :class="get_navigation_class(endpoint)"
-                      >
-                        <component v-if="endpoint.icon_component" :is="endpoint.icon_component"/>
-                        <span class="whitespace-nowrap">{{ endpoint.name }}</span>
-                      </a>
-                    </li>
-                  </ul>
-                </details>
-              </template>
+                    <ChevronDownIcon class="size-4 mt-1"/>
+                  </div>
+                </div>
+                <ul tabindex="0" class="menu dropdown-content bg-base-100 rounded-box z-1 mt-3 ml-0 w-45 p-2 shadow">
+                  <li v-for="endpoint in item.endpoints" :key="endpoint.name">
+                    <a
+                      :href="router.resolve(endpoint.route.path).href"
+                      class="w-full group" :class="get_navigation_class(endpoint)"
+                    >
+                      <component v-if="endpoint.icon_component" :is="endpoint.icon_component"/>
+                      <span class="whitespace-nowrap">{{ endpoint.name }}</span>
+                    </a>
+                  </li>
+                </ul>
+              </div>
             </li>
           </ul>
         </div>
@@ -126,9 +120,9 @@ watch(is_dark_mode, (new_is_dark_mode) => {
             <GithubIcon class="w-[1.75rem] h-[1.75rem]" style="fill: var(--color-base-content)"/>
           </a>
           <label class="flex flex-row items-center cursor-pointer gap-x-1">
-            <Sun class="h-5 w-5"/>
+            <SunIcon class="h-5 w-5"/>
             <input type="checkbox" v-model="is_dark_mode" class="toggle theme-controller" value="dark"/>
-            <Moon class="h-5 w-5"/>
+            <MoonIcon class="h-5 w-5"/>
           </label>
         </div>
       </div>

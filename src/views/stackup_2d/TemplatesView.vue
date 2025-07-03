@@ -93,7 +93,7 @@ const router = useRouter();
 
 function get_template_url(tagged_editor: Template): string {
   const query_string = tag_to_query_string(tagged_editor.tag);
-  const url = `/stackup_2d/editor?${query_string}`;
+  const url = `/2d_stackup/editor?${query_string}`;
   return router.resolve(url).href;
 }
 
