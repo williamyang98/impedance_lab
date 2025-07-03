@@ -7,9 +7,6 @@ import fuzzysort from "fuzzysort";
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
 
-const is_device = ref(true);
-const gpu_limits = computed<GPUSupportedLimits>(() => is_device.value ? gpu_device.limits : gpu_adapter.limits);
-
 type LimitField = keyof GPUSupportedLimits;
 const all_limit_fields: LimitField[] = [
   "maxTextureDimension1D",
@@ -100,27 +97,24 @@ watch(search_string, (new_search_string) => {
   <div class="card-body p-3">
     <div class="card-title">GPU Limits</div>
     <div class="flex flex-col">
-      <div class="flex flex-row gap-x-2 items-center w-full">
-        <label class="input w-full">
-          <SearchIcon class="w-[1.25rem] h-[1.25rem]"/>
-          <input type="search" placeholder="Search" v-model="search_string"/>
-        </label>
-        <select class="select w-fit" v-model="is_device">
-          <option :value="true">Device</option>
-          <option :value="false">Adapter</option>
-        </select>
-      </div>
+      <label class="input w-full">
+        <SearchIcon class="w-[1.25rem] h-[1.25rem]"/>
+        <input type="search" placeholder="Search" v-model="search_string"/>
+      </label>
       <div class="max-h-[75vh] overflow-y-auto w-full">
         <table class="table w-full">
           <thead>
             <tr>
-              <th>Property</th>
-              <th>Value</th>
+              <th class="w-full">Property</th>
+              <th class="w-fit">Adapter</th>
+              <th class="w-fit">Device</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="field in limit_fields" :key="field">
-              <td>{{ field }}</td><td>{{ gpu_limits[field] }}</td>
+              <td>{{ field }}</td>
+              <td>{{ gpu_adapter.limits[field] }}</td>
+              <td>{{ gpu_device.limits[field] }}</td>
             </tr>
           </tbody>
         </table>
@@ -129,3 +123,12 @@ watch(search_string, (new_search_string) => {
   </div>
 </div>
 </template>
+
+<style scoped>
+.table {
+  :where(th, td) {
+    padding-inline: calc(var(--spacing)*2);
+    padding-block: calc(var(--spacing)*2);
+  }
+}
+</style>
