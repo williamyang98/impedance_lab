@@ -161,6 +161,7 @@ export class TextureCache {
       texture.height !== height ||
       texture.format !== format
     ) {
+      texture?.destroy();
       texture = this.gpu_device.createTexture({
         dimension: "2d",
         format,
