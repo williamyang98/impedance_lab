@@ -71,7 +71,7 @@ export const navigation_tree: NavigationItem[] = [
         route: {
           name: "benchmark",
           path: "/benchmark",
-          view_component: () => import("./views/benchmark/BenchmarkView.vue"),
+          view_component: () => import("./views/gpu_benchmark/BenchmarkView.vue"),
         },
       }
     ],

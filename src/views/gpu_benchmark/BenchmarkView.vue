@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { useId } from "vue";
 import FlopBenchmarkView from './FlopBenchmarkView.vue';
-import GPUSupportLimitsTable from './GPUSupportLimitsTable.vue';
-import GPUFeaturesList from './GPUFeaturesList.vue';
+import GPUSupportLimitsTable from './LimitsTable.vue';
+import GPUFeaturesList from './FeaturesList.vue';
 
 const uid = {
   tab: useId(),
