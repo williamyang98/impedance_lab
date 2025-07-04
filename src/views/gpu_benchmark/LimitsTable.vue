@@ -102,19 +102,19 @@ watch(search_string, (new_search_string) => {
         <input type="search" placeholder="Search" v-model="search_string"/>
       </label>
       <div class="max-h-[65vh] sm:max-h-[75vh] overflow-y-auto w-full">
-        <table class="table w-full">
+        <table class="table table-compact table-pin-rows w-full">
           <thead>
             <tr>
               <th class="w-full">Property</th>
-              <th class="w-fit">Adapter</th>
-              <th class="w-fit">Device</th>
+              <th>Adapter</th>
+              <th>Device</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="field in limit_fields" :key="field">
               <td class="break-all">{{ field }}</td>
-              <td>{{ gpu_adapter.limits[field] }}</td>
-              <td>{{ gpu_device.limits[field] }}</td>
+              <td class="text-nowrap">{{ gpu_adapter.limits[field] ?? 'N/A' }}</td>
+              <td class="text-nowrap">{{ gpu_device.limits[field] ?? 'N/A' }}</td>
             </tr>
           </tbody>
         </table>
@@ -123,12 +123,3 @@ watch(search_string, (new_search_string) => {
   </div>
 </div>
 </template>
-
-<style scoped>
-.table {
-  :where(th, td) {
-    padding-inline: calc(var(--spacing)*2);
-    padding-block: calc(var(--spacing)*2);
-  }
-}
-</style>

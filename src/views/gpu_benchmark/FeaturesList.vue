@@ -89,7 +89,7 @@ watch(search_string, (new_search_string) => {
         <input type="search" placeholder="Search" v-model="search_string"/>
       </label>
       <div class="max-h-[65vh] sm:max-h-[75vh] overflow-y-auto w-full">
-        <table class="table w-full">
+        <table class="table table-compact table-pin-rows w-full">
           <thead>
             <tr>
               <th class="w-full">Feature</th>
@@ -100,8 +100,8 @@ watch(search_string, (new_search_string) => {
           <tbody>
             <tr v-for="feature in search_features" :key="feature">
               <td>{{ feature }}</td>
-              <td class="text-center"><input type="checkbox" :checked="gpu_device.features.has(feature)" disabled/></td>
               <td class="text-center"><input type="checkbox" :checked="gpu_adapter.features.has(feature)" disabled/></td>
+              <td class="text-center"><input type="checkbox" :checked="gpu_device.features.has(feature)" disabled/></td>
             </tr>
           </tbody>
         </table>
@@ -110,12 +110,3 @@ watch(search_string, (new_search_string) => {
   </div>
 </div>
 </template>
-
-<style scoped>
-.table {
-  :where(th, td) {
-    padding-inline: calc(var(--spacing)*2);
-    padding-block: calc(var(--spacing)*2);
-  }
-}
-</style>
