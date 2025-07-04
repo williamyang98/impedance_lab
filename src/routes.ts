@@ -60,7 +60,7 @@ export const navigation_tree: NavigationItem[] = [
       },
     ],
   },
-  import.meta.env.DEV && {
+  {
     type: "group" as const,
     name: "Benchmarks",
     icon_component: TimerIcon,
@@ -69,8 +69,8 @@ export const navigation_tree: NavigationItem[] = [
         type: "endpoint" as const,
         name: "GPU Benchmark",
         route: {
-          name: "benchmark",
-          path: "/benchmark",
+          name: "gpu_benchmark",
+          path: "/benchmark/gpu",
           view_component: () => import("./views/gpu_benchmark/BenchmarkView.vue"),
         },
       }
