@@ -85,7 +85,7 @@ function download_all_ndarrays(name: string) {
 </script>
 
 <template>
-<table class="table" :class="$attrs.class">
+<table class="table table-pin-rows table-compact" :class="$attrs.class">
   <thead>
     <tr>
       <th>Name</th>

@@ -124,7 +124,7 @@ watch(results, () => {
   <div class="w-full card card-border bg-base-100">
     <div class="card-body p-3">
       <div class="w-full max-h-[75vh] overflow-y-auto">
-        <table class="w-full table">
+        <table class="w-full table table-compact table-pin-rows">
           <thead>
             <tr>
               <th>Step</th>

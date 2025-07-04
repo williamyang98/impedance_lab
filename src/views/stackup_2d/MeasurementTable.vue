@@ -9,7 +9,7 @@ const _props = defineProps<{
 </script>
 
 <template>
-<table class="table w-full">
+<table class="table table-compact w-full">
   <tbody>
     <template v-if="measurement.type == 'single'">
       <tr><td class="font-medium">Type</td><td>Single Ended</td></tr>
