@@ -113,17 +113,17 @@ watch(results, () => {
 </script>
 
 <template>
-<div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-2 w-full">
-  <div class="w-full min-h-[75vh] card card-border bg-base-100">
+<div class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-2 w-full h-full">
+  <div class="card card-border bg-base-100">
     <div class="card-body p-3">
       <div class="relative w-full h-full bg-white">
         <canvas ref="grid-canvas"></canvas>
       </div>
     </div>
   </div>
-  <div class="w-full card card-border bg-base-100">
+  <div class="card card-border bg-base-100">
     <div class="card-body p-3">
-      <div class="w-full max-h-[75vh] overflow-y-auto">
+      <div class="w-full h-full overflow-y-auto">
         <table class="w-full table table-compact table-pin-rows">
           <thead>
             <tr>

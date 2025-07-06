@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { defineProps, ref, useTemplateRef, watch, computed } from "vue";
 import GridRegionTable from "./GridRegionTable.vue";
-import { defineProps, ref, useTemplateRef, watch, computed, useId } from "vue";
+import TabsView from "../../utility/TabsView.vue";
 import { StackupGrid } from "./grid.ts";
 import Chart from "chart.js/auto";
 
@@ -141,10 +142,6 @@ function create_chart() {
   });
 }
 
-const uid = {
-  tab_region_grid: useId(),
-};
-
 watch(grid_canvas_elem, () => {
   create_chart();
 })
@@ -156,34 +153,26 @@ watch(stackup_grid, () => {
 </script>
 
 <template>
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-2 w-full">
-  <div class="w-full min-h-[75vh] card card-border bg-base-100">
+<div class="w-full h-full grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-2 w-full">
+  <div class="card card-border bg-base-100">
     <div class="card-body p-3">
-      <div class="relative w-full h-full bg-white">
+      <div class="relative w-full h-full bg-white rounded">
         <canvas ref="grid-canvas"></canvas>
       </div>
     </div>
   </div>
-  <div class="w-full card card-border bg-base-100">
+  <div class="card card-border bg-base-100">
     <div class="card-body p-3">
-      <div>
-        <div class="tabs tabs-box">
-          <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="X" checked/>
-          <div class="tab-content max-h-[70vh] overflow-auto">
-            <GridRegionTable
-              :region_to_grid_map="stackup_grid.x_region_to_grid_map"
-              class="bg-base-100 mt-1"
-            />
-          </div>
-          <input type="radio" :name="uid.tab_region_grid" class="tab" aria-label="Y"/>
-          <div class="tab-content max-h-[70vh] overflow-auto">
-            <GridRegionTable
-              :region_to_grid_map="stackup_grid.y_region_to_grid_map"
-              class="bg-base-100 mt-1"
-            />
-          </div>
-        </div>
-      </div>
+      <TabsView>
+        <template #h-0>X</template>
+        <template #b-0>
+          <GridRegionTable class="bg-base-100 rounded-none" :region_to_grid_map="stackup_grid.x_region_to_grid_map"/>
+        </template>
+        <template #h-1>Y</template>
+        <template #b-1>
+          <GridRegionTable class="bg-base-100 rounded-none" :region_to_grid_map="stackup_grid.y_region_to_grid_map"/>
+        </template>
+      </TabsView>
     </div>
   </div>
 </div>

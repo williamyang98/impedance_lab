@@ -135,32 +135,34 @@ watch(search_string, (new_search_string) => {
 </script>
 
 <template>
-<div class="w-full">
-  <div class="flex flex-row justify-center w-full mb-2">
-    <label class="input">
+<div class="flex flex-col h-full w-full gap-y-1">
+  <div class="flex flex-row justify-center w-full my-1">
+    <label class="input w-full sm:w-[25rem]">
       <SearchIcon class="w-[1.25rem] h-[1.25rem]"/>
       <input type="search" placeholder="Search" v-model="search_string"/>
     </label>
   </div>
-  <div class="w-full grid grid-cols-[repeat(auto-fit,minmax(20rem,1fr))] gap-x-2 gap-y-2 overflow-auto">
-    <template v-for="(template, index) in sorted_templates" :key="index">
-      <a
-        class="card card-border bg-base-100 hover:bg-base-300 select-none cursor-pointer"
-        :href="get_template_url(template)"
-      >
-        <div class="card-body p-3">
-          <div class="card-title w-full justify-center text-center">{{ tag_to_title(template.tag) }}</div>
-          <div class="w-full h-full flex flex-col justify-center">
-            <div class="w-full rounded-sm bg-white">
-              <StackupViewer :stackup="template.editor.get_simulation_stackup()" :config="viewer_config"/>
+  <div class="h-full w-full overflow-y-auto">
+    <div class="w-full grid grid-cols-[repeat(auto-fit,minmax(20rem,1fr))] gap-x-2 gap-y-2">
+      <template v-for="(template, index) in sorted_templates" :key="index">
+        <a
+          class="card card-border bg-base-100 hover:bg-base-300 select-none cursor-pointer"
+          :href="get_template_url(template)"
+        >
+          <div class="card-body p-3">
+            <div class="card-title w-full justify-center text-center">{{ tag_to_title(template.tag) }}</div>
+            <div class="w-full h-full flex flex-col justify-center">
+              <div class="w-full rounded-sm bg-white">
+                <StackupViewer :stackup="template.editor.get_simulation_stackup()" :config="viewer_config"/>
+              </div>
             </div>
           </div>
-        </div>
-      </a>
-    </template>
-  </div>
-  <div v-if="sorted_templates.length === 0" class="text-center py-2 w-full">
-    <h1 class="text-2xl">No search results</h1>
+        </a>
+      </template>
+    </div>
+    <div v-if="sorted_templates.length === 0" class="text-center py-2 w-full">
+      <h1 class="text-2xl">No search results</h1>
+    </div>
   </div>
 </div>
 

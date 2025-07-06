@@ -80,33 +80,28 @@ watch(search_string, (new_search_string) => {
 </script>
 
 <template>
-<div class="card card-border bg-base-100">
-  <div class="card-body p-3">
-    <div class="card-title">GPU Features</div>
-    <div class="flex flex-col">
-      <label class="input w-full">
-        <SearchIcon class="w-[1.25rem] h-[1.25rem]"/>
-        <input type="search" placeholder="Search" v-model="search_string"/>
-      </label>
-      <div class="max-h-[65vh] sm:max-h-[75vh] overflow-y-auto w-full">
-        <table class="table table-compact table-pin-rows w-full">
-          <thead>
-            <tr>
-              <th class="w-full">Feature</th>
-              <th class="w-fit">Adapter</th>
-              <th class="w-fit">Device</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="feature in search_features" :key="feature">
-              <td>{{ feature }}</td>
-              <td class="text-center"><input type="checkbox" :checked="gpu_adapter.features.has(feature)" disabled/></td>
-              <td class="text-center"><input type="checkbox" :checked="gpu_device.features.has(feature)" disabled/></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+<div class="flex flex-col w-full h-full bg-base-100 gap-y-1 p-2">
+  <label class="input w-full">
+    <SearchIcon class="size-[1.25rem]"/>
+    <input type="search" placeholder="Search" v-model="search_string"/>
+  </label>
+  <div class="overflow-y-auto w-full h-full">
+    <table class="table table-compact table-pin-rows w-full">
+      <thead>
+        <tr>
+          <th class="w-full">Feature</th>
+          <th class="w-fit">Adapter</th>
+          <th class="w-fit">Device</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="feature in search_features" :key="feature">
+          <td>{{ feature }}</td>
+          <td class="text-center"><input type="checkbox" :checked="gpu_adapter.features.has(feature)" disabled/></td>
+          <td class="text-center"><input type="checkbox" :checked="gpu_device.features.has(feature)" disabled/></td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </div>
 </template>

@@ -3,30 +3,26 @@ import ComputeBenchmarkView from './ComputeBenchmarkView.vue';
 import MemoryBandwidthBenchmarkView from "./MemoryBandwidthBenchmarkView.vue";
 import GPUSupportLimitsTable from './LimitsTable.vue';
 import GPUFeaturesList from './FeaturesList.vue';
-import { useId } from "vue";
-
-const uid = {
-  tab: useId(),
-};
+import TabsView from "../../utility/TabsView.vue";
 
 </script>
 
 <template>
-<div class="tabs tabs-box w-full">
-  <input type="radio" :name="uid.tab" class="tab" aria-label="Benchmarks" checked/>
-  <div class="tab-content overflow-auto p-1">
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+<TabsView>
+  <template #h-0>Benchmarks</template>
+  <template #b-0>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
       <ComputeBenchmarkView/>
       <MemoryBandwidthBenchmarkView/>
     </div>
-  </div>
-  <input type="radio" :name="uid.tab" class="tab" aria-label="Limits"/>
-  <div class="tab-content overflow-auto p-1">
+  </template>
+  <template #h-1>Limits</template>
+  <template #b-1>
     <GPUSupportLimitsTable/>
-  </div>
-  <input type="radio" :name="uid.tab" class="tab" aria-label="Features"/>
-  <div class="tab-content overflow-auto p-1">
+  </template>
+  <template #h-2>Features</template>
+  <template #b-2>
     <GPUFeaturesList/>
-  </div>
-</div>
+  </template>
+</TabsView>
 </template>

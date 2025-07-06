@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  computed, ref, useId,
+  computed, ref,
   // NOTE: we need use toRaw(...) to unwrap the proxy on wasm module objects
   //       otherwise emscripten will panic on upcastCheck() use to upcast/downcast virtual pointers
   //       this is because it performs a comparison between the entity's "class" descriptor
@@ -20,6 +20,7 @@ import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 import GridViewer from "./GridViewer.vue";
 import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
 import ExportView from "./ExportView.vue";
+import TabsView from "../../utility/TabsView.vue";
 import { PencilIcon, EyeIcon, InfoIcon } from "lucide-vue-next";
 // ts imports
 import { validate_parameter, type Parameter } from "./stackup.ts";
@@ -222,11 +223,6 @@ const stackup_grid_config = computed(() => {
   return config;
 });
 
-const uid = {
-  tab_global: useId(),
-  tab_result: useId(),
-  tab_simulation: useId(),
-};
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const measurement = ref<Measurement | undefined>(undefined);
@@ -354,11 +350,11 @@ watch(() => route.query, (new_query) => {
 </script>
 
 <template>
-<div class="tabs tabs-box">
+<TabsView>
   <!--Calculator tab-->
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Calculator" checked/>
-  <div class="tab-content p-1">
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-x-2 gap-y-2">
+  <template #h-0>Calculator</template>
+  <template #b-0>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
       <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
           <h2 class="card-title">Stackup</h2>
@@ -411,19 +407,13 @@ watch(() => route.query, (new_query) => {
       <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
           <h2 class="card-title">Impedance</h2>
-          <div class="h-full">
-            <div class="w-full flex flex-row">
-              <label class="label mr-2">Z0 target </label>
-              <input class="input input w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
-            </div>
-            <template v-if="measurement">
-              <MeasurementTable :measurement="measurement"></MeasurementTable>
-            </template>
-            <template v-else>
-              <div class="w-full h-full flex justify-center items-center">
-                <h1 class="text-xl">No results to display</h1>
-              </div>
-            </template>
+          <div class="w-full flex flex-row">
+            <label class="label mr-2">Z0 target </label>
+            <input class="input input w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
+          </div>
+          <MeasurementTable v-if="measurement" :measurement="measurement"></MeasurementTable>
+          <div v-else class="text-center text-xl py-2">
+            No results to display
           </div>
           <div class="card-actions justify-end">
             <button class="btn" @click="calculate_impedance()" :disabled="is_running">Calculate</button>
@@ -431,68 +421,56 @@ watch(() => route.query, (new_query) => {
         </div>
       </div>
     </div>
-  </div>
+  </template>
   <!--Parameter search tab-->
-  <label class="tab">
-    <input type="radio" :name="uid.tab_global"/>
+  <template #h-1>
     <div class="flex flex-row gap-x-2 items-center">
-      <span>Parameter Search</span>
+      <span class="text-nowrap">Parameter Search</span>
       <div v-if="search_results" class="badge badge-sm badge-secondary">{{ search_results.results.length }}</div>
     </div>
-  </label>
-  <div class="tab-content p-1">
+  </template>
+  <template #b-1>
     <ParameterSearchResultsGraph v-if="search_results" :results="search_results"/>
-    <div v-else class="text-center py-2">
-      <h1 class="text-2xl">Perform parameter search to see search curve</h1>
+    <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
+      Perform parameter search to see search curve
     </div>
-  </div>
+  </template>
   <!--Visualisation tab-->
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Visualiser"/>
-  <div class="tab-content p-1">
-    <div v-if="stackup_grid" class="w-full">
-      <GridViewer :grid="stackup_grid.grid"/>
+  <template #h-2>Visualiser</template>
+  <template #b-2>
+    <GridViewer v-if="stackup_grid" :grid="stackup_grid.grid"/>
+    <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
+      Calculate impedance to see visualisation
     </div>
-    <div v-else class="text-center py-2">
-      <h1 class="text-2xl">Calculate impedance to see visualisation</h1>
-    </div>
-  </div>
+  </template>
   <!--Mesh tab-->
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Mesh"/>
-  <div class="tab-content p-1">
+  <template #h-3>Mesh</template>
+  <template #b-3>
     <MeshViewer v-if="stackup_grid" :stackup_grid="stackup_grid"></MeshViewer>
-    <div v-else class="text-center py-2">
-      <h1 class="text-2xl">Calculate impedance to see mesh</h1>
+    <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
+      Calculate impedance to see mesh
     </div>
-  </div>
+  </template>
   <!--Profiler tab-->
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Profiler"/>
-  <div class="tab-content p-1">
-    <div class="w-full">
-      <template v-if="profiler">
-        <ProfilerFlameChart :profiler="profiler"></ProfilerFlameChart>
-      </template>
-      <template v-else>
-        <div class="text-center py-2">
-          <h1 class="text-2xl">Calculate impedance to see execution profile</h1>
-        </div>
-      </template>
+  <template #h-4>Profiler</template>
+  <template #b-4>
+    <ProfilerFlameChart v-if="profiler" :profiler="profiler"></ProfilerFlameChart>
+    <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
+      Calculate impedance to see execution profile
     </div>
-  </div>
+  </template>
   <!--Data export tab-->
-  <input type="radio" :name="uid.tab_global" class="tab" aria-label="Export"/>
-  <div class="tab-content p-1">
-    <div class="w-full">
-      <!--NOTE: justify-center-safe is required since flex centering with overflow is broken (https://stackoverflow.com/a/78181725)-->
-      <div v-if="stackup_grid" class="w-full flex justify-center-safe overflow-x-auto">
-        <ExportView :grid="stackup_grid.grid" class="w-fit border border-base-300 bg-base-100"/>
-      </div>
-      <div v-else class="text-center py-2">
-        <h1 class="text-2xl">Calculate impedance to export simulation data</h1>
-      </div>
+  <template #h-5>Export</template>
+  <template #b-5>
+    <!--NOTE: justify-center-safe is required since flex centering with overflow is broken (https://stackoverflow.com/a/78181725)-->
+    <div v-if="stackup_grid" class="w-full flex justify-center-safe overflow-x-auto">
+      <ExportView :grid="stackup_grid.grid" class="w-fit border border-base-300 bg-base-100"/>
     </div>
-  </div>
-</div>
-
+    <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
+      Calculate impedance to export simulation data
+    </div>
+  </template>
+</TabsView>
 </template>
 
 <style scoped>

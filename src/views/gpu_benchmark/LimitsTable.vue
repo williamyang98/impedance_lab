@@ -93,33 +93,28 @@ watch(search_string, (new_search_string) => {
 </script>
 
 <template>
-<div class="card card-border bg-base-100">
-  <div class="card-body p-3">
-    <div class="card-title">GPU Limits</div>
-    <div class="flex flex-col">
-      <label class="input w-full">
-        <SearchIcon class="w-[1.25rem] h-[1.25rem]"/>
-        <input type="search" placeholder="Search" v-model="search_string"/>
-      </label>
-      <div class="max-h-[65vh] sm:max-h-[75vh] overflow-y-auto w-full">
-        <table class="table table-compact table-pin-rows w-full">
-          <thead>
-            <tr>
-              <th class="w-full">Property</th>
-              <th>Adapter</th>
-              <th>Device</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="field in limit_fields" :key="field">
-              <td class="break-all">{{ field }}</td>
-              <td class="text-nowrap">{{ gpu_adapter.limits[field] ?? 'N/A' }}</td>
-              <td class="text-nowrap">{{ gpu_device.limits[field] ?? 'N/A' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
+<div class="flex flex-col w-full h-full bg-base-100 gap-y-1 p-2">
+  <label class="input w-full">
+    <SearchIcon class="size-[1.25rem]"/>
+    <input type="search" placeholder="Search" v-model="search_string"/>
+  </label>
+  <div class="overflow-y-auto h-full w-full">
+    <table class="table table-compact table-pin-rows w-full">
+      <thead>
+        <tr>
+          <th class="w-full">Property</th>
+          <th>Adapter</th>
+          <th>Device</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="field in limit_fields" :key="field">
+          <td class="break-all">{{ field }}</td>
+          <td class="text-nowrap">{{ gpu_adapter.limits[field] ?? 'N/A' }}</td>
+          <td class="text-nowrap">{{ gpu_device.limits[field] ?? 'N/A' }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </div>
 </template>

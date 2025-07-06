@@ -33,6 +33,8 @@ class FlameChart {
     const rel_width = abs_width/root_width;
     const rel_left = (trace.start_ms-root_left)/root_width;
 
+    if (rel_width < 0.01) return;
+
     let row: Row | undefined = undefined;
     if (this.rows.length <= level) {
       row = { spans: [] };
@@ -104,7 +106,7 @@ function on_span_enter(ev: MouseEvent) {
 </script>
 
 <template>
-<div class="w-full" ref="flamechart-viewport">
+<div class="w-full h-full overflow-x-auto text-[0.875rem]" ref="flamechart-viewport">
   <div class="chart-row" v-for="(row, row_index) of flame_chart.rows" :key="row_index">
     <template v-for="(span, span_index) of row.spans" :key="span_index">
       <div

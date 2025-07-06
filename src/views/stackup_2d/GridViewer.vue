@@ -47,8 +47,8 @@ const refresh = debounce_animation_frame_async(async () => {
   });
   const canvas_texture = context.getCurrentTexture().createView();
   const canvas_size = {
-    width: canvas_context.value.canvas.width,
-    height: canvas_context.value.canvas.height,
+    width: context.canvas.width,
+    height: context.canvas.height,
   };
   const command_encoder = gpu_device.createCommandEncoder();
   const renderer = toRaw(master_renderer.value);
@@ -70,14 +70,29 @@ interface HoverInfo {
   tooltip: Tooltip;
 }
 const hover_info = ref<HoverInfo | undefined>(undefined);
+const tooltip_elem = useTemplateRef<HTMLElement>("tooltip_elem");
+const show_tooltip = computed(() => is_mouse_over.value && hover_info.value !== undefined);
 
 const on_mouse_move = debounce_animation_frame((ev: MouseEvent) => {
   if (!is_mouse_over.value) return;
   if (ev.target === null) return;
   const target = ev.target as HTMLCanvasElement;
   const rect = target.getBoundingClientRect();
-  const dx = ev.clientX-rect.left;
-  const dy = ev.clientY-rect.top;
+  let dx = ev.clientX-rect.left;
+  let dy = ev.clientY-rect.top;
+
+  if (tooltip_elem.value) {
+    const padding = 10;
+    const tooltip_width = tooltip_elem.value.clientWidth;
+    const tooltip_height = tooltip_elem.value.clientHeight;
+    if ((dx+tooltip_width+padding) > rect.right) {
+      dx -= tooltip_width;
+    }
+    if ((dy+tooltip_height*1.5+padding) > rect.bottom) {
+      dy -= tooltip_height;
+    }
+  }
+
   const norm_x = dx/rect.width;
   const norm_y = dy/rect.height;
   const tooltip = toRaw(master_renderer.value).get_tooltip(norm_x, norm_y);
@@ -119,9 +134,7 @@ watch(props, () => {
 let resize_observer: ResizeObserver | undefined = undefined;
 watch(canvas_element, (elem) => {
   if (elem === null) return;
-  if (resize_observer !== undefined) {
-    resize_observer.disconnect();
-  }
+  resize_observer?.disconnect();
   resize_observer = new ResizeObserver(() => {
     const canvas = canvas_element.value;
     if (canvas === null) return false;
@@ -152,34 +165,34 @@ defineExpose({
 </script>
 
 <template>
-<div class="w-full grid grid-cols-1 sm:grid-cols-[auto_15rem] gap-x-2 gap-y-2">
-  <div class="relative w-full h-fit">
+<div class="w-full h-full grid grid-cols-1 sm:grid-cols-[auto_15rem] gap-x-2 gap-y-2">
+  <div class="relative overflow-hidden cursor-crosshair">
     <canvas
       ref="grid-canvas"
-      class="grid-view w-full max-h-[75vh] border-1 border-slate-300"
+      class="grid-view w-full h-full border-1 border-slate-300"
       @mousemove="on_mouse_move"
       @mouseenter="on_mouse_enter"
       @mouseleave="on_mouse_leave"
     >
     </canvas>
     <!--Hover info-->
-    <template v-if="is_mouse_over && hover_info !== undefined">
-      <div
-        class="absolute pointer-events-none z-1 card card-border bg-base-100 m-2 min-w-[12rem]"
-        :style="`left: ${hover_info.x.toFixed(0)}px; top: ${hover_info.y.toFixed(0)}px`"
-      >
-        <div class="card-body p-1">
-          <table class="w-full table table-sm">
-            <tbody>
-              <tr v-for="(row, index) in hover_info.tooltip" :key="index">
-                <td class="font-medium">{{ row.label }}</td>
-                <td>{{ row.value }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+    <div
+      :class="`${show_tooltip ? '' : 'hidden'}`"
+      class="absolute pointer-events-none z-1 card card-border bg-base-100 min-w-[12rem]"
+      :style="`left: ${(hover_info?.x ?? 0).toFixed(0)}px; top: ${(hover_info?.y ?? 0).toFixed(0)}px`"
+      ref="tooltip_elem"
+    >
+      <div class="card-body p-1">
+        <table v-if="hover_info?.tooltip" class="w-full table table-sm">
+          <tbody>
+            <tr v-for="(row, index) in hover_info.tooltip" :key="index">
+              <td class="font-medium">{{ row.label }}</td>
+              <td>{{ row.value }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-    </template>
+    </div>
   </div>
   <!--Viewer controls-->
   <div class="flex flex-col gap-y-2 w-full">
