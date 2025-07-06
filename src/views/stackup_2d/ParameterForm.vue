@@ -169,11 +169,23 @@ class Form {
 
 const form = computed(() => new Form(props.stackup));
 
+function is_parameter_changed(param: Parameter): boolean {
+  switch (param.type) {
+    case "epsilon": return param.old_value !== param.value;
+    case "size": // @fallthrough
+    case "taper": {
+      if (param.old_value !== param.value) return true;
+      if (param.old_unit !== param.unit) return true;
+      return false;
+    }
+  }
+}
+
 function get_input_class(param: Parameter): string {
   if (param.error !== undefined) {
     return "input-error";
   }
-  if (param.old_value != param.value) {
+  if (is_parameter_changed(param)) {
     return "input-warning";
   }
   return "";

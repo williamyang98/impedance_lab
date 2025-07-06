@@ -23,7 +23,7 @@ import ExportView from "./ExportView.vue";
 import TabsView from "../../utility/TabsView.vue";
 import { PencilIcon, EyeIcon, InfoIcon } from "lucide-vue-next";
 // ts imports
-import { validate_parameter, type Parameter } from "./stackup.ts";
+import { validate_parameter, type Parameter, type DistanceParameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
 import { get_default_stackup_grid_config, StackupGrid } from "./grid.ts";
 import { StackupParameters } from "./parameters.ts";
@@ -42,6 +42,7 @@ import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { providers } from "../../providers/providers.ts";
+import { type DistanceUnit, convert_distance, distance_units } from "./unit_types.ts";
 
 const toast = providers.toast_manager.value;
 
@@ -232,6 +233,49 @@ async function sleep(millis: number) {
   await new Promise(resolve => setTimeout(resolve, millis));
 }
 
+const selected_unit = ref<DistanceUnit>("mm");
+// TODO: figure out a better way to automatically handle unit conversions besides manually doing it
+watch(selected_unit, (new_unit) => {
+  const params = editor.value.parameters;
+  function convert_distance_parameter(param: DistanceParameter) {
+    const old_unit = param.unit;
+    param.unit = new_unit;
+    if (param.value !== undefined) {
+      const new_value = convert_distance(param.value, old_unit, new_unit);
+      param.value = new_value;
+    }
+  }
+
+  params.default_distance_unit = new_unit;
+  params.for_each((param) => {
+    switch (param.type) {
+      case "epsilon": return;
+      case "size": return convert_distance_parameter(param);
+      case "taper": return convert_distance_parameter(param);
+    }
+  });
+});
+
+function get_simulation_parameter(param: Parameter & { value: number }): number {
+  validate_parameter(param);
+  switch (param.type) {
+    case "size": // @fallthrough
+    case "taper": {
+      // convert to common unit for entire simulation
+      const value = convert_distance(param.value, param.unit, selected_unit.value);
+      return value;
+    }
+    case "epsilon": return param.value;
+  }
+}
+
+function mark_parameter_unchanged(param: Parameter) {
+  param.old_value = param.value;
+  if (param.type === "taper" || param.type === "size") {
+    param.old_unit = param.unit;
+  }
+}
+
 async function calculate_impedance() {
   if (is_running.value) return;
 
@@ -244,9 +288,9 @@ async function calculate_impedance() {
   try {
     const used_parameters = new Set<Parameter>();
     function get_parameter(param: Parameter): number {
-      validate_parameter(param);
+      const valid_param = validate_parameter(param);
       used_parameters.add(param);
-      return param.value!;
+      return get_simulation_parameter(valid_param);
     }
 
     new_profiler.begin("create_layout", "Create layout from transmission line stackup");
@@ -269,9 +313,7 @@ async function calculate_impedance() {
     new_measurement = perform_measurement(new_stackup, new_profiler);
     new_profiler.end();
 
-    for (const param of used_parameters) {
-      param.old_value = param.value;
-    }
+    used_parameters.forEach(mark_parameter_unchanged);
     new_profiler.end();
   } catch (error) {
     toast.error(`calculate_impedance() failed with: ${String(error)}`);
@@ -297,9 +339,9 @@ async function perform_search(search_params: Parameter[]) {
 
   const used_parameters = new Set<Parameter>();
   function get_parameter(param: Parameter): number {
-    validate_parameter(param);
+    const valid_param = validate_parameter(param);
     used_parameters.add(param);
-    return param.value!;
+    return get_simulation_parameter(valid_param);
   }
 
   let new_search_results: SearchResults | undefined = undefined;
@@ -334,9 +376,7 @@ async function perform_search(search_params: Parameter[]) {
       param.value = best_result.value;
     }
     // mark form values as unmodified
-    for (const param of used_parameters) {
-      param.old_value = param.value;
-    }
+    used_parameters.forEach(mark_parameter_unchanged);
   }
   is_running.value = false;
 }
@@ -368,6 +408,11 @@ watch(() => route.query, (new_query) => {
               <select class="select w-full" v-model="selected_trace_template.selected" :disabled="!is_editing">
                 <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
                   {{ option }}
+                </option>
+              </select>
+              <select class="select w-full" v-model="selected_unit">
+                <option v-for="unit in distance_units" :value="unit" :key="unit">
+                  {{ unit }}
                 </option>
               </select>
               <template v-if="is_editing">

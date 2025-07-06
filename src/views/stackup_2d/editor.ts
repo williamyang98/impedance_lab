@@ -373,6 +373,7 @@ export class ColinearStackupEditor extends StackupEditor {
       right_trace: { id: right, attach: "left" },
       width: {
         type: "size",
+        unit: "mm", // pointless field since this width is only for stackup viewer
         placeholder_value: 0,
       },
     }

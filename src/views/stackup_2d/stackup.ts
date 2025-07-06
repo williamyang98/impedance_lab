@@ -1,31 +1,42 @@
+import { type DistanceUnit } from "./unit_types.ts";
+
 // types of parameters
-export interface Parameter {
+export interface IParameter {
   name?: string;
   description?: string;
-  old_value?: number;
-  value?: number;
   min?: number;
   max?: number;
   error?: string;
   impedance_correlation?: "positive" | "negative";
 }
 
-export interface SizeParameter extends Parameter {
-  type: "size";
+export interface DistanceParameter extends IParameter {
+  old_value?: number;
+  old_unit?: DistanceUnit;
+  value?: number;
+  unit: DistanceUnit;
   placeholder_value: number;
 }
 
-export interface TaperSizeParameter extends Parameter {
+export interface SizeParameter extends DistanceParameter {
+  type: "size";
+}
+
+export interface TaperSizeParameter extends DistanceParameter {
   type: "taper";
-  placeholder_value: number;
   taper_suffix?: string;
 }
 
-export interface EpsilonParameter extends Parameter {
+export interface EpsilonParameter extends IParameter {
   type: "epsilon";
+  old_value?: number;
+  value?: number;
 }
 
-export function validate_parameter(param: Parameter) {
+export type Parameter = SizeParameter | TaperSizeParameter | EpsilonParameter;
+
+
+export function validate_parameter(param: Parameter): Parameter & { value: number } {
   if (param.value === undefined) {
     param.error = "Field is required";
     throw Error(`Missing field value for ${param.name}`);
@@ -47,6 +58,8 @@ export function validate_parameter(param: Parameter) {
     throw Error(`Violated maximum value for ${param.name}`);
   }
   param.error = undefined;
+  // type convert if parameter is valid
+  return param as Parameter & { value: number };
 }
 
 export type Orientation = "up" | "down";

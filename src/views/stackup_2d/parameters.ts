@@ -1,8 +1,9 @@
 import { sizes } from "./viewer.ts";
 import {
   type LayerId,
-  type SizeParameter, type TaperSizeParameter, type Parameter, type EpsilonParameter,
+  type Parameter, type SizeParameter, type TaperSizeParameter, type EpsilonParameter,
 } from "./stackup.ts";
+import { convert_distance, type DistanceUnit } from "./unit_types.ts";
 
 export class ParameterCache<K extends string | number, V extends Parameter> {
   cache = new Map<K, V>();
@@ -22,7 +23,7 @@ export class ParameterCache<K extends string | number, V extends Parameter> {
     return value;
   }
 
-  for_each(func: (param: Parameter) => void) {
+  for_each(func: (param: V) => void) {
     for (const param of this.cache.values()) {
       func(param);
     }
@@ -56,6 +57,8 @@ export class StackupParameters {
   B: SizeParameter & RequiresParent;
   CS: SizeParameter & RequiresParent;
 
+  default_distance_unit: DistanceUnit = "mm";
+
   constructor() {
     this.dW = new ParameterCache((i: number) => {
       return {
@@ -70,13 +73,14 @@ export class StackupParameters {
           let min_trace_width = Infinity;
           for (const param of this.parent.required_trace_widths) {
             if (param.value !== undefined) {
-              min_trace_width = Math.min(min_trace_width, param.value);
+              const trace_width = convert_distance(param.value, param.unit, this.unit);
+              min_trace_width = Math.min(min_trace_width, trace_width);
             }
           }
           if (min_trace_width != Infinity) return min_trace_width;
           return undefined;
         },
-        value: 0,
+        ...this.create_default_distance(0, "mm"),
         placeholder_value: sizes.trace_taper,
         impedance_correlation: "positive",
       };
@@ -88,7 +92,7 @@ export class StackupParameters {
         get name() { return `T${this.parent.get_index(i)}`; },
         description: "Trace thickness",
         get min(): number { return this.parent.minimum_feature_size; },
-        value: 0.035,
+        ...this.create_default_distance(0.035, "mm"),
         placeholder_value: sizes.trace_height,
         impedance_correlation: "negative",
       };
@@ -100,7 +104,7 @@ export class StackupParameters {
         get name() { return `H${this.parent.get_index(i)}` },
         description: "Soldermask thickness",
         get min(): number { return this.parent.minimum_feature_size; },
-        value: 0.015,
+        ...this.create_default_distance(0.015, "mm"),
         placeholder_value: sizes.soldermask_height,
         impedance_correlation: "negative",
       };
@@ -112,7 +116,7 @@ export class StackupParameters {
         get name() { return `H${this.parent.get_index(i)}`; },
         description: "Dielectric height",
         get min(): number { return this.parent.minimum_feature_size; },
-        value: 0.15,
+        ...this.create_default_distance(0.15, "mm"),
         placeholder_value: sizes.core_height,
         impedance_correlation: "positive",
       };
@@ -130,7 +134,7 @@ export class StackupParameters {
     });
     this.PH = {
       type: "size",
-      value: 0.1,
+      ...this.create_default_distance(0.1, "mm"),
       placeholder_value: sizes.copper_layer_height,
     };
     this.W = {
@@ -143,13 +147,14 @@ export class StackupParameters {
         let max_taper_size = 0;
         for (const param of this.parent.required_trace_tapers) {
           if (param.value !== undefined) {
-            max_taper_size = Math.max(max_taper_size, param.value);
+            const size = convert_distance(param.value, param.unit, this.unit);
+            max_taper_size = Math.max(max_taper_size, size);
           }
         }
         const min_trace_width = this.parent.minimum_feature_size;
         return Math.max(min_trace_width, max_taper_size);
       },
-      value: 0.25,
+      ...this.create_default_distance(0.25, "mm"),
       placeholder_value: sizes.signal_trace_width,
       impedance_correlation: "negative",
     };
@@ -163,13 +168,14 @@ export class StackupParameters {
         let max_taper_size = 0;
         for (const param of this.parent.required_trace_tapers) {
           if (param.value !== undefined) {
-            max_taper_size = Math.max(max_taper_size, param.value);
+            const size = convert_distance(param.value, param.unit, this.unit);
+            max_taper_size = Math.max(max_taper_size, size);
           }
         }
         const min_trace_width = this.parent.minimum_feature_size;
         return Math.max(min_trace_width, max_taper_size);
       },
-      value: 0.25,
+      ...this.create_default_distance(0.25, "mm"),
       placeholder_value: sizes.ground_trace_width,
       impedance_correlation: "negative",
     };
@@ -179,7 +185,7 @@ export class StackupParameters {
       name: "S",
       description: "Signal separation",
       get min(): number { return this.parent.minimum_feature_size; },
-      value: 0.25,
+      ...this.create_default_distance(0.25, "mm"),
       placeholder_value: sizes.signal_width_separation,
       impedance_correlation: "positive",
     };
@@ -189,7 +195,7 @@ export class StackupParameters {
       name: "BS",
       description: "Broadside separation",
       min: 0,
-      value: 0,
+      ...this.create_default_distance(0, "mm"),
       placeholder_value: sizes.broadside_width_separation,
       impedance_correlation: "positive",
     };
@@ -199,10 +205,16 @@ export class StackupParameters {
       name: "CS",
       description: "Coplanar ground separation",
       get min(): number { return this.parent.minimum_feature_size; },
-      value: 0.25,
+      ...this.create_default_distance(0.25, "mm"),
       placeholder_value: sizes.ground_width_separation,
       impedance_correlation: "positive",
     };
+  }
+
+  create_default_distance(value: number, unit: DistanceUnit) {
+    const new_unit = this.default_distance_unit;
+    const new_value = convert_distance(value, unit, new_unit);
+    return { value: new_value, unit: new_unit };
   }
 
   for_each(func: (param: Parameter) => void) {
