@@ -232,32 +232,33 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
           <div class="h-full flex flex-col justify-center">
             <label :for="param.name" class="label">{{  param.name }}</label>
           </div>
-          <div class="w-full">
-            <div class="flex flex-row join">
-              <input
-                :id="param.name"
-                :class="get_input_class(param)"
-                class="input w-full join-item"
-                type="number"
-                step="any"
-                :min="param.min" :max="param.max" v-model.number="param.value"
-                :placeholder="param.description"
-              />
-              <template v-if="param.impedance_correlation !== undefined">
-                <button
-                  class="btn join-item px-2"
-                  @click="(ev) => on_search(ev, [param])"
-                  type="button"
-                >
-                  <SearchIcon class="h-[1rem] w-[1rem]"/>
-                </button>
-              </template>
-            </div>
-            <div v-if="param.error" class="text-error text-xs flex flex-row py-1 w-full">
+          <div class="flex flex-row join">
+            <input
+              :id="param.name"
+              :class="get_input_class(param)"
+              class="input w-full join-item"
+              type="number"
+              step="any"
+              :min="param.min" :max="param.max" v-model.number="param.value"
+              :placeholder="param.description"
+            />
+            <template v-if="param.impedance_correlation !== undefined">
+              <button
+                class="btn join-item px-2"
+                @click="(ev) => on_search(ev, [param])"
+                type="button"
+              >
+                <SearchIcon class="h-[1rem] w-[1rem]"/>
+              </button>
+            </template>
+          </div>
+          <template v-if="param.error">
+            <div></div>
+            <div class="text-error text-xs flex flex-row py-1 w-full">
               <TriangleAlert class="h-[1rem] w-[1rem] mr-1"/>
               <span>{{ param.error }}</span>
             </div>
-          </div>
+          </template>
         </template>
       </div>
     </div>
