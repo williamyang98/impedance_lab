@@ -57,7 +57,7 @@ export class StackupParameters {
   B: SizeParameter & RequiresParent;
   CS: SizeParameter & RequiresParent;
 
-  default_distance_unit: DistanceUnit = "mm";
+  _distance_unit: DistanceUnit = "mm";
 
   constructor() {
     this.dW = new ParameterCache((i: number) => {
@@ -212,7 +212,7 @@ export class StackupParameters {
   }
 
   create_default_distance(value: number, unit: DistanceUnit) {
-    const new_unit = this.default_distance_unit;
+    const new_unit = this._distance_unit;
     const new_value = convert_distance(value, unit, new_unit);
     return { value: new_value, unit: new_unit };
   }
@@ -229,5 +229,74 @@ export class StackupParameters {
     func(this.S);
     func(this.B);
     func(this.CS);
+  }
+
+  validate_parameter(param: Parameter): Parameter & { value: number } {
+    if (param.value === undefined) {
+      param.error = "Field is required";
+      throw Error(`Missing field value for ${param.name}`);
+    }
+    if (typeof(param.value) !== 'number') {
+      param.error = "Field is required";
+      throw Error(`Non number field value for ${param.name}`);
+    }
+    if (Number.isNaN(param.value)) {
+      param.error = "Field is required";
+      throw Error(`NaN field value for ${param.name}`);
+    }
+    if (param.min !== undefined && param.value < param.min) {
+      param.error = `Value must be greater than ${param.min}`;
+      throw Error(`Violated minimum value for ${param.name}`);
+    }
+    if (param.max !== undefined && param.value > param.max) {
+      param.error = `Value must be less than ${param.max}`;
+      throw Error(`Violated maximum value for ${param.name}`);
+    }
+    param.error = undefined;
+    // type convert if parameter is valid
+    return param as Parameter & { value: number };
+  }
+
+  get_simulation_parameter(param: Parameter): number {
+    const valid_param = this.validate_parameter(param);
+    switch (valid_param.type) {
+      case "size": // @fallthrough
+      case "taper": {
+        // convert to common unit for entire simulation
+        const value = convert_distance(valid_param.value, valid_param.unit, this._distance_unit);
+        return value;
+      }
+      case "epsilon": return valid_param.value;
+    }
+  }
+
+  get distance_unit(): DistanceUnit {
+    return this._distance_unit;
+  }
+
+  set distance_unit(new_unit: DistanceUnit) {
+    this._distance_unit = new_unit;
+    this.for_each((param) => {
+      switch (param.type) {
+        case "epsilon": break;
+        case "taper": // @fallthrough
+        case "size": {
+          const old_unit = param.unit;
+          param.unit = new_unit;
+          if (param.value !== undefined) {
+            const new_value = convert_distance(param.value, old_unit, new_unit);
+            param.value = new_value;
+          }
+          break;
+        }
+      }
+    });
+  }
+
+  mark_parameter_unchanged(param: Parameter) {
+    param.old_value = param.value;
+    if (param.type === "taper" || param.type === "size") {
+      param.old_unit = param.unit;
+    }
   }
 }
