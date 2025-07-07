@@ -39,7 +39,7 @@ watch(is_dark_mode, (new_is_dark_mode) => {
     <ToastProvider>
       <div class="w-screen h-screen overflow-hidden flex flex-col">
         <!-- Navbar -->
-        <div class="navbar bg-base-100 shadow-sm min-h-[3rem]">
+        <div class="navbar bg-base-100 shadow-sm min-h-[3rem] p-1">
           <div class="navbar-start w-full md:w-[50%]">
             <!--Mobile hamburger navigation menu-->
             <div class="dropdown md:hidden">
