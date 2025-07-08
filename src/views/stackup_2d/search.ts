@@ -11,7 +11,8 @@ function run_parameter_search<T extends { error: number }>(
   func: (value: number) => T,
   v_initial?: number, v_min?: number, v_max?: number,
 ): T {
-  const max_steps = 16;
+  // TODO: expose this to user for configuration
+  const max_steps = 32;
   const error_threshold = 1e-1; // impedance should just be within 0.1 ohms
   const value_threshold = 1e-3; // precision of parameter search
 
