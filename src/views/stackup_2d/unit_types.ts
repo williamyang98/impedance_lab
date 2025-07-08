@@ -1,15 +1,16 @@
 // for easy conversion between imperal/metric dimensions
 export type DistanceUnit =
-  "cm" | "mm" | "um" |
+  "m" | "cm" | "mm" | "um" |
   "inch" | "mil" | "thou" | "oz";
 
 export const distance_units: DistanceUnit[] = [
-  "cm", "mm", "um",
+  "m", "cm", "mm", "um",
   "inch", "mil", "thou",
   "oz"
 ];
 
 const distance_unit_norm_size: Record<DistanceUnit, number> = {
+  "m": 1,
   "cm": 1e-2,
   "mm": 1e-3,
   "um": 1e-6,

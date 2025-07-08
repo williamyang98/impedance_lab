@@ -407,7 +407,7 @@ watch(() => route.query, (new_query) => {
             <label class="label mr-2">Z0 target </label>
             <input class="input input w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
           </div>
-          <MeasurementTable v-if="measurement" :measurement="measurement"></MeasurementTable>
+          <MeasurementTable v-if="measurement" :measurement="measurement" :parameters="editor.parameters"></MeasurementTable>
           <div v-else class="text-center text-xl py-2">
             No results to display
           </div>

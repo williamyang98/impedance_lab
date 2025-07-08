@@ -18,7 +18,8 @@ export function get_standard_suffix(value: number, threshold?: number): Standard
   if (value >= 1e-3) return { scale: 1e-3, suffix: "m" };
   if (value >= 1e-6) return { scale: 1e-6, suffix: "µ" };
   if (value >= 1e-9) return { scale: 1e-9, suffix: "n" };
-  if (value >= 1e-12) return { scale: 1e-12, suffix: "f" };
+  if (value >= 1e-12) return { scale: 1e-12, suffix: "p" };
+  if (value >= 1e-15) return { scale: 1e-15, suffix: "f" };
   return { scale: 1, suffix: "" };
 }
 
