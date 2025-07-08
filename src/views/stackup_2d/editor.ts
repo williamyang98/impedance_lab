@@ -97,7 +97,7 @@ export const create_layer = {
       height: params.H.get(layer_id),
       epsilon: params.ER.get(layer_id),
       trace_height: params.T.get(layer_id),
-      trace_taper: params.dW.get(layer_id),
+      etch_factor: params.etch_factor.get(layer_id),
     };
   },
   soldermask(params: StackupParameters, layer_id: LayerId, orientation: Orientation): SoldermaskLayer {
@@ -107,7 +107,7 @@ export const create_layer = {
       height: params.SH.get(layer_id),
       epsilon: params.ER.get(layer_id),
       trace_height: params.T.get(layer_id),
-      trace_taper: params.dW.get(layer_id),
+      etch_factor: params.etch_factor.get(layer_id),
       orientation,
     };
   },
@@ -116,7 +116,7 @@ export const create_layer = {
       type: "unmasked",
       id: layer_id,
       trace_height: params.T.get(layer_id),
-      trace_taper: params.dW.get(layer_id),
+      etch_factor: params.etch_factor.get(layer_id),
       orientation,
     };
   },
@@ -173,11 +173,11 @@ export abstract class StackupEditor {
   regenerate_trace_parameter_constraints() {
     // keep track of which parameters effect trace and taper geometry
     this.parameters.required_trace_widths.clear();
-    this.parameters.required_trace_tapers.clear();
+    this.parameters.required_etch_factors.clear();
     for (const conductor of this.get_sim_conductors()) {
       if (conductor.type == "trace") {
         this.parameters.required_trace_widths.add(conductor.width);
-        this.parameters.required_trace_tapers.add(this.parameters.dW.get(conductor.position.layer_id));
+        this.parameters.required_etch_factors.add(conductor.position.layer_id);
       }
     }
   }

@@ -10,7 +10,8 @@ export interface IParameter {
   impedance_correlation?: "positive" | "negative";
 }
 
-export interface DistanceParameter extends IParameter {
+export interface SizeParameter extends IParameter {
+  type: "size";
   old_value?: number;
   old_unit?: DistanceUnit;
   value?: number;
@@ -18,13 +19,12 @@ export interface DistanceParameter extends IParameter {
   placeholder_value: number;
 }
 
-export interface SizeParameter extends DistanceParameter {
-  type: "size";
-}
-
-export interface TaperSizeParameter extends DistanceParameter {
-  type: "taper";
+export interface EtchFactorParameter extends IParameter {
+  type: "etch_factor";
+  old_value?: number;
+  value?: number; // W-W0 = dW0 = 2*T*etch_factor
   taper_suffix?: string;
+  placeholder_value: number;
 }
 
 export interface EpsilonParameter extends IParameter {
@@ -33,7 +33,7 @@ export interface EpsilonParameter extends IParameter {
   value?: number;
 }
 
-export type Parameter = SizeParameter | TaperSizeParameter | EpsilonParameter;
+export type Parameter = SizeParameter | EtchFactorParameter | EpsilonParameter;
 
 export type Orientation = "up" | "down";
 export type LayerId = number;
@@ -105,7 +105,7 @@ export interface UnmaskedLayer {
   type: "unmasked",
   id: LayerId;
   trace_height: SizeParameter;
-  trace_taper: TaperSizeParameter;
+  etch_factor: EtchFactorParameter;
   orientation: Orientation;
 }
 
@@ -113,7 +113,7 @@ export interface SoldermaskLayer {
   type: "soldermask",
   id: LayerId;
   trace_height: SizeParameter;
-  trace_taper: TaperSizeParameter;
+  etch_factor: EtchFactorParameter;
   height: SizeParameter;
   epsilon: EpsilonParameter;
   orientation: Orientation;
@@ -131,7 +131,7 @@ export interface PrepregLayer {
   id: LayerId;
   height: SizeParameter;
   trace_height: SizeParameter;
-  trace_taper: TaperSizeParameter;
+  etch_factor: EtchFactorParameter;
   epsilon: EpsilonParameter;
 }
 

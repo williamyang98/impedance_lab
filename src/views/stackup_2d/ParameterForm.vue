@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import {
-  type Stackup,
-  type Parameter,
-  type LayerId,
-} from "./stackup.ts";
 import { defineProps, defineEmits, computed } from "vue";
 import { TriangleAlert, SearchIcon, InfoIcon } from "lucide-vue-next";
+import {
+  type Stackup,
+  type Parameter, type SizeParameter, type EtchFactorParameter, type EpsilonParameter,
+  type LayerId,
+} from "./stackup.ts";
+import { StackupEditor } from "./editor.ts";
+import { distance_units } from "./unit_types.ts";
 
 const props = defineProps<{
-  stackup: Stackup,
+  editor: StackupEditor,
 }>();
 
 const emits = defineEmits<{
@@ -38,14 +40,20 @@ function get_total_searchable_parameters(params: Set<Parameter>): number {
 }
 
 class Form {
-  layer_dielectric_height_params = new Set<Parameter>();
-  layer_dielectric_epsilon_params = new Set<Parameter>();
-  layer_trace_height_params = new Set<Parameter>();
-  layer_trace_taper_params = new Set<Parameter>();
-  trace_width_params = new Set<Parameter>();
-  spacing_params = new Set<Parameter>();
+  layer_dielectric_height_params = new Set<SizeParameter>();
+  layer_dielectric_epsilon_params = new Set<EpsilonParameter>();
+  layer_trace_height_params = new Set<SizeParameter>();
+  layer_etch_factor_params = new Set<EtchFactorParameter>();
+  trace_width_params = new Set<SizeParameter>();
+  spacing_params = new Set<SizeParameter>();
+  editor: StackupEditor;
+  stackup: Stackup;
 
-  constructor(stackup: Stackup) {
+  constructor(editor: StackupEditor) {
+    this.editor = editor;
+    const stackup = editor.get_simulation_stackup();
+    this.stackup = stackup;
+
     for (const trace of stackup.conductors.filter(conductor => conductor.type == "trace")) {
       this.trace_width_params.add(trace.width);
     }
@@ -95,14 +103,14 @@ class Form {
         case "prepreg": {
           this.layer_trace_height_params.add(layer.trace_height);
           if (layers_with_traces.has(layer.id)) {
-            this.layer_trace_taper_params.add(layer.trace_taper);
+            this.layer_etch_factor_params.add(layer.etch_factor);
           }
           break;
         }
         case "unmasked": // @fallthrough
         case "soldermask": {
           if (layers_with_traces.has(layer.id)) {
-            this.layer_trace_taper_params.add(layer.trace_taper);
+            this.layer_etch_factor_params.add(layer.etch_factor);
             this.layer_trace_height_params.add(layer.trace_height);
           }
           break;
@@ -112,6 +120,8 @@ class Form {
   }
 
   get_layout(): FormFields[][] {
+    const parameters = this.editor.parameters;
+
     const column: FormFields[][] = [];
     let row: FormFields[] = [];
     const push_row = () => {
@@ -130,7 +140,7 @@ class Form {
     };
 
     create_form_fields(
-      "Dielectric Height",
+      `Dielectric Height (${parameters.size_unit})`,
       "Height of stackup layer",
       this.layer_dielectric_height_params,
     );
@@ -140,26 +150,26 @@ class Form {
       this.layer_dielectric_epsilon_params,
     );
     create_form_fields(
-      "Trace Height",
+      `Trace Height (${parameters.copper_thickness_unit})`,
       "Height of copper in stackup layer",
       this.layer_trace_height_params,
     );
     push_row();
 
     create_form_fields(
-      "Trace Width",
+      `Trace Width (${parameters.size_unit})`,
       "Width of transmission line trace",
       this.trace_width_params,
     );
     create_form_fields(
-      "Trace Taper",
-      "Taper of trace in a specific stackup layer",
-      this.layer_trace_taper_params,
-    );
-    create_form_fields(
-      "Spacing",
+      `Spacing (${parameters.size_unit})`,
       "Separation between transmission line traces",
       this.spacing_params,
+    );
+    create_form_fields(
+      "Etch Factor",
+      "Ratio of copper height that is etched away from both sides of a signal trace (dWi=2*EFi*Ti)",
+      this.layer_etch_factor_params,
     );
     push_row();
 
@@ -167,13 +177,14 @@ class Form {
   }
 }
 
-const form = computed(() => new Form(props.stackup));
+const form = computed(() => new Form(props.editor));
+const parameters = computed(() => props.editor.parameters);
 
 function is_parameter_changed(param: Parameter): boolean {
   switch (param.type) {
     case "epsilon": return param.old_value !== param.value;
-    case "size": // @fallthrough
-    case "taper": {
+    case "etch_factor": return param.old_value !== param.value;
+    case "size": {
       if (param.old_value !== param.value) return true;
       if (param.old_unit !== param.unit) return true;
       return false;
@@ -204,7 +215,25 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
 </script>
 
 <template>
-<form :class="`grid grid-cols-1 sm:grid-cols-2 gap-x-5`" @submit="on_submit">
+<form :class="`grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2`" @submit="on_submit">
+  <!--Select units-->
+  <fieldset class="fieldset text-sm">
+    <legend class="fieldset-legend">Size Unit</legend>
+    <select class="select w-full" v-model="parameters.size_unit">
+      <option v-for="unit in distance_units" :value="unit" :key="unit">
+        {{ unit }}
+      </option>
+    </select>
+  </fieldset>
+  <fieldset class="fieldset text-sm">
+    <legend class="fieldset-legend">Copper Pour Unit</legend>
+    <select class="select w-full" v-model="parameters.copper_thickness_unit">
+      <option v-for="unit in distance_units" :value="unit" :key="unit">
+        {{ unit }}
+      </option>
+    </select>
+  </fieldset>
+  <!--Set values-->
   <div
     v-for="(col, col_index) in form.get_layout()" :key="col_index"
     class="w-full"
@@ -212,7 +241,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
     <div v-for="(row, row_index) in col" :key="row_index" class="mb-4">
       <div class="flex flex-row justify-between mb-2">
         <div class="flex flex-row gap-x-1 items-center mr-1">
-          <h2 class="font-medium">{{ row.name }}</h2>
+          <span class="font-medium">{{ row.name }}</span>
           <div class="tooltip tooltip-bottom" :data-tip="row.description">
             <InfoIcon class="w-[1rem] h-[1rem] cursor-help"/>
           </div>

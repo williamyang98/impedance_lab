@@ -42,7 +42,6 @@ import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { providers } from "../../providers/providers.ts";
-import { distance_units } from "./unit_types.ts";
 
 const toast = providers.toast_manager.value;
 
@@ -215,7 +214,7 @@ const viewer_stackup = computed(() => {
   if (is_editing.value) {
     return editor.value.get_viewer_stackup();
   } else {
-    return simulation_stackup.value;
+    return editor.value.get_simulation_stackup();
   }
 });
 const stackup_grid_config = computed(() => {
@@ -367,11 +366,6 @@ watch(() => route.query, (new_query) => {
                   {{ option }}
                 </option>
               </select>
-              <select class="select w-full" v-model="editor.parameters.distance_unit">
-                <option v-for="unit in distance_units" :value="unit" :key="unit">
-                  {{ unit }}
-                </option>
-              </select>
               <template v-if="is_editing">
                 <button class="btn edit-toggle" @click="is_editing = false"><EyeIcon/></button>
               </template>
@@ -400,7 +394,7 @@ watch(() => route.query, (new_query) => {
             </div>
           </div>
           <ParameterForm
-            :stackup="simulation_stackup"
+            :editor="editor"
             @search="perform_search"
             @submit="calculate_impedance"
           ></ParameterForm>

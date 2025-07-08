@@ -8,7 +8,7 @@ export const sizes = {
   soldermask_height: 17,
   copper_layer_height: 10,
   trace_height: 20,
-  trace_taper: 15,
+  etch_factor: 0.35,
   signal_trace_width: 40,
   ground_trace_width: 50,
   core_height: 45,
@@ -413,7 +413,7 @@ export class Viewer {
         case "prepreg": // @fallthrough
         case "unmasked": {
           const layer = layer_layout.parent;
-          const trace_taper_name = get_taper_suffix(layer.trace_taper);
+          const trace_taper_name = get_taper_suffix(layer.etch_factor);
           trace_taper_suffixes[layer.id] = trace_taper_name;
           break;
         }

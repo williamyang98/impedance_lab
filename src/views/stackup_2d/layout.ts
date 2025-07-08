@@ -1,6 +1,6 @@
 import {
   type Stackup,
-  type SizeParameter, type TaperSizeParameter,
+  type Parameter,
   type Orientation, type LayerId, type TraceId,
   type HorizontalSpacing, type AttachPoint,
   type CopperTrace, type CopperPlane,
@@ -111,7 +111,7 @@ export interface StackupLayout {
 
 export function create_layout_from_stackup(
   stackup: Stackup,
-  get_size: (size_param: SizeParameter | TaperSizeParameter) => number,
+  get_value: (param: Parameter) => number,
   profiler?: Profiler,
 ): StackupLayout {
   const layout: StackupLayout = {
@@ -172,7 +172,7 @@ export function create_layout_from_stackup(
     // seed first trace to x=0
     {
       const trace = traces[0];
-      const trace_width = get_size(trace.width);
+      const trace_width = get_value(trace.width);
       const seed_region = { id: trace.id, x_left: 0, x_right: trace_width };
       push_trace_x_region(seed_region);
     }
@@ -208,8 +208,8 @@ export function create_layout_from_stackup(
       if (left_region === undefined && right_region === undefined) {
         running_count_unmarked++;
       } else if (left_region === undefined && right_region !== undefined) {
-        const spacing_width = get_size(spacing.width);
-        const left_trace_width = get_size(left_trace.width);
+        const spacing_width = get_value(spacing.width);
+        const left_trace_width = get_value(left_trace.width);
         const x_anchor_right = get_anchor_in_x_region(right_region, spacing.right_trace.attach);
         const x_anchor_left = x_anchor_right-spacing_width;
         const new_left_region = get_x_region_from_anchor(spacing.left_trace.attach, left_trace_width, x_anchor_left);
@@ -217,8 +217,8 @@ export function create_layout_from_stackup(
         push_spacing_x_region(curr_index_spacing, { x_left: x_anchor_left, x_right: x_anchor_right });
         running_count_unmarked = 0;
       } else if (left_region !== undefined && right_region === undefined) {
-        const spacing_width = get_size(spacing.width);
-        const right_trace_width = get_size(right_trace.width);
+        const spacing_width = get_value(spacing.width);
+        const right_trace_width = get_value(right_trace.width);
         const x_anchor_left = get_anchor_in_x_region(left_region, spacing.left_trace.attach);
         const x_anchor_right = x_anchor_left+spacing_width;
         const new_right_region = get_x_region_from_anchor(spacing.right_trace.attach, right_trace_width, x_anchor_right);
@@ -301,11 +301,12 @@ export function create_layout_from_stackup(
           const y_start = y_offset;
           const plane = get_plane_here(layer.id, layer.orientation);
           if (plane) {
-            y_offset += get_size(plane.height);
+            y_offset += get_value(plane.height);
           } else if (is_conductor_here(layer.id, layer.orientation)) {
-            const trace_height = get_size(layer.trace_height);
+            const trace_height = get_value(layer.trace_height);
             layer_trace_height_table[layer.id] = trace_height;
-            const trace_taper = get_size(layer.trace_taper);
+            const etch_ratio = get_value(layer.etch_factor);
+            const trace_taper = etch_ratio*trace_height*2;
             layer_taper_table[layer.id] = trace_taper;
             y_offset += trace_height;
           }
@@ -327,14 +328,15 @@ export function create_layout_from_stackup(
           // precalculate total height
           const plane = get_plane_here(layer.id, layer.orientation);
           if (plane) {
-            y_offset += get_size(plane.height);
+            y_offset += get_value(plane.height);
           } else {
-            const soldermask_height = get_size(layer.height);
+            const soldermask_height = get_value(layer.height);
             has_surface_mask = true;
             if (is_conductor_here(layer.id, layer.orientation)) {
-              const trace_height = get_size(layer.trace_height);
+              const trace_height = get_value(layer.trace_height);
               layer_trace_height_table[layer.id] = trace_height;
-              const trace_taper = get_size(layer.trace_taper);
+              const etch_factor = get_value(layer.etch_factor);
+              const trace_taper = etch_factor*trace_height*2;
               layer_taper_table[layer.id] = trace_taper;
               y_offset += trace_height;
               y_offset += soldermask_height;
@@ -350,7 +352,7 @@ export function create_layout_from_stackup(
           // determine location of soldermask base
           let surface_mask: InfinitePlaneShape | undefined = undefined;
           if (has_surface_mask) {
-            const soldermask_height = get_size(layer.height);
+            const soldermask_height = get_value(layer.height);
             if (layer.orientation == "up") {
               surface_mask = {
                 y_start,
@@ -377,7 +379,7 @@ export function create_layout_from_stackup(
         }
         case "core": {
           const y_start = y_offset;
-          const height = get_size(layer.height);
+          const height = get_value(layer.height);
           y_offset += height;
           const y_end = y_offset;
           push_layer_layout({
@@ -396,14 +398,14 @@ export function create_layout_from_stackup(
           let top_shape: InfinitePlaneShape | undefined = undefined;
           const top_plane = get_plane_here(layer.id, "up");
           if (top_plane) {
-            const plane_height = get_size(top_plane.height);
+            const plane_height = get_value(top_plane.height);
             top_shape = {
               y_start: y_offset,
               height: plane_height,
             };
             y_offset += plane_height;
           } else {
-            const trace_height = get_size(layer.trace_height);
+            const trace_height = get_value(layer.trace_height);
             layer_trace_height_table[layer.id] = trace_height;
             top_shape = {
               y_start: y_offset,
@@ -411,12 +413,13 @@ export function create_layout_from_stackup(
             };
             y_offset += trace_height;
             if (is_conductor_here(layer.id, "up")) {
-              const trace_taper = get_size(layer.trace_taper);
+              const etch_factor = get_value(layer.etch_factor);
+              const trace_taper = etch_factor*trace_height*2;
               layer_taper_table[layer.id] = trace_taper;
             }
           }
           // middle of prepreg
-          const dielectric_height = get_size(layer.height);
+          const dielectric_height = get_value(layer.height);
           const middle_shape: InfinitePlaneShape = {
             y_start: y_offset,
             height: dielectric_height,
@@ -426,14 +429,14 @@ export function create_layout_from_stackup(
           let bottom_shape: InfinitePlaneShape | undefined = undefined;
           const bottom_plane = get_plane_here(layer.id, "down");
           if (bottom_plane) {
-            const plane_height = get_size(bottom_plane.height);
+            const plane_height = get_value(bottom_plane.height);
             bottom_shape = {
               y_start: y_offset,
               height: plane_height,
             };
             y_offset += plane_height;
           } else {
-            const trace_height = get_size(layer.trace_height);
+            const trace_height = get_value(layer.trace_height);
             bottom_shape = {
               y_start: y_offset,
               height: trace_height,
@@ -441,7 +444,8 @@ export function create_layout_from_stackup(
             layer_trace_height_table[layer.id] = trace_height;
             y_offset += trace_height;
             if (is_conductor_here(layer.id, "down")) {
-              const trace_taper = get_size(layer.trace_taper);
+              const etch_factor = get_value(layer.etch_factor);
+              const trace_taper = etch_factor*trace_height*2;
               layer_taper_table[layer.id] = trace_taper;
             }
           }
@@ -498,7 +502,7 @@ export function create_layout_from_stackup(
         const layer_id = conductor.position.layer_id;
         const layer_layout = layer_layout_table[layer_id];
         if (layer_layout === undefined) throw Error(`Plane references missing layer layout id ${layer_id}`);
-        const plane_height = get_size(conductor.height);
+        const plane_height = get_value(conductor.height);
         const y_start = layer_layout.bounding_box.y_start;
         const y_end = y_start+layer_layout.bounding_box.height;
         const plane_y_region = conductor.position.orientation == "up" ? {
@@ -618,7 +622,7 @@ export function create_layout_from_stackup(
     const layer = soldermask_layout.parent;
     const trace_layouts = layer_trace_layout_table[layer.id]?.[layer.orientation];
     if (trace_layouts === undefined) continue;
-    const soldermask_height = get_size(layer.height);
+    const soldermask_height = get_value(layer.height);
     const y_shift = layer.orientation == "up" ? soldermask_height : -soldermask_height;
     for (const trace_layout of trace_layouts) {
       const shape = trace_layout.shape;
