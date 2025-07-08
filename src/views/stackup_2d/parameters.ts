@@ -35,7 +35,7 @@ export class StackupParameters {
   id_to_index: Partial<Record<LayerId, number>> = {};
   required_trace_widths = new Set<SizeParameter>();
   required_etch_factors = new Set<number>();
-  minimum_feature_size: number = 0.001;
+  minimum_feature_size: number = 1e-4;
 
   get_index(id: LayerId): number {
     const index  = this.id_to_index[id];
@@ -59,6 +59,14 @@ export class StackupParameters {
 
   _size_unit: DistanceUnit = "mm";
   _copper_thickness_unit: DistanceUnit = "oz";
+
+  readonly size_unit_options: DistanceUnit[] = [
+    "cm", "mm", "um", "inch", "mil", "thou",
+  ];
+
+  readonly copper_thickness_unit_options: DistanceUnit[] = [
+    "cm", "mm", "um", "inch", "mil", "thou", "oz",
+  ];
 
   constructor() {
     const create_default_distance = (value: number, unit: DistanceUnit, target_unit: DistanceUnit) => {

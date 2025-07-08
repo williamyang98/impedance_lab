@@ -7,7 +7,6 @@ import {
   type LayerId,
 } from "./stackup.ts";
 import { StackupEditor } from "./editor.ts";
-import { distance_units } from "./unit_types.ts";
 
 const props = defineProps<{
   editor: StackupEditor,
@@ -220,7 +219,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Size Unit</legend>
     <select class="select w-full" v-model="parameters.size_unit">
-      <option v-for="unit in distance_units" :value="unit" :key="unit">
+      <option v-for="unit in parameters.size_unit_options" :value="unit" :key="unit">
         {{ unit }}
       </option>
     </select>
@@ -228,7 +227,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Copper Pour Unit</legend>
     <select class="select w-full" v-model="parameters.copper_thickness_unit">
-      <option v-for="unit in distance_units" :value="unit" :key="unit">
+      <option v-for="unit in parameters.copper_thickness_unit_options" :value="unit" :key="unit">
         {{ unit }}
       </option>
     </select>
