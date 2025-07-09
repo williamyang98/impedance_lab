@@ -218,7 +218,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   <!--Select units-->
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Size Unit</legend>
-    <select class="select w-full" v-model="parameters.size_unit">
+    <select class="select w-full" v-model="parameters.size_unit" required>
       <option v-for="unit in parameters.size_unit_options" :value="unit" :key="unit">
         {{ unit }}
       </option>
@@ -226,7 +226,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   </fieldset>
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Copper Pour Unit</legend>
-    <select class="select w-full" v-model="parameters.copper_thickness_unit">
+    <select class="select w-full" v-model="parameters.copper_thickness_unit" required>
       <option v-for="unit in parameters.copper_thickness_unit_options" :value="unit" :key="unit">
         {{ unit }}
       </option>
@@ -269,6 +269,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
               step="any"
               :min="param.min" :max="param.max" v-model.number="param.value"
               :placeholder="param.description"
+              required
             />
             <template v-if="param.impedance_correlation !== undefined">
               <button

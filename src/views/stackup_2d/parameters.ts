@@ -315,8 +315,17 @@ export class StackupParameters {
 
   mark_parameter_unchanged(param: Parameter) {
     param.old_value = param.value;
+    param.error = undefined;
     if (param.type === "size") {
       param.old_unit = param.unit;
+    }
+  }
+
+  mark_parameter_changed(param: Parameter) {
+    param.old_value = undefined;
+    param.error = undefined;
+    if (param.type === "size") {
+      param.old_unit = undefined;
     }
   }
 }

@@ -127,11 +127,6 @@ read_query_parameters(route.query);
 function create_editor() {
   const parameters = new StackupParameters(user_data);
 
-  function mark_parameter_changed(param: Parameter) {
-    param.old_value = undefined;
-    param.error = undefined;
-  }
-
   type K0 = keyof typeof broadside_trace_templates;
   class BroadsideEditor implements SelectedMap<K0, BroadsideTraceTemplate> {
     _selected: K0 = default_template_keys.broadside_trace;
@@ -148,7 +143,7 @@ function create_editor() {
     set selected(selected) {
       this._selected = selected;
       this.editor.set_trace_template(this.value);
-      this.editor.parameters.for_each(mark_parameter_changed);
+      this.editor.parameters.for_each(param => parameters.mark_parameter_changed(param));
     }
     get value() {
       return this.options[this.selected];
@@ -172,7 +167,7 @@ function create_editor() {
     set selected(selected) {
       this._selected = selected;
       this.editor.set_trace_template(this.value);
-      this.editor.parameters.for_each(mark_parameter_changed);
+      this.editor.parameters.for_each(param => parameters.mark_parameter_changed(param));
     }
     get value() {
       return this.options[this.selected];
@@ -197,7 +192,7 @@ function create_editor() {
     }
     set selected(selected) {
       this._selected = selected;
-      this.parameters.for_each(mark_parameter_changed);
+      this.parameters.for_each(param => parameters.mark_parameter_changed(param));
     }
     get value() {
       return this.options[this.selected];
