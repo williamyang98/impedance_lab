@@ -104,19 +104,6 @@ export interface StackupGridConfig {
   signal_amplitude: number; // voltage value to use for +/- signals
 }
 
-export function get_default_stackup_grid_config(): StackupGridConfig {
-  return {
-    minimum_grid_resolution: 1e-3,
-    padding_size_multiplier: 5,
-    max_x_ratio: 0.7,
-    min_x_subdivisions: 5,
-    max_y_ratio: 0.7,
-    min_y_subdivisions: 5,
-    min_epsilon_resolution: 0.01,
-    signal_amplitude: 1,
-  }
-}
-
 export class StackupGrid implements ManagedObject {
   readonly module = Globals.wasm_module;
   _is_deleted: boolean = false;
@@ -143,9 +130,9 @@ export class StackupGrid implements ManagedObject {
     layout: StackupLayout,
     get_epsilon: (param: EpsilonParameter) => number,
     profiler: Profiler | undefined,
-    config?: StackupGridConfig,
+    config: StackupGridConfig,
   ) {
-    this.config = config ?? get_default_stackup_grid_config();
+    this.config = config;
     this.layout = layout;
     this.x_region_lines_builder = new LinesBuilder();
     this.y_region_lines_builder = new LinesBuilder();

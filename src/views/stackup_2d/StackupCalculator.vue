@@ -21,11 +21,12 @@ import GridViewer from "./GridViewer.vue";
 import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
 import ExportView from "./ExportView.vue";
 import TabsView from "../../utility/TabsView.vue";
-import { PencilIcon, EyeIcon, InfoIcon } from "lucide-vue-next";
+import MeshConfigForm from "./MeshConfigForm.vue";
+import { PencilIcon, EyeIcon, InfoIcon, SettingsIcon } from "lucide-vue-next";
 // ts imports
 import {type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
-import { get_default_stackup_grid_config, StackupGrid } from "./grid.ts";
+import { StackupGrid } from "./grid.ts";
 import { StackupParameters } from "./parameters.ts";
 import {
   StackupEditor,
@@ -213,11 +214,6 @@ const viewer_stackup = computed(() => {
     return editor.value.get_simulation_stackup();
   }
 });
-const stackup_grid_config = computed(() => {
-  const config = get_default_stackup_grid_config();
-  config.minimum_grid_resolution = editor.value.parameters.minimum_feature_size;
-  return config;
-});
 
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
@@ -253,7 +249,7 @@ async function calculate_impedance() {
     new_stackup = new StackupGrid(
       layout, get_parameter,
       new_profiler,
-      stackup_grid_config.value,
+      toRaw(user_data.stackup_2d_mesh_config),
     );
     new_profiler.end();
 
@@ -304,7 +300,7 @@ async function perform_search(search_params: Parameter[]) {
       simulation_stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
       get_parameter,
-      stackup_grid_config.value,
+      toRaw(user_data.stackup_2d_mesh_config),
       new_profiler, toast,
     );
     new_profiler.end();
@@ -398,7 +394,20 @@ watch(() => route.query, (new_query) => {
       </div>
       <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
-          <h2 class="card-title">Impedance</h2>
+          <h2 class="card-title w-full flex flex-row justify-between">
+            <span>Impedance</span>
+            <button class="btn size-[2.0rem] p-1" onclick="mesh_settings.showModal()">
+              <SettingsIcon class="size-[1.2rem]"/>
+            </button>
+            <dialog id="mesh_settings" class="modal">
+              <div class="modal-box">
+                <MeshConfigForm :config="user_data.stackup_2d_mesh_config"/>
+              </div>
+              <form method="dialog" class="modal-backdrop">
+                <button>Close</button>
+              </form>
+            </dialog>
+          </h2>
           <div class="w-full flex flex-row">
             <label class="label mr-2">Z0 target </label>
             <input class="input input w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>

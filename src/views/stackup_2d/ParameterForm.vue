@@ -214,7 +214,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
 </script>
 
 <template>
-<form :class="`grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2`" @submit="on_submit">
+<form class="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-2" @submit="on_submit">
   <!--Select units-->
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Size Unit</legend>
