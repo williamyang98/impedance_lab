@@ -89,7 +89,6 @@ function on_submit(event: Event) {
 </script>
 
 <template>
-<div class="text-lg font-bold">2D Mesh Settings</div>
 <form class="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full" @submit="on_submit">
   <fieldset class="fieldset" v-for="field of fields" :key="field.key">
     <legend class="fieldset-legend">{{ field.name }}</legend>

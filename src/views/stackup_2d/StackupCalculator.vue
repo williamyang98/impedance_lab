@@ -401,6 +401,10 @@ watch(() => route.query, (new_query) => {
             </button>
             <dialog id="mesh_settings" class="modal">
               <div class="modal-box">
+                <form method="dialog">
+                  <div class="text-lg font-bold p-0">2D Mesh Settings</div>
+                  <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+                </form>
                 <MeshConfigForm :config="user_data.stackup_2d_mesh_config"/>
               </div>
               <form method="dialog" class="modal-backdrop">
