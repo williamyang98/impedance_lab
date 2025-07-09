@@ -1,3 +1,4 @@
+import { UserData } from "../../providers/user_data/user_data.ts";
 import { sizes } from "./viewer.ts";
 import {
   type LayerId,
@@ -36,6 +37,7 @@ export class StackupParameters {
   required_trace_widths = new Set<SizeParameter>();
   required_etch_factors = new Set<number>();
   minimum_feature_size: number = 1e-4;
+  user_data: UserData;
 
   get_index(id: LayerId): number {
     const index  = this.id_to_index[id];
@@ -57,9 +59,6 @@ export class StackupParameters {
   B: SizeParameter & RequiresParent;
   CS: SizeParameter & RequiresParent;
 
-  _size_unit: DistanceUnit = "mm";
-  _copper_thickness_unit: DistanceUnit = "oz";
-
   readonly size_unit_options: DistanceUnit[] = [
     "cm", "mm", "um", "inch", "mil", "thou",
   ];
@@ -68,7 +67,9 @@ export class StackupParameters {
     "cm", "mm", "um", "inch", "mil", "thou", "oz",
   ];
 
-  constructor() {
+  constructor(user_data: UserData) {
+    this.user_data = user_data;
+
     const create_default_distance = (value: number, unit: DistanceUnit, target_unit: DistanceUnit) => {
       const new_value = convert_distance(value, unit, target_unit);
       return { value: new_value, unit: target_unit };
@@ -96,7 +97,7 @@ export class StackupParameters {
           const min_trace_width = this.parent.minimum_feature_size;
           return Math.max(min_trace_width, max_taper_size);
         },
-        ...create_default_distance(0.25, "mm", this._size_unit),
+        ...create_default_distance(0.25, "mm", this.size_unit),
         placeholder_value: sizes.signal_trace_width,
         impedance_correlation: "negative" as const,
       }
@@ -113,13 +114,13 @@ export class StackupParameters {
         get max(): number | undefined {
           const trace_thickness_param = this.parent.T.get(i);
           if (trace_thickness_param.value === undefined) return undefined;
-          const trace_thickness = convert_distance(trace_thickness_param.value, trace_thickness_param.unit, this.parent._size_unit);
+          const trace_thickness = convert_distance(trace_thickness_param.value, trace_thickness_param.unit, this.parent.size_unit);
 
           // maximum taper size is equal to minimum trace width
           let min_trace_width = Infinity;
           for (const param of this.parent.required_trace_widths) {
             if (param.value !== undefined) {
-              const trace_width = convert_distance(param.value, param.unit, this.parent._size_unit);
+              const trace_width = convert_distance(param.value, param.unit, this.parent.size_unit);
               min_trace_width = Math.min(min_trace_width, trace_width);
             }
           }
@@ -127,7 +128,7 @@ export class StackupParameters {
           const max_etch_factor = 0.5*min_trace_width/trace_thickness;
           return max_etch_factor;
         },
-        ...create_default_distance(0, "mm", this._size_unit),
+        ...create_default_distance(0, "mm", this.size_unit),
         placeholder_value: sizes.etch_factor,
         impedance_correlation: "positive",
       };
@@ -139,7 +140,7 @@ export class StackupParameters {
         get name() { return `T${this.parent.get_index(i)}`; },
         description: "Trace thickness",
         get min(): number { return this.parent.minimum_feature_size; },
-        ...create_default_distance(1, "oz", this._copper_thickness_unit),
+        ...create_default_distance(1, "oz", this.copper_thickness_unit),
         placeholder_value: sizes.trace_height,
         impedance_correlation: "negative",
       };
@@ -151,7 +152,7 @@ export class StackupParameters {
         get name() { return `H${this.parent.get_index(i)}` },
         description: "Soldermask thickness",
         get min(): number { return this.parent.minimum_feature_size; },
-        ...create_default_distance(0.015, "mm", this._size_unit),
+        ...create_default_distance(0.015, "mm", this.size_unit),
         placeholder_value: sizes.soldermask_height,
         impedance_correlation: "negative",
       };
@@ -163,7 +164,7 @@ export class StackupParameters {
         get name() { return `H${this.parent.get_index(i)}`; },
         description: "Dielectric height",
         get min(): number { return this.parent.minimum_feature_size; },
-        ...create_default_distance(0.15, "mm", this._size_unit),
+        ...create_default_distance(0.15, "mm", this.size_unit),
         placeholder_value: sizes.core_height,
         impedance_correlation: "positive",
       };
@@ -181,7 +182,7 @@ export class StackupParameters {
     });
     this.PH = {
       type: "size",
-      ...create_default_distance(0.1, "mm", this._copper_thickness_unit),
+      ...create_default_distance(0.1, "mm", this.copper_thickness_unit),
       placeholder_value: sizes.copper_layer_height,
     };
     this.W = create_trace_width("W", "Trace width");
@@ -192,7 +193,7 @@ export class StackupParameters {
       name: "S",
       description: "Signal separation",
       get min(): number { return this.parent.minimum_feature_size; },
-      ...create_default_distance(0.25, "mm", this._size_unit),
+      ...create_default_distance(0.25, "mm", this.size_unit),
       placeholder_value: sizes.signal_width_separation,
       impedance_correlation: "positive",
     };
@@ -202,7 +203,7 @@ export class StackupParameters {
       name: "BS",
       description: "Broadside separation",
       min: 0,
-      ...create_default_distance(0, "mm", this._size_unit),
+      ...create_default_distance(0, "mm", this.size_unit),
       placeholder_value: sizes.broadside_width_separation,
       impedance_correlation: "positive",
     };
@@ -212,7 +213,7 @@ export class StackupParameters {
       name: "CS",
       description: "Coplanar ground separation",
       get min(): number { return this.parent.minimum_feature_size; },
-      ...create_default_distance(0.25, "mm", this._size_unit),
+      ...create_default_distance(0.25, "mm", this.size_unit),
       placeholder_value: sizes.ground_width_separation,
       impedance_correlation: "positive",
     };
@@ -263,7 +264,7 @@ export class StackupParameters {
     switch (valid_param.type) {
       case "size": {
         // convert to common unit for entire simulation
-        const value = convert_distance(valid_param.value, valid_param.unit, this._size_unit);
+        const value = convert_distance(valid_param.value, valid_param.unit, this.size_unit);
         return value;
       }
       case "etch_factor": return valid_param.value;
@@ -272,11 +273,11 @@ export class StackupParameters {
   }
 
   get size_unit(): DistanceUnit {
-    return this._size_unit;
+    return this.user_data.size_unit;
   }
 
   set size_unit(new_unit: DistanceUnit) {
-    this._size_unit = new_unit;
+    this.user_data.size_unit = new_unit;
     const update_param = (param: SizeParameter) => {
       const old_unit = param.unit;
       param.unit = new_unit;
@@ -295,11 +296,11 @@ export class StackupParameters {
   }
 
   get copper_thickness_unit(): DistanceUnit {
-    return this._copper_thickness_unit;
+    return this.user_data.copper_thickness_unit;
   }
 
   set copper_thickness_unit(new_unit: DistanceUnit) {
-    this._copper_thickness_unit = new_unit;
+    this.user_data.copper_thickness_unit = new_unit;
     const update_param = (param: SizeParameter) => {
       const old_unit = param.unit;
       param.unit = new_unit;

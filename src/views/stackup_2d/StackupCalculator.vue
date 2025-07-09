@@ -44,6 +44,7 @@ import { Profiler } from "../../utility/profiler.ts";
 import { providers } from "../../providers/providers.ts";
 
 const toast = providers.toast_manager.value;
+const user_data = providers.user_data.value;
 
 interface SelectedMap<K extends string, V> {
   selected: K;
@@ -124,7 +125,7 @@ function read_query_parameters(query: LocationQuery) {
 read_query_parameters(route.query);
 
 function create_editor() {
-  const parameters = new StackupParameters();
+  const parameters = new StackupParameters(user_data);
 
   function mark_parameter_changed(param: Parameter) {
     param.old_value = undefined;

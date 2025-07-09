@@ -16,8 +16,10 @@ import { type ViewerConfig, get_default_viewer_config } from "./viewer";
 import { SearchIcon } from "lucide-vue-next";
 import "fuzzysort";
 import fuzzysort from "fuzzysort";
+import { providers } from "../../providers/providers.ts";
 
-const parameters = new StackupParameters();
+const user_data = providers.user_data.value;
+const parameters = new StackupParameters(user_data);
 interface Tag {
   type: string;
   layer: string;
