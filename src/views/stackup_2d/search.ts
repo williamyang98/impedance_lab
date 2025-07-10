@@ -7,14 +7,20 @@ import { type ManagedObject } from "../../wasm/index.ts";
 import { Globals } from "../../global.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
 
+export interface ParameterSearchConfig {
+  max_steps: number; // number of search steps
+  impedance_tolerance: number; // how much error in search impedance
+  search_precision: number; // smallest difference between search points
+}
+
 function run_parameter_search<T extends { error: number }>(
+  config: ParameterSearchConfig,
   func: (value: number) => T,
   v_initial?: number, v_min?: number, v_max?: number,
 ): T {
-  // TODO: expose this to user for configuration
-  const max_steps = 32;
-  const error_threshold = 1e-1; // impedance should just be within 0.1 ohms
-  const value_threshold = 1e-3; // precision of parameter search
+  const max_steps = config.max_steps;
+  const error_threshold = config.impedance_tolerance;
+  const value_threshold = config.search_precision;
 
   v_min = v_min ?? 0; // unless specified default search to [0,Infinity)
   if (v_max && v_max < v_min) {
@@ -232,8 +238,10 @@ export function search_parameters(
   target_impedance: number,
   stackup: Stackup, params: Parameter[],
   get_parameter: (param: Parameter) => number,
-  config: StackupGridConfig,
-  profiler: Profiler, toast: ToastManager,
+  stackup_config: StackupGridConfig,
+  search_config: ParameterSearchConfig,
+  profiler: Profiler,
+  toast: ToastManager,
 ): SearchResults {
   if (params.length <= 0) {
     throw Error("Got 0 parameters in parametric search");
@@ -273,7 +281,7 @@ export function search_parameters(
     profiler.end();
 
     profiler.begin("create_grid", "Create simulation grid from layout");
-    const stackup_grid = new StackupGrid(layout, get_parameter, profiler, config);
+    const stackup_grid = new StackupGrid(layout, get_parameter, profiler, stackup_config);
     profiler.end();
 
     profiler.begin("run", "Perform impedance measurements", {
@@ -327,6 +335,7 @@ export function search_parameters(
   let best_result = undefined;
   try {
     best_result = run_parameter_search(
+      search_config,
       search_function,
       initial_value,
       min_value, max_value,

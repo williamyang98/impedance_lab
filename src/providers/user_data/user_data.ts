@@ -4,6 +4,7 @@ import {
   type ComputeBenchmarkConfig,
   type MemoryBandwidthBenchmarkConfig,
 } from "../../views/gpu_benchmark/config.ts";
+import { type ParameterSearchConfig } from "../../views/stackup_2d/search.ts";
 
 function try_into_distance_unit(storage: Storage, key: string, default_value: DistanceUnit): DistanceUnit {
   const value = storage.getItem(key);
@@ -127,6 +128,11 @@ export const keys = {
   memory_bandwidth: {
     total_transfers: "memory_bandwidth_benchmark.total_transfers",
   },
+  parameter_search: {
+    max_steps: "parameter_search.max_steps",
+    impedance_tolerance: "parameter_search.impedance_tolerance",
+    search_precision: "parameter_search.search_precision",
+  },
 };
 
 export class UserData {
@@ -137,6 +143,7 @@ export class UserData {
   stackup_2d_mesh_config: Stackup2DMeshConfig;
   compute_benchmark_config: UserComputeBenchmarkConfig;
   memory_bandwidth_benchmark_config: UserMemoryBandwidthBenchmarkConfig;
+  parameter_search_config: UserParameterSearchConfig;
 
   constructor(storage: Storage) {
     this.storage = storage;
@@ -146,6 +153,7 @@ export class UserData {
     this.stackup_2d_mesh_config = new Stackup2DMeshConfig(storage);
     this.compute_benchmark_config = new UserComputeBenchmarkConfig(storage);
     this.memory_bandwidth_benchmark_config = new UserMemoryBandwidthBenchmarkConfig(storage);
+    this.parameter_search_config = new UserParameterSearchConfig(storage);
   }
 
   get is_dark_mode(): boolean { return this._is_dark_mode.value; }
@@ -236,4 +244,26 @@ export class UserMemoryBandwidthBenchmarkConfig implements MemoryBandwidthBenchm
 
   get total_transfers(): number { return this._total_transfers.value; }
   set total_transfers(value: number) { this._total_transfers.value = value; }
+}
+
+export class UserParameterSearchConfig implements ParameterSearchConfig {
+  storage: Storage;
+  _max_steps: NumberEntry;
+  _impedance_tolerance: NumberEntry;
+  _search_precision: NumberEntry;
+
+  constructor(storage: Storage) {
+    this.storage = storage;
+    const K = keys.parameter_search;
+    this._max_steps = new NumberEntry(storage, K.max_steps, 16, "integer");
+    this._impedance_tolerance = new NumberEntry(storage, K.impedance_tolerance, 0.1, "float");
+    this._search_precision = new NumberEntry(storage, K.search_precision, 0.001, "float");
+  }
+
+  get max_steps(): number { return this._max_steps.value; }
+  set max_steps(value: number) { this._max_steps.value = value; }
+  get impedance_tolerance(): number { return this._impedance_tolerance.value; }
+  set impedance_tolerance(value: number) { this._impedance_tolerance.value = value; }
+  get search_precision(): number { return this._search_precision.value; }
+  set search_precision(value: number) { this._search_precision.value = value; }
 }

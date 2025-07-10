@@ -22,7 +22,8 @@ import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
 import ExportView from "./ExportView.vue";
 import TabsView from "../../utility/TabsView.vue";
 import MeshConfigForm from "./MeshConfigForm.vue";
-import { PencilIcon, EyeIcon, InfoIcon, SettingsIcon } from "lucide-vue-next";
+import ParameterSearchConfigForm from "./ParameterSearchConfigForm.vue";
+import { PencilIcon, EyeIcon, SettingsIcon } from "lucide-vue-next";
 // ts imports
 import {type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
@@ -300,7 +301,8 @@ async function perform_search(search_params: Parameter[]) {
       simulation_stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
       get_parameter,
-      toRaw(user_data.stackup_2d_mesh_config),
+      user_data.stackup_2d_mesh_config,
+      user_data.parameter_search_config,
       new_profiler, toast,
     );
     new_profiler.end();
@@ -376,15 +378,24 @@ watch(() => route.query, (new_query) => {
       </div>
       <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
-          <div class="flex flex-row items-center gap-x-1">
-            <h2 class="card-title">Parameters</h2>
-            <div
-              class="tooltip tooltip-bottom"
-              data-tip="Physical dimensions must all be in the same unit"
-            >
-              <InfoIcon class="w-[1rem] h-[1rem]"/>
-            </div>
-          </div>
+          <h2 class="card-title flex flex-row items-center justify-between gap-x-1 w-full">
+            <span>Parameters</span>
+            <button class="btn size-[2.0rem] p-1" onclick="search_settings.showModal()">
+              <SettingsIcon class="size-[1.2rem]"/>
+            </button>
+            <dialog id="search_settings" class="modal">
+              <div class="modal-box">
+                <form method="dialog">
+                  <div class="text-lg font-bold p-0">Parameter Search Settings</div>
+                  <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+                </form>
+                <ParameterSearchConfigForm :config="user_data.parameter_search_config"/>
+              </div>
+              <form method="dialog" class="modal-backdrop">
+                <button>Close</button>
+              </form>
+            </dialog>
+          </h2>
           <ParameterForm
             :editor="editor"
             @search="perform_search"
