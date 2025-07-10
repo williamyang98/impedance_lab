@@ -4,8 +4,12 @@ import { providers } from "../../providers/providers.ts";
 import { KernelBenchmark, type BenchmarkType } from "../../wgpu_kernels/benchmark/index.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 import { GPUTimer } from "./gpu_timer.ts";
+import { NumberField, integer_validator } from "../../utility/form_validation.ts";
+import { TriangleAlert } from "lucide-vue-next";
 
 const gpu_device = providers.gpu_device.value;
+const user_data = providers.user_data.value;
+
 const gpu_features = gpu_device.features as ReadonlySet<GPUFeatureName>;
 const kernel = new KernelBenchmark(gpu_device);
 
@@ -33,11 +37,15 @@ function get_supported_benchmarks(): BenchmarkResult[] {
 
 const benchmark_results = ref<BenchmarkResult[]>(get_supported_benchmarks());
 
-const total_compute_units = ref<number>(12);
-const total_warmup_steps = ref<number>(4);
-const total_warm_steps = ref<number>(8);
-const work_multiplier = ref<number>(2);
 const is_running = ref<boolean>(false);
+
+const config = user_data.compute_benchmark_config;
+const config_form = ref([
+  new NumberField(config, "total_compute_units", "Compute Units", 1, 1024, 1, integer_validator),
+  new NumberField(config, "work_multiplier", "Work Multiplier", 1, 1024, 1, integer_validator),
+  new NumberField(config, "total_warmup_steps", "Warmup Steps", 1, 1024, 1, integer_validator),
+  new NumberField(config, "total_warm_steps", "Warmed Steps", 1, 1024, 1, integer_validator),
+]);
 
 
 async function run_benchmark(result: BenchmarkResult, total_steps: number, total_elements: number, total_outer_loops: number) {
@@ -79,8 +87,8 @@ async function run_benchmarks() {
   if (is_running.value) return;
 
   const total_workgroups_per_compute_unit = 2048;
-  const total_elements = total_compute_units.value*total_workgroups_per_compute_unit*kernel.workgroup_size;
-  const total_steps = total_warmup_steps.value + total_warm_steps.value;
+  const total_elements = config.total_compute_units*total_workgroups_per_compute_unit*kernel.workgroup_size;
+  const total_steps = config.total_warmup_steps + config.total_warm_steps;
 
   is_running.value = true;
 
@@ -95,10 +103,10 @@ async function run_benchmarks() {
     if (!result.is_supported) continue;
 
     try {
-      const total_outer_loops = result.base_outer_loops*work_multiplier.value;
+      const total_outer_loops = result.base_outer_loops*config.work_multiplier;
       const samples_ns = await run_benchmark(result, total_steps, total_elements, total_outer_loops);
 
-      const warm_samples = samples_ns.slice(total_warmup_steps.value).map(ns => Number(ns)*1e-9);
+      const warm_samples = samples_ns.slice(config.total_warmup_steps).map(ns => Number(ns)*1e-9);
       const avg_elapsed = warm_samples.reduce((a,b) => a+b, 0)/warm_samples.length;
 
       const iops_per_element = total_outer_loops*kernel.iops_per_loop*kernel.inner_loop_count;
@@ -119,22 +127,22 @@ async function run_benchmarks() {
     <div class="w-full">
       <div v-if="gpu_features.has('timestamp-query')" class="flex flex-col gap-x-1">
         <table class="table table-compact w-full">
+          <col class="w-fit">
+          <col class="w-full">
           <tbody>
-            <tr>
-              <td class="font-medium">Compute Units</td>
-              <td><input class="input" type="number" v-model.number="total_compute_units" min="1" step="1"/></td>
-            </tr>
-            <tr>
-              <td class="font-medium">Work Multiplier</td>
-              <td><input class="input" type="number" v-model.number="work_multiplier" min="1" step="1"/></td>
-            </tr>
-            <tr>
-              <td class="font-medium">Warmup Steps</td>
-              <td><input class="input" type="number" v-model.number="total_warmup_steps" min="1" step="1"/></td>
-            </tr>
-            <tr>
-              <td class="font-medium">Warm Steps</td>
-              <td><input class="input" type="number" v-model.number="total_warm_steps" min="1" step="1"/></td>
+            <tr v-for="field of config_form" :key="field.key">
+              <td class="font-medium text-nowrap">{{ field.name }}</td>
+              <td>
+                <input
+                  class="input w-full" :class="`${field.error ? 'input-error' : ''}`"
+                  type="number" v-model.number="field.value"
+                  :min="field.min" :max="field.max" :step="field.step"
+                />
+                <div class="text-error text-xs flex flex-row py-1 w-full" v-if="field.error">
+                  <TriangleAlert class="size-[1rem] mr-1"/>
+                  <span>{{ field.error }}</span>
+                </div>
+              </td>
             </tr>
             <tr v-for="result of benchmark_results" :key="result.type">
               <td class="font-medium">{{ result.type }}</td>

@@ -3,12 +3,20 @@ import { ref } from "vue";
 import { providers } from "../../providers/providers.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 import { GPUTimer } from "./gpu_timer.ts";
+import { NumberField, integer_validator } from "../../utility/form_validation.ts";
+import { TriangleAlert } from "lucide-vue-next";
 
 const gpu_device = providers.gpu_device.value;
+const user_data = providers.user_data.value;
 const gpu_features = gpu_device.features as ReadonlySet<GPUFeatureName>;
 
 const is_running = ref<boolean>(false);
-const total_transfers = ref<number>(30);
+
+const config = user_data.memory_bandwidth_benchmark_config;
+const config_form = ref([
+  new NumberField(config, "total_transfers", "Total Transfers", 1, 1024, 1, integer_validator),
+]);
+
 const buffer_size = gpu_device.limits.maxStorageBufferBindingSize;
 
 interface BenchmarkResult {
@@ -33,7 +41,7 @@ async function run_benchmark() {
   const kernel_timer = new GPUTimer(gpu_device, 2);
   is_running.value = true;
 
-  const total_steps = total_transfers.value;
+  const total_steps = config.total_transfers;
   benchmark_result.value.curr_step = 0;
   benchmark_result.value.total_steps = total_steps;
   benchmark_result.value.bandwidth = undefined;
@@ -80,17 +88,29 @@ async function run_benchmark() {
     <div class="card-title">Memory Bandwidth</div>
     <div v-if="gpu_features.has('timestamp-query')" class="flex flex-col gap-x-1">
       <table class="table table-compact">
+        <col class="w-fit">
+        <col class="w-full">
         <tbody>
-          <tr>
-            <td class="font-medium">Total Transfers</td>
-            <td><input class="input" type="number" v-model.number="total_transfers" min="1" step="1"/></td>
+          <tr v-for="field of config_form" :key="field.key">
+            <td class="font-medium text-nowrap">{{ field.name }}</td>
+            <td>
+              <input
+                class="input w-full" :class="`${field.error ? 'input-error' : ''}`"
+                type="number" v-model.number="field.value"
+                :min="field.min" :max="field.max" :step="field.step"
+              />
+              <div class="text-error text-xs flex flex-row py-1 w-full" v-if="field.error">
+                <TriangleAlert class="size-[1rem] mr-1"/>
+                <span>{{ field.error }}</span>
+              </div>
+            </td>
           </tr>
           <tr>
-            <td class="font-medium">Buffer size</td>
+            <td class="font-medium text-nowrap">Buffer size</td>
             <td>{{ with_standard_suffix(buffer_size, "B", 3) }}</td>
           </tr>
           <tr>
-            <td class="font-medium">Memory bandwidth</td>
+            <td class="font-medium text-nowrap">Memory bandwidth</td>
             <td>
               <template v-if="benchmark_result.error">
                 <span class="font-medium text-error">{{ benchmark_result.error }}</span>
