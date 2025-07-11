@@ -61,25 +61,49 @@ interface StructViewField {
   setter: (view: DataView, offset: number, value: number) => void;
 }
 
-export class StructView<T extends Record<string, StructFieldType>> {
+function is_array_like(obj: StructFieldType | StructFieldType[]): obj is StructFieldType[] {
+  return typeof obj !== 'string';
+}
+
+export type FieldKey<T,V> = { [K in keyof T]: T[K] extends V ? K : never }[keyof T];
+
+export class StructView<T extends Record<string, StructFieldType | StructFieldType[]>> {
   buffer: ArrayBuffer;
   private view: DataView;
-  private views: Record<keyof T, StructViewField>;
+  private views: Record<keyof T, StructViewField | StructViewField[]>;
 
   constructor(fields: T) {
+
     // compute field offsets
     let offset = 0;
-    const views: Partial<Record<keyof T, StructViewField>> = {};
+    const views: Partial<typeof this.views> = {};
     for (const name in fields) {
-      const type: StructFieldType = fields[name];
-      const accessor = get_field_accessor(type)
-      const view = {
-        offset,
-        getter: accessor.getter,
-        setter: accessor.setter,
-      };
-      views[name] = view;
-      offset += accessor.size;
+      const field = fields[name];
+      if (typeof(field) === "string") {
+        const type: StructFieldType = field;
+        const accessor = get_field_accessor(type)
+        const view = {
+          offset,
+          getter: accessor.getter,
+          setter: accessor.setter,
+        };
+        views[name] = view;
+        offset += accessor.size;
+      } else if (is_array_like(field)) {
+        const types: StructFieldType[] = field;
+        const view_arr: StructViewField[] = [];
+        for (const type of types) {
+          const accessor = get_field_accessor(type)
+          const view = {
+            offset,
+            getter: accessor.getter,
+            setter: accessor.setter,
+          }
+          offset += accessor.size;
+          view_arr.push(view);
+        }
+        views[name] = view_arr;
+      }
     }
     const total_bytes = offset;
     this.buffer = new ArrayBuffer(total_bytes);
@@ -87,13 +111,31 @@ export class StructView<T extends Record<string, StructFieldType>> {
     this.views = views as Record<keyof T, StructViewField>;
   }
 
-  get<K extends keyof T>(key: K): number {
-    const view = this.views[key];
+  get<K extends FieldKey<T, StructFieldType>>(key: K): number {
+    const view = this.views[key] as StructViewField;
     return view.getter(this.view, view.offset);
   }
 
-  set<K extends keyof T>(key: K, value: number) {
-    const view = this.views[key];
-    return view.setter(this.view, view.offset, value);
+  set<K extends FieldKey<T, StructFieldType>>(key: K, value: number) {
+    const view = this.views[key] as StructViewField;
+    view.setter(this.view, view.offset, value);
+  }
+
+  get_array<K extends FieldKey<T, ArrayLike<StructFieldType>>>(key: K): number[] {
+    const views = this.views[key] as StructViewField[];
+    return views.map(view => view.getter(this.view, view.offset));
+  }
+
+  set_array<K extends FieldKey<T, ArrayLike<StructFieldType>>>(key: K, values: number[]) {
+    const views = this.views[key] as StructViewField[];
+    if (views.length !== values.length) {
+      throw Error(`Mismatching number of elements view=${views.length}, values=${values.length}`);
+    }
+    const N = views.length;
+    for (let i = 0; i < N; i++) {
+      const view = views[i];
+      const value = values[i];
+      view.setter(this.view, view.offset, value);
+    }
   }
 }
