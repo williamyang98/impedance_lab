@@ -91,7 +91,8 @@ LU_Solver::Create_Result LU_Solver::create(
 
     const auto solver = std::make_shared<LU_Solver>(
         std::move(permute_col), std::move(permute_row), std::move(elimination_tree),
-        stat, transpose_mode, L, U
+        stat, transpose_mode, L, U,
+        total_rows, total_cols
     );
     return { solver, lu_factor_info };
 }

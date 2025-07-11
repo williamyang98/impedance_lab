@@ -474,8 +474,14 @@ export class LU_Solver implements ManagedObject {
   }
 
   solve(b: Float32ModuleBuffer): number {
+    if (this.total_cols !== b.length) {
+      throw Error(`Mismatch between LU factorised matrix which has ${this.total_cols} columns and expects b with ${this.total_cols} rows but got ${b.length}`);
+    }
     return this.inner.solve(b.pin);
   }
+
+  get total_rows(): number { return this.inner.total_rows; }
+  get total_cols(): number { return this.inner.total_cols; }
 
   delete(): boolean {
     if (this._is_deleted) return false;

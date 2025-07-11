@@ -25,7 +25,9 @@ namespace emscripten {
                 "create(A_non_zero_data, A_col_indices, A_row_index_pointers, total_rows, total_columns)", 
                 &LU_Solver::create
             )
-            .function("solve(b)", &LU_Solver::solve);
+            .function("solve(b)", &LU_Solver::solve)
+            .property("total_rows", &LU_Solver::get_total_rows, return_value_policy::reference())
+            .property("total_cols", &LU_Solver::get_total_cols, return_value_policy::reference());
         class_<LU_Solver::Create_Result>("LU_Solver_Create_Result")
             .property("solver", &LU_Solver::Create_Result::solver)
             .property("lu_factor_info", &LU_Solver::Create_Result::lu_factor_info);
