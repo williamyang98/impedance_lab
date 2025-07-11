@@ -33,7 +33,6 @@ const selected_renderer = computed(() => master_renderer.value.selected);
 // each renderer is mapped to a different buffer, and we only reupload data for that specific renderer on demand
 const is_uploaded = new Set<typeof master_renderer.value.mode>();
 
-
 const refresh = debounce_animation_frame_async(async () => {
   // can't render to 0 sized canvas
   const canvas = canvas_element.value;
@@ -59,7 +58,7 @@ const refresh = debounce_animation_frame_async(async () => {
   renderer.create_pass(command_encoder, canvas_texture, canvas_size);
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone()
-});
+}, true);
 
 // tooltip
 const is_mouse_over = ref<boolean>(false);
@@ -143,7 +142,7 @@ watch(canvas_element, (elem) => {
     }
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
-    void refresh();
+    refresh();
   });
   resize_observer.observe(elem);
 });

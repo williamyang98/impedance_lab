@@ -1,8 +1,12 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function debounce_animation_frame<T extends (...args: any[]) => void>(fn: T) {
+export function debounce_animation_frame<T extends (...args: any[]) => void>(fn: T, override?: boolean) {
+  override = override ?? false;
   let current_animation_frame: number | null = null;
   return (...args: Parameters<T>) => {
-    if (current_animation_frame !== null) return;
+    if (current_animation_frame !== null) {
+      if (!override) return;
+      cancelAnimationFrame(current_animation_frame);
+    }
     current_animation_frame = requestAnimationFrame(() => {
       fn(...args);
       current_animation_frame = null;
@@ -11,10 +15,14 @@ export function debounce_animation_frame<T extends (...args: any[]) => void>(fn:
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function debounce_animation_frame_async<T extends (...args: any[]) => Promise<void>>(fn: T) {
+export function debounce_animation_frame_async<T extends (...args: any[]) => Promise<void>>(fn: T, override?: boolean) {
+  override = override ?? false;
   let current_animation_frame: number | null = null;
   return (...args: Parameters<T>) => {
-    if (current_animation_frame !== null) return;
+    if (current_animation_frame !== null) {
+      if (!override) return;
+      cancelAnimationFrame(current_animation_frame);
+    }
     current_animation_frame = requestAnimationFrame(() => {
       fn(...args)
         .then(() => {
