@@ -10,6 +10,11 @@ extern "C" {
 
 class LU_Solver 
 {
+public:
+    struct Create_Result {
+        std::shared_ptr<LU_Solver> solver = nullptr;
+        int_t lu_factor_info = 0;
+    };
 private:
     std::vector<int> m_permute_col;
     std::vector<int> m_permute_row;
@@ -27,7 +32,7 @@ public:
         m_stat(stat), m_transpose_mode(transpose_mode), m_L(L), m_U(U)
     {}
     ~LU_Solver();
-    static std::shared_ptr<LU_Solver> create(
+    static Create_Result create(
         TypedPinnedArray<float> A_non_zero_data,
         TypedPinnedArray<int32_t> A_col_indices, TypedPinnedArray<int32_t> A_row_index_ptr,
         int total_rows, int total_cols

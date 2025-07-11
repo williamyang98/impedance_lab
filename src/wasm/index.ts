@@ -454,15 +454,22 @@ export class LU_Solver implements ManagedObject {
     module.assert_owned(A_row_index_pointers);
 
     this.module = module;
-    const inner = module.main.LU_Solver.create(
+    if (A_non_zero_data.length !== A_col_indices.length) {
+      throw new Error(`Mismatching number of non-zero elements in data (${A_non_zero_data.length}) and number of column-indices (${A_col_indices.length})`);
+    }
+    if (A_row_index_pointers.length !== (total_rows+1)) {
+      throw new Error(`Mismatching number of row index pointers (${A_row_index_pointers.length}) and total_rows+1 (${total_rows}+1)`);
+    }
+
+    const { solver, lu_factor_info } = module.main.LU_Solver.create(
       A_non_zero_data.pin,
       A_col_indices.pin, A_row_index_pointers.pin,
       total_rows, total_columns,
     );
-    if (inner === null) {
-      throw Error("WASM module LU_Solver.create returned null");
+    if (solver === null) {
+      throw Error(`WASM module LU_Solver.create returned null with error code: ${lu_factor_info}`);
     }
-    this.inner = inner;
+    this.inner = solver;
     module.register_parent_and_children(this, new ManagedHandle(module, this.inner));
   }
 

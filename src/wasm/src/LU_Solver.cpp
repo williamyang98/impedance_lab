@@ -1,28 +1,16 @@
 #include "./LU_Solver.hpp"
 #include "./logging.hpp"
-#include <emscripten/emscripten.h>
 #include <vector>
 
 extern "C" {
 #include "slu_sdefs.h"
 }
 
-std::shared_ptr<LU_Solver> LU_Solver::create(
+LU_Solver::Create_Result LU_Solver::create(
     TypedPinnedArray<float> A_non_zero_data,
     TypedPinnedArray<int32_t> A_col_indices, TypedPinnedArray<int32_t> A_row_index_ptr,
     int total_rows, int total_cols
 ) {
-    if (A_non_zero_data.get_length() != A_col_indices.get_length()) {
-        EM_ASM({
-            throw new Error(`Mismatching number of non-zero elements in data (${$0}) and column indices (${$1})`);
-        }, A_non_zero_data.get_length(), A_col_indices.get_length());
-    }
-    if (A_row_index_ptr.get_length() != (total_rows+1)) {
-        EM_ASM({
-            throw new Error(`Mismatching number of row index pointers (${$0}) and total_rows+1 (${$1}+1)`);
-        }, A_row_index_ptr.get_length(), total_rows);
-    }
-
     MODULE_LOG("Setting default options for superlu\n");
     // from set_default_options()
     superlu_options_t options;
@@ -98,13 +86,14 @@ std::shared_ptr<LU_Solver> LU_Solver::create(
         StatFree(&stat);
         Destroy_SuperNode_Matrix(&L);
         Destroy_CompCol_Matrix(&U);
-        EM_ASM({ throw new Error("LU factorisation failed with code: " + $0); }, lu_factor_info);
+        return { nullptr, lu_factor_info };
     }
 
-    return std::make_shared<LU_Solver>(
+    const auto solver = std::make_shared<LU_Solver>(
         std::move(permute_col), std::move(permute_row), std::move(elimination_tree),
         stat, transpose_mode, L, U
     );
+    return { solver, lu_factor_info };
 }
 
 int32_t LU_Solver::solve(TypedPinnedArray<float> B_data) {
