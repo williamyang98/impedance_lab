@@ -243,6 +243,11 @@ export class ShaderQuiverGrid {
     scale: "f32",
     quiver_count_x: "u32",
     quiver_count_y: "u32",
+    _pad_0: "u32",
+    low_colour: ["f32", "f32", "f32"],
+    _pad_1: "u32",
+    high_colour: ["f32", "f32", "f32"],
+    _pad_2: "u32",
   });
   params_uniform: GPUBuffer;
   shader_source: string;
@@ -376,7 +381,7 @@ export class ShaderQuiverGrid {
         topology: "triangle-list",
       },
     });
-    this.clear_colour = { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
+    this.clear_colour = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
     this.grid_sampler = device.createSampler({
       magFilter: "linear",
       minFilter: "linear",
@@ -398,6 +403,8 @@ export class ShaderQuiverGrid {
     this.params.set("scale", scale);
     this.params.set("quiver_count_x", quiver_count_x);
     this.params.set("quiver_count_y", quiver_count_y);
+    this.params.set_array("low_colour", [0.2,0.2,0.2]);
+    this.params.set_array("high_colour", [1.0,1.0,1.0]);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
     const bind_group = this.device.createBindGroup({
