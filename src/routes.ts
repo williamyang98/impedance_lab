@@ -58,6 +58,15 @@ export const navigation_tree: NavigationItem[] = [
           view_component: () => import("./views/stackup_2d/TemplatesView.vue"),
         },
       },
+      {
+        type: "endpoint" as const,
+        name: "Via 3D Electrostatic",
+        route: {
+          name: "via_3d_electrostatic",
+          path: "/2d_stackup/via_3d",
+          view_component: () => import("./views/via_3d/Via3DView.vue"),
+        },
+      }
     ],
   },
   {
