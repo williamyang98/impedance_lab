@@ -39,6 +39,7 @@ function get_total_searchable_parameters(params: Set<Parameter>): number {
 }
 
 class Form {
+  soldermask_height_params = new Set<SizeParameter>();
   layer_dielectric_height_params = new Set<SizeParameter>();
   layer_dielectric_epsilon_params = new Set<EpsilonParameter>();
   layer_trace_height_params = new Set<SizeParameter>();
@@ -88,7 +89,7 @@ class Form {
         }
         case "soldermask": {
           if (!layers_with_plane.has(layer.id)) {
-            this.layer_dielectric_height_params.add(layer.height);
+            this.soldermask_height_params.add(layer.height);
             this.layer_dielectric_epsilon_params.add(layer.epsilon);
           }
           break;
@@ -139,19 +140,19 @@ class Form {
     };
 
     create_form_fields(
-      `Dielectric Height (${parameters.size_unit})`,
-      "Height of stackup layer",
+      `Soldermask Height (${parameters.size_unit})`,
+      "Height of soldermask",
+      this.soldermask_height_params,
+    );
+    create_form_fields(
+      `Inner Layer Height (${parameters.size_unit})`,
+      "Height of inner stackup layer",
       this.layer_dielectric_height_params,
     );
     create_form_fields(
       "Dielectric Constant",
-      "Relative permittivity of dielectric in stackup layer",
+      "Relative permittivity of layer dielectric",
       this.layer_dielectric_epsilon_params,
-    );
-    create_form_fields(
-      `Trace Height (${parameters.copper_thickness_unit})`,
-      "Height of copper in stackup layer",
-      this.layer_trace_height_params,
     );
     push_row();
 
@@ -164,6 +165,11 @@ class Form {
       `Spacing (${parameters.size_unit})`,
       "Separation between transmission line traces",
       this.spacing_params,
+    );
+    create_form_fields(
+      `Trace Height (${parameters.copper_thickness_unit})`,
+      "Height of copper layer",
+      this.layer_trace_height_params,
     );
     create_form_fields(
       "Etch Factor",
