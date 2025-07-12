@@ -1,10 +1,8 @@
 import { type Parameter, type Stackup } from "./stackup.ts";
-import { create_layout_from_stackup, type StackupLayout } from "./layout.ts";
+import { create_layout_from_stackup } from "./layout.ts";
 import { type StackupGridConfig, StackupGrid } from "./grid.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { type ManagedObject } from "../../wasm/index.ts";
-import { Globals } from "../../global.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
 
 export interface ParameterSearchConfig {
@@ -155,82 +153,50 @@ function run_parameter_search<T extends { error: number }>(
 }
 
 
-export class SearchResult implements ManagedObject {
-  readonly module = Globals.wasm_module;
-  _is_deleted: boolean = false;
-  readonly value: number;
-  readonly impedance: number;
-  readonly iteration: number;
-  readonly error: number;
-  readonly layout: StackupLayout;
-  readonly stackup_grid: StackupGrid;
-  readonly measurement: Measurement;
+export class SearchResult {
+  value: number;
+  impedance: number;
+  iteration: number;
+  error: number;
+  measurement: Measurement;
 
   constructor(
     value: number,
     impedance: number,
     iteration: number,
     error: number,
-    layout: StackupLayout,
-    stackup_grid: StackupGrid,
     measurement: Measurement,
   ) {
     this.value = value;
     this.impedance = impedance;
     this.iteration = iteration;
     this.error = error;
-    this.layout = layout;
-    this.stackup_grid = stackup_grid;
     this.measurement = measurement;
-    this.module.register_parent_and_children(this, this.stackup_grid);
-  }
-
-  delete(): boolean {
-    if (this._is_deleted) return false;
-    this._is_deleted = true;
-    this.module.unregister_parent_and_children(this);
-    return true;
-  }
-
-  is_deleted(): boolean {
-    return this._is_deleted;
   }
 }
 
-export class SearchResults implements ManagedObject {
-  readonly module = Globals.wasm_module;
-  _is_deleted: boolean = false;
-
-  readonly parameter_label: string;
-  readonly target_impedance: number;
-  readonly stackup: Stackup;
-  readonly best_result: SearchResult;
-  readonly results: SearchResult[];
+export class SearchResults {
+  parameter_label: string;
+  target_impedance: number;
+  stackup: Stackup;
+  results: SearchResult[];
+  best_result: SearchResult;
+  best_stackup_grid: StackupGrid; // NOTE: caller is expected to call .delete() for this
 
   constructor(
     parameter_label: string,
     target_impedance: number,
     stackup: Stackup,
-    best_result: SearchResult,
     results: SearchResult[],
+    best_result: SearchResult,
+    best_stackup_grid: StackupGrid,
   ) {
     this.parameter_label = parameter_label;
     this.target_impedance = target_impedance;
     this.stackup = stackup;
-    this.best_result = best_result;
     this.results = results;
-    this.module.register_parent_and_children(this, ...this.results);
-  }
-
-  delete(): boolean {
-    if (this._is_deleted) return false;
-    this._is_deleted = true;
-    this.module.unregister_parent_and_children(this);
-    return true;
-  }
-
-  is_deleted(): boolean {
-    return this._is_deleted;
+    this.best_result = best_result;
+    this.best_stackup_grid = best_stackup_grid;
   }
 }
 
@@ -265,6 +231,9 @@ export function search_parameters(
     .join(",");
 
   const results: SearchResult[] = [];
+  let best_result: SearchResult | undefined = undefined;
+  let best_stackup_grid: StackupGrid | undefined = undefined;
+
   const search_function = (value: number): SearchResult => {
     for (const param of params) {
       param.value = value;
@@ -310,11 +279,17 @@ export function search_parameters(
       actual_impedance,
       curr_iter,
       error,
-      layout,
-      stackup_grid,
       measurement,
     );
+
     results.push(result);
+    if (best_result === undefined || Math.abs(result.error) < Math.abs(best_result.error)) {
+      best_result = result;
+      best_stackup_grid?.delete(); // avoid leaking memory
+      best_stackup_grid = stackup_grid;
+    } else {
+      stackup_grid.delete(); // avoid leaking memory
+    }
     return result;
   };
 
@@ -332,9 +307,8 @@ export function search_parameters(
 
   profiler.begin("run_binary_search");
   const initial_value = ref_param.value;
-  let best_result = undefined;
   try {
-    best_result = run_parameter_search(
+    run_parameter_search(
       search_config,
       search_function,
       initial_value,
@@ -344,19 +318,9 @@ export function search_parameters(
     const curr_iter = results.length;
     toast.warning(`Search function failed early at step ${curr_iter+1} with: ${String(error)}`);
   }
-  if (best_result === undefined) {
-    let min_error = undefined;
-    for (const result of results) {
-      const error = Math.abs(result.error);
-      if (min_error === undefined || (min_error > error)) {
-        min_error = error;
-        best_result = result;
-      }
-    }
-  }
   profiler.end();
 
-  if (best_result === undefined) {
+  if (best_result === undefined || best_stackup_grid === undefined) {
     throw Error("Parameter search failed to generate any results");
   }
 
@@ -364,7 +328,8 @@ export function search_parameters(
     parameter_label,
     target_impedance,
     stackup,
-    best_result,
     results,
+    best_result,
+    best_stackup_grid,
   );
 }

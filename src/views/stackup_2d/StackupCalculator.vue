@@ -231,6 +231,10 @@ async function calculate_impedance() {
   is_running.value = true;
   await sleep(0); // required so ui changes are reflected when is_running = True
 
+  // discard to minimise memory usage
+  toRaw(stackup_grid.value)?.delete();
+  stackup_grid.value = undefined;
+
   const new_profiler = new Profiler("calculate_impedance");
   let new_stackup = undefined;
   let new_measurement = undefined;
@@ -270,7 +274,6 @@ async function calculate_impedance() {
   if (!new_profiler.is_ended()) {
     new_profiler.end_all();
   }
-  toRaw(stackup_grid.value)?.delete();
   stackup_grid.value = new_stackup;
   measurement.value = new_measurement;
   profiler.value = new_profiler;
@@ -285,6 +288,10 @@ async function perform_search(search_params: Parameter[]) {
 
   is_running.value = true;
   await sleep(0);
+
+  // discard to minimise memory usage
+  toRaw(stackup_grid.value)?.delete();
+  stackup_grid.value = undefined;
 
   const used_parameters = new Set<Parameter>();
   function get_parameter(param: Parameter): number {
@@ -313,11 +320,9 @@ async function perform_search(search_params: Parameter[]) {
     new_profiler.end_all();
   }
 
-  toRaw(search_results.value)?.delete();
   search_results.value = new_search_results;
   const best_result = new_search_results?.best_result;
-  toRaw(stackup_grid.value)?.delete();
-  stackup_grid.value = best_result?.stackup_grid;
+  stackup_grid.value = new_search_results?.best_stackup_grid;
   measurement.value = best_result?.measurement;
   profiler.value = new_profiler;
   if (best_result) {
