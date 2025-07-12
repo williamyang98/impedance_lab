@@ -1,8 +1,7 @@
 import { type EpsilonParameter, type Voltage } from "./stackup.ts";
-import { type ManagedObject } from "../../wasm/index.ts";
+import { ManagedObject, WasmModule } from "../../wasm/index.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
-import { Globals } from "../../global.ts";
 
 import { Grid } from "./electrostatic_2d.ts";
 import { LinesBuilder } from "../../utility/lines_builder.ts";
@@ -104,9 +103,7 @@ export interface StackupGridConfig {
   signal_amplitude: number; // voltage value to use for +/- signals
 }
 
-export class StackupGrid implements ManagedObject {
-  readonly module = Globals.wasm_module;
-  _is_deleted: boolean = false;
+export class StackupGrid extends ManagedObject {
   layout: StackupLayout;
   voltage_indexes: {
     v_table: Record<Voltage, number>,
@@ -127,11 +124,13 @@ export class StackupGrid implements ManagedObject {
   profiler?: Profiler;
 
   constructor(
+    module: WasmModule,
     layout: StackupLayout,
     get_epsilon: (param: EpsilonParameter) => number,
     profiler: Profiler | undefined,
     config: StackupGridConfig,
   ) {
+    super(module);
     this.config = config;
     this.layout = layout;
     this.x_region_lines_builder = new LinesBuilder();
@@ -163,18 +162,7 @@ export class StackupGrid implements ManagedObject {
     // fit voltage and epsilon_k table
     this.grid.v_table = Float32ModuleNdarray.from_shape(this.module, [3]);
     this.grid.ek_table = Float32ModuleNdarray.from_shape(this.module, [this.epsilon_indexes.ek_table.length]);
-    this.module.register_parent_and_children(this, this.grid);
-  }
-
-  delete(): boolean {
-    if (this._is_deleted) return false;
-    this._is_deleted = true;
-    this.module.unregister_parent_and_children(this);
-    return true;
-  }
-
-  is_deleted(): boolean {
-    return this._is_deleted;
+    this._child_objects.add(this.grid);
   }
 
   get_infinite_plane_region(shape: InfinitePlaneShape): InfinitePlaneRegion {
@@ -358,6 +346,7 @@ export class StackupGrid implements ManagedObject {
   setup_create_simulation_grid(): Grid {
     this.profiler?.begin("create_simulation_grid");
     const grid = new Grid(
+      this.module,
       this.y_region_to_grid_map.total_grid_segments,
       this.x_region_to_grid_map.total_grid_segments,
     );

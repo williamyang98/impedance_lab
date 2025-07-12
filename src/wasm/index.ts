@@ -1,6 +1,6 @@
 import {
   default as init_module,
-  type MainModule, type ClassHandle,
+  type MainModule,
   type Uint8PinnedArray, type Int8PinnedArray,
   type Uint16PinnedArray, type Int16PinnedArray,
   type Uint32PinnedArray, type Int32PinnedArray,
@@ -16,35 +16,51 @@ export {
   type Float32PinnedArray, type Float64PinnedArray,
 } from "./build/wasm_module.js";
 
-export interface ManagedObject {
-  readonly module: WasmModule;
-  delete(): boolean;
-  is_deleted(): boolean;
+export interface ReferenceCount {
+  count: number;
 }
 
-class ManagedHandle<T extends ClassHandle> implements ManagedObject {
+export abstract class ManagedObject {
   readonly module: WasmModule;
-  handle: T;
+  reference_count: ReferenceCount;
+  _child_objects: Set<ManagedObject>;
 
-  constructor(module: WasmModule, handle: T) {
+  constructor(module: WasmModule) {
     this.module = module;
-    this.handle = handle;
+    this.reference_count = { count: 1 };
+    this._child_objects = new Set();
+    this.module.register_object(this);
+  }
+
+  clone() {
+    this.reference_count.count += 1;
+    return this;
+  }
+
+  on_delete(): void {
+    this.module.unregister_object(this);
   }
 
   delete(): boolean {
-    if (this.handle.isDeleted()) return false;
-    this.handle.delete();
+    this.reference_count.count -= 1;
+    if (this.reference_count.count > 0) return false;
+    if (this.reference_count.count < 0) {
+      console.error(`Attempted to double free with ref_count=${this.reference_count.count}`);
+      return true;
+    }
+    this.on_delete();
     return true;
   }
 
   is_deleted(): boolean {
-    return this.handle.isDeleted();
+    return this.reference_count.count <= 0;
   }
 }
 
 type StackTrace = string;
 interface FinalizationEntry {
   children: Set<ManagedObject>;
+  reference_count: ReferenceCount;
   parent_stack_trace?: StackTrace; // need to track this separately since parent is deallocated
 }
 
@@ -103,11 +119,20 @@ export class WasmModule {
           dangling_children.push(child);
         }
       }
+      const reference_count = entry.reference_count.count;
+      let has_error = false;
+      if (reference_count != 0) {
+        this.debug_console?.warn(`Manually cleaning up reference counted object with ref_count=${reference_count}`);
+        has_error = true;
+      }
       if (dangling_children.length > 0) {
         this.debug_console?.warn(`Manually cleaning up after parent object which left ${dangling_children.length}/${total_children} child objects dangling`);
-        if (entry.parent_stack_trace) {
-          this.debug_console?.warn(entry.parent_stack_trace);
-        }
+        has_error = true;
+      }
+      if (has_error && entry.parent_stack_trace) {
+        this.debug_console?.warn(entry.parent_stack_trace);
+      }
+      if (dangling_children.length > 0) {
         for (let i = 0; i < dangling_children.length; i++) {
           this.debug_console?.warn(`Deleting child object ${i+1}/${total_children}`);
           const child = dangling_children[i];
@@ -124,7 +149,7 @@ export class WasmModule {
     });
   }
 
-  register_parent_and_children(parent: ManagedObject, ...children: ManagedObject[]) {
+  register_object(parent: ManagedObject) {
     this.assert_owned(parent);
     let finalization_entry = this.heap_objects.weak_refs.get(parent);
     if (finalization_entry === undefined) {
@@ -137,33 +162,16 @@ export class WasmModule {
       }
       finalization_entry = {
         parent_stack_trace: stack_trace,
+        reference_count: parent.reference_count,
         children: new Set(),
       };
       this.heap_objects.weak_refs.set(parent, finalization_entry);
       this.heap_objects.size += 1;
       this.finalisation_registry.register(parent, finalization_entry, finalization_entry);
     }
-    for (const child of children) {
-      finalization_entry.children.add(child);
-    }
   }
 
-  unregister_children_from_parent(parent: ManagedObject, ...children: ManagedObject[]) {
-    this.assert_owned(parent);
-    const finalization_entry = this.heap_objects.weak_refs.get(parent);
-    if (finalization_entry === undefined) {
-      this.debug_console?.error("Tried to unregister children from parent object that isn't being tracked");
-      return;
-    }
-    for (const child of children) {
-      if (!child.delete()) {
-        this.debug_console?.warn("Tried to unregister and delete a child from parent that was already deleted: ", child);
-      }
-      finalization_entry.children.delete(child);
-    }
-  }
-
-  unregister_parent_and_children(parent: ManagedObject) {
+  unregister_object(parent: ManagedObject) {
     this.assert_owned(parent);
     const finalization_entry = this.heap_objects.weak_refs.get(parent);
     if (finalization_entry === undefined) {
@@ -175,7 +183,7 @@ export class WasmModule {
     }
     this.heap_objects.weak_refs.delete(parent);
     this.heap_objects.size -= 1;
-    for (const child of finalization_entry.children) {
+    for (const child of parent._child_objects) {
       if (!child.delete()) {
         this.debug_console?.warn("Tried to unregister and delete a child object that was already deleted: ", child);
       }
@@ -249,47 +257,36 @@ export type TypedArrayViewConstructor =
   Uint32ArrayConstructor | Int32ArrayConstructor |
   Float32ArrayConstructor | Float64ArrayConstructor;
 
-export interface IModuleBuffer extends ManagedObject {
-  get data_view(): Uint8Array;
-  get module_data_view(): Uint8ModuleBuffer;
+export abstract class IModuleBuffer extends ManagedObject {
+  abstract get data_view(): Uint8Array;
+  abstract get module_data_view(): Uint8ModuleBuffer;
 }
 
-export class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> implements IModuleBuffer {
-  readonly module: WasmModule;
+export class ModuleBuffer<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> extends IModuleBuffer {
   readonly pin: T;
   readonly ctor: U;
   readonly is_owned: boolean;
-  _is_deleted: boolean = false;
 
   constructor(module: WasmModule, pin: T, ctor: U, is_owned: boolean) {
-    this.module = module;
+    super(module);
     this.pin = pin;
     this.ctor = ctor;
     this.is_owned = is_owned;
+  }
+
+  override on_delete(): void {
     if (this.is_owned) {
-      this.module.register_parent_and_children(this, new ManagedHandle(module, this.pin));
+      this.pin.delete();
     }
+    super.on_delete();
   }
 
-  delete(): boolean {
-    if (this._is_deleted) return false;
-    this._is_deleted = true;
-    if (this.is_owned) {
-      this.module.unregister_parent_and_children(this);
-    }
-    return true;
-  }
-
-  is_deleted(): boolean {
-    return this._is_deleted;
-  }
-
-  get data_view() {
+  override get data_view() {
     const array_view = this.array_view;
     return new Uint8Array(array_view.buffer, array_view.byteOffset, array_view.byteLength);
   }
 
-  get module_data_view(): Uint8ModuleBuffer {
+  override get module_data_view(): Uint8ModuleBuffer {
     const pin = this.module.main.Uint8PinnedArray.from_pin(this.pin.pin);
     if (pin === null) throw Error("Uint8PinnedArray.from_pin returned null");
     return new Uint8ModuleBuffer(this.module, pin, false);
@@ -438,10 +435,8 @@ export type TypedModuleBuffer =
   Float32ModuleBuffer |
   Float64ModuleBuffer;
 
-export class LU_Solver implements ManagedObject {
+export class LU_Solver extends ManagedObject {
   readonly inner: _LU_Solver;
-  readonly module: WasmModule;
-  _is_deleted: boolean = false;
 
   constructor(
     module: WasmModule,
@@ -449,11 +444,11 @@ export class LU_Solver implements ManagedObject {
     A_col_indices: Int32ModuleBuffer, A_row_index_pointers: Int32ModuleBuffer,
     total_rows: number, total_columns: number
   ) {
+    super(module);
     module.assert_owned(A_non_zero_data);
     module.assert_owned(A_col_indices);
     module.assert_owned(A_row_index_pointers);
 
-    this.module = module;
     if (A_non_zero_data.length !== A_col_indices.length) {
       throw new Error(`Mismatching number of non-zero elements in data (${A_non_zero_data.length}) and number of column-indices (${A_col_indices.length})`);
     }
@@ -470,7 +465,6 @@ export class LU_Solver implements ManagedObject {
       throw Error(`WASM module LU_Solver.create returned null with error code: ${lu_factor_info}`);
     }
     this.inner = solver;
-    module.register_parent_and_children(this, new ManagedHandle(module, this.inner));
   }
 
   solve(b: Float32ModuleBuffer): number {
@@ -483,31 +477,27 @@ export class LU_Solver implements ManagedObject {
   get total_rows(): number { return this.inner.total_rows; }
   get total_cols(): number { return this.inner.total_cols; }
 
-  delete(): boolean {
-    if (this._is_deleted) return false;
-    this._is_deleted = true;
-    this.module.unregister_parent_and_children(this);
-    return true;
-  }
-
-  is_deleted(): boolean {
-    return this._is_deleted;
+  override on_delete() {
+    this.inner.delete();
+    super.on_delete();
   }
 }
 
-export class ZipFile implements ManagedObject {
+export class ZipFile extends ManagedObject {
   readonly inner: _ZipFile;
-  readonly module: WasmModule;
-  _is_deleted: boolean = false;
 
   constructor(
     module: WasmModule,
   ) {
-    this.module = module;
+    super(module);
     const inner = module.main.ZipFile.create();
     if (inner === null) throw Error("WASM module ZipFile.create returned null");
     this.inner = inner;
-    module.register_parent_and_children(this, new ManagedHandle(module, this.inner));
+  }
+
+  override on_delete() {
+    this.inner.delete();
+    super.on_delete();
   }
 
   write_file(name: string, data: Uint8ModuleBuffer) {
@@ -519,16 +509,5 @@ export class ZipFile implements ManagedObject {
     const data = this.inner.get_bytes();
     if (data === null) throw Error("ZipFile.get_bytes returned null");
     return new Uint8ModuleBuffer(this.module, data, true);
-  }
-
-  delete(): boolean {
-    if (this._is_deleted) return false;
-    this._is_deleted = true;
-    this.module.unregister_parent_and_children(this);
-    return true;
-  }
-
-  is_deleted(): boolean {
-    return this._is_deleted;
   }
 }

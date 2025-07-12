@@ -1,9 +1,9 @@
 import {
-  type ManagedObject,
+  WasmModule,
+  ManagedObject,
   LU_Solver,
   Float32ModuleBuffer, Int32ModuleBuffer,
 } from "../../wasm/index.ts";
-import { Globals } from "../../global.ts";
 import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../../utility/module_ndarray.ts";
 import { Profiler } from "../../utility/profiler.ts";
 
@@ -19,9 +19,7 @@ export interface ImpedanceResult {
   propagation_delay: number;
 }
 
-export class Grid implements ManagedObject {
-  readonly module = Globals.wasm_module;
-  _is_deleted: boolean = false;
+export class Grid extends ManagedObject {
   readonly size: [number, number];
   readonly dx: Float32ModuleNdarray;
   readonly dy: Float32ModuleNdarray;
@@ -48,7 +46,8 @@ export class Grid implements ManagedObject {
     return { index, beta };
   }
 
-  constructor(Ny: number, Nx: number) {
+  constructor(module: WasmModule, Ny: number, Nx: number) {
+    super(module);
     this.size = [Ny, Nx];
     this.dx = Float32ModuleNdarray.from_shape(this.module, [Nx]);
     this.dy = Float32ModuleNdarray.from_shape(this.module, [Ny]);
@@ -61,23 +60,22 @@ export class Grid implements ManagedObject {
 
     this._v_table = Float32ModuleNdarray.from_shape(this.module, [3]);
     this._ek_table = Float32ModuleNdarray.from_shape(this.module, [Ny,Nx]);
-    this.module.register_parent_and_children(this,
-      this.dx,
-      this.dy,
-      this.v_index_beta,
-      this.v_field,
-      this.ex_field,
-      this.ey_field,
-      this.ek_index_beta,
-      this._v_table,
-      this._ek_table,
-    );
+    this._child_objects.add(this.dx);
+    this._child_objects.add(this.dy);
+    this._child_objects.add(this.v_index_beta);
+    this._child_objects.add(this.v_field);
+    this._child_objects.add(this.ex_field);
+    this._child_objects.add(this.ey_field);
+    this._child_objects.add(this.ek_index_beta);
+    this._child_objects.add(this._v_table);
+    this._child_objects.add(this._ek_table);
   }
 
   set v_table(v_table: Float32ModuleNdarray) {
-    this.module.unregister_children_from_parent(this, this._v_table);
+    this._child_objects.delete(this._v_table);
+    this._child_objects.add(v_table);
+    this._v_table.delete();
     this._v_table = v_table;
-    this.module.register_parent_and_children(this, this.v_table);
   }
 
   get v_table(): Float32ModuleNdarray {
@@ -85,9 +83,10 @@ export class Grid implements ManagedObject {
   }
 
   set ek_table(ek_table: Float32ModuleNdarray) {
-    this.module.unregister_children_from_parent(this, this._ek_table);
+    this._child_objects.delete(this._ek_table);
+    this._child_objects.add(ek_table);
+    this._ek_table.delete();
     this._ek_table = ek_table;
-    this.module.register_parent_and_children(this, this.ek_table);
   }
 
   get ek_table(): Float32ModuleNdarray {
@@ -95,26 +94,16 @@ export class Grid implements ManagedObject {
   }
 
   set lu_solver(lu_solver: LU_Solver) {
-    if (this._lu_solver) {
-      this.module.unregister_children_from_parent(this, this._lu_solver);
+    if (this._lu_solver !== undefined) {
+      this._child_objects.delete(this._lu_solver);
     }
+    this._child_objects.add(lu_solver);
+    this._lu_solver?.delete();
     this._lu_solver = lu_solver;
-    this.module.register_parent_and_children(this, this._lu_solver);
   }
 
   get lu_solver(): LU_Solver | undefined {
     return this._lu_solver;
-  }
-
-  delete(): boolean {
-    if (this._is_deleted) return false;
-    this._is_deleted = true;
-    this.module.unregister_parent_and_children(this);
-    return true;
-  }
-
-  is_deleted(): boolean {
-    return this._is_deleted;
   }
 
   reset() {

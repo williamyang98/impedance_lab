@@ -1,8 +1,8 @@
 import { Ndarray, type NdarrayWriter } from "./ndarray.ts";
 import {
   WasmModule,
-  type ManagedObject,
-  type IModuleBuffer, ModuleBuffer,
+  ManagedObject,
+  IModuleBuffer, ModuleBuffer,
   type TypedPinnedArray, type TypedArrayViewConstructor,
   type Uint8PinnedArray, type Int8PinnedArray,
   type Uint16PinnedArray, type Int16PinnedArray,
@@ -11,9 +11,9 @@ import {
   Uint8ModuleBuffer,
 } from "../wasm/index.ts";
 
-export interface IModuleNdarray extends IModuleBuffer {
-  readonly shape: number[];
-  get ndarray(): Ndarray;
+export abstract class IModuleNdarray extends IModuleBuffer {
+  abstract readonly shape: number[];
+  abstract get ndarray(): Ndarray;
 }
 
 export class ModuleNdarray<T extends TypedPinnedArray, U extends TypedArrayViewConstructor> extends ModuleBuffer<T, U> implements IModuleNdarray {
@@ -133,30 +133,17 @@ export class Float64ModuleNdarray extends ModuleNdarray<Float64PinnedArray, Floa
   }
 }
 
-export class ModuleNdarrayWriter implements NdarrayWriter, ManagedObject {
-  readonly module: WasmModule;
-  _is_deleted: boolean = false;
+export class ModuleNdarrayWriter extends ManagedObject implements NdarrayWriter {
   write_buffer?: Uint8ModuleBuffer;
 
   constructor(module: WasmModule) {
-    this.module = module;
+    super(module);
   }
 
   init(size: number): Uint8Array {
     const buffer = Uint8ModuleBuffer.create(this.module, size);
     this.write_buffer = buffer;
-    this.module.register_parent_and_children(this, buffer);
+    this._child_objects.add(buffer);
     return buffer.data_view;
-  }
-
-  delete(): boolean {
-    if (this._is_deleted) return false;
-    this._is_deleted = true;
-    this.module.unregister_parent_and_children(this);
-    return true;
-  }
-
-  is_deleted(): boolean {
-    return this._is_deleted;
   }
 }

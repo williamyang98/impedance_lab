@@ -4,6 +4,7 @@ import { type StackupGridConfig, StackupGrid } from "./grid.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
+import { WasmModule } from "../../wasm/index.ts";
 
 export interface ParameterSearchConfig {
   max_steps: number; // number of search steps
@@ -201,6 +202,7 @@ export class SearchResults {
 }
 
 export function search_parameters(
+  module: WasmModule,
   target_impedance: number,
   stackup: Stackup, params: Parameter[],
   get_parameter: (param: Parameter) => number,
@@ -250,7 +252,7 @@ export function search_parameters(
     profiler.end();
 
     profiler.begin("create_grid", "Create simulation grid from layout");
-    const stackup_grid = new StackupGrid(layout, get_parameter, profiler, stackup_config);
+    const stackup_grid = new StackupGrid(module, layout, get_parameter, profiler, stackup_config);
     profiler.end();
 
     profiler.begin("run", "Perform impedance measurements", {

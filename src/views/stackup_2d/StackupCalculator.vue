@@ -44,9 +44,11 @@ import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { providers } from "../../providers/providers.ts";
+import { Globals } from "../../global.ts";
 
 const toast = providers.toast_manager.value;
 const user_data = providers.user_data.value;
+const wasm_module = Globals.wasm_module;
 
 interface SelectedMap<K extends string, V> {
   selected: K;
@@ -252,6 +254,7 @@ async function calculate_impedance() {
 
     new_profiler.begin("create_grid", "Create simulation grid from layout");
     new_stackup = new StackupGrid(
+      wasm_module,
       layout, get_parameter,
       new_profiler,
       toRaw(user_data.stackup_2d_mesh_config),
@@ -304,6 +307,7 @@ async function perform_search(search_params: Parameter[]) {
   const new_profiler = new Profiler("perform_search");
   try {
     new_search_results = search_parameters(
+      wasm_module,
       target_impedance.value,
       simulation_stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
