@@ -73,7 +73,7 @@ LU_Solver::Create_Result LU_Solver::create(
         sgstrf(
             &options, &A_column_permuted,
             relax, panel_size, elimination_tree.data(),
-            NULL, work_array_size,
+            nullptr, work_array_size,
             permute_col.data(), permute_row.data(),
             &L, &U,
             &Glu, &stat, &lu_factor_info

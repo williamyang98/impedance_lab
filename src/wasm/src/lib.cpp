@@ -28,9 +28,9 @@ namespace emscripten {
             .function("solve(b)", &LU_Solver::solve)
             .property("total_rows", &LU_Solver::get_total_rows, return_value_policy::reference())
             .property("total_cols", &LU_Solver::get_total_cols, return_value_policy::reference());
-        class_<LU_Solver::Create_Result>("LU_Solver_Create_Result")
-            .property("solver", &LU_Solver::Create_Result::solver)
-            .property("lu_factor_info", &LU_Solver::Create_Result::lu_factor_info);
+        value_object<LU_Solver::Create_Result>("LU_Solver_Create_Result")
+            .field("solver", &LU_Solver::Create_Result::solver)
+            .field("lu_factor_info", &LU_Solver::Create_Result::lu_factor_info);
         class_<PinnedArray>("PinnedArray")
             .smart_ptr<std::shared_ptr<PinnedArray>>("PinnedArray")
             .class_function("owned_pin_from_malloc(length)", &PinnedArray::owned_pin_from_malloc)
