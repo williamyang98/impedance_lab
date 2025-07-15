@@ -16,7 +16,7 @@ import MeshViewer from "./MeshViewer.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
 import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
-import GridViewer from "./GridViewer.vue";
+import GridViewer from "../../app/electrostatic_2d/GridViewer.vue";
 import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
 import ExportView from "./ExportView.vue";
 import TabsView from "../../utility/TabsView.vue";
@@ -27,7 +27,7 @@ import { PencilIcon, EyeIcon, SettingsIcon } from "lucide-vue-next";
 // ts imports
 import {type Parameter } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
-import { StackupGrid } from "./grid.ts";
+import { StackupGrid } from "./stackup_to_grid.ts";
 import { StackupParameters } from "./parameters.ts";
 import {
   StackupEditor,

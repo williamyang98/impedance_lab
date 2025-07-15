@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineProps, computed, ref, watch } from 'vue';
-import { type StackupGridConfig } from './grid.ts';
+import { type StackupGridConfig } from './stackup_to_grid.ts';
 import { TriangleAlert } from "lucide-vue-next";
 import { NumberField, integer_validator, float_validator } from "../../utility/form_validation.ts";
 

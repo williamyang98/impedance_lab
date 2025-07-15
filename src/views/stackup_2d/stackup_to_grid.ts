@@ -3,9 +3,9 @@ import { ManagedObject, WasmModule } from "../../wasm/index.ts";
 import { type StackupLayout, type TrapezoidShape, type InfinitePlaneShape } from "./layout.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 
-import { Grid } from "./electrostatic_2d.ts";
-import { LinesBuilder } from "../../utility/lines_builder.ts";
-import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../../utility/regions.ts";
+import { Grid } from "../../app/electrostatic_2d/grid.ts";
+import { LinesBuilder } from "../../app/mesher/lines_builder.ts";
+import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../../app/mesher/regions.ts";
 import { Profiler } from "../../utility/profiler.ts";
 
 function get_log_median(dims: number[]): number {

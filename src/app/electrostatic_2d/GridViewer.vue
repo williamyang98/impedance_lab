@@ -3,7 +3,7 @@ import {
   toRaw,
   ref, computed, watch, useTemplateRef, defineExpose, onMounted, onBeforeUnmount, defineProps,
 } from "vue";
-import { Grid } from "./electrostatic_2d.ts";
+import { Grid } from "./grid.ts";
 import { MasterRenderer, RendererCore, type Tooltip } from "./grid_viewer_renderer.ts";
 import { providers } from "../../providers/providers.ts";
 import { debounce_animation_frame, debounce_animation_frame_async } from "../../utility/debounce.ts";
@@ -12,7 +12,7 @@ const props = defineProps<{
   grid: Grid;
 }>();
 
-const gpu_device = providers.gpu_device.value;
+const gpu_device = toRaw(providers.gpu_device.value);
 
 const canvas_element = useTemplateRef<HTMLCanvasElement>("grid-canvas");
 const canvas_context = computed<GPUCanvasContext>(() => {

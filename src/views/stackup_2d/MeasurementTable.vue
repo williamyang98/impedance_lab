@@ -2,7 +2,7 @@
 import { defineProps, computed } from "vue";
 import { type Measurement } from "./measurement";
 import type { StackupParameters } from "./parameters";
-import { type DistanceUnit, convert_distance } from "./unit_types.ts";
+import { type DistanceUnit, convert_distance } from "../../utility/unit_types.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix";
 
 const props = defineProps<{

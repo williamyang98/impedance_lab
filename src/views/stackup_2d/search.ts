@@ -1,6 +1,6 @@
 import { type Parameter, type Stackup } from "./stackup.ts";
 import { create_layout_from_stackup } from "./layout.ts";
-import { type StackupGridConfig, StackupGrid } from "./grid.ts";
+import { type StackupGridConfig, StackupGrid } from "./stackup_to_grid.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";

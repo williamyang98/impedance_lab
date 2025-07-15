@@ -3,7 +3,7 @@ import {
   type IModuleNdarray,
 } from "../../utility/module_ndarray.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
-import { Grid } from "./electrostatic_2d.ts";
+import { Grid } from "./grid.ts";
 import {
   ShaderComponentViewer, ShaderQuiverGrid, ShaderIndexBeta,
   type IndexBetaMode,

@@ -1,6 +1,6 @@
-import { type ImpedanceResult } from "./electrostatic_2d.ts";
+import { type ImpedanceResult, calculate_impedance } from "../../app/electrostatic_2d/impedance.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { StackupGrid } from "./grid.ts";
+import { StackupGrid } from "./stackup_to_grid.ts";
 
 export interface SingleEndedMeasurement {
   type: "single";
@@ -34,7 +34,7 @@ export function perform_measurement(stackup: StackupGrid, profiler?: Profiler): 
     profiler?.end();
 
     profiler?.begin("grid.calculate_impedance");
-    const impedance = grid.calculate_impedance(profiler);
+    const impedance = calculate_impedance(grid, profiler);
     profiler?.end();
 
     profiler?.end();

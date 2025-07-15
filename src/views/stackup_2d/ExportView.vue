@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { defineProps, toRaw, computed } from "vue";
-import { Grid } from "./electrostatic_2d.ts";
+import { Grid } from "../../app/electrostatic_2d/grid.ts";
 import { DownloadIcon } from "lucide-vue-next";
 import { Uint8ArrayNdarrayWriter } from "../../utility/ndarray.ts";
 import { type IModuleNdarray, ModuleNdarrayWriter } from "../../utility/module_ndarray.ts";

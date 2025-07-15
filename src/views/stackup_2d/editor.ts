@@ -13,7 +13,7 @@ import {
   type CopperPlane,
   type LayerType,
 } from "./stackup.ts";
-import { type IdStore, ArenaIdStore, BumpIdStore } from "./id_store.ts";
+import { type IdStore, ArenaIdStore, BumpIdStore } from "../../utility/id_store.ts";
 import { StackupParameters } from "./parameters.ts";
 
 const CommonRules = {

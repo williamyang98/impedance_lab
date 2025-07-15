@@ -4,7 +4,7 @@ import {
   type LayerId,
   type Parameter, type SizeParameter, type EtchFactorParameter, type EpsilonParameter,
 } from "./stackup.ts";
-import { convert_distance, type DistanceUnit } from "./unit_types.ts";
+import { convert_distance, type DistanceUnit } from "../../utility/unit_types.ts";
 
 export class ParameterCache<K extends string | number, V extends Parameter> {
   cache = new Map<K, V>();

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { defineProps, ref, useTemplateRef, watch, computed } from "vue";
-import GridRegionTable from "./GridRegionTable.vue";
+import GridRegionTable from "../../app/mesher/GridRegionTable.vue";
 import TabsView from "../../utility/TabsView.vue";
-import { StackupGrid } from "./grid.ts";
+import { StackupGrid } from "./stackup_to_grid.ts";
 import Chart from "chart.js/auto";
 
 const props = defineProps<{

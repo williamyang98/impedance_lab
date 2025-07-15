@@ -1,5 +1,5 @@
-import { type DistanceUnit, distance_units } from "../../views/stackup_2d/unit_types.ts";
-import { type StackupGridConfig } from "../../views/stackup_2d/grid.ts";
+import { type DistanceUnit, distance_units } from "../../utility/unit_types.ts";
+import { type StackupGridConfig } from "../../views/stackup_2d/stackup_to_grid.ts";
 import {
   type ComputeBenchmarkConfig,
   type MemoryBandwidthBenchmarkConfig,

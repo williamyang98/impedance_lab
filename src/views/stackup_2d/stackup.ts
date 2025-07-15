@@ -1,4 +1,4 @@
-import { type DistanceUnit } from "./unit_types.ts";
+import { type DistanceUnit } from "../../utility/unit_types.ts";
 
 // types of parameters
 export interface IParameter {

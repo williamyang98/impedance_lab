@@ -17,7 +17,7 @@ import {
   type BroadsideTraceTemplate,
 } from "./editor.ts";
 import { StackupParameters } from "./parameters.ts";
-import { type IdStore } from "./id_store.ts";
+import { type IdStore } from "../../utility/id_store.ts";
 
 export const colinear_trace_templates = {
   "single ended": {
