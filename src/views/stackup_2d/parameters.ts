@@ -1,5 +1,5 @@
 import { UserData } from "../../providers/user_data/user_data.ts";
-import { sizes } from "./viewer.ts";
+import { stackup_sizes as sizes } from "./stackup_to_visualiser.ts";
 import {
   type LayerId,
   type Parameter, type SizeParameter, type EtchFactorParameter, type EpsilonParameter,

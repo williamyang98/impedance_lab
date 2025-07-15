@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import { useRouter } from "vue-router";
-import StackupViewer from "./StackupViewer.vue";
 import { StackupParameters } from "./parameters.ts";
 import {
   StackupEditor,
@@ -12,7 +11,8 @@ import {
   broadside_layer_templates, broadside_trace_templates,
   colinear_layer_templates, colinear_trace_templates,
 } from "./editor_templates.ts";
-import { type ViewerConfig, get_default_viewer_config } from "./viewer";
+import VisualiserView from "../visualiser_2d/VisualiserView.vue";
+import { type VisualiserConfig, get_default_viewer_config, StackupVisualiser } from "./stackup_to_visualiser.ts";
 import { SearchIcon } from "lucide-vue-next";
 import "fuzzysort";
 import fuzzysort from "fuzzysort";
@@ -45,9 +45,16 @@ interface Template {
   editor: StackupEditor;
   title: string;
   prepared_title: Fuzzysort.Prepared;
+  visualiser: StackupVisualiser;
 }
 
 const templates: Template[] = [];
+
+const visualiser_config: VisualiserConfig = {
+  ...get_default_viewer_config(),
+  stackup_minimum_width: 150,
+  stackup_minimum_x_padding: 25,
+};
 
 const stackup_types = [
   {
@@ -75,21 +82,17 @@ for (const stackup of stackup_types) {
       };
       const title = tag_to_title(tag);
       const prepared_title = fuzzysort.prepare(title);
+      const visualiser = new StackupVisualiser(editor.get_viewer_stackup(), visualiser_config);
       templates.push({
         editor,
         tag,
         title,
         prepared_title,
+        visualiser,
       });
     }
   }
 }
-
-const viewer_config: ViewerConfig = {
-  ...get_default_viewer_config(),
-  stackup_minimum_width: 150,
-  stackup_minimum_x_padding: 25,
-};
 
 const router = useRouter();
 
@@ -155,7 +158,7 @@ watch(search_string, (new_search_string) => {
             <div class="card-title w-full justify-center text-center">{{ tag_to_title(template.tag) }}</div>
             <div class="w-full h-full flex flex-col justify-center">
               <div class="w-full rounded-sm bg-white">
-                <StackupViewer :stackup="template.editor.get_simulation_stackup()" :config="viewer_config"/>
+                <VisualiserView :visualiser="template.visualiser"/>
               </div>
             </div>
           </div>

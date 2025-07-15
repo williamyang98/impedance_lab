@@ -12,7 +12,6 @@ import {
 import { useRoute, type LocationQuery } from "vue-router";
 // subcomponents
 import EditorControls from "./EditorControls.vue";
-import StackupViewer from "./StackupViewer.vue";
 import MeshViewer from "./MeshViewer.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
@@ -22,6 +21,7 @@ import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
 import ExportView from "./ExportView.vue";
 import TabsView from "../../utility/TabsView.vue";
 import MeshConfigForm from "./MeshConfigForm.vue";
+import VisualiserView from "../visualiser_2d/VisualiserView.vue";
 import ParameterSearchConfigForm from "./ParameterSearchConfigForm.vue";
 import { PencilIcon, EyeIcon, SettingsIcon } from "lucide-vue-next";
 // ts imports
@@ -44,10 +44,11 @@ import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { providers } from "../../providers/providers.ts";
+import { StackupVisualiser } from "./stackup_to_visualiser.ts";
 
 const toast = providers.toast_manager.value;
 const user_data = providers.user_data.value;
-const wasm_module = providers.wasm_module.value;
+const wasm_module = toRaw(providers.wasm_module.value);
 
 interface SelectedMap<K extends string, V> {
   selected: K;
@@ -339,6 +340,11 @@ async function perform_search(search_params: Parameter[]) {
   is_running.value = false;
 }
 
+const visualiser = ref(new StackupVisualiser(viewer_stackup.value));
+watch(viewer_stackup, (new_viewer_stackup) => {
+  visualiser.value = new StackupVisualiser(new_viewer_stackup);
+});
+
 // update editor if query parameters change
 watch(() => route.query, (new_query) => {
   read_query_parameters(new_query);
@@ -379,7 +385,8 @@ watch(() => route.query, (new_query) => {
               <EditorControls :editor="editor"/>
             </div>
             <div class="w-full max-w-[40rem] self-center border border-1 rounded-sm border-base-300 bg-white p-1">
-              <StackupViewer :stackup="viewer_stackup"/>
+              <!-- <StackupViewer :stackup="viewer_stackup"/> -->
+               <VisualiserView :visualiser="visualiser"/>
             </div>
           </div>
         </div>
