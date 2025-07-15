@@ -44,11 +44,10 @@ import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { providers } from "../../providers/providers.ts";
-import { Globals } from "../../global.ts";
 
 const toast = providers.toast_manager.value;
 const user_data = providers.user_data.value;
-const wasm_module = Globals.wasm_module;
+const wasm_module = providers.wasm_module.value;
 
 interface SelectedMap<K extends string, V> {
   selected: K;

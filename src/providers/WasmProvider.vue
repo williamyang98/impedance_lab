@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { Globals } from "../global.ts";
+import { ref, provide, onMounted } from "vue";
+import { WasmModule } from "../wasm";
 
 type LoadState = "loading" | "failed" | "finished";
 const state = ref<LoadState>("loading");
 const error_message = ref<string>();
+const wasm_module = ref<WasmModule | undefined>(undefined);
+
+provide("wasm_module", wasm_module);
 
 async function init() {
   try {
-    await Globals.init_wasm_module();
+    wasm_module.value = await WasmModule.init();
     state.value = "finished";
   } catch (error) {
     if (error instanceof Error) {

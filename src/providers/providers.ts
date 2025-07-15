@@ -1,6 +1,7 @@
 import { inject, type Ref } from "vue";
 import { ToastManager } from "./toast/toast.ts";
 import { UserData } from "./user_data/user_data.ts";
+import { WasmModule } from "../wasm";
 
 export const providers = {
   get toast_manager(): Ref<ToastManager> {
@@ -24,5 +25,10 @@ export const providers = {
     const value = inject<Ref<UserData | undefined>>("user_data");
     if (value === undefined) throw Error("Expected user_data to be injected from provider");
     return value as Ref<UserData>;
-  }
+  },
+  get wasm_module(): Ref<WasmModule> {
+    const value = inject<Ref<WasmModule | undefined>>("wasm_module");
+    if (value === undefined) throw Error("Expected wasm_module to be injected from provider");
+    return value as Ref<WasmModule>;
+  },
 }
