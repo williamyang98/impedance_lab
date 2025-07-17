@@ -19,15 +19,17 @@ function create_chart() {
   const grid = props.stackup_grid;
   if (grid === undefined) return;
 
+  const builder = grid.grid_builder;
+
   // rescale from normalised to actual sizes
-  const x_scale = grid.x_region_to_grid_map.region_lines_builder.scale;
-  const y_scale = grid.y_region_to_grid_map.region_lines_builder.scale;
+  const x_scale = builder.x_region_to_grid_map.region_lines_builder.scale;
+  const y_scale = builder.y_region_to_grid_map.region_lines_builder.scale;
 
-  const x_region_lines = grid.x_region_to_grid_map.region_lines.map(x => x/x_scale);
-  const y_region_lines = grid.y_region_to_grid_map.region_lines.map(y => y/y_scale);
+  const x_region_lines = builder.x_region_to_grid_map.region_lines.map(x => x/x_scale);
+  const y_region_lines = builder.y_region_to_grid_map.region_lines.map(y => y/y_scale);
 
-  const x_grid_lines = grid.x_region_to_grid_map.grid_lines.map(x => x/x_scale);
-  const y_grid_lines = grid.y_region_to_grid_map.grid_lines.map(y => y/y_scale);
+  const x_grid_lines = builder.x_region_to_grid_map.grid_lines.map(x => x/x_scale);
+  const y_grid_lines = builder.y_region_to_grid_map.grid_lines.map(y => y/y_scale);
 
   const x_min = 0;
   const x_max = x_grid_lines[x_grid_lines.length-1];
@@ -166,11 +168,11 @@ watch(stackup_grid, () => {
       <TabsView>
         <template #h-0>X</template>
         <template #b-0>
-          <GridRegionTable class="bg-base-100 rounded-none" :region_to_grid_map="stackup_grid.x_region_to_grid_map"/>
+          <GridRegionTable class="bg-base-100 rounded-none" :region_to_grid_map="stackup_grid.grid_builder.x_region_to_grid_map"/>
         </template>
         <template #h-1>Y</template>
         <template #b-1>
-          <GridRegionTable class="bg-base-100 rounded-none" :region_to_grid_map="stackup_grid.y_region_to_grid_map"/>
+          <GridRegionTable class="bg-base-100 rounded-none" :region_to_grid_map="stackup_grid.grid_builder.y_region_to_grid_map"/>
         </template>
       </TabsView>
     </div>

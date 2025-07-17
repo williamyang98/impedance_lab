@@ -182,7 +182,7 @@ export class StackupParameters {
     });
     this.PH = {
       type: "size",
-      ...create_default_distance(0.1, "mm", this.copper_thickness_unit),
+      ...create_default_distance(1, "oz", this.copper_thickness_unit),
       placeholder_value: sizes.copper_layer_height,
     };
     this.W = create_trace_width("W", "Trace width");
