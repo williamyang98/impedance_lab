@@ -450,10 +450,28 @@ export class GridBuilder extends ManagedObject {
     this.profiler?.begin("fill_sdfs");
     for (const fill of this.sdf_regions) {
       if (fill.type === "voltage") {
-        const get_value = (beta: number) => Grid.pack_index_beta(fill.voltage_index, beta);
+        const get_value = (old_value: number, beta: number) => {
+          const new_index = fill.voltage_index;
+          const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
+          if (old_index !== new_index) {
+            return Grid.pack_index_beta(new_index, beta);
+          } else {
+            const new_beta = Math.min(beta+old_beta, 1.0);
+            return Grid.pack_index_beta(new_index, new_beta);
+          }
+        };
         fill.sdfs.forEach(region => this.setup_fill_sdf(region, true, get_value));
       } else if (fill.type === "dielectric") {
-        const get_value = (beta: number) => Grid.pack_index_beta(fill.epsilon_index, beta);
+        const get_value = (old_value: number, beta: number) => {
+          const new_index = fill.epsilon_index;
+          const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
+          if (old_index !== new_index) {
+            return Grid.pack_index_beta(new_index, beta);
+          } else {
+            const new_beta = Math.min(beta+old_beta, 1.0);
+            return Grid.pack_index_beta(new_index, new_beta);
+          }
+        };
         fill.sdfs.forEach(region => this.setup_fill_sdf(region, false, get_value));
       } else if (fill.type === "empty") {
         // do nothing
@@ -462,7 +480,7 @@ export class GridBuilder extends ManagedObject {
     this.profiler?.end();
   }
 
-  setup_fill_sdf(sdf: SDF, is_voltage: boolean, get_value: (beta: number) => number) {
+  setup_fill_sdf(sdf: SDF, is_voltage: boolean, get_value: (old_value: number, beta: number) => number) {
     const {
       rx_left,
       rx_right,
@@ -482,8 +500,8 @@ export class GridBuilder extends ManagedObject {
 
     // voltage SDF should include boundaries of grid region
     if (is_voltage) {
-      if (gx_right !== undefined && gx_left !== gx_right) gx_right += 1;
-      if (gy_bottom !== undefined && gy_top !== gy_bottom) gy_bottom += 1;
+      if (gx_right !== undefined) gx_right += 1;
+      if (gy_bottom !== undefined) gy_bottom += 1;
     }
 
     gx_left = gx_left ?? 0;
@@ -516,7 +534,7 @@ export class GridBuilder extends ManagedObject {
           const gx = gx_left+x;
           const i = gx + gy*Nx;
           const beta = sdf(norm_y, norm_x);
-          const value = get_value(beta);
+          const value = get_value(data[i], beta);
           data[i] = value;
         }
       }
@@ -535,7 +553,7 @@ export class GridBuilder extends ManagedObject {
           const gx = gx_left+x;
           const i = gx + gy*Nx;
           const beta = sdf(norm_y, norm_x, norm_dy, norm_dx);
-          const value = get_value(beta);
+          const value = get_value(data[i], beta);
           data[i] = value;
         }
       }
@@ -544,7 +562,7 @@ export class GridBuilder extends ManagedObject {
 
     if (fill.type === "constant") {
       const beta = 1.0;
-      const value = get_value(beta);
+      const value = get_value(0, beta);
       for (let y = 0; y < My; y++) {
         const gy = gy_top+y;
         for (let x = 0; x < Mx; x++) {
