@@ -64,7 +64,6 @@ export class StackupGrid extends ManagedObject {
     // test stackup in air
     const er_air = 1.0;
     this.setup_push_epsilon(er_air, "core");
-    this.setup_push_epsilon(er_air, "soldermask");
 
     // create grid
     this.setup_create_grid_builder_dielectric_regions(get_epsilon);
