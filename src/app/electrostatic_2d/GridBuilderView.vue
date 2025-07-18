@@ -1,25 +1,23 @@
 <script setup lang="ts">
 import { defineProps, ref, useTemplateRef, watch, computed } from "vue";
-import GridRegionTable from "../../app/mesher/GridRegionTable.vue";
+import { GridBuilder } from "./grid_builder.ts";
+import RegionTable from "../mesher/RegionTable.vue";
 import TabsView from "../../utility/TabsView.vue";
-import { StackupGrid } from "./stackup_to_grid.ts";
 import Chart from "chart.js/auto";
 
 const props = defineProps<{
-  stackup_grid: StackupGrid,
+  builder: GridBuilder,
 }>();
 
-const grid_canvas_elem = useTemplateRef<HTMLCanvasElement>("grid-canvas");
+const canvas_elem = useTemplateRef<HTMLCanvasElement>("grid-canvas");
 const chart = ref<Chart | undefined>(undefined);
 
 function create_chart() {
-  const grid_canvas = grid_canvas_elem.value;
-  if (grid_canvas === null) return;
+  const canvas = canvas_elem.value;
+  if (canvas === null) return;
 
-  const grid = props.stackup_grid;
-  if (grid === undefined) return;
-
-  const builder = grid.grid_builder;
+  const builder = props.builder;
+  if (builder === undefined) return;
 
   // rescale from normalised to actual sizes
   const x_scale = builder.x_region_to_grid_map.region_lines_builder.scale;
@@ -37,7 +35,7 @@ function create_chart() {
   const y_max = y_grid_lines[y_grid_lines.length-1];
 
   chart.value?.destroy();
-  chart.value = new Chart(grid_canvas, {
+  chart.value = new Chart(canvas, {
     type: "line",
     data: {
       datasets: Array.prototype.concat(
@@ -144,12 +142,12 @@ function create_chart() {
   });
 }
 
-watch(grid_canvas_elem, () => {
+watch(canvas_elem, () => {
   create_chart();
 })
 
-const stackup_grid = computed(() => props.stackup_grid);
-watch(stackup_grid, () => {
+const builder = computed(() => props.builder);
+watch(builder, () => {
   create_chart();
 });
 </script>
@@ -168,11 +166,11 @@ watch(stackup_grid, () => {
       <TabsView>
         <template #h-0>X</template>
         <template #b-0>
-          <GridRegionTable class="bg-base-100 rounded-none" :region_to_grid_map="stackup_grid.grid_builder.x_region_to_grid_map"/>
+          <RegionTable class="bg-base-100 rounded-none" :region_to_grid_map="builder.x_region_to_grid_map"/>
         </template>
         <template #h-1>Y</template>
         <template #b-1>
-          <GridRegionTable class="bg-base-100 rounded-none" :region_to_grid_map="stackup_grid.grid_builder.y_region_to_grid_map"/>
+          <RegionTable class="bg-base-100 rounded-none" :region_to_grid_map="builder.y_region_to_grid_map"/>
         </template>
       </TabsView>
     </div>

@@ -12,11 +12,11 @@ import {
 import { useRoute, type LocationQuery } from "vue-router";
 // subcomponents
 import EditorControls from "./EditorControls.vue";
-import MeshViewer from "./MeshViewer.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
 import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 import GridViewer from "../../app/electrostatic_2d/GridViewer.vue";
+import GridBuilderView from "../../app/electrostatic_2d/GridBuilderView.vue";
 import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
 import ExportView from "./ExportView.vue";
 import TabsView from "../../utility/TabsView.vue";
@@ -477,7 +477,7 @@ watch(() => route.query, (new_query) => {
   <!--Mesh tab-->
   <template #h-3>Mesh</template>
   <template #b-3>
-    <MeshViewer v-if="stackup_grid" :stackup_grid="stackup_grid"></MeshViewer>
+    <GridBuilderView v-if="stackup_grid" :builder="stackup_grid.grid_builder"/>
     <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
       Calculate impedance to see mesh
     </div>
