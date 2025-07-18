@@ -17,7 +17,14 @@ function create_chart() {
   const search = props.results;
   if (search === undefined) return;
 
-  const results = search.results.slice().sort((a,b) => a.value - b.value);
+  const results = search.results
+    .filter(result => {
+      const value = result.error;
+      if (Number.isNaN(value)) return false;
+      if (!Number.isFinite(value)) return false;
+      return true;
+    })
+    .sort((a,b) => a.value - b.value);
 
   const x = results.map(result => result.value);
   const y = results.map(result => result.impedance);
