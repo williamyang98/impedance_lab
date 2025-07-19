@@ -1,7 +1,6 @@
 import { type EpsilonParameter, type Voltage } from "./stackup.ts";
 import { ManagedObject, WasmModule } from "../../wasm/index.ts";
 import { type ConductorLayout, type StackupLayout } from "./layout.ts";
-import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 
 import { Grid } from "../../app/electrostatic_2d/grid.ts";
 import {
@@ -76,10 +75,6 @@ export class StackupGrid extends ManagedObject {
       this.profiler,
     );
     this._child_objects.add(this.grid_builder);
-
-    // fit voltage and epsilon_k table
-    this.grid.v_table = Float32ModuleNdarray.from_shape(this.module, [3]);
-    this.grid.ek_table = Float32ModuleNdarray.from_shape(this.module, [this.epsilon_indexes.ek_table.length]);
   }
 
   get grid(): Grid {
@@ -130,7 +125,7 @@ export class StackupGrid extends ManagedObject {
           }
           this.grid_builder_regions.push({
             type: "dielectric",
-            epsilon_index,
+            dielectric_index: epsilon_index,
             shapes,
           });
           break;
@@ -142,7 +137,7 @@ export class StackupGrid extends ManagedObject {
           const epsilon_index = this.setup_push_epsilon(epsilon, "core");
           this.grid_builder_regions.push({
             type: "dielectric",
-            epsilon_index,
+            dielectric_index: epsilon_index,
             shapes: [
               {
                 type: "rectangle",

@@ -3,6 +3,7 @@ import { Grid } from "./grid.ts";
 import { LinesBuilder } from "../mesher/lines_builder.ts";
 import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../mesher/regions.ts";
 import { Profiler } from "../../utility/profiler.ts";
+import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 
 export interface CircleShape {
   readonly type: "circle";
@@ -53,7 +54,7 @@ export interface VoltageRegion {
 
 export interface DielectricRegion {
   readonly type: "dielectric";
-  epsilon_index: number;
+  dielectric_index: number;
   shapes: Shape[];
 }
 
@@ -125,7 +126,7 @@ interface SDF {
 
 type RegionSDF =
   { type: "voltage", sdfs: SDF[], voltage_index: number } |
-  { type: "dielectric", sdfs: SDF[], epsilon_index: number } |
+  { type: "dielectric", sdfs: SDF[], dielectric_index: number } |
   { type: "empty", sdfs: SDF[] };
 
 // Grid builder breaks down regions into the following heirarchy
@@ -142,6 +143,8 @@ export class GridBuilder extends ManagedObject {
   x_region_to_grid_map: RegionToGridMap;
   y_region_to_grid_map: RegionToGridMap;
   grid_scale: number = 1.0;
+  dielectric_indices = new Set<number>();
+  voltage_indices = new Set<number>();
   config: GridBuilderConfig;
   profiler?: Profiler;
 
@@ -165,6 +168,7 @@ export class GridBuilder extends ManagedObject {
     this.grid = this.setup_create_simulation_grid();
     this._child_objects.add(this.grid);
     this.setup_fill_sdf_regions();
+    this.setup_allocate_lookup_tables();
   }
 
   setup_create_sdf_regions(regions: Region[]) {
@@ -173,16 +177,18 @@ export class GridBuilder extends ManagedObject {
     for (const region of regions) {
       const sdfs = region.shapes.map(region => this.setup_create_sdf_from_shape(region));
       if (region.type === "voltage") {
+        this.voltage_indices.add(region.voltage_index);
         fill_regions.push({
           type: "voltage" as const,
           sdfs: sdfs,
           voltage_index: region.voltage_index,
         });
       } else if (region.type === "dielectric") {
+        this.dielectric_indices.add(region.dielectric_index);
         fill_regions.push({
           type: "dielectric" as const,
           sdfs: sdfs,
-          epsilon_index: region.epsilon_index,
+          dielectric_index: region.dielectric_index,
         });
       } else if (region.type === "empty") {
         fill_regions.push({
@@ -475,7 +481,7 @@ export class GridBuilder extends ManagedObject {
         fill.sdfs.forEach(region => this.setup_fill_sdf(region, true, get_value));
       } else if (fill.type === "dielectric") {
         const get_value = (old_value: number, beta: number) => {
-          const new_index = fill.epsilon_index;
+          const new_index = fill.dielectric_index;
           const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
           if (old_index !== new_index) {
             return Grid.pack_index_beta(new_index, beta);
@@ -585,5 +591,22 @@ export class GridBuilder extends ManagedObject {
       }
       return;
     }
+  }
+
+  setup_allocate_lookup_tables() {
+    this.profiler?.begin("allocate_lookup_tables");
+    let voltage_table_size = 1;
+    for (const index of this.voltage_indices.values()) {
+      voltage_table_size = Math.max(voltage_table_size, index+1);
+    }
+
+    let dielectric_table_size = 1;
+    for (const index of this.dielectric_indices.values()) {
+      dielectric_table_size = Math.max(dielectric_table_size, index+1);
+    }
+
+    this.grid.v_table = Float32ModuleNdarray.from_shape(this.module, [voltage_table_size]);
+    this.grid.ek_table = Float32ModuleNdarray.from_shape(this.module, [dielectric_table_size]);
+    this.profiler?.end();
   }
 }
