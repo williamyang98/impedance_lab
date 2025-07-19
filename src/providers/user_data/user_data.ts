@@ -181,9 +181,9 @@ export class Stackup2DMeshConfig implements StackupGridConfig {
     this._minimum_grid_resolution = new NumberEntry(storage, K.minimum_grid_resolution, 0.001, "float");
     this._padding_size_multiplier = new NumberEntry(storage, K.padding_size_multiplier, 5, "float");
     this._max_x_ratio = new NumberEntry(storage, K.max_x_ratio, 0.7, "float");
-    this._min_x_subdivisions = new NumberEntry(storage, K.min_x_subdivisions, 5, "integer");
+    this._min_x_subdivisions = new NumberEntry(storage, K.min_x_subdivisions, 10, "integer");
     this._max_y_ratio = new NumberEntry(storage, K.max_y_ratio, 0.7, "float");
-    this._min_y_subdivisions = new NumberEntry(storage, K.min_y_subdivisions, 5, "integer");
+    this._min_y_subdivisions = new NumberEntry(storage, K.min_y_subdivisions, 10, "integer");
     this._min_epsilon_resolution = new NumberEntry(storage, K.min_epsilon_resolution, 0.01, "float");
     this._signal_amplitude = new NumberEntry(storage, K.signal_amplitude, 1, "float");
   }
