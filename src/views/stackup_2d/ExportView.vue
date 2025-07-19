@@ -25,6 +25,8 @@ const download_links = computed<DownloadLink[]>(() => {
     { name: "ex_field.npy", data: grid.ex_field },
     { name: "ey_field.npy", data: grid.ey_field },
     { name: "v_field.npy", data: grid.v_field },
+    { name: "x.npy", data: grid.x },
+    { name: "y.npy", data: grid.y },
     { name: "dx.npy", data: grid.dx },
     { name: "dy.npy", data: grid.dy },
     { name: "ek_table.npy", data: grid.ek_table },

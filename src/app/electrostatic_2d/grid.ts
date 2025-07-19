@@ -9,6 +9,8 @@ import { Profiler } from "../../utility/profiler.ts";
 
 export class Grid extends ManagedObject {
   readonly size: [number, number];
+  readonly x: Float32ModuleNdarray;
+  readonly y: Float32ModuleNdarray;
   readonly dx: Float32ModuleNdarray;
   readonly dy: Float32ModuleNdarray;
   readonly v_index_beta: Uint32ModuleNdarray;
@@ -37,6 +39,8 @@ export class Grid extends ManagedObject {
   constructor(module: WasmModule, Ny: number, Nx: number) {
     super(module);
     this.size = [Ny, Nx];
+    this.x = Float32ModuleNdarray.from_shape(this.module, [Nx+1]);
+    this.y = Float32ModuleNdarray.from_shape(this.module, [Ny+1]);
     this.dx = Float32ModuleNdarray.from_shape(this.module, [Nx]);
     this.dy = Float32ModuleNdarray.from_shape(this.module, [Ny]);
     this.v_index_beta = Uint32ModuleNdarray.from_shape(this.module, [Ny+1,Nx+1]);
@@ -48,6 +52,8 @@ export class Grid extends ManagedObject {
 
     this._v_table = Float32ModuleNdarray.from_shape(this.module, [3]);
     this._ek_table = Float32ModuleNdarray.from_shape(this.module, [Ny,Nx]);
+    this._child_objects.add(this.x);
+    this._child_objects.add(this.y);
     this._child_objects.add(this.dx);
     this._child_objects.add(this.dy);
     this._child_objects.add(this.v_index_beta);

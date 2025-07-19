@@ -91,7 +91,7 @@ export class RegionToGridMap {
 
     const region_lines = Array.from({ length: total_region_segments+1 }, _ => 0);
     {
-      let region_line: number = 0;
+      let region_line: number = region_lines_builder.lines[0];
       for (let i = 0; i < total_region_segments; i++) {
         region_lines[i] = region_line;
         const region_segment = region_segments[i];
@@ -114,7 +114,7 @@ export class RegionToGridMap {
 
     const grid_lines = Array.from({ length: total_grid_segments+1 }, _ => 0);
     {
-      let grid_line = 0;
+      let grid_line = region_lines_builder.lines[0];
       for (let i = 0; i < total_grid_segments; i++) {
         grid_lines[i] = grid_line;
         const grid_segment = grid_segments[i];

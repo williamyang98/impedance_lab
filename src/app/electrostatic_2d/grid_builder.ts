@@ -141,6 +141,7 @@ export class GridBuilder extends ManagedObject {
   y_min_gridlines: { ry_top: number, ry_bottom: number, count: number }[] = [];
   x_region_to_grid_map: RegionToGridMap;
   y_region_to_grid_map: RegionToGridMap;
+  grid_scale: number = 1.0;
   config: GridBuilderConfig;
   profiler?: Profiler;
 
@@ -157,7 +158,8 @@ export class GridBuilder extends ManagedObject {
 
     this.sdf_regions = this.setup_create_sdf_regions(regions);
     this.setup_pad_grid();
-    this.setup_merge_nearby_grid_lines();
+    this.setup_merge_nearby_region_lines();
+    this.setup_rescale_region_lines();
     this.x_region_to_grid_map = this.setup_create_x_region_to_grid_map();
     this.y_region_to_grid_map = this.setup_create_y_region_to_grid_map();
     this.grid = this.setup_create_simulation_grid();
@@ -366,18 +368,26 @@ export class GridBuilder extends ManagedObject {
     this.profiler?.end();
   }
 
-  setup_merge_nearby_grid_lines() {
-    this.profiler?.begin("merge_grid_lines");
-    const x_region_sizes = this.x_region_lines_builder.to_regions();
-    const y_region_sizes = this.y_region_lines_builder.to_regions();
-    const merge_size = 0.99*this.config.minimum_grid_resolution;
-    const region_sizes = [...x_region_sizes, ...y_region_sizes].filter(size => size > merge_size);
+  setup_merge_nearby_region_lines() {
+    this.profiler?.begin("merge_nearby_region_lines");
+    const merge_size = this.config.minimum_grid_resolution;
     this.x_region_lines_builder.merge(merge_size);
     this.y_region_lines_builder.merge(merge_size);
+    this.profiler?.end();
+  }
+
+  setup_rescale_region_lines() {
+    this.profiler?.begin("rescale_region_lines");
+    const merge_size = this.config.minimum_grid_resolution;
+    const x_region_sizes = this.x_region_lines_builder.to_regions();
+    const y_region_sizes = this.y_region_lines_builder.to_regions();
+    const region_sizes = [...x_region_sizes, ...y_region_sizes].filter(size => size >= merge_size);
     // rescale for best accuracy for 32bit floating point
     const log_mean = get_log_median(region_sizes);
-    this.x_region_lines_builder.apply_scale(1.0/log_mean);
-    this.y_region_lines_builder.apply_scale(1.0/log_mean);
+    const scale = 1.0/log_mean;
+    this.x_region_lines_builder.apply_scale(scale);
+    this.y_region_lines_builder.apply_scale(scale);
+    this.grid_scale *= scale;
     this.profiler?.end();
   }
 
@@ -442,6 +452,8 @@ export class GridBuilder extends ManagedObject {
     );
     grid.dx.array_view.set(this.x_region_to_grid_map.grid_segments);
     grid.dy.array_view.set(this.y_region_to_grid_map.grid_segments);
+    grid.x.array_view.set(this.x_region_to_grid_map.grid_lines);
+    grid.y.array_view.set(this.y_region_to_grid_map.grid_lines);
     this.profiler?.end();
     return grid;
   }
