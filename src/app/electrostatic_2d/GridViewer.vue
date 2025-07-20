@@ -77,27 +77,30 @@ const on_mouse_move = debounce_animation_frame((ev: MouseEvent) => {
   if (ev.target === null) return;
   const target = ev.target as HTMLCanvasElement;
   const rect = target.getBoundingClientRect();
-  let dx = ev.clientX-rect.left;
-  let dy = ev.clientY-rect.top;
+  const dx = ev.clientX-rect.left;
+  const dy = ev.clientY-rect.top;
+  const norm_x = dx/rect.width;
+  const norm_y = dy/rect.height;
 
+  // flip tooltip to over overflowing parent container
+  let tooltip_x = dx;
+  let tooltip_y = dy;
   if (tooltip_elem.value) {
     const padding = 10;
     const tooltip_width = tooltip_elem.value.clientWidth;
     const tooltip_height = tooltip_elem.value.clientHeight;
-    if ((dx+tooltip_width+padding) > rect.right) {
-      dx -= tooltip_width;
+    if ((tooltip_x+tooltip_width+padding) > rect.right) {
+      tooltip_x -= tooltip_width;
     }
-    if ((dy+tooltip_height*1.5+padding) > rect.bottom) {
-      dy -= tooltip_height;
+    if ((tooltip_y+tooltip_height*1.5+padding) > rect.bottom) {
+      tooltip_y -= tooltip_height;
     }
   }
 
-  const norm_x = dx/rect.width;
-  const norm_y = dy/rect.height;
   const tooltip = toRaw(master_renderer.value).get_tooltip(norm_x, norm_y);
   hover_info.value = {
-    x: dx,
-    y: dy,
+    x: tooltip_x,
+    y: tooltip_y,
     tooltip,
   };
 });
