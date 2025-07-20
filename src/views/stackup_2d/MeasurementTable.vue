@@ -2,7 +2,7 @@
 import { defineProps, computed } from "vue";
 import { type Measurement } from "./measurement";
 import type { StackupParameters } from "./parameters";
-import { type DistanceUnit, convert_distance } from "../../utility/unit_types.ts";
+import { type DistanceUnit, convert_distance, is_unit_metric } from "../../utility/unit_types.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix";
 
 const props = defineProps<{
@@ -10,24 +10,12 @@ const props = defineProps<{
   parameters: StackupParameters,
 }>();
 
-function get_distance_unit(unit: DistanceUnit): DistanceUnit {
-  switch (unit) {
-    case "m": return "cm";
-    case "cm": return "cm";
-    case "mm": return "cm";
-    case "um": return "cm";
-    case "inch": return "inch";
-    case "mil": return "inch";
-    case "thou": return "inch";
-    case "oz": return "inch";
-  }
-}
-
 const display_precision: number = 4;
 
 const distance_unit = computed<DistanceUnit>(() => {
   const parameters = props.parameters;
-  return get_distance_unit(parameters.size_unit);
+  const is_metric = is_unit_metric(parameters.size_unit);
+  return is_metric ? "cm" : "inch";
 });
 
 function format_distributed_value(value: number, unit: string): string {

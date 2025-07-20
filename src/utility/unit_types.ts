@@ -22,6 +22,20 @@ const distance_unit_norm_size: Record<DistanceUnit, number> = {
   "oz": 1.37/39370.1,
 };
 
+export function is_unit_metric(unit: DistanceUnit): boolean {
+  switch (unit) {
+    case "m": return true;
+    case "cm": return true;
+    case "mm": return true;
+    case "um": return true;
+    case "nm": return true;
+    case "inch": return false;
+    case "mil": return false;
+    case "thou": return false;
+    case "oz": return false;
+  }
+}
+
 export function convert_distance(value: number, old_unit: DistanceUnit, new_unit: DistanceUnit): number {
   if (old_unit === new_unit) return value;
   const scale = distance_unit_norm_size[old_unit] / distance_unit_norm_size[new_unit];
