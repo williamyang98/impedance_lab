@@ -1,4 +1,4 @@
-import { type ImpedanceResult, calculate_impedance } from "../../app/electrostatic_2d/impedance.ts";
+import { type ImpedanceResult, calculate_impedance } from "./impedance.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { StackupGrid } from "./stackup_to_grid.ts";
 

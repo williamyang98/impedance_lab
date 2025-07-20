@@ -1,5 +1,5 @@
 import { Profiler } from "../../utility/profiler.ts";
-import { Grid } from "./grid.ts";
+import { Grid } from "../../app/electrostatic_2d/grid.ts";
 
 export interface ImpedanceResult {
   voltage: number;
@@ -11,9 +11,12 @@ export interface ImpedanceResult {
   Lh: number;
   propagation_speed: number;
   propagation_delay: number;
+  effective_er: number;
 }
 
 export function calculate_impedance(grid: Grid, profiler?: Profiler): ImpedanceResult {
+  // scale of the grid doesnt matter for 2d electrostatics with infinitely long transmission lines
+  // since Laplace's equations and boundary conditions are scale-invariant
   profiler?.begin("energy_homogenous", "Calculate energy stored without dielectric material");
   const energy_homogenous = grid.module.calculate_homogenous_energy_2d(
     grid.ex_field, grid.ey_field,
@@ -38,6 +41,7 @@ export function calculate_impedance(grid: Grid, profiler?: Profiler): ImpedanceR
   const Z0 = (Lh/Cih)**0.5;
   const propagation_speed = 1/(Cih*Lh)**0.5;
   const propagation_delay = 1/propagation_speed;
+  const effective_er = Cih/Ch;
 
   return {
     voltage: v0,
@@ -49,5 +53,6 @@ export function calculate_impedance(grid: Grid, profiler?: Profiler): ImpedanceR
     Lh,
     propagation_speed,
     propagation_delay,
+    effective_er,
   };
 }
