@@ -28,16 +28,20 @@ function create_chart() {
   const x_grid_lines = builder.x_region_to_grid_map.grid_lines.map(x => x/x_scale);
   const y_grid_lines = builder.y_region_to_grid_map.grid_lines.map(y => y/y_scale);
 
-  const show_padding = is_padded.value;
-  const get_boundary = (unpadded: number, padded: number | undefined): number => {
-    if (padded !== undefined && show_padding) return padded;
+  const get_boundary = (unpadded: number, padded: number | undefined, is_padded: boolean): number => {
+    if (padded !== undefined && is_padded) return padded;
     return unpadded;
   }
+  const x_min = get_boundary(builder.unpadded_boundary.x_left, builder.padded_boundary.x_left, true);
+  const x_max = get_boundary(builder.unpadded_boundary.x_right, builder.padded_boundary.x_right, true);
+  const y_min = get_boundary(builder.unpadded_boundary.y_top, builder.padded_boundary.y_top, true);
+  const y_max = get_boundary(builder.unpadded_boundary.y_bottom, builder.padded_boundary.y_bottom, true);
 
-  const x_min = get_boundary(builder.unpadded_boundary.x_left, builder.padded_boundary.x_left);
-  const x_max = get_boundary(builder.unpadded_boundary.x_right, builder.padded_boundary.x_right);
-  const y_min = get_boundary(builder.unpadded_boundary.y_top, builder.padded_boundary.y_top);
-  const y_max = get_boundary(builder.unpadded_boundary.y_bottom, builder.padded_boundary.y_bottom);
+  const show_padding = is_padded.value;
+  const show_x_min = get_boundary(builder.unpadded_boundary.x_left, builder.padded_boundary.x_left, show_padding);
+  const show_x_max = get_boundary(builder.unpadded_boundary.x_right, builder.padded_boundary.x_right, show_padding);
+  const show_y_min = get_boundary(builder.unpadded_boundary.y_top, builder.padded_boundary.y_top, show_padding);
+  const show_y_max = get_boundary(builder.unpadded_boundary.y_bottom, builder.padded_boundary.y_bottom, show_padding);
 
   chart.value?.destroy();
   chart.value = new Chart(canvas, {
@@ -105,8 +109,8 @@ function create_chart() {
       scales: {
         x: {
           type: "linear",
-          min: x_min,
-          max: x_max,
+          min: show_x_min,
+          max: show_x_max,
           title: {
             display: true,
             text: "X",
@@ -118,8 +122,8 @@ function create_chart() {
         },
         y: {
           type: "linear",
-          min: y_min,
-          max: y_max,
+          min: show_y_min,
+          max: show_y_max,
           reverse: true,
           title: {
             display: true,
@@ -156,6 +160,7 @@ watch(builder, () => {
   create_chart();
 });
 
+// toggle padding
 watch(is_padded, (show_padding) => {
   const old_chart = toRaw(chart.value);
   if (old_chart === undefined) return;
