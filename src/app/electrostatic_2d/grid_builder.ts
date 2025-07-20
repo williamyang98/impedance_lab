@@ -130,6 +130,9 @@ type RegionSDF =
   { type: "empty", sdfs: SDF[] };
 
 // Grid builder breaks down regions into the following heirarchy
+// (0,0) is top-left
+// positive x-axis goes from left to right
+// positive y-axis goes from top to bottom
 // Region -> Shapes[] -> SDF[]
 export class GridBuilder extends ManagedObject {
   grid: Grid;
@@ -142,6 +145,18 @@ export class GridBuilder extends ManagedObject {
   y_min_gridlines: { ry_top: number, ry_bottom: number, count: number }[] = [];
   x_region_to_grid_map: RegionToGridMap;
   y_region_to_grid_map: RegionToGridMap;
+  unpadded_boundary: {
+    x_left: number;
+    x_right: number;
+    y_top: number;
+    y_bottom: number;
+  };
+  padded_boundary: {
+    x_left?: number;
+    x_right?: number;
+    y_top?: number;
+    y_bottom?: number;
+  };
   grid_scale: number = 1.0;
   dielectric_indices = new Set<number>();
   voltage_indices = new Set<number>();
@@ -160,7 +175,8 @@ export class GridBuilder extends ManagedObject {
     this.profiler = profiler;
 
     this.sdf_regions = this.setup_create_sdf_regions(regions);
-    this.setup_pad_grid();
+    this.unpadded_boundary = this.setup_calculate_unpadded_boundary();
+    this.padded_boundary = this.setup_pad_grid();
     this.setup_merge_nearby_region_lines();
     this.setup_rescale_region_lines();
     this.x_region_to_grid_map = this.setup_create_x_region_to_grid_map();
@@ -358,20 +374,45 @@ export class GridBuilder extends ManagedObject {
     return region_sdf;
   }
 
-  setup_pad_grid() {
-    this.profiler?.begin("pad_grid");
-    const x_min = this.x_region_lines_builder.lines.reduce((a,b) => Math.min(a,b), Infinity);
-    const x_max = this.x_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
-    const y_min = this.y_region_lines_builder.lines.reduce((a,b) => Math.min(a,b), Infinity);
-    const y_max = this.y_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
-    const stackup_width = x_max-x_min;
-    const stackup_height = y_max-y_min;
-    const padding_size = Math.max(stackup_width, stackup_height)*this.config.padding_size_multiplier;
-    if (this.padding.x_left) this.x_region_lines_builder.push(x_min-padding_size);
-    if (this.padding.x_right) this.x_region_lines_builder.push(x_max+padding_size);
-    if (this.padding.y_top) this.y_region_lines_builder.push(y_min-padding_size);
-    if (this.padding.y_bottom) this.y_region_lines_builder.push(y_max+padding_size);
+  setup_calculate_unpadded_boundary(): typeof this.unpadded_boundary {
+    this.profiler?.begin("calculate_unpadded_boundary");
+    const x_left = this.x_region_lines_builder.lines.reduce((a,b) => Math.min(a,b), Infinity);
+    const x_right = this.x_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+    const y_top = this.y_region_lines_builder.lines.reduce((a,b) => Math.min(a,b), Infinity);
+    const y_bottom = this.y_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
     this.profiler?.end();
+    return { x_left, x_right, y_top, y_bottom };
+  }
+
+  setup_pad_grid(): typeof this.padded_boundary {
+    this.profiler?.begin("pad_grid");
+    const { x_left, x_right, y_top, y_bottom } = this.unpadded_boundary;
+    const stackup_width = x_right-x_left;
+    const stackup_height = y_bottom-y_top;
+    const padding_size = Math.max(stackup_width, stackup_height)*this.config.padding_size_multiplier;
+    const padded_boundary: typeof this.padded_boundary = {};
+    if (this.padding.x_left) {
+      const x_left_pad = x_left-padding_size;
+      this.x_region_lines_builder.push(x_left_pad);
+      padded_boundary.x_left = x_left_pad;
+    }
+    if (this.padding.x_right) {
+      const x_right_pad = x_right+padding_size;
+      this.x_region_lines_builder.push(x_right_pad);
+      padded_boundary.x_right = x_right_pad;
+    }
+    if (this.padding.y_top) {
+      const y_top_pad = y_top-padding_size;
+      this.y_region_lines_builder.push(y_top_pad);
+      padded_boundary.y_top = y_top_pad;
+    }
+    if (this.padding.y_bottom) {
+      const y_bottom_pad = y_bottom+padding_size;
+      this.y_region_lines_builder.push(y_bottom_pad);
+      padded_boundary.y_bottom = y_bottom_pad;
+    }
+    this.profiler?.end();
+    return padded_boundary;
   }
 
   setup_merge_nearby_region_lines() {

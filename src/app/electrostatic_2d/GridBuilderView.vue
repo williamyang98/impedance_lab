@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, ref, useTemplateRef, watch, computed } from "vue";
+import { defineProps, ref, useTemplateRef, watch, computed, toRaw } from "vue";
 import { GridBuilder } from "./grid_builder.ts";
 import RegionTable from "../mesher/RegionTable.vue";
 import TabsView from "../../utility/TabsView.vue";
@@ -11,13 +11,12 @@ const props = defineProps<{
 
 const canvas_elem = useTemplateRef<HTMLCanvasElement>("grid-canvas");
 const chart = ref<Chart | undefined>(undefined);
+const is_padded = ref<boolean>(true);
 
 function create_chart() {
   const canvas = canvas_elem.value;
   if (canvas === null) return;
-
   const builder = props.builder;
-  if (builder === undefined) return;
 
   // rescale from normalised to actual sizes
   const x_scale = builder.x_region_to_grid_map.region_lines_builder.scale;
@@ -29,10 +28,16 @@ function create_chart() {
   const x_grid_lines = builder.x_region_to_grid_map.grid_lines.map(x => x/x_scale);
   const y_grid_lines = builder.y_region_to_grid_map.grid_lines.map(y => y/y_scale);
 
-  const x_min = x_grid_lines[0];
-  const x_max = x_grid_lines[x_grid_lines.length-1];
-  const y_min = y_grid_lines[0];
-  const y_max = y_grid_lines[y_grid_lines.length-1];
+  const show_padding = is_padded.value;
+  const get_boundary = (unpadded: number, padded: number | undefined): number => {
+    if (padded !== undefined && show_padding) return padded;
+    return unpadded;
+  }
+
+  const x_min = get_boundary(builder.unpadded_boundary.x_left, builder.padded_boundary.x_left);
+  const x_max = get_boundary(builder.unpadded_boundary.x_right, builder.padded_boundary.x_right);
+  const y_min = get_boundary(builder.unpadded_boundary.y_top, builder.padded_boundary.y_top);
+  const y_max = get_boundary(builder.unpadded_boundary.y_bottom, builder.padded_boundary.y_bottom);
 
   chart.value?.destroy();
   chart.value = new Chart(canvas, {
@@ -150,12 +155,40 @@ const builder = computed(() => props.builder);
 watch(builder, () => {
   create_chart();
 });
+
+watch(is_padded, (show_padding) => {
+  const old_chart = toRaw(chart.value);
+  if (old_chart === undefined) return;
+  const scales = old_chart.options.scales;
+  if (scales === undefined) return;
+  if (scales.x === undefined) return;
+  if (scales.y === undefined) return;
+  const builder = props.builder;
+  const get_boundary = (unpadded: number, padded: number | undefined): number => {
+    if (padded !== undefined && show_padding) return padded;
+    return unpadded;
+  }
+  const x_min = get_boundary(builder.unpadded_boundary.x_left, builder.padded_boundary.x_left);
+  const x_max = get_boundary(builder.unpadded_boundary.x_right, builder.padded_boundary.x_right);
+  const y_min = get_boundary(builder.unpadded_boundary.y_top, builder.padded_boundary.y_top);
+  const y_max = get_boundary(builder.unpadded_boundary.y_bottom, builder.padded_boundary.y_bottom);
+  scales.x.min = x_min;
+  scales.x.max = x_max;
+  scales.y.min = y_min;
+  scales.y.max = y_max;
+  old_chart.update();
+});
+
 </script>
 
 <template>
 <div class="w-full h-full grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-2 w-full">
   <div class="card card-border bg-base-100">
     <div class="card-body p-3">
+      <div class="w-fit flex flex-row gap-x-2 z-1 absolute m-1" data-theme="light">
+        <input class="checkbox checkbox-sm" type="checkbox" v-model="is_padded"/>
+        <span class="label">Show Padding</span>
+      </div>
       <div class="relative w-full h-full bg-white rounded">
         <canvas ref="grid-canvas"></canvas>
       </div>
