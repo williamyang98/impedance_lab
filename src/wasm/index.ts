@@ -222,6 +222,42 @@ export class WasmModule {
     );
   }
 
+  calculate_homogenous_energy_cylindrical(
+    ex_field: Float32ModuleBuffer, ey_field: Float32ModuleBuffer,
+    dx: Float32ModuleBuffer, dy: Float32ModuleBuffer,
+    x: Float32ModuleBuffer,
+  ): number {
+    this.assert_owned(ex_field);
+    this.assert_owned(ey_field);
+    this.assert_owned(dx);
+    this.assert_owned(dy);
+    this.assert_owned(x);
+
+    return this.main.calculate_homogenous_energy_cylindrical(ex_field.pin, ey_field.pin, dx.pin, dy.pin, x.pin);
+  }
+
+  calculate_inhomogenous_energy_cylindrical(
+    ex_field: Float32ModuleBuffer, ey_field: Float32ModuleBuffer,
+    dx: Float32ModuleBuffer, dy: Float32ModuleBuffer,
+    x: Float32ModuleBuffer,
+    er_table: Float32ModuleBuffer, er_index_beta: Uint32ModuleBuffer,
+  ): number {
+    this.assert_owned(ex_field);
+    this.assert_owned(ey_field);
+    this.assert_owned(dx);
+    this.assert_owned(dy);
+    this.assert_owned(x);
+    this.assert_owned(er_table);
+    this.assert_owned(er_index_beta);
+
+    return this.main.calculate_inhomogenous_energy_cylindrical(
+      ex_field.pin, ey_field.pin,
+      dx.pin, dy.pin,
+      x.pin,
+      er_table.pin, er_index_beta.pin,
+    );
+  }
+
   calculate_e_field(
     ex_field_out: Float32ModuleBuffer, ey_field_out: Float32ModuleBuffer,
     v_field_in: Float32ModuleBuffer,
