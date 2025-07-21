@@ -59,14 +59,6 @@ export class StackupParameters {
   B: SizeParameter & RequiresParent;
   CS: SizeParameter & RequiresParent;
 
-  readonly size_unit_options: DistanceUnit[] = [
-    "cm", "mm", "um", "inch", "mil", "thou",
-  ];
-
-  readonly copper_thickness_unit_options: DistanceUnit[] = [
-    "cm", "mm", "um", "inch", "mil", "thou", "oz",
-  ];
-
   constructor(user_data: UserData) {
     this.user_data = user_data;
 
@@ -311,6 +303,14 @@ export class StackupParameters {
     };
     this.T.for_each(update_param);
     update_param(this.PH);
+  }
+
+  get size_unit_options() {
+    return this.user_data.size_unit_options;
+  }
+
+  get copper_thickness_unit_options() {
+    return this.user_data.copper_thickness_unit_options;
   }
 
   mark_parameter_unchanged(param: Parameter) {

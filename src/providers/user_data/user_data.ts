@@ -162,6 +162,15 @@ export class UserData {
   set size_unit(value: DistanceUnit) { this._size_unit.value = value; }
   get copper_thickness_unit(): DistanceUnit { return this._copper_thickness_unit.value; }
   set copper_thickness_unit(value: DistanceUnit) { this._copper_thickness_unit.value = value; }
+
+  readonly size_unit_options: DistanceUnit[] = [
+    "cm", "mm", "um", "inch", "mil", "thou",
+  ];
+
+  readonly copper_thickness_unit_options: DistanceUnit[] = [
+    "cm", "mm", "um", "inch", "mil", "thou", "oz",
+  ];
+
 }
 
 export class Stackup2DMeshConfig implements StackupGridConfig {
