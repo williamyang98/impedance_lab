@@ -11,7 +11,7 @@ const props = defineProps<{
   visualiser: Visualiser,
 }>();
 
-const viewport = computed(() => props.visualiser._viewport);
+const viewport = computed(() => props.visualiser.viewport);
 const entities = computed(() => props.visualiser.entities);
 
 const font_glyph_width = 0.75;

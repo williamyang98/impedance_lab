@@ -163,6 +163,6 @@ export interface Viewport {
 }
 
 export interface Visualiser {
-  _viewport: Viewport;
+  viewport: Viewport;
   entities: Entity[];
 }
