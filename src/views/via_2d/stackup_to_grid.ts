@@ -5,8 +5,8 @@ import {
   type Region, type Shape,
 } from "../../app/electrostatic_2d/grid_builder.ts";
 import {
-  type Stackup, type Parameter,
-  type ReferencePlane, Rules,
+  Stackup, type Parameter,
+  type ReferencePlane,
 } from "./stackup.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { type WasmModule, ManagedObject } from "../../wasm";
@@ -36,23 +36,23 @@ function create_symmetrical_cylinder(
 function validate_parameter(param: Parameter) {
   if (param.value === undefined) {
     param.error = "Field is required";
-    throw Error(`Missing field value for ${param.name}`);
+    throw Error(`Missing field value for ${param.label}`);
   }
   if (typeof(param.value) !== 'number') {
     param.error = "Field is required";
-    throw Error(`Non number field value for ${param.name}`);
+    throw Error(`Non number field value for ${param.label}`);
   }
   if (Number.isNaN(param.value)) {
     param.error = "Field is required";
-    throw Error(`NaN field value for ${param.name}`);
+    throw Error(`NaN field value for ${param.label}`);
   }
   if (param.min !== undefined && param.value < param.min) {
     param.error = `Value must be greater than ${param.min}`;
-    throw Error(`Violated minimum value for ${param.name}`);
+    throw Error(`Violated minimum value for ${param.label}`);
   }
   if (param.max !== undefined && param.value > param.max) {
     param.error = `Value must be less than ${param.max}`;
-    throw Error(`Violated maximum value for ${param.name}`);
+    throw Error(`Violated maximum value for ${param.label}`);
   }
   param.error = undefined;
   // type convert if parameter is valid
@@ -83,6 +83,7 @@ export class StackupGrid extends ManagedObject {
   target_unit: DistanceUnit = "mm";
   readonly calculation_unit: DistanceUnit = "m";
   profiler?: Profiler;
+  parsed_parameters = new Set<Parameter>();
 
   constructor(module: WasmModule, stackup: Stackup, profiler?: Profiler) {
     super(module);
@@ -134,6 +135,7 @@ export class StackupGrid extends ManagedObject {
 
   setup_get_parameter_value(param: Parameter): number {
     const valid_param = validate_parameter(param);
+    this.parsed_parameters.add(param);
     switch (valid_param.type) {
       case "size": return convert_distance(valid_param.value, valid_param.unit, this.target_unit);
       case "epsilon": return valid_param.value;
@@ -157,7 +159,13 @@ export class StackupGrid extends ManagedObject {
       regions.push({
         type: "dielectric",
         dielectric_index: epsilon_index,
-        shapes: create_symmetrical_cylinder(y_top, y_bottom, Dbarrel/2, undefined),
+        shapes: [
+          {
+            type: "rectangle",
+            y_top,
+            y_bottom,
+          },
+        ],
       });
     }
 
@@ -182,15 +190,19 @@ export class StackupGrid extends ManagedObject {
       y_top: Infinity,
       y_bottom: -Infinity,
     };
-    const create_reference_plane = (plane: ReferencePlane, y_top: number, y_bottom: number) => {
+    const push_copper_bounds = (y_top: number, y_bottom: number) => {
       copper_bounds.y_top = Math.min(copper_bounds.y_top, y_top);
       copper_bounds.y_bottom = Math.max(copper_bounds.y_bottom, y_bottom);
-      if (plane.Dpad) {
+    };
+
+    const create_reference_plane = (plane: ReferencePlane, y_top: number, y_bottom: number) => {
+      push_copper_bounds(y_top, y_bottom);
+      if (plane.Dpad !== undefined) {
         const Dpad = this.setup_get_parameter_value(plane.Dpad);
         create_via_pad(y_top, y_bottom, Dpad);
       }
       // reference plane antipad
-      if (plane.Dantipad) {
+      if (plane.Dantipad !== undefined) {
         const Dantipad = this.setup_get_parameter_value(plane.Dantipad);
         create_plane_antipad(y_top, y_bottom, Dantipad);
       }
@@ -207,8 +219,8 @@ export class StackupGrid extends ManagedObject {
           if (layer.soldermask) {
             mask_height = 0;
             mask_height += this.setup_get_parameter_value(layer.soldermask.height);
-            if (Rules.plane_has_copper(layer.plane)) {
-              mask_height += this.setup_get_parameter_value(layer.plane.copper_thickness);
+            if (layer.plane.has_copper) {
+              mask_height += this.setup_get_parameter_value(layer.copper_thickness);
             }
             const epsilon = this.setup_get_parameter_value(layer.soldermask.epsilon)
             const y_top = y_offset;
@@ -216,8 +228,8 @@ export class StackupGrid extends ManagedObject {
             create_dielectric_layer(y_top, y_bottom, epsilon);
           }
           let trace_height = undefined;
-          if (Rules.plane_has_copper(layer.plane)) {
-            trace_height = this.setup_get_parameter_value(layer.plane.copper_thickness);
+          if (layer.plane.has_copper) {
+            trace_height = this.setup_get_parameter_value(layer.copper_thickness);
             let y_top = y_offset;
             const is_bottom = (i == 0); // soldermask orientation
             if (is_bottom && layer.soldermask) {
@@ -233,10 +245,10 @@ export class StackupGrid extends ManagedObject {
           // dielectric
           let height = 0;
           height += this.setup_get_parameter_value(layer.height);
-          if (Rules.plane_has_copper(layer.planes.top)) {
+          if (layer.planes.top.has_copper) {
             height += this.setup_get_parameter_value(layer.planes.copper_thickness);
           }
-          if (Rules.plane_has_copper(layer.planes.bottom)) {
+          if (layer.planes.bottom.has_copper) {
             height += this.setup_get_parameter_value(layer.planes.copper_thickness);
           }
           const epsilon = this.setup_get_parameter_value(layer.epsilon)
@@ -244,14 +256,15 @@ export class StackupGrid extends ManagedObject {
           const y_bottom = y_top+height;
           y_offset += height;
           create_dielectric_layer(y_top, y_bottom, epsilon);
+          push_copper_bounds(y_top, y_bottom);
           // top plane
-          if (Rules.plane_has_copper(layer.planes.top)) {
+          if (layer.planes.top.has_copper) {
             const copper_height = this.setup_get_parameter_value(layer.planes.copper_thickness);
             const y_plane_top = y_top;
             const y_plane_bottom = y_plane_top+copper_height;
             create_reference_plane(layer.planes.top, y_plane_top, y_plane_bottom);
           }
-          if (Rules.plane_has_copper(layer.planes.bottom)) {
+          if (layer.planes.bottom.has_copper) {
             const copper_height = this.setup_get_parameter_value(layer.planes.copper_thickness);
             const y_plane_top = y_bottom-copper_height;
             const y_plane_bottom = y_plane_top+copper_height;
@@ -263,8 +276,8 @@ export class StackupGrid extends ManagedObject {
     }
 
     // barrel height
-    const y_barrel_top = Math.min(dielectric_bounds.y_top, copper_bounds.y_top);
-    const y_barrel_bottom = Math.max(dielectric_bounds.y_bottom, copper_bounds.y_bottom);
+    const y_barrel_top = copper_bounds.y_top;
+    const y_barrel_bottom = copper_bounds.y_bottom;
     if (!Number.isFinite(y_barrel_top) || !Number.isFinite(y_barrel_bottom)) {
       throw Error("Stackup does not have any vertical dimension. Did you forget to add layers?");
     }

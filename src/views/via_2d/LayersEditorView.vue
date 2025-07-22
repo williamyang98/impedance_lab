@@ -1,35 +1,47 @@
 <script lang="ts" setup>
-import { Editor } from "./editor.ts";
-import { computed, defineProps } from "vue";
-import { type LayerType } from "./stackup.ts";
+import { computed, defineProps, toRef } from "vue";
+import { Stackup, type LayerType } from "./stackup.ts";
 import { Trash2Icon } from "lucide-vue-next";
 
 const props = defineProps<{
-  editor: Editor,
+  stackup: Stackup,
 }>();
 
-const editor = computed(() => props.editor);
+const stackup = toRef(props.stackup);
 
 const layers = computed(() => {
-  return props.editor.stackup.layers.map((layer, index) => {
+  return props.stackup.layers.map((layer, index) => {
+    let prepend = undefined;
+    if (stackup.value.can_add_before_layer(index)) {
+      prepend = () => stackup.value.add_before_layer(index);
+    }
+    let remove = undefined;
+    if (stackup.value.can_remove_layer(index)) {
+      remove = () => stackup.value.remove_layer(index);
+    }
     return {
       id: layer.id,
+      get types(): LayerType[] {
+        return stackup.value.get_layer_types(index);
+      },
       get type(): LayerType {
         return layer.type;
       },
       set type(type: LayerType) {
-        editor.value.set_layer_type(index, type);
+        stackup.value.set_layer_type(index, type);
       },
-      remove() {
-        editor.value.remove_layer(index);
-      },
+      prepend,
+      remove,
     }
   });
 });
 
 const append_layer_to_end = computed(() => {
-  if (!editor.value.can_append_layer()) return undefined;
-  return () => editor.value.append_layer();
+  let append = undefined;
+  if (stackup.value.can_append_layer()) {
+    append = () => stackup.value.append_layer();
+  }
+  return append;
 });
 
 </script>
@@ -37,15 +49,15 @@ const append_layer_to_end = computed(() => {
 <template>
   <div class="grid grid-cols-[1.5rem_auto_2rem] gap-x-1 gap-y-0">
     <template v-for="(layer, layer_index) of layers" :key="layer.id">
-      <div v-if="editor.can_add_before_layer(layer_index)" class="add-button col-span-3" @click="editor.add_before_layer(layer_index)"></div>
+      <div v-if="layer.prepend" class="add-button col-span-3" @click="layer.prepend()"></div>
       <div class="flex flex-col justify-center font-medium ml-1">L{{ layer_index }}:</div>
       <select v-model="layer.type" class="w-full select">
-        <template v-for="type of editor.get_layer_types(layer_index)" :key="type">
+        <template v-for="type of layer.types" :key="type">
           <option :value="type">{{ type }}</option>
         </template>
       </select>
       <div class="flex flex-col justify-center">
-        <button class="delete-button" @click="editor.remove_layer(layer_index)" :disabled="!editor.can_remove_layer(layer_index)">
+        <button class="delete-button" @click="layer.remove?.()" :disabled="layer.remove === undefined">
           <Trash2Icon/>
         </button>
       </div>

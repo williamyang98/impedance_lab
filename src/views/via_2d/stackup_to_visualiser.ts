@@ -1,9 +1,9 @@
-import { Editor } from "./editor.ts";
 import {
+  Stackup,
+  type LayerId,
   // type Stackup, type Parameter,
   type Orientation, type Position,
   // type ReferencePlane,
-  Rules,
 } from "./stackup.ts";
 import type {
   Visualiser, Viewport,
@@ -72,7 +72,7 @@ interface StackupBounds {
 }
 
 export class StackupVisualiser implements Visualiser {
-  editor: Editor;
+  stackup: Stackup;
   is_editing: boolean
   reference_planes: ReferencePlaneEntity[] = [];
   reference_plane_groups = new Map<string, ReferencePlaneEntity[]>();
@@ -83,15 +83,13 @@ export class StackupVisualiser implements Visualiser {
   soldermask_layers: RectangleShape[] = [];
   stackup_bounds: StackupBounds;
 
-  constructor(editor: Editor, is_editing: boolean) {
+  constructor(stackup: Stackup, is_editing: boolean) {
     this.is_editing = is_editing;
-    this.editor = editor;
+    this.stackup = stackup;
     this.stackup_bounds = this.create_visualiser();
   }
 
   create_visualiser(): StackupBounds {
-    const stackup = this.editor.stackup;
-
     let y_offset = 0;
     const y_stackup_top = y_offset;
     let y_copper_top = Infinity;
@@ -101,19 +99,19 @@ export class StackupVisualiser implements Visualiser {
       y_copper_bottom = Math.max(y_copper_bottom, y);
     };
 
-    for (let i = 0; i < stackup.layers.length; i++) {
-      const layer = stackup.layers[i];
+    for (let i = 0; i < this.stackup.layers.length; i++) {
+      const layer = this.stackup.layers[i];
       switch (layer.type) {
         case "surface": {
           // dielectric
           const y_top = y_offset;
           {
             let height = 0;
-            if (Rules.plane_has_copper(layer.plane) || this.is_editing) height += sizes.plane_height;
+            if (layer.plane.has_copper || this.is_editing) height += sizes.plane_height;
             if (layer.soldermask || this.is_editing) {
               height += sizes.soldermask_height;
             }
-            this.create_soldermask_layer(y_top, height, layer.soldermask !== undefined, i);
+            this.create_soldermask_layer(y_top, height, layer.soldermask !== undefined, layer.id);
             y_offset += height;
           }
           const y_bottom = y_offset;
@@ -133,11 +131,11 @@ export class StackupVisualiser implements Visualiser {
           {
             let height = sizes.dielectric_height;
             let colour = colours.dielectric_core;
-            if (Rules.plane_has_copper(layer.planes.top) || this.is_editing) {
+            if (layer.planes.top.has_copper || this.is_editing) {
               height += sizes.plane_height;
               colour = colours.dielectric_prepreg;
             }
-            if (Rules.plane_has_copper(layer.planes.bottom) || this.is_editing) {
+            if (layer.planes.bottom.has_copper || this.is_editing) {
               height += sizes.plane_height;
               colour = colours.dielectric_prepreg;
             }
@@ -226,16 +224,16 @@ export class StackupVisualiser implements Visualiser {
     });
   }
 
-  create_soldermask_layer(y: number, height: number, exists: boolean, layer_index: number) {
+  create_soldermask_layer(y: number, height: number, exists: boolean, layer_id: LayerId) {
     if (!exists && !this.is_editing) return;
     const colour = exists ? colours.dielectric_soldermask : colours.dielectric_soldermask_selectable;
     const is_hoverable = !exists && this.is_editing;
     let on_click = undefined;
     if (this.is_editing) {
       if (exists) {
-        on_click = () => this.editor.remove_soldermask(layer_index);
+        on_click = () => this.stackup.remove_soldermask(layer_id);
       } else {
-        on_click = () => this.editor.add_soldermask(layer_index);
+        on_click = () => this.stackup.add_soldermask(layer_id);
       }
     }
 
@@ -259,18 +257,18 @@ export class StackupVisualiser implements Visualiser {
 
   create_via_pad(y: number, exists: boolean, layer_index: number, orientation: Orientation) {
     const group_id = `${layer_index}_${orientation}`;
-    const layer = this.editor.stackup.layers[layer_index];
+    const layer = this.stackup.layers[layer_index];
     const position: Position = { layer_id: layer.id, orientation };
     const is_ghost = !exists;
 
     let on_click = undefined;
     let is_hoverable = false;
     let is_visible = exists;
-    if (this.is_editing && exists && this.editor.can_remove_via_pad(position)) {
-      on_click = () => this.editor.remove_via_pad(position);
+    if (this.is_editing && exists && this.stackup.can_remove_via_pad(position)) {
+      on_click = () => this.stackup.remove_via_pad(position);
     }
-    if (this.is_editing && !exists && this.editor.can_add_via_pad(position)) {
-      on_click = () => this.editor.add_via_pad(position);
+    if (this.is_editing && !exists && this.stackup.can_add_via_pad(position)) {
+      on_click = () => this.stackup.add_via_pad(position);
       is_hoverable = true;
       is_visible = true;
     }
@@ -326,18 +324,18 @@ export class StackupVisualiser implements Visualiser {
 
   create_reference_plane(y: number, exists: boolean, layer_index: number, orientation: Orientation) {
     const group_id = `${layer_index}_${orientation}`;
-    const layer = this.editor.stackup.layers[layer_index];
+    const layer = this.stackup.layers[layer_index];
     const position: Position = { layer_id: layer.id, orientation };
     const is_ghost = !exists;
 
     let on_click = undefined;
     let is_hoverable = false;
     let is_visible = exists;
-    if (this.is_editing && exists && this.editor.can_remove_reference_plane(position)) {
-      on_click = () => this.editor.remove_reference_plane(position);
+    if (this.is_editing && exists && this.stackup.can_remove_reference_plane(position)) {
+      on_click = () => this.stackup.remove_reference_plane(position);
     }
-    if (this.is_editing && !exists && this.editor.can_add_reference_plane(position)) {
-      on_click = () => this.editor.add_reference_plane(position);
+    if (this.is_editing && !exists && this.stackup.can_add_reference_plane(position)) {
+      on_click = () => this.stackup.add_reference_plane(position);
       is_hoverable = true;
       is_visible = true;
     }

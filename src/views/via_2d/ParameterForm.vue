@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { defineProps, defineEmits, computed } from "vue";
+import { defineProps, defineEmits, computed, watch, toRef } from "vue";
 import { TriangleAlert, SearchIcon, InfoIcon } from "lucide-vue-next";
 import {
+  Stackup,
   type Parameter, type SizeParameter, type EpsilonParameter,
-  Rules,
 } from "./stackup.ts";
-import { Editor } from "./editor.ts";
+import { providers } from "../../providers/providers.ts";
+
+const user_data = providers.user_data;
 
 const props = defineProps<{
-  editor: Editor,
+  stackup: Stackup,
 }>();
+const stackup = toRef(props.stackup);
 
 const emits = defineEmits<{
   search: [parameters: Parameter[]],
@@ -44,17 +47,16 @@ class Form {
   barrel_thickness: SizeParameter;
   barrel_epsilon: EpsilonParameter;
 
-  editor: Editor;
-  constructor(editor: Editor) {
-    this.editor = editor;
-    const stackup = this.editor.stackup;
+  stackup: Stackup;
+  constructor(stackup: Stackup) {
+    this.stackup = stackup;
 
     for (const layer of stackup.layers) {
       switch (layer.type) {
         case "inner": {
           this.dielectric_height_params.push(layer.height);
           this.epsilon_params.push(layer.epsilon);
-          if (Rules.plane_has_copper(layer.planes.top) || Rules.plane_has_copper(layer.planes.bottom)) {
+          if (layer.planes.top.has_copper || layer.planes.bottom.has_copper) {
             this.copper_plane_thickness_params.push(layer.planes.copper_thickness);
           }
           if (layer.planes.top.Dpad !== undefined) {
@@ -76,8 +78,8 @@ class Form {
             this.epsilon_params.push(layer.soldermask.epsilon);
             this.soldermask_height_params.push(layer.soldermask.height);
           }
-          if (Rules.plane_has_copper(layer.plane)) {
-            this.copper_plane_thickness_params.push(layer.plane.copper_thickness);
+          if (layer.plane.has_copper) {
+            this.copper_plane_thickness_params.push(layer.copper_thickness);
           }
           if (layer.plane.Dpad !== undefined) {
             this.via_pad_diameter_params.push(layer.plane.Dpad);
@@ -95,8 +97,6 @@ class Form {
   }
 
   get_layout(): FormFields[][] {
-    const parameters = this.editor.parameters;
-
     const column: FormFields[][] = [];
     let row: FormFields[] = [];
     const push_row = () => {
@@ -115,17 +115,17 @@ class Form {
     };
 
     create_form_fields(
-      `Soldermask Height (${parameters.size_unit})`,
+      `Soldermask Height (${this.soldermask_height_params.at(0)?.unit})`,
       "Height of soldermask",
       this.soldermask_height_params,
     );
     create_form_fields(
-      `Dielectric Height (${parameters.size_unit})`,
+      `Dielectric Height (${this.dielectric_height_params.at(0)?.unit})`,
       "Height of dielectric",
       this.dielectric_height_params,
     );
     create_form_fields(
-      `Copper thickness (${parameters.copper_thickness_unit})`,
+      `Copper thickness (${this.copper_plane_thickness_params.at(0)?.unit})`,
       "Height of copper pour",
       this.copper_plane_thickness_params,
     );
@@ -138,12 +138,12 @@ class Form {
 
 
     create_form_fields(
-      `Via pad diameter (${parameters.size_unit})`,
+      `Via pad diameter (${this.via_pad_diameter_params.at(0)?.unit})`,
       "Via pad diameter",
       this.via_pad_diameter_params,
     );
     create_form_fields(
-      `Plane antipad diameter (${parameters.size_unit})`,
+      `Plane antipad diameter (${this.plane_antipad_diameter_params.at(0)?.unit})`,
       "Plane antipad diameter",
       this.plane_antipad_diameter_params,
     );
@@ -159,7 +159,7 @@ class Form {
       [this.barrel_thickness],
     );
     create_form_fields(
-      "Barrel epsilon",
+      "Barrel dielectric constant",
       "Barrel dielectric constant",
       [this.barrel_epsilon],
     );
@@ -170,8 +170,7 @@ class Form {
   }
 }
 
-const form = computed(() => new Form(props.editor));
-const parameters = computed(() => props.editor.parameters);
+const form = computed(() => new Form(props.stackup));
 
 function is_parameter_changed(param: Parameter): boolean {
   switch (param.type) {
@@ -205,6 +204,13 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   emits("search", params);
 }
 
+watch(() => user_data.value.size_unit, (unit) => {
+  stackup.value.size_unit = unit;
+}, { immediate: true });
+watch(() => user_data.value.copper_thickness_unit, (unit) => {
+  stackup.value.copper_thickness_unit = unit;
+}, { immediate: true });
+
 </script>
 
 <template>
@@ -212,16 +218,16 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   <!--Select units-->
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Size Unit</legend>
-    <select class="select w-full" v-model="parameters.size_unit" required>
-      <option v-for="unit in parameters.size_unit_options" :value="unit" :key="unit">
+    <select class="select w-full" v-model="user_data.size_unit" required>
+      <option v-for="unit in user_data.size_unit_options" :value="unit" :key="unit">
         {{ unit }}
       </option>
     </select>
   </fieldset>
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Copper Pour Unit</legend>
-    <select class="select w-full" v-model="parameters.copper_thickness_unit" required>
-      <option v-for="unit in parameters.copper_thickness_unit_options" :value="unit" :key="unit">
+    <select class="select w-full" v-model="user_data.copper_thickness_unit" required>
+      <option v-for="unit in user_data.copper_thickness_unit_options" :value="unit" :key="unit">
         {{ unit }}
       </option>
     </select>
@@ -249,14 +255,14 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
           </button>
         </template>
       </div>
-      <div class="grid grid-cols-[2rem_auto] w-full gap-x-2 gap-y-1">
+      <div class="grid grid-cols-[1.75rem_auto] w-full gap-x-2 gap-y-1">
         <template v-for="(param, param_index) in row.parameters" :key="param_index">
-          <div class="h-full flex flex-col justify-center">
-            <label :for="param.name" class="label">{{  param.name }}</label>
+          <div class="h-full flex flex-col justify-center" v-if="param.label">
+            <label :for="param.label" class="label">{{ param.label }}</label>
           </div>
-          <div class="flex flex-row join">
+          <div class="flex flex-row join w-full" :class="param.label ? 'col-span-1' : 'col-span-2'">
             <input
-              :id="param.name"
+              :id="param.label"
               :class="get_input_class(param)"
               class="input w-full join-item"
               type="number"
