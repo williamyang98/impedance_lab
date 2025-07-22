@@ -58,6 +58,15 @@ export const navigation_tree: NavigationItem[] = [
           view_component: () => import("./views/stackup_2d/TemplatesView.vue"),
         },
       },
+      {
+        type: "endpoint" as const,
+        name: "Via 2D",
+        route: {
+          name: "via_2d",
+          path: "/2d_stackup/via_2d",
+          view_component: () => import("./views/via_2d/Via2DView.vue"),
+        },
+      },
     ],
   },
   {
