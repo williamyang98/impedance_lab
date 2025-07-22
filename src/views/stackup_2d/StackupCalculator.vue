@@ -361,7 +361,13 @@ watch(() => route.query, (new_query) => {
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
       <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
-          <h2 class="card-title">Stackup</h2>
+          <h2 class="card-title flex flex-row items-center justify-between gap-x-1 w-full">
+            <span>Stackup</span>
+            <button class="btn size-[2.0rem] p-1" @click="is_editing = !is_editing">
+              <EyeIcon v-if="is_editing"/>
+              <PencilIcon v-else/>
+            </button>
+          </h2>
           <div class="w-full flex flex-col gap-y-1">
             <div class="w-full flex flex-row gap-x-1">
               <select class="select w-full" v-model="selected_editor.selected" :disabled="!is_editing">
@@ -374,12 +380,6 @@ watch(() => route.query, (new_query) => {
                   {{ option }}
                 </option>
               </select>
-              <template v-if="is_editing">
-                <button class="btn edit-toggle" @click="is_editing = false"><EyeIcon/></button>
-              </template>
-              <template v-else>
-                <button class="btn edit-toggle" @click="is_editing = true"><PencilIcon/></button>
-              </template>
             </div>
             <div class="w-full border border-1 border-base-300 bg-base-100 p-1" v-if="is_editing">
               <EditorControls :editor="editor"/>
