@@ -38,16 +38,21 @@ const tabs = computed(() => {
       tabs.push(tab);
       tabs_table.set(tab_id, tab);
     }
-    if (slot_type === "header") {
-      if (tab.header_slot !== undefined) {
-        console.warn(`Overriding existing header slot ${tab.header_slot} in tab ${tab_id} with slot ${slot}`);
+    switch (slot_type) {
+      case "header": {
+        if (tab.header_slot !== undefined) {
+          console.warn(`Overriding existing header slot ${tab.header_slot} in tab ${tab_id} with slot ${slot}`);
+        }
+        tab.header_slot = slot;
+        break;
       }
-      tab.header_slot = slot;
-    } else if (slot_type === "body") {
-      if (tab.body_slot !== undefined) {
-        console.warn(`Overriding existing header slot ${tab.body_slot} in tab ${tab_id} with slot ${slot}`);
+      case "body": {
+        if (tab.body_slot !== undefined) {
+          console.warn(`Overriding existing header slot ${tab.body_slot} in tab ${tab_id} with slot ${slot}`);
+        }
+        tab.body_slot = slot;
+        break;
       }
-      tab.body_slot = slot;
     }
   }
   return tabs;

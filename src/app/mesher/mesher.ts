@@ -50,7 +50,7 @@ function run_binary_search<T extends { error: number }>(
   let v_upper: number | undefined = undefined;
   let v_unbounded_search = v_initial;
 
-  let best_result: T | undefined = undefined;
+  let best_result = undefined as (T | undefined);
   const run_search = (v_search: number): T => {
     const result = func(v_search);
     if (best_result === undefined || (Math.abs(result.error) < Math.abs(best_result.error))) {

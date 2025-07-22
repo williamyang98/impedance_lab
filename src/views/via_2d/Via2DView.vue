@@ -53,10 +53,11 @@ const stackup_visualiser = computed_ref(() => new StackupVisualiser(stackup.valu
 
 function mark_parameter_valid(param: Parameter) {
   switch (param.type) {
-    case "size": { // @fallthrouguh
+    case "size": {
       param.old_unit = param.unit;
     }
-    case "epsilon": // @fallthrough
+    // @fallthrough
+    case "epsilon":
     case "etch_factor": {
       param.old_value = param.value;
       break;
@@ -91,7 +92,7 @@ function calculate_impedance() {
 
     new_profiler.end_all();
 
-    new_stackup_grid.parsed_parameters.forEach((param) => mark_parameter_valid(param));
+    new_stackup_grid.parsed_parameters.forEach((param) => { mark_parameter_valid(param); });
     toRaw(stackup_grid.value)?.delete();
     stackup_grid.value = new_stackup_grid;
     impedance_result.value = new_result;

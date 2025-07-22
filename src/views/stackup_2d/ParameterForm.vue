@@ -81,7 +81,7 @@ class Form {
     for (const layer of stackup.layers) {
       switch (layer.type) {
         case "unmasked": break;
-        case "core": // @fallthrough
+        case "core":
         case "prepreg": {
           this.layer_dielectric_height_params.add(layer.height);
           this.layer_dielectric_epsilon_params.add(layer.epsilon);
@@ -107,7 +107,7 @@ class Form {
           }
           break;
         }
-        case "unmasked": // @fallthrough
+        case "unmasked":
         case "soldermask": {
           if (layers_with_traces.has(layer.id)) {
             this.layer_etch_factor_params.add(layer.etch_factor);

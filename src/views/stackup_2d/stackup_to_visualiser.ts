@@ -467,8 +467,8 @@ export class StackupVisualiser implements Visualiser {
 
   create_inline_width_label(x: number, y: number, width: number, label: string, drag_up: boolean) {
     const extension = width_label_config.min_extension_size;
-    const line: HorizontalDimensionLine = {
-      type: "horizontal_dimension_line",
+    const line = {
+      type: "horizontal_dimension_line" as const,
       x_left: x,
       x_right: x+width,
       y_line: y,
@@ -482,8 +482,8 @@ export class StackupVisualiser implements Visualiser {
       colour: stroke.line_colour,
       line_width: stroke.line_width,
       arrow_size: stroke.arrow_size,
-      text_vertical_align: "middle",
-      text_horizontal_align: "center",
+      text_vertical_align: "middle" as const,
+      text_horizontal_align: "center" as const,
       left_extension_line: {
         y_top: y,
         y_bottom: y,
@@ -500,14 +500,14 @@ export class StackupVisualiser implements Visualiser {
 
     if (drag_up) {
       line.y_line -= extension;
-      line.y_text! -= extension+width_label_config.text_drag_offset;
-      line.left_extension_line!.y_top -= extension*2;
-      line.right_extension_line!.y_top -= extension*2;
+      line.y_text -= extension+width_label_config.text_drag_offset;
+      line.left_extension_line.y_top -= extension*2;
+      line.right_extension_line.y_top -= extension*2;
     } else {
       line.y_line += extension;
-      line.y_text! += extension+width_label_config.text_drag_offset;
-      line.left_extension_line!.y_bottom += extension*2;
-      line.right_extension_line!.y_bottom += extension*2;
+      line.y_text += extension+width_label_config.text_drag_offset;
+      line.left_extension_line.y_bottom += extension*2;
+      line.right_extension_line.y_bottom += extension*2;
     }
 
     this.spacing_labels.push(line);
@@ -543,8 +543,8 @@ export class StackupVisualiser implements Visualiser {
     for (const layer_layout of this.layout.layers) {
       switch (layer_layout.type) {
         case "core": break;
-        case "soldermask": // @fallthrough
-        case "prepreg": // @fallthrough
+        case "soldermask":
+        case "prepreg":
         case "unmasked": {
           const layer = layer_layout.parent;
           const trace_taper_name = get_taper_suffix(layer.etch_factor);
@@ -774,7 +774,7 @@ export class StackupVisualiser implements Visualiser {
           }
           break;
         }
-        case "core": // @fallthrough
+        case "core":
         case "prepreg": {
           const bbox = layer_layout.bounding_box;
           const text = get_name(layer_layout.parent.epsilon);

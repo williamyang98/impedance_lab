@@ -231,9 +231,9 @@ export class StackupVisualiser implements Visualiser {
     let on_click = undefined;
     if (this.is_editing) {
       if (exists) {
-        on_click = () => this.stackup.remove_soldermask(layer_id);
+        on_click = () => { this.stackup.remove_soldermask(layer_id); };
       } else {
-        on_click = () => this.stackup.add_soldermask(layer_id);
+        on_click = () => { this.stackup.add_soldermask(layer_id); };
       }
     }
 
@@ -265,10 +265,10 @@ export class StackupVisualiser implements Visualiser {
     let is_hoverable = false;
     let is_visible = exists;
     if (this.is_editing && exists && this.stackup.can_remove_via_pad(position)) {
-      on_click = () => this.stackup.remove_via_pad(position);
+      on_click = () => { this.stackup.remove_via_pad(position); };
     }
     if (this.is_editing && !exists && this.stackup.can_add_via_pad(position)) {
-      on_click = () => this.stackup.add_via_pad(position);
+      on_click = () => { this.stackup.add_via_pad(position); };
       is_hoverable = true;
       is_visible = true;
     }
@@ -311,7 +311,7 @@ export class StackupVisualiser implements Visualiser {
       group = [];
       this.via_pad_groups.set(id, group);
     }
-    group?.push(...entities);
+    group.push(...entities);
   }
 
   on_via_hover(group_tag: string, is_hover: boolean) {
@@ -332,10 +332,10 @@ export class StackupVisualiser implements Visualiser {
     let is_hoverable = false;
     let is_visible = exists;
     if (this.is_editing && exists && this.stackup.can_remove_reference_plane(position)) {
-      on_click = () => this.stackup.remove_reference_plane(position);
+      on_click = () => { this.stackup.remove_reference_plane(position); };
     }
     if (this.is_editing && !exists && this.stackup.can_add_reference_plane(position)) {
-      on_click = () => this.stackup.add_reference_plane(position);
+      on_click = () => { this.stackup.add_reference_plane(position); };
       is_hoverable = true;
       is_visible = true;
     }
@@ -379,7 +379,7 @@ export class StackupVisualiser implements Visualiser {
       group = [];
       this.reference_plane_groups.set(id, group);
     }
-    group?.push(...entities);
+    group.push(...entities);
   }
 
   on_plane_hover(group_tag: string, is_hover: boolean) {

@@ -11,7 +11,7 @@ provide("gpu_adapter", adapter);
 provide("gpu_device", device);
 
 async function create_gpu_instance() {
-  if (!navigator.gpu) {
+  if (!(navigator.gpu as GPU | undefined | null)) {
     error_message.value = "WebGPU not available in this browser";
     state.value = "failed";
     return;

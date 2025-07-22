@@ -15,16 +15,32 @@ export default defineConfigWithVueTs(
     'src/wasm/build/**',
     'src/wasm/vendor/**',
   ]),
+  vueTsConfigs.strictTypeChecked,
+  pluginVue.configs['flat/essential'],
   {
     name: 'app/files-to-lint',
     files: ['**/*.{ts,mts,tsx,vue}'],
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', {
+      "@typescript-eslint/no-unused-vars": ['error', {
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',
       }],
+      "@typescript-eslint/switch-exhaustiveness-check": "error",
+      "no-fallthrough": ["error", {
+        allowEmptyCase: false,
+        commentPattern: "@fallthrough",
+        reportUnusedFallthroughComment: true,
+      }],
+      "@typescript-eslint/restrict-template-expressions": ['error', {
+        allowBoolean: true,
+        allowNullish: true,
+        allowNumber: true,
+      }],
+      // use tsconfig noImplicitReturns
+      "@typescript-eslint/consistent-return": "off",
+      "@typescript-eslint/no-unnecessary-condition": ["error", {
+        allowConstantLoopConditions: "only-allowed-literals",
+      }],
     },
   },
-  vueTsConfigs.recommendedTypeChecked,
-  pluginVue.configs['flat/essential'],
 )

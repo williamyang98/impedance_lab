@@ -87,12 +87,14 @@ export class Grid extends ManagedObject {
     return this._ek_table;
   }
 
-  set lu_solver(lu_solver: LU_Solver) {
+  set lu_solver(lu_solver: LU_Solver | undefined) {
     if (this._lu_solver !== undefined) {
       this._child_objects.delete(this._lu_solver);
+      this._lu_solver.delete();
     }
-    this._child_objects.add(lu_solver);
-    this._lu_solver?.delete();
+    if (lu_solver !== undefined) {
+      this._child_objects.add(lu_solver);
+    }
     this._lu_solver = lu_solver;
   }
 

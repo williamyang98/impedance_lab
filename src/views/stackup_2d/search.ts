@@ -233,8 +233,8 @@ export function search_parameters(
     .join(",");
 
   const results: SearchResult[] = [];
-  let best_result: SearchResult | undefined = undefined;
-  let best_stackup_grid: StackupGrid | undefined = undefined;
+  let best_result = undefined as (SearchResult | undefined);
+  let best_stackup_grid = undefined as (StackupGrid | undefined);
 
   const search_function = (value: number): SearchResult => {
     for (const param of params) {
@@ -270,11 +270,11 @@ export function search_parameters(
     const error = impedance_correlation == "positive" ? -error_impedance : error_impedance;
 
     metadata.name = parameter_label;
-    metadata.value = `${value.toPrecision(3)}`;
-    metadata.target_impedance = `${target_impedance.toPrecision(3)}`;
-    metadata.actual_impedance = `${actual_impedance.toPrecision(3)}`;
-    metadata.error_impedance = `${error_impedance.toPrecision(3)}`;
-    metadata.error = `${error.toPrecision(3)}`;
+    metadata.value = value.toPrecision(3);
+    metadata.target_impedance = target_impedance.toPrecision(3);
+    metadata.actual_impedance = actual_impedance.toPrecision(3);
+    metadata.error_impedance = error_impedance.toPrecision(3);
+    metadata.error = error.toPrecision(3);
 
     const result = new SearchResult(
       value,

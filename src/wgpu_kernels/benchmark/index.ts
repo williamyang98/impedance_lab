@@ -49,14 +49,14 @@ export class KernelBenchmark {
 
   get_inner_loop_code(type: BenchmarkType): string {
     switch (type) {
-      case "f16": // @fallthrough
+      case "f16":
       case "f32": {
         return /* wgsl */`
           x = fma(y,x,y);
           y = fma(x,y,x);
         `;
       }
-      case "u32": // @fallthrough
+      case "u32":
       case "i32": {
         return /* wgsl */`
           x = y*x + y;

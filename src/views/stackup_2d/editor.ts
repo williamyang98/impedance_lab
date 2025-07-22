@@ -52,20 +52,16 @@ const CommonRules = {
 
     let is_conductor_top = false;
     let is_conductor_bottom = false;
-    if (top_layer) {
-      for (const conductor of conductors) {
-        if (this.is_conductor_in_layer(top_layer, conductor, "down")) {
-          is_conductor_top = true;
-          break;
-        }
+    for (const conductor of conductors) {
+      if (this.is_conductor_in_layer(top_layer, conductor, "down")) {
+        is_conductor_top = true;
+        break;
       }
     }
-    if (bottom_layer) {
-      for (const conductor of conductors) {
-        if (this.is_conductor_in_layer(bottom_layer, conductor, "up")) {
-          is_conductor_bottom = true;
-          break;
-        }
+    for (const conductor of conductors) {
+      if (this.is_conductor_in_layer(bottom_layer, conductor, "up")) {
+        is_conductor_bottom = true;
+        break;
       }
     }
 
@@ -256,7 +252,7 @@ export abstract class StackupEditor {
       override_total_divisions: 1,
     };
     plane.viewer = {
-      on_click: () => this.remove_plane(plane.position),
+      on_click: () => { this.remove_plane(plane.position); },
     };
     return plane;
   }

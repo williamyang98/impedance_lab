@@ -136,10 +136,6 @@ export class Float64ModuleNdarray extends ModuleNdarray<Float64PinnedArray, Floa
 export class ModuleNdarrayWriter extends ManagedObject implements NdarrayWriter {
   write_buffer?: Uint8ModuleBuffer;
 
-  constructor(module: WasmModule) {
-    super(module);
-  }
-
   init(size: number): Uint8Array {
     const buffer = Uint8ModuleBuffer.create(this.module, size);
     this.write_buffer = buffer;

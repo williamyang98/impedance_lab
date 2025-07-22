@@ -420,20 +420,20 @@ export class Stackup {
   create_reference_plane(position: Position): ReferencePlane {
     const plane = {
       parent: this,
-      Dantipad: undefined,
-      Dpad: undefined,
+      Dantipad: undefined as (SizeParameter | undefined),
+      Dpad: undefined as (SizeParameter | undefined),
       get has_copper() {
         return this.Dantipad !== undefined || this.Dpad !== undefined;
       },
       get add_via_pad() {
         if (this.parent.can_add_via_pad(position)) {
-          return () => this.parent.add_via_pad(position);
+          return () => { this.parent.add_via_pad(position); };
         }
         return undefined;
       },
       get add_reference_plane() {
         if (this.parent.can_add_reference_plane(position)) {
-          return () => this.parent.add_reference_plane(position);
+          return () => { this.parent.add_reference_plane(position); };
         }
         return undefined;
       }

@@ -77,7 +77,7 @@ export abstract class NdarrayView {
     return new NdarrayViewReverse(this);
   }
 
-  fill = (value: number): NdarrayView => {
+  fill = (value: number): this => {
     const index = new Array(this.shape.length).fill(0);
     while (true) {
       this.set(index, value);
@@ -94,7 +94,7 @@ export abstract class NdarrayView {
     return this;
   }
 
-  assign = (view: NdarrayView): NdarrayView => {
+  assign = (view: NdarrayView): this => {
     const is_shape_match =
       (view.shape.length == this.shape.length) &&
       view.shape.map((e,i) => e == this.shape[i]).reduce((a,b) => a && b, true);
@@ -479,7 +479,7 @@ export class Ndarray extends NdarrayView {
     throw Error(`Invalid cast from '${this.dtype}' to '${type.toString()}'`)
   }
 
-  fill = (value: number): Ndarray => {
+  fill = (value: number): this => {
     this.data.fill(value);
     return this;
   }

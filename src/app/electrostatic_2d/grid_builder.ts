@@ -192,25 +192,32 @@ export class GridBuilder extends ManagedObject {
     const fill_regions: RegionSDF[] = [];
     for (const region of regions) {
       const sdfs = region.shapes.map(region => this.setup_create_sdf_from_shape(region));
-      if (region.type === "voltage") {
-        this.voltage_indices.add(region.voltage_index);
-        fill_regions.push({
-          type: "voltage" as const,
-          sdfs: sdfs,
-          voltage_index: region.voltage_index,
-        });
-      } else if (region.type === "dielectric") {
-        this.dielectric_indices.add(region.dielectric_index);
-        fill_regions.push({
-          type: "dielectric" as const,
-          sdfs: sdfs,
-          dielectric_index: region.dielectric_index,
-        });
-      } else if (region.type === "empty") {
-        fill_regions.push({
-          type: "empty" as const,
-          sdfs: sdfs,
-        });
+      switch (region.type) {
+        case "voltage": {
+          this.voltage_indices.add(region.voltage_index);
+          fill_regions.push({
+            type: "voltage" as const,
+            sdfs: sdfs,
+            voltage_index: region.voltage_index,
+          });
+          break;
+        }
+        case "dielectric": {
+          this.dielectric_indices.add(region.dielectric_index);
+          fill_regions.push({
+            type: "dielectric" as const,
+            sdfs: sdfs,
+            dielectric_index: region.dielectric_index,
+          });
+          break;
+        }
+        case "empty": {
+          fill_regions.push({
+            type: "empty" as const,
+            sdfs: sdfs,
+          });
+          break;
+        }
       }
     }
     this.profiler?.end();
@@ -508,32 +515,38 @@ export class GridBuilder extends ManagedObject {
   setup_fill_sdf_regions() {
     this.profiler?.begin("fill_sdfs");
     for (const fill of this.sdf_regions) {
-      if (fill.type === "voltage") {
-        const get_value = (old_value: number, beta: number) => {
-          const new_index = fill.voltage_index;
-          const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
-          if (old_index !== new_index) {
-            return Grid.pack_index_beta(new_index, beta);
-          } else {
-            const new_beta = Math.min(beta+old_beta, 1.0);
-            return Grid.pack_index_beta(new_index, new_beta);
-          }
-        };
-        fill.sdfs.forEach(region => this.setup_fill_sdf(region, true, get_value));
-      } else if (fill.type === "dielectric") {
-        const get_value = (old_value: number, beta: number) => {
-          const new_index = fill.dielectric_index;
-          const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
-          if (old_index !== new_index) {
-            return Grid.pack_index_beta(new_index, beta);
-          } else {
-            const new_beta = Math.min(beta+old_beta, 1.0);
-            return Grid.pack_index_beta(new_index, new_beta);
-          }
-        };
-        fill.sdfs.forEach(region => this.setup_fill_sdf(region, false, get_value));
-      } else if (fill.type === "empty") {
-        // do nothing
+      switch (fill.type) {
+        case "voltage": {
+          const get_value = (old_value: number, beta: number) => {
+            const new_index = fill.voltage_index;
+            const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
+            if (old_index !== new_index) {
+              return Grid.pack_index_beta(new_index, beta);
+            } else {
+              const new_beta = Math.min(beta+old_beta, 1.0);
+              return Grid.pack_index_beta(new_index, new_beta);
+            }
+          };
+          fill.sdfs.forEach(region => { this.setup_fill_sdf(region, true, get_value); });
+          break;
+        }
+        case "dielectric": {
+          const get_value = (old_value: number, beta: number) => {
+            const new_index = fill.dielectric_index;
+            const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
+            if (old_index !== new_index) {
+              return Grid.pack_index_beta(new_index, beta);
+            } else {
+              const new_beta = Math.min(beta+old_beta, 1.0);
+              return Grid.pack_index_beta(new_index, new_beta);
+            }
+          };
+          fill.sdfs.forEach(region => { this.setup_fill_sdf(region, false, get_value); });
+          break;
+        }
+        case "empty": {
+          break;
+        }
       }
     }
     this.profiler?.end();
@@ -583,54 +596,55 @@ export class GridBuilder extends ManagedObject {
     const My = gy_bottom-gy_top;
     const Mx = gx_right-gx_left;
 
-    if (fill.type === "point") {
-      const sdf = fill.sdf;
-      for (let y = 0; y < My; y++) {
-        const norm_y = norm_Y[y];
-        const gy = gy_top+y;
-        for (let x = 0; x < Mx; x++) {
-          const norm_x = norm_X[x];
-          const gx = gx_left+x;
-          const i = gx + gy*Nx;
-          const beta = sdf(norm_y, norm_x);
-          const value = get_value(data[i], beta);
-          data[i] = value;
+    switch (fill.type) {
+      case "point": {
+        const sdf = fill.sdf;
+        for (let y = 0; y < My; y++) {
+          const norm_y = norm_Y[y];
+          const gy = gy_top+y;
+          for (let x = 0; x < Mx; x++) {
+            const norm_x = norm_X[x];
+            const gx = gx_left+x;
+            const i = gx + gy*Nx;
+            const beta = sdf(norm_y, norm_x);
+            const value = get_value(data[i], beta);
+            data[i] = value;
+          }
         }
+        break;
       }
-      return;
-    }
+      case "multisample": {
+        const sdf = fill.sdf;
+        for (let y = 0; y < My; y++) {
+          const norm_y = norm_Y[y];
+          const norm_dy = norm_dY[y];
+          const gy = gy_top+y;
+          for (let x = 0; x < Mx; x++) {
+            const norm_x = norm_X[x];
+            const norm_dx = norm_dX[x];
+            const gx = gx_left+x;
+            const i = gx + gy*Nx;
+            const beta = sdf(norm_y, norm_x, norm_dy, norm_dx);
+            const value = get_value(data[i], beta);
+            data[i] = value;
+          }
+        }
+        break;
+      }
+      case "constant": {
+        const beta = 1.0;
+        const value = get_value(0, beta);
+        for (let y = 0; y < My; y++) {
+          const gy = gy_top+y;
+          for (let x = 0; x < Mx; x++) {
+            const gx = gx_left+x;
+            const i = gx + gy*Nx;
+            data[i] = value;
+          }
+        }
+        break;
+      }
 
-    if (fill.type === "multisample") {
-      const sdf = fill.sdf;
-      for (let y = 0; y < My; y++) {
-        const norm_y = norm_Y[y];
-        const norm_dy = norm_dY[y];
-        const gy = gy_top+y;
-        for (let x = 0; x < Mx; x++) {
-          const norm_x = norm_X[x];
-          const norm_dx = norm_dX[x];
-          const gx = gx_left+x;
-          const i = gx + gy*Nx;
-          const beta = sdf(norm_y, norm_x, norm_dy, norm_dx);
-          const value = get_value(data[i], beta);
-          data[i] = value;
-        }
-      }
-      return;
-    }
-
-    if (fill.type === "constant") {
-      const beta = 1.0;
-      const value = get_value(0, beta);
-      for (let y = 0; y < My; y++) {
-        const gy = gy_top+y;
-        for (let x = 0; x < Mx; x++) {
-          const gx = gx_left+x;
-          const i = gx + gy*Nx;
-          data[i] = value;
-        }
-      }
-      return;
     }
   }
 

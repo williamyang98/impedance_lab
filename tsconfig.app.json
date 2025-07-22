@@ -13,6 +13,7 @@
     // We want to target ES2022 to use newer browser features like FinalizationRegistry
     "module": "es2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "types": ["@webgpu/types"]
+    "types": ["@webgpu/types"],
+    "noImplicitReturns": true
   }
 }

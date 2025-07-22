@@ -15,42 +15,42 @@ const get_field_accessor = (dtype: StructFieldType): FieldAccessor => {
   case "s8":  return {
     size: 1,
     getter: (view, offset) => view.getInt8(offset),
-    setter: (view, offset, value) => view.setInt8(offset, value),
+    setter: (view, offset, value) => { view.setInt8(offset, value); },
   };
   case "u8":  return {
     size: 1,
     getter: (view, offset) => view.getUint8(offset),
-    setter: (view, offset, value) => view.setUint8(offset, value),
+    setter: (view, offset, value) => { view.setUint8(offset, value); },
   };
   case "s16": return {
     size: 2,
     getter: (view, offset) => view.getInt16(offset, true),
-    setter: (view, offset, value) => view.setInt16(offset, value, true),
+    setter: (view, offset, value) => { view.setInt16(offset, value, true); },
   };
   case "u16": return {
     size: 2,
     getter: (view, offset) => view.getUint16(offset, true),
-    setter: (view, offset, value) => view.setUint16(offset, value, true),
+    setter: (view, offset, value) => { view.setUint16(offset, value, true); },
   };
   case "s32": return {
     size: 4,
     getter: (view, offset) => view.getInt32(offset, true),
-    setter: (view, offset, value) => view.setInt32(offset, value, true),
+    setter: (view, offset, value) => { view.setInt32(offset, value, true); },
   };
   case "u32": return {
     size: 4,
     getter: (view, offset) => view.getUint32(offset, true),
-    setter: (view, offset, value) => view.setUint32(offset, value, true),
+    setter: (view, offset, value) => { view.setUint32(offset, value, true); },
   };
   case "f32": return {
     size: 4,
     getter: (view, offset) => view.getFloat32(offset, true),
-    setter: (view, offset, value) => view.setFloat32(offset, value, true),
+    setter: (view, offset, value) => { view.setFloat32(offset, value, true); },
   };
   case "f64": return {
     size: 8,
     getter: (view, offset) => view.getFloat64(offset, true),
-    setter: (view, offset, value) => view.setFloat64(offset, value, true),
+    setter: (view, offset, value) => { view.setFloat64(offset, value, true); },
   };
   }
 }
@@ -111,22 +111,22 @@ export class StructView<T extends Record<string, StructFieldType | StructFieldTy
     this.views = views as Record<keyof T, StructViewField>;
   }
 
-  get<K extends FieldKey<T, StructFieldType>>(key: K): number {
+  get(key: FieldKey<T, StructFieldType>): number {
     const view = this.views[key] as StructViewField;
     return view.getter(this.view, view.offset);
   }
 
-  set<K extends FieldKey<T, StructFieldType>>(key: K, value: number) {
+  set(key: FieldKey<T, StructFieldType>, value: number) {
     const view = this.views[key] as StructViewField;
     view.setter(this.view, view.offset, value);
   }
 
-  get_array<K extends FieldKey<T, ArrayLike<StructFieldType>>>(key: K): number[] {
+  get_array(key: FieldKey<T, ArrayLike<StructFieldType>>): number[] {
     const views = this.views[key] as StructViewField[];
     return views.map(view => view.getter(this.view, view.offset));
   }
 
-  set_array<K extends FieldKey<T, ArrayLike<StructFieldType>>>(key: K, values: number[]) {
+  set_array(key: FieldKey<T, ArrayLike<StructFieldType>>, values: number[]) {
     const views = this.views[key] as StructViewField[];
     if (views.length !== values.length) {
       throw Error(`Mismatching number of elements view=${views.length}, values=${values.length}`);

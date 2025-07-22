@@ -73,7 +73,7 @@ async function simulation_loop() {
     }
   }
   if (loop_timer_id.value === undefined) return;
-  loop_timer_id.value = setTimeout(async () => await simulation_loop(), 0);
+  loop_timer_id.value = setTimeout(async () => { await simulation_loop(); }, 0);
 }
 
 function stop_loop() {
@@ -88,12 +88,12 @@ function start_loop() {
   ms_start.value = performance.now();
   curr_step.value = 0;
   gpu_grid.reset();
-  loop_timer_id.value = setTimeout(async () => await simulation_loop(), 0);
+  loop_timer_id.value = setTimeout(async () => { await simulation_loop(); }, 0);
 }
 
 function resume_loop() {
   stop_loop();
-  loop_timer_id.value = setTimeout(async () => await simulation_loop(), 0);
+  loop_timer_id.value = setTimeout(async () => { await simulation_loop(); }, 0);
 }
 
 async function tick_loop() {

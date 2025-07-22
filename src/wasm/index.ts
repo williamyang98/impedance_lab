@@ -269,7 +269,7 @@ export class WasmModule {
     this.assert_owned(dx_in);
     this.assert_owned(dy_in);
 
-    return this.main.calculate_e_field(
+    this.main.calculate_e_field(
       ex_field_out.pin, ey_field_out.pin,
       v_field_in.pin,
       dx_in.pin, dy_in.pin,
@@ -277,7 +277,7 @@ export class WasmModule {
   }
 
   convert_f32_to_f16(f32_in: Float32ModuleBuffer, f16_out: Uint16ModuleBuffer): void {
-    return this.main.convert_f32_to_f16(f32_in.pin, f16_out.pin);
+    this.main.convert_f32_to_f16(f32_in.pin, f16_out.pin);
   }
 }
 

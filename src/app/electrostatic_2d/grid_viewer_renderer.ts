@@ -261,7 +261,7 @@ class VoltageFieldRenderer implements Renderer {
   get_tooltip(x: number, y: number): Tooltip {
     const sample = nearest_sample_2d(this.core.grid.v_field.ndarray, x, y);
     return [
-      { label: "Voltage", value: `${with_standard_suffix(sample.value, "V")}` },
+      { label: "Voltage", value: with_standard_suffix(sample.value, "V") },
       { label: "Coord", value: `[${sample.ix}/${sample.Nx}, ${sample.iy}/${sample.Ny}]` },
     ];
   }
@@ -300,33 +300,44 @@ class ElectricFieldRenderer implements Renderer {
     const texture = this.get_texture();
     const texture_view = texture.createView({ dimension: "2d" });
 
-    if (this.mode == "x") {
-      this.core.shader_component.create_pass(
-        command_encoder, output_texture,
-        texture_view, canvas_size, this.scale, 1, "single_component", this.alpha, "nearest",
-      );
-    } else if (this.mode == "y") {
-      this.core.shader_component.create_pass(
-        command_encoder, output_texture,
-        texture_view, canvas_size, this.scale, 2, "single_component", this.alpha, "nearest",
-      );
-    } else if (this.mode == "vec") {
-      this.core.shader_component.create_pass(
-        command_encoder, output_texture,
-        texture_view, canvas_size, this.scale, (1 | 2), "vector", this.alpha, "nearest",
-      );
-    } else if (this.mode == "mag") {
-      this.core.shader_component.create_pass(
-        command_encoder, output_texture,
-        texture_view, canvas_size, this.scale, (1 | 2), "magnitude", this.alpha, "nearest",
-      );
-    } else if (this.mode == "quiver") {
-      this.core.shader_quiver.create_pass(
-        command_encoder, output_texture,
-        texture_view,
-        canvas_size,
-        this.scale, this.quiver_size,
-      );
+    switch (this.mode) {
+      case "x": {
+        this.core.shader_component.create_pass(
+          command_encoder, output_texture,
+          texture_view, canvas_size, this.scale, 1, "single_component", this.alpha, "nearest",
+        );
+        break;
+      }
+      case "y": {
+        this.core.shader_component.create_pass(
+          command_encoder, output_texture,
+          texture_view, canvas_size, this.scale, 2, "single_component", this.alpha, "nearest",
+        );
+        break;
+      }
+      case "vec": {
+        this.core.shader_component.create_pass(
+          command_encoder, output_texture,
+          texture_view, canvas_size, this.scale, (1 | 2), "vector", this.alpha, "nearest",
+        );
+        break;
+      }
+      case "mag": {
+        this.core.shader_component.create_pass(
+          command_encoder, output_texture,
+          texture_view, canvas_size, this.scale, (1 | 2), "magnitude", this.alpha, "nearest",
+        );
+        break;
+      }
+      case "quiver": {
+        this.core.shader_quiver.create_pass(
+          command_encoder, output_texture,
+          texture_view,
+          canvas_size,
+          this.scale, this.quiver_size,
+        );
+        break;
+      }
     }
   }
 
@@ -337,9 +348,9 @@ class ElectricFieldRenderer implements Renderer {
     const Ey = sample_y.value;
     const Emag = Math.sqrt(Ex*Ex + Ey*Ey);
     return [
-      { label: "Ex", value: `${with_standard_suffix(Ex, "V/m")}` },
-      { label: "Ey", value: `${with_standard_suffix(Ey, "V/m")}` },
-      { label: "|E|", value: `${with_standard_suffix(Emag, "V/m")}` },
+      { label: "Ex", value: with_standard_suffix(Ex, "V/m") },
+      { label: "Ey", value: with_standard_suffix(Ey, "V/m") },
+      { label: "|E|", value: with_standard_suffix(Emag, "V/m") },
       { label: "Coord-X", value: `[${sample_x.ix}/${sample_x.Nx}, ${sample_x.iy}/${sample_x.Ny}]` },
       { label: "Coord-Y", value: `[${sample_y.ix}/${sample_y.Nx}, ${sample_y.iy}/${sample_y.Ny}]` },
     ];
@@ -434,9 +445,9 @@ abstract class IndexBetaRenderer implements Renderer {
     const { index, beta } = Grid.unpack_index_beta(index_beta);
     const value = table.array_view[index];
     return [
-      { label: this.get_name(), value: `${with_standard_suffix(value, this.get_unit())}` },
+      { label: this.get_name(), value: with_standard_suffix(value, this.get_unit()) },
       { label: "Index", value: `${index}` },
-      { label: "Beta", value: `${beta.toPrecision(3)}` },
+      { label: "Beta", value: beta.toPrecision(3) },
       { label: "Coord", value: `[${sample.ix}/${sample.Nx}, ${sample.iy}/${sample.Ny}]` },
     ];
   }
@@ -444,9 +455,6 @@ abstract class IndexBetaRenderer implements Renderer {
 
 class VoltageForceRenderer extends IndexBetaRenderer {
   readonly type = "v_force";
-  constructor(core: RendererCore) {
-    super(core);
-  }
   override get_name(): string { return "Voltage"; };
   override get_unit(): string { return "V"; };
   override get_key(): string { return "v_force"; };
@@ -497,11 +505,11 @@ export class MasterRenderer implements Renderer {
     command_encoder: GPUCommandEncoder, output_texture: GPUTextureView,
     canvas_size: { width: number, height: number },
   ) {
-    return this.selected.create_pass(command_encoder, output_texture, canvas_size);
+    this.selected.create_pass(command_encoder, output_texture, canvas_size);
   }
 
   upload_data() {
-    return this.selected.upload_data();
+    this.selected.upload_data();
   }
 
   get_tooltip(x: number, y: number): Tooltip {

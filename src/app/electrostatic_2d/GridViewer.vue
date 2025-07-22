@@ -139,7 +139,7 @@ watch(canvas_element, (elem) => {
   resize_observer?.disconnect();
   resize_observer = new ResizeObserver(() => {
     const canvas = canvas_element.value;
-    if (canvas === null) return false;
+    if (canvas === null) return;
     if (canvas.width == canvas.clientWidth && canvas.height == canvas.clientHeight) {
       return;
     }

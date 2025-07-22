@@ -13,11 +13,11 @@ const layers = computed(() => {
   return props.stackup.layers.map((layer, index) => {
     let prepend = undefined;
     if (stackup.value.can_add_before_layer(index)) {
-      prepend = () => stackup.value.add_before_layer(index);
+      prepend = () => { stackup.value.add_before_layer(index); };
     }
     let remove = undefined;
     if (stackup.value.can_remove_layer(index)) {
-      remove = () => stackup.value.remove_layer(index);
+      remove = () => { stackup.value.remove_layer(index); };
     }
     return {
       id: layer.id,
@@ -39,7 +39,7 @@ const layers = computed(() => {
 const append_layer_to_end = computed(() => {
   let append = undefined;
   if (stackup.value.can_append_layer()) {
-    append = () => stackup.value.append_layer();
+    append = () => { stackup.value.append_layer(); };
   }
   return append;
 });

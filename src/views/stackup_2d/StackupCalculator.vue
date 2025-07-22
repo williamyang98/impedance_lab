@@ -147,7 +147,7 @@ function create_editor() {
     set selected(selected) {
       this._selected = selected;
       this.editor.set_trace_template(this.value);
-      this.editor.parameters.for_each(param => parameters.mark_parameter_changed(param));
+      this.editor.parameters.for_each(param => { parameters.mark_parameter_changed(param); });
     }
     get value() {
       return this.options[this.selected];
@@ -171,7 +171,7 @@ function create_editor() {
     set selected(selected) {
       this._selected = selected;
       this.editor.set_trace_template(this.value);
-      this.editor.parameters.for_each(param => parameters.mark_parameter_changed(param));
+      this.editor.parameters.for_each(param => { parameters.mark_parameter_changed(param); });
     }
     get value() {
       return this.options[this.selected];
@@ -196,7 +196,7 @@ function create_editor() {
     }
     set selected(selected) {
       this._selected = selected;
-      this.parameters.for_each(param => parameters.mark_parameter_changed(param));
+      this.parameters.for_each(param => { parameters.mark_parameter_changed(param); });
     }
     get value() {
       return this.options[this.selected];
@@ -269,7 +269,7 @@ async function calculate_impedance() {
     new_measurement = perform_measurement(new_stackup, new_profiler);
     new_profiler.end();
 
-    used_parameters.forEach(param => editor.value.parameters.mark_parameter_unchanged(param));
+    used_parameters.forEach(param => { editor.value.parameters.mark_parameter_unchanged(param); });
     new_profiler.end();
   } catch (error) {
     toast.error(`calculate_impedance() failed with: ${String(error)}`);
@@ -335,7 +335,7 @@ async function perform_search(search_params: Parameter[]) {
       param.value = best_result.value;
     }
     // mark form values as unmodified
-    used_parameters.forEach(param => editor.value.parameters.mark_parameter_unchanged(param));
+    used_parameters.forEach(param => { editor.value.parameters.mark_parameter_unchanged(param); });
   }
   is_running.value = false;
 }

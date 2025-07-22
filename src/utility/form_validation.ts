@@ -43,6 +43,7 @@ export class NumberField<T,V extends (number | undefined) = number> implements F
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/related-getter-setter-pairs
   get value(): V | undefined {
     return this._value;
   }

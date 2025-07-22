@@ -15,8 +15,6 @@ function create_chart() {
   if (grid_canvas === null) return;
 
   const search = props.results;
-  if (search === undefined) return;
-
   const results = search.results
     .filter(result => {
       const value = result.error;

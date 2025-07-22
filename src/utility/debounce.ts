@@ -28,7 +28,7 @@ export function debounce_animation_frame_async<T extends (...args: any[]) => Pro
         .then(() => {
           current_animation_frame = null;
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           console.error(`Failed to execute debounced animation frame async function: ${String(error)}`);
         });
     });

@@ -50,7 +50,7 @@ function download_ndarray(link: DownloadLink) {
 
 function download_all_ndarrays(name: string) {
   const links = download_links.value;
-  if (links === undefined) return;
+  if (links.length <= 0) return;
   const module = links[0].data.module;
   let zip_file = undefined;
   let zip_data = undefined;

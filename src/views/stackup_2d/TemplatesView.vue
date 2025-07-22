@@ -31,7 +31,7 @@ function tag_to_title(tag: Tag): string {
     .join(' ')
     .split(' ')
     .map(word => {
-      return word.at(0)?.toUpperCase() + word.substring(1).toLowerCase();
+      return (word.at(0)?.toUpperCase() ?? '') + word.substring(1).toLowerCase();
     })
     .join(' ');
 }

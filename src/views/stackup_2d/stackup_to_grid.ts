@@ -130,7 +130,7 @@ export class StackupGrid extends ManagedObject {
           });
           break;
         }
-        case "core": // @fallthrough
+        case "core":
         case "prepreg": {
           const layer = layout.parent;
           const epsilon = get_epsilon(layer.epsilon);
