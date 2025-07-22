@@ -3,7 +3,8 @@ name: Linter
 on:
   workflow_dispatch:
   push:
-    branches: ["main"]
+    branches-ignore:
+      - 'gh-pages'
 
 jobs:
   skip_check:
@@ -51,7 +52,7 @@ jobs:
       run: npm install
 
     - name: Lint check 
-      run: npm run lint
+      run: npx eslint . 
 
     - name: Typescript static checks
       run: npm run type-check
