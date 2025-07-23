@@ -1,5 +1,6 @@
 import { ArenaIdStore } from "../../utility/id_store";
 import { convert_distance, type DistanceUnit } from "../../utility/unit_types";
+import { WeakRefArray } from "../../utility/weakref_array";
 
 // types of parameters
 export interface FormParameter {
@@ -78,17 +79,33 @@ export interface InnerLayer {
 export type Layer = SurfaceLayer | InnerLayer;
 export type LayerType = "surface" | "inner";
 
-function compact_weakref_array_inplace<T extends object>(array: WeakRef<T>[]) {
-  // move valid references to front of array then truncate
-  let j = 0;
-  for (let i = 0; i < array.length; i++) {
-    const ref = array[i];
-    if (ref.deref() === undefined) continue;
-    if (i !== j) array[j] = ref;
-    j++;
+class SizeParameters extends WeakRefArray<SizeParameter> {
+  _unit: DistanceUnit;
+
+  constructor(default_unit: DistanceUnit) {
+    super();
+    this._unit = default_unit;
   }
-  array.length = j;
-  return array;
+
+  override push(size: SizeParameter) {
+    this.convert(size);
+    super.push(size);
+  }
+
+  set unit(unit: DistanceUnit) {
+    this._unit = unit;
+    this.compact();
+    for (const size of this.deref()) {
+      this.convert(size);
+    }
+  }
+
+  convert(size: SizeParameter) {
+    if (size.value === undefined) return;
+    const new_value = convert_distance(size.value, size.unit, this._unit);
+    size.value = new_value;
+    size.unit = this._unit;
+  }
 }
 
 export class Stackup {
@@ -98,14 +115,22 @@ export class Stackup {
   id_to_index = new Map<LayerId, number>();
   minimum_feature_size: number = 1e-5;
 
+  // allow for global changes to size and copper thickness units
   parameters = {
-    size: new Array<WeakRef<SizeParameter>>(),
-    copper_thickness: new Array<WeakRef<SizeParameter>>(),
-    epsilon: new Array<WeakRef<EpsilonParameter>>(),
+    size: new SizeParameters("mm"),
+    copper_thickness: new SizeParameters("oz"),
   };
 
   constructor() {
     this.barrel = this.create_via_barrel();
+  }
+
+  set size_unit(unit: DistanceUnit) {
+    this.parameters.size.unit = unit;
+  }
+
+  set copper_thickness_unit(unit: DistanceUnit) {
+    this.parameters.copper_thickness.unit = unit;
   }
 
   create_via_barrel(): ViaBarrel {
@@ -167,9 +192,8 @@ export class Stackup {
       impedance_correlation: "negative" as const,
     };
 
-    this.parameters.size.push(new WeakRef(diameter));
-    this.parameters.copper_thickness.push(new WeakRef(copper_thickness));
-    this.parameters.epsilon.push(new WeakRef(epsilon));
+    this.parameters.size.push(diameter);
+    this.parameters.copper_thickness.push(copper_thickness);
 
     return {
       diameter,
@@ -213,7 +237,7 @@ export class Stackup {
         return convert_distance(Dantipad.value, Dantipad.unit, this.unit);
       },
     };
-    this.parameters.size.push(new WeakRef(Dpad));
+    this.parameters.size.push(Dpad);
     return Dpad;
   }
 
@@ -274,7 +298,7 @@ export class Stackup {
       },
       impedance_correlation: "positive" as const,
     };
-    this.parameters.size.push(new WeakRef(Dantipad));
+    this.parameters.size.push(Dantipad);
     return Dantipad;
   }
 
@@ -370,7 +394,6 @@ export class Stackup {
       description: "Soldermask height",
       impedance_correlation: "negative" as const,
     }
-    this.parameters.epsilon.push(new WeakRef(epsilon));
     return epsilon;
   }
 
@@ -384,7 +407,7 @@ export class Stackup {
       get min() { return this.parent.minimum_feature_size; },
       impedance_correlation: "negative" as const,
     };
-    this.parameters.size.push(new WeakRef(height));
+    this.parameters.size.push(height);
     const epsilon = this.create_epsilon_parameter(layer_id, 3.3);
     return { height, epsilon };
   }
@@ -413,7 +436,7 @@ export class Stackup {
       description: "Copper thickness",
       impedance_correlation: "negative" as const,
     }
-    this.parameters.copper_thickness.push(new WeakRef(thickness));
+    this.parameters.copper_thickness.push(thickness);
     return thickness;
   }
 
@@ -452,7 +475,7 @@ export class Stackup {
       get min() { return this.parent.minimum_feature_size; },
       impedance_correlation: "positive" as const,
     };
-    this.parameters.size.push(new WeakRef(height));
+    this.parameters.size.push(height);
     const copper_thickness = this.create_copper_thickness(layer_id, 1, "oz");
     const epsilon = this.create_epsilon_parameter(layer_id, 4.1);
     return {
@@ -561,27 +584,5 @@ export class Stackup {
     const index = this.id_to_index.get(id);
     if (index === undefined) throw Error(`Got invalid layer id ${id}`);
     return index;
-  }
-
-  set size_unit(unit: DistanceUnit) {
-    const params = compact_weakref_array_inplace(this.parameters.size);
-    for (const ref of params) {
-      const size = ref.deref();
-      if (size?.value === undefined) continue;
-      const new_value = convert_distance(size.value, size.unit, unit);
-      size.value = new_value;
-      size.unit = unit;
-    }
-  }
-
-  set copper_thickness_unit(unit: DistanceUnit) {
-    const params = compact_weakref_array_inplace(this.parameters.copper_thickness);
-    for (const ref of params) {
-      const size = ref.deref();
-      if (size?.value === undefined) continue;
-      const new_value = convert_distance(size.value, size.unit, unit);
-      size.value = new_value;
-      size.unit = unit;
-    }
   }
 }
