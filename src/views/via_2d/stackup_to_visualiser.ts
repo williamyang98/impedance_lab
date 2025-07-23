@@ -13,6 +13,7 @@ import type {
   // TextLabel, IconLabel,
   Entity,
 } from "../visualiser_2d/visualiser.ts";
+import { colours, stroke } from "../visualiser_2d/pcb_defaults.ts";
 
 const sizes = {
   plane_height: 10,
@@ -24,34 +25,6 @@ const sizes = {
   dielectric_height: 30,
   soldermask_height: 10,
   stackup_width: 190,
-};
-
-const colours = {
-  copper: "#eacc2d",
-  copper_selectable: "#eacc2d66",
-  dielectric_soldermask: "#00aa00",
-  dielectric_soldermask_selectable: "#00aa0044",
-  dielectric_prepreg: "#55cc33",
-  dielectric_core: "#88ed44",
-  dielectric_barrel: "#b4f38fff",
-};
-
-// const font = {
-//   glyph_height: 0.75,
-//   size: 9,
-//   colour: "#000000",
-//   weight: 500,
-// };
-
-const stroke = {
-  outline_colour: "#00000040",
-  outline_width: 0.5,
-  arm_colour: "#000000",
-  arm_width: 0.5,
-  arm_stroke_style: [2,2],
-  line_colour: "#000000",
-  line_width: 0.5,
-  arrow_size: 4,
 };
 
 export interface ViaPadEntity extends RectangleShape {

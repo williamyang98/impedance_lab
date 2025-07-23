@@ -7,8 +7,9 @@ import type {
 } from "../visualiser_2d/visualiser.ts";
 import type { LayerId, Orientation, TraceId, Parameter, Stackup } from "./stackup.ts";
 import { CirclePlusIcon, CircleMinusIcon } from "lucide-vue-next";
+import { font, stroke, colours } from "../visualiser_2d/pcb_defaults.ts";
 
-export const stackup_sizes = {
+export const sizes = {
   soldermask_height: 17,
   copper_layer_height: 10,
   trace_height: 20,
@@ -19,46 +20,13 @@ export const stackup_sizes = {
   broadside_width_separation: 35,
   signal_width_separation: 30,
   ground_width_separation: 30,
+  voltage_icon: 12,
 };
 
-// const font_glyph_width = 0.85;
-const font_glyph_height = 0.75;
-
-const font = {
-  size: 9,
-  colour: "#000000",
-  weight: 500,
-};
-const voltage_size = 12;
-const width_label_config = (() => {
-  const min_extension_size = 5;
-  const text_drag_offset = font.size*font_glyph_height;
-  const overlap_extension_margin = min_extension_size*2 + font.size*font_glyph_height;
-  return {
-    min_extension_size,
-    text_drag_offset,
-    overlap_extension_margin,
-  }
-}) ();
-
-const colours = {
-  copper: "#eacc2d",
-  copper_selectable: "#eacc2d88",
-  dielectric_soldermask: "#00aa00",
-  dielectric_prepreg: "#55cc33",
-  dielectric_core: "#88ed44",
-  selectable: "#aaaaaa",
-};
-
-const stroke = {
-  outline_colour: "#00000040",
-  outline_width: 0.5,
-  arm_colour: "#000000",
-  arm_width: 0.5,
-  arm_stroke_style: [2,2],
-  line_colour: "#000000",
-  line_width: 0.5,
-  arrow_size: 4,
+const width_label_config = {
+  min_extension_size: 5,
+  text_drag_offset: font.size*font.glyph_height,
+  overlap_extension_margin: 5*2 + font.size*font.glyph_height,
 };
 
 function get_name(param?: { name?: string }): string | undefined {
@@ -530,8 +498,8 @@ export class StackupVisualiser implements Visualiser {
       icon: {
         component: icon,
         colour: font.colour,
-        width: voltage_size,
-        height: voltage_size,
+        width: sizes.voltage_icon,
+        height: sizes.voltage_icon,
       },
       horizontal_align: "center",
       vertical_align: "middle",
@@ -794,7 +762,7 @@ export class StackupVisualiser implements Visualiser {
   fit_viewport_to_spacing_labels() {
     for (const label of this.spacing_labels) {
       const y = label.y_text ?? label.y_line;
-      const dy = label.text.size*font_glyph_height;
+      const dy = label.text.size*font.glyph_height;
       const y_min = y-dy*0.5;
       const y_max = y+dy*0.5;
       this._viewport.y_top = Math.min(this._viewport.y_top, y_min);
