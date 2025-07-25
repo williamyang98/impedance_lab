@@ -64,29 +64,35 @@ function read_query_parameters(query: LocationQuery) {
     if (typeof(value) !== "string") return undefined;
     return value;
   };
-  const layer_type = get_query_param("layer");
-  const stackup_type = get_query_param("stackup");
-  const trace_type = get_query_param("trace");
+  const query_layer_type = get_query_param("layer");
+  const query_stackup_type = get_query_param("stackup");
+  const query_trace_type = get_query_param("trace");
   let was_queried = false;
 
-  for (const type of layer_template_types) {
-    if (layer_type === type) {
-      layer_template_type.value = type;
-      was_queried = true;
-    }
+  const layer_type = layer_template_types.find(elem => elem === query_layer_type);
+  if (layer_type !== undefined) {
+    layer_template_type.value = layer_type;
+    was_queried = true;
+  } else if (query_layer_type !== undefined) {
+    toast.error(`Bad query parameter layer='${query_layer_type}'`);
   }
-  for (const type of stackup_types) {
-    if (stackup_type === type) {
-      selected_stackup.value = type;
-      was_queried = true;
-    }
+
+  const stackup_type = stackup_types.find(elem => elem === query_stackup_type);
+  if (stackup_type !== undefined) {
+    selected_stackup.value = stackup_type;
+    was_queried = true;
+  } else if (query_stackup_type !== undefined) {
+    toast.error(`Bad query parameter stackup='${query_stackup_type}'`);
   }
-  for (const type of Object.keys(stackup.value.layouts)) {
-    if (trace_type === type) {
-      (stackup.value.selected_layout as string) = type;
-      was_queried = true;
-    }
+
+  const trace_type = Object.keys(stackup.value.layouts).find(elem => elem === query_trace_type);
+  if (trace_type !== undefined) {
+    (stackup.value.selected_layout as string) = trace_type;
+    was_queried = true;
+  } else if (query_trace_type !== undefined) {
+    toast.error(`Bad query parameter trace='${query_trace_type}'`);
   }
+
   if (was_queried) {
     is_editing.value = false;
   }
