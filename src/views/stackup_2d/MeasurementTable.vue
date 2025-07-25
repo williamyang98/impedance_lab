@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { defineProps, computed } from "vue";
 import { type Measurement } from "./measurement";
-import type { StackupParameters } from "./parameters";
 import { type DistanceUnit, convert_distance, is_unit_metric } from "../../utility/unit_types.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix";
+import { providers } from "../../providers/providers.ts";
 
-const props = defineProps<{
+const user_data = providers.user_data.value;
+
+const { measurement } = defineProps<{
   measurement: Measurement,
-  parameters: StackupParameters,
 }>();
 
 const display_precision: number = 4;
 
 const distance_unit = computed<DistanceUnit>(() => {
-  const parameters = props.parameters;
-  const is_metric = is_unit_metric(parameters.size_unit);
+  const is_metric = is_unit_metric(user_data.size_unit);
   return is_metric ? "cm" : "inch";
 });
 

@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { defineProps, defineEmits, computed } from "vue";
+import { defineProps, defineEmits, computed, watch, toRef } from "vue";
 import { TriangleAlert, SearchIcon, InfoIcon } from "lucide-vue-next";
 import {
   type Stackup,
   type Parameter, type SizeParameter, type EtchFactorParameter, type EpsilonParameter,
-  type LayerId,
+  type BroadsidePair,
 } from "./stackup.ts";
-import { StackupEditor } from "./editor.ts";
+import { providers } from "../../providers/providers.ts";
+
+const user_data = providers.user_data;
 
 const props = defineProps<{
-  editor: StackupEditor,
+  stackup: Stackup,
 }>();
+
+const stackup = toRef(props.stackup);
 
 const emits = defineEmits<{
   search: [parameters: Parameter[]],
@@ -20,15 +24,11 @@ const emits = defineEmits<{
 interface FormFields {
   name: string;
   description: string;
-  parameters: Set<Parameter>;
+  parameters: Parameter[];
   has_group_search: boolean;
 }
 
-function set_to_array<T>(set: Set<T>): T[] {
-  return Array.from(set.values());
-}
-
-function get_total_searchable_parameters(params: Set<Parameter>): number {
+function get_total_searchable_parameters(params: Parameter[]): number {
   let total = 0;
   for (const param of params) {
     if (param.impedance_correlation !== undefined) {
@@ -39,97 +39,101 @@ function get_total_searchable_parameters(params: Set<Parameter>): number {
 }
 
 class Form {
-  soldermask_height_params = new Set<SizeParameter>();
-  layer_dielectric_height_params = new Set<SizeParameter>();
-  layer_dielectric_epsilon_params = new Set<EpsilonParameter>();
-  layer_trace_height_params = new Set<SizeParameter>();
-  layer_etch_factor_params = new Set<EtchFactorParameter>();
-  trace_width_params = new Set<SizeParameter>();
-  spacing_params = new Set<SizeParameter>();
-  editor: StackupEditor;
+  soldermask_height_params = new Array<SizeParameter>();
+  layer_dielectric_height_params = new Array<SizeParameter>();
+  layer_dielectric_epsilon_params = new Array<EpsilonParameter>();
+  layer_trace_height_params = new Array<SizeParameter>();
+  layer_etch_factor_params = new Array<EtchFactorParameter>();
+  trace_width_params = new Array<SizeParameter>();
+  spacing_params = new Array<SizeParameter>();
   stackup: Stackup;
 
-  constructor(editor: StackupEditor) {
-    this.editor = editor;
-    const stackup = editor.get_simulation_stackup();
+  constructor(stackup: Stackup) {
     this.stackup = stackup;
 
-    for (const trace of stackup.conductors.filter(conductor => conductor.type == "trace")) {
-      this.trace_width_params.add(trace.width);
-    }
-
-    for (const spacing of stackup.spacings) {
-      this.spacing_params.add(spacing.width);
-    }
-
-    // hide certain parameters base on presence or absence of trace or plane conductor
-    const layers_with_traces: Set<LayerId> = new Set();
-    const layers_with_plane: Set<LayerId> = new Set();
-    for (const conductor of stackup.conductors) {
-      switch (conductor.type) {
-        case "trace": {
-          layers_with_traces.add(conductor.position.layer_id);
-          break;
-        }
-        case "plane": {
-          layers_with_plane.add(conductor.position.layer_id);
-          break;
-        }
-      }
-    }
-
     for (const layer of stackup.layers) {
       switch (layer.type) {
-        case "unmasked": break;
-        case "core":
-        case "prepreg": {
-          this.layer_dielectric_height_params.add(layer.height);
-          this.layer_dielectric_epsilon_params.add(layer.epsilon);
+        case "surface": {
+          if (layer.has_soldermask) {
+            this.soldermask_height_params.push(layer.soldermask_height);
+            this.layer_dielectric_epsilon_params.push(layer.epsilon);
+          }
+          if (layer.has_traces) {
+            this.layer_etch_factor_params.push(layer.etch_factor);
+            this.layer_trace_height_params.push(layer.trace_height);
+          }
           break;
         }
-        case "soldermask": {
-          if (!layers_with_plane.has(layer.id)) {
-            this.soldermask_height_params.add(layer.height);
-            this.layer_dielectric_epsilon_params.add(layer.epsilon);
+        case "inner": {
+          this.layer_dielectric_height_params.push(layer.dielectric_height);
+          this.layer_dielectric_epsilon_params.push(layer.epsilon);
+          if (layer.has_traces.top || layer.has_traces.bottom) {
+            this.layer_etch_factor_params.push(layer.etch_factor);
+            this.layer_trace_height_params.push(layer.trace_height);
           }
           break;
         }
       }
     }
 
-    for (const layer of stackup.layers) {
-      switch (layer.type) {
-        case "core": break;
-        case "prepreg": {
-          this.layer_trace_height_params.add(layer.trace_height);
-          if (layers_with_traces.has(layer.id)) {
-            this.layer_etch_factor_params.add(layer.etch_factor);
-          }
-          break;
+    const trace_width_params = new Set<SizeParameter>();
+    const spacing_params = new Set<SizeParameter>();
+    const push_trace_width = (width: SizeParameter) => {
+      if (!trace_width_params.has(width)) return;
+      this.trace_width_params.push(width);
+    };
+    const push_spacing = (spacing: SizeParameter) => {
+      if (!spacing_params.has(spacing)) return;
+      this.spacing_params.push(spacing);
+    };
+
+    switch (stackup.type) {
+      case "colinear": {
+        const layout = stackup.trace_layout;
+        for (const trace of layout.traces) {
+          trace_width_params.add(trace.width);
         }
-        case "unmasked":
-        case "soldermask": {
-          if (layers_with_traces.has(layer.id)) {
-            this.layer_etch_factor_params.add(layer.etch_factor);
-            this.layer_trace_height_params.add(layer.trace_height);
-          }
-          break;
+        for (const spacing of layout.spacings) {
+          spacing_params.add(spacing.width);
         }
+        push_trace_width(stackup.trace_width);
+        push_trace_width(stackup.coplanar_width);
+        push_spacing(stackup.trace_spacing.width);
+        push_spacing(stackup.coplanar_spacing.width);
+        break;
+      }
+      case "broadside": {
+        const layout = stackup.trace_layout;
+        const add_params = (pair: BroadsidePair) => {
+          const pair_layout = layout[pair];
+          for (const trace of pair_layout.traces) {
+            trace_width_params.add(trace.width);
+          }
+          for (const spacing of pair_layout.spacings) {
+            spacing_params.add(spacing.width);
+          }
+        }
+        add_params("left");
+        add_params("right");
+        push_trace_width(stackup.trace_width);
+        push_trace_width(stackup.coplanar_width);
+        push_spacing(stackup.trace_spacing.width);
+        push_spacing(stackup.coplanar_spacing.width);
+        this.spacing_params.push(stackup.broadside_spacing);
+        break;
       }
     }
   }
 
   get_layout(): FormFields[][] {
-    const parameters = this.editor.parameters;
-
     const column: FormFields[][] = [];
     let row: FormFields[] = [];
     const push_row = () => {
       column.push(row);
       row = [];
     };
-    const create_form_fields = (name: string, description: string, parameters: Set<Parameter>) => {
-      if (parameters.size <= 0) return;
+    const create_form_fields = (name: string, description: string, parameters: Parameter[]) => {
+      if (parameters.length <= 0) return;
       const field: FormFields = {
         name,
         description,
@@ -140,12 +144,12 @@ class Form {
     };
 
     create_form_fields(
-      `Soldermask Height (${parameters.size_unit})`,
+      `Soldermask Height (${this.soldermask_height_params.at(0)?.unit})`,
       "Height of soldermask",
       this.soldermask_height_params,
     );
     create_form_fields(
-      `Inner Layer Height (${parameters.size_unit})`,
+      `Inner Layer Height (${this.layer_dielectric_height_params.at(0)?.unit})`,
       "Height of inner stackup layer",
       this.layer_dielectric_height_params,
     );
@@ -154,23 +158,6 @@ class Form {
       "Relative permittivity of layer dielectric",
       this.layer_dielectric_epsilon_params,
     );
-    push_row();
-
-    create_form_fields(
-      `Trace Width (${parameters.size_unit})`,
-      "Width of transmission line trace",
-      this.trace_width_params,
-    );
-    create_form_fields(
-      `Spacing (${parameters.size_unit})`,
-      "Separation between transmission line traces",
-      this.spacing_params,
-    );
-    create_form_fields(
-      `Trace Height (${parameters.copper_thickness_unit})`,
-      "Height of copper layer",
-      this.layer_trace_height_params,
-    );
     create_form_fields(
       "Etch Factor",
       "Ratio of copper height that is etched away from both sides of a signal trace (dWi=2*EFi*Ti)",
@@ -178,22 +165,24 @@ class Form {
     );
     push_row();
 
+    create_form_fields(
+      `Trace Width (${this.trace_width_params.at(0)?.unit})`,
+      "Width of transmission line trace",
+      this.trace_width_params,
+    );
+    create_form_fields(
+      `Spacing (${this.spacing_params.at(0)?.unit})`,
+      "Separation between transmission line traces",
+      this.spacing_params,
+    );
+    create_form_fields(
+      `Trace Height (${this.layer_trace_height_params.at(0)?.unit})`,
+      "Height of copper layer",
+      this.layer_trace_height_params,
+    );
+    push_row();
+
     return column;
-  }
-}
-
-const form = computed(() => new Form(props.editor));
-const parameters = computed(() => props.editor.parameters);
-
-function is_parameter_changed(param: Parameter): boolean {
-  switch (param.type) {
-    case "epsilon": return param.old_value !== param.value;
-    case "etch_factor": return param.old_value !== param.value;
-    case "size": {
-      if (param.old_value !== param.value) return true;
-      if (param.old_unit !== param.unit) return true;
-      return false;
-    }
   }
 }
 
@@ -201,7 +190,7 @@ function get_input_class(param: Parameter): string {
   if (param.error !== undefined) {
     return "input-error";
   }
-  if (is_parameter_changed(param)) {
+  if (param.is_changed()) {
     return "input-warning";
   }
   return "";
@@ -217,6 +206,15 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   emits("search", params);
 }
 
+const form = computed(() => new Form(stackup.value));
+const fields = computed(() => form.value.get_layout());
+watch(() => user_data.value.size_unit, (unit) => {
+  stackup.value.size_unit = unit;
+}, { immediate: true });
+watch(() => user_data.value.copper_thickness_unit, (unit) => {
+  stackup.value.copper_thickness_unit = unit;
+}, { immediate: true });
+
 </script>
 
 <template>
@@ -224,23 +222,23 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
   <!--Select units-->
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Size Unit</legend>
-    <select class="select w-full" v-model="parameters.size_unit" required>
-      <option v-for="unit in parameters.size_unit_options" :value="unit" :key="unit">
+    <select class="select w-full" v-model="user_data.size_unit" required>
+      <option v-for="unit in user_data.size_unit_options" :value="unit" :key="unit">
         {{ unit }}
       </option>
     </select>
   </fieldset>
   <fieldset class="fieldset text-sm">
     <legend class="fieldset-legend">Copper Pour Unit</legend>
-    <select class="select w-full" v-model="parameters.copper_thickness_unit" required>
-      <option v-for="unit in parameters.copper_thickness_unit_options" :value="unit" :key="unit">
+    <select class="select w-full" v-model="user_data.copper_thickness_unit" required>
+      <option v-for="unit in user_data.copper_thickness_unit_options" :value="unit" :key="unit">
         {{ unit }}
       </option>
     </select>
   </fieldset>
   <!--Set values-->
   <div
-    v-for="(col, col_index) in form.get_layout()" :key="col_index"
+    v-for="(col, col_index) in fields" :key="col_index"
     class="w-full"
   >
     <div v-for="(row, row_index) in col" :key="row_index" class="mb-4">
@@ -254,7 +252,7 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
         <template v-if="row.has_group_search">
           <button
             class="btn btn-sm btn-primary px-2"
-            @click="(ev) => on_search(ev, set_to_array(row.parameters))"
+            @click="(ev) => on_search(ev, row.parameters)"
             type="button"
           >
             <SearchIcon class="h-[1rem] w-[1rem]"/>
@@ -264,11 +262,11 @@ function on_search(ev: MouseEvent, params: Parameter[]) {
       <div class="grid grid-cols-[2rem_auto] w-full gap-x-2 gap-y-1">
         <template v-for="(param, param_index) in row.parameters" :key="param_index">
           <div class="h-full flex flex-col justify-center">
-            <label :for="param.name" class="label">{{  param.name }}</label>
+            <label :for="param.label" class="label">{{  param.label }}</label>
           </div>
-          <div class="flex flex-row join">
+          <div class="flex flex-row join" :class="param.label === undefined ? 'col-span-2' : ''">
             <input
-              :id="param.name"
+              :id="param.label"
               :class="get_input_class(param)"
               class="input w-full join-item"
               type="number"

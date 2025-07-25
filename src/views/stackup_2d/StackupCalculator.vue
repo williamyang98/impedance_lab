@@ -11,7 +11,7 @@ import {
 } from "vue";
 import { useRoute, type LocationQuery } from "vue-router";
 // subcomponents
-import EditorControls from "./EditorControls.vue";
+import LayersEditorView from "./LayersEditorView.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
 import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
@@ -25,57 +25,36 @@ import VisualiserView from "../visualiser_2d/VisualiserView.vue";
 import ParameterSearchConfigForm from "./ParameterSearchConfigForm.vue";
 import { PencilIcon, EyeIcon, SettingsIcon } from "lucide-vue-next";
 // ts imports
-import {type Parameter } from "./stackup.ts";
-import { create_layout_from_stackup } from "./layout.ts";
+import {type Parameter, type StackupType, stackup_types } from "./stackup.ts";
 import { StackupGrid } from "./stackup_to_grid.ts";
-import { StackupParameters } from "./parameters.ts";
-import {
-  StackupEditor,
-  BroadsideStackupEditor,
-  type BroadsideTraceTemplate,
-  ColinearStackupEditor,
-  type ColinearTraceTemplate,
-} from "./editor.ts";
-import {
-  broadside_layer_templates, broadside_trace_templates,
-  colinear_layer_templates, colinear_trace_templates,
-} from "./editor_templates.ts";
 import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { providers } from "../../providers/providers.ts";
 import { StackupVisualiser } from "./stackup_to_visualiser.ts";
+import { computed_ref } from "../../utility/computed_ref.ts";
+import {
+  create_broadside_stackup, create_colinear_stackup,
+  type LayerTemplateType, layer_template_types,
+} from "./stackup_templates.ts";
 
 const toast = providers.toast_manager.value;
 const user_data = providers.user_data.value;
 const wasm_module = toRaw(providers.wasm_module.value);
 
-interface SelectedMap<K extends string, V> {
-  selected: K;
-  options: Record<K, V>;
-  value: V;
-  keys: K[];
-}
-
-const route = useRoute();
-
-interface DefaultTemplateKeys {
-  stackup_type: "colinear" | "broadside";
-  colinear_trace: keyof typeof colinear_trace_templates;
-  broadside_trace: keyof typeof broadside_trace_templates;
-  colinear_layer: keyof typeof colinear_layer_templates;
-  broadside_layer: keyof typeof broadside_layer_templates;
-}
-
-const default_template_keys: DefaultTemplateKeys = {
-  stackup_type: "colinear",
-  colinear_trace: "single ended",
-  broadside_trace: "pair",
-  colinear_layer: "microstrip",
-  broadside_layer: "microstrip",
-};
-
+// stackup
 const is_editing = ref<boolean>(true);
+const layer_template_type = ref<LayerTemplateType>("microstrip");
+const selected_stackup = ref<StackupType>("colinear");
+const stackups = computed_ref(() => {
+  return {
+    colinear: create_colinear_stackup(layer_template_type.value),
+    broadside: create_broadside_stackup(layer_template_type.value),
+  };
+});
+const stackup = computed(() => {
+  return stackups.value[selected_stackup.value];
+});
 
 // read query parameters
 function read_query_parameters(query: LocationQuery) {
@@ -85,139 +64,41 @@ function read_query_parameters(query: LocationQuery) {
     if (typeof(value) !== "string") return undefined;
     return value;
   };
-  const stackup_type = get_query_param("type");
-  const trace_template = get_query_param("trace");
-  const layer_template = get_query_param("layer");
-  if (stackup_type === "colinear") {
-    default_template_keys.stackup_type = "colinear";
-    if (trace_template) {
-      if (trace_template in colinear_trace_templates) {
-        default_template_keys.colinear_trace = trace_template as keyof typeof colinear_trace_templates;
-      } else {
-        toast.error(`Unknown colinear trace template: ${trace_template}`);
-      }
+  const layer_type = get_query_param("layer");
+  const stackup_type = get_query_param("stackup");
+  const trace_type = get_query_param("trace");
+  let was_queried = false;
+
+  for (const type of layer_template_types) {
+    if (layer_type === type) {
+      layer_template_type.value = type;
+      was_queried = true;
     }
-    if (layer_template) {
-      if (layer_template in colinear_layer_templates) {
-        default_template_keys.colinear_layer = layer_template as keyof typeof colinear_layer_templates;
-      } else {
-        toast.error(`Unknown colinear layer template: ${layer_template}`);
-      }
+  }
+  for (const type of stackup_types) {
+    if (stackup_type === type) {
+      selected_stackup.value = type;
+      was_queried = true;
     }
+  }
+  for (const type of Object.keys(stackup.value.layouts)) {
+    if (trace_type === type) {
+      (stackup.value.selected_layout as string) = type;
+      was_queried = true;
+    }
+  }
+  if (was_queried) {
     is_editing.value = false;
-  } else if (stackup_type === "broadside") {
-    default_template_keys.stackup_type = "broadside";
-    if (trace_template) {
-      if (trace_template in broadside_trace_templates) {
-        default_template_keys.broadside_trace = trace_template as keyof typeof broadside_trace_templates;
-      } else {
-        toast.error(`Unknown broadside trace template: ${trace_template}`);
-      }
-    }
-    if (layer_template) {
-      if (layer_template in broadside_layer_templates) {
-        default_template_keys.broadside_layer = layer_template as keyof typeof broadside_layer_templates;
-      } else {
-        toast.error(`Unknown broadside layer template: ${layer_template}`);
-      }
-    }
-    is_editing.value = false;
-  } else if (stackup_type !== undefined) {
-    toast.error(`Unknown stackup type: ${stackup_type}`);
   }
 }
+
+const route = useRoute();
 read_query_parameters(route.query);
-
-function create_editor() {
-  const parameters = new StackupParameters(user_data);
-
-  type K0 = keyof typeof broadside_trace_templates;
-  class BroadsideEditor implements SelectedMap<K0, BroadsideTraceTemplate> {
-    _selected: K0 = default_template_keys.broadside_trace;
-    options = broadside_trace_templates;
-    keys = Object.keys(broadside_trace_templates) as K0[];
-    editor = new BroadsideStackupEditor(
-      parameters,
-      broadside_trace_templates[this._selected],
-      broadside_layer_templates[default_template_keys.broadside_layer],
-    );
-    get selected() {
-      return this._selected;
-    }
-    set selected(selected) {
-      this._selected = selected;
-      this.editor.set_trace_template(this.value);
-      this.editor.parameters.for_each(param => { parameters.mark_parameter_changed(param); });
-    }
-    get value() {
-      return this.options[this.selected];
-    }
-  }
-  const broadside_editor = new BroadsideEditor();
-
-  type K1 = keyof typeof colinear_trace_templates;
-  class ColinearEditor implements SelectedMap<K1, ColinearTraceTemplate> {
-    _selected: K1 = default_template_keys.colinear_trace;
-    options = colinear_trace_templates;
-    keys = Object.keys(colinear_trace_templates) as K1[];
-    editor = new ColinearStackupEditor(
-      parameters,
-      colinear_trace_templates[this._selected],
-      colinear_layer_templates[default_template_keys.colinear_layer],
-    );
-    get selected() {
-      return this._selected;
-    }
-    set selected(selected) {
-      this._selected = selected;
-      this.editor.set_trace_template(this.value);
-      this.editor.parameters.for_each(param => { parameters.mark_parameter_changed(param); });
-    }
-    get value() {
-      return this.options[this.selected];
-    }
-  }
-  const colinear_editor = new ColinearEditor();
-
-  const editors = {
-    broadside: broadside_editor,
-    colinear: colinear_editor,
-  };
-
-  type K2 = keyof typeof editors;
-  type V2 = typeof editors[K2];
-  class Editor implements SelectedMap<K2, V2> {
-    _selected: K2 = default_template_keys.stackup_type;
-    options = editors;
-    keys = Object.keys(editors) as K2[];
-    parameters: StackupParameters = parameters;
-    get selected() {
-      return this._selected;
-    }
-    set selected(selected) {
-      this._selected = selected;
-      this.parameters.for_each(param => { parameters.mark_parameter_changed(param); });
-    }
-    get value() {
-      return this.options[this.selected];
-    }
-  }
-  const editor = new Editor();
-  return editor;
-}
-
-const selected_editor = ref(create_editor());
-const editor = computed<StackupEditor>(() => selected_editor.value.value.editor);
-const selected_trace_template = computed(() => selected_editor.value.value);
-const simulation_stackup = computed(() => editor.value.get_simulation_stackup());
-const viewer_stackup = computed(() => {
-  if (is_editing.value) {
-    return editor.value.get_viewer_stackup();
-  } else {
-    return editor.value.get_simulation_stackup();
-  }
+watch(() => route.query, (new_query) => {
+  read_query_parameters(new_query);
 });
 
+// calculator controls and results
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const measurement = ref<Measurement | undefined>(undefined);
@@ -241,23 +122,12 @@ async function calculate_impedance() {
   let new_stackup = undefined;
   let new_measurement = undefined;
   try {
-    const used_parameters = new Set<Parameter>();
-    function get_parameter(param: Parameter): number {
-      const value = editor.value.parameters.get_simulation_parameter(param);
-      used_parameters.add(param);
-      return value;
-    }
-
-    new_profiler.begin("create_layout", "Create layout from transmission line stackup");
-    const layout = create_layout_from_stackup(simulation_stackup.value, get_parameter, new_profiler);
-    new_profiler.end();
-
     new_profiler.begin("create_grid", "Create simulation grid from layout");
     new_stackup = new StackupGrid(
       wasm_module,
-      layout, get_parameter,
-      new_profiler,
+      stackup.value,
       toRaw(user_data.stackup_2d_mesh_config),
+      new_profiler,
     );
     new_profiler.end();
 
@@ -269,7 +139,9 @@ async function calculate_impedance() {
     new_measurement = perform_measurement(new_stackup, new_profiler);
     new_profiler.end();
 
-    used_parameters.forEach(param => { editor.value.parameters.mark_parameter_unchanged(param); });
+    new_stackup.used_parameters.forEach((param) => {
+      param.mark_unchanged();
+    });
     new_profiler.end();
   } catch (error) {
     toast.error(`calculate_impedance() failed with: ${String(error)}`);
@@ -296,22 +168,14 @@ async function perform_search(search_params: Parameter[]) {
   toRaw(stackup_grid.value)?.delete();
   stackup_grid.value = undefined;
 
-  const used_parameters = new Set<Parameter>();
-  function get_parameter(param: Parameter): number {
-    const value = editor.value.parameters.get_simulation_parameter(param);
-    used_parameters.add(param);
-    return value;
-  }
-
   let new_search_results: SearchResults | undefined = undefined;
   const new_profiler = new Profiler("perform_search");
   try {
     new_search_results = search_parameters(
       wasm_module,
       target_impedance.value,
-      simulation_stackup.value,
+      stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
-      get_parameter,
       user_data.stackup_2d_mesh_config,
       user_data.parameter_search_config,
       new_profiler, toast,
@@ -326,29 +190,26 @@ async function perform_search(search_params: Parameter[]) {
 
   search_results.value = new_search_results;
   const best_result = new_search_results?.best_result;
-  stackup_grid.value = new_search_results?.best_stackup_grid;
+  const best_stackup_grid = new_search_results?.best_stackup_grid;
+  stackup_grid.value = best_stackup_grid;
   measurement.value = best_result?.measurement;
   profiler.value = new_profiler;
-  if (best_result) {
+  if (best_result !== undefined) {
     // set form field to best fit parameter values
     for (const param of search_params) {
       param.value = best_result.value;
     }
-    // mark form values as unmodified
-    used_parameters.forEach(param => { editor.value.parameters.mark_parameter_unchanged(param); });
+  }
+  if (best_stackup_grid !== undefined) {
+    best_stackup_grid.used_parameters.forEach((param) => {
+      param.mark_unchanged();
+    });
   }
   is_running.value = false;
 }
 
-const visualiser = ref(new StackupVisualiser(viewer_stackup.value));
-watch(viewer_stackup, (new_viewer_stackup) => {
-  visualiser.value = new StackupVisualiser(new_viewer_stackup);
-});
-
-// update editor if query parameters change
-watch(() => route.query, (new_query) => {
-  read_query_parameters(new_query);
-  selected_editor.value = create_editor();
+const visualiser = computed_ref(() => {
+  return new StackupVisualiser(stackup.value, is_editing.value);
 });
 
 </script>
@@ -370,19 +231,19 @@ watch(() => route.query, (new_query) => {
           </h2>
           <div class="w-full flex flex-col gap-y-1">
             <div class="w-full flex flex-row gap-x-1">
-              <select class="select w-full" v-model="selected_editor.selected" :disabled="!is_editing">
-                <option v-for="option in selected_editor.keys" :value="option" :key="option">
+              <select class="select w-full" v-model="selected_stackup" :disabled="!is_editing">
+                <option v-for="option of Object.keys(stackups)" :value="option" :key="option">
                   {{ option }}
                 </option>
               </select>
-              <select class="select w-full" v-model="selected_trace_template.selected" :disabled="!is_editing">
-                <option v-for="option in selected_trace_template.keys" :value="option" :key="option">
+              <select class="select w-full" v-model="stackup.selected_layout" :disabled="!is_editing">
+                <option v-for="option of Object.keys(stackup.layouts)" :value="option" :key="option">
                   {{ option }}
                 </option>
               </select>
             </div>
             <div class="w-full border border-1 border-base-300 bg-base-100 p-1" v-if="is_editing">
-              <EditorControls :editor="editor"/>
+              <LayersEditorView :stackup="stackup"/>
             </div>
             <div class="w-full max-w-[40rem] self-center border border-1 rounded-sm border-base-300 bg-white p-1">
               <!-- <StackupViewer :stackup="viewer_stackup"/> -->
@@ -412,7 +273,7 @@ watch(() => route.query, (new_query) => {
             </dialog>
           </h2>
           <ParameterForm
-            :editor="editor"
+            :stackup="stackup"
             @search="perform_search"
             @submit="calculate_impedance"
           ></ParameterForm>
@@ -442,7 +303,7 @@ watch(() => route.query, (new_query) => {
             <label class="label mr-2">Z0 target </label>
             <input class="input input w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
           </div>
-          <MeasurementTable v-if="measurement" :measurement="measurement" :parameters="editor.parameters"></MeasurementTable>
+          <MeasurementTable v-if="measurement" :measurement="measurement"/>
           <div v-else class="text-center text-xl py-2">
             No results to display
           </div>

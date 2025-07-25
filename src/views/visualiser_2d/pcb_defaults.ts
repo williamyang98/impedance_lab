@@ -11,6 +11,7 @@ export const colours = {
 
 export const font = {
   glyph_height: 0.75,
+  glyph_width: 0.85,
   size: 9,
   colour: "#000000",
   weight: 500,

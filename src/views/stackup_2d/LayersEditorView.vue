@@ -1,53 +1,52 @@
 <script setup lang="ts">
-import { type LayerType } from "./stackup.ts";
-import { StackupEditor } from "./editor.ts";
-import { computed, defineProps } from "vue";
+import { LayerStackup, type LayerType } from "./stackup.ts";
+import { computed, defineProps, toRef } from "vue";
 import { Trash2Icon } from "lucide-vue-next";
 
-const { editor } = defineProps<{
-  editor: StackupEditor,
+const props = defineProps<{
+  stackup: LayerStackup,
 }>();
 
-const layers = computed(() => editor.layers.map((layer, index) => {
-  const change_type: Partial<Record<LayerType, (() => void)>> = {};
-  const types: LayerType[] = ["soldermask", "unmasked", "core", "prepreg"];
-  const valid_types = [];
-  for (const type of types) {
-    const handler = editor.try_change_layer_type(index, type);
-    if (handler == undefined) continue;
-    change_type[type] = handler;
-    valid_types.push(type);
-  }
+const stackup = toRef(props.stackup);
 
+const layers = computed(() => stackup.value.layers.map((layer, layer_index) => {
+  let add_before = undefined;
+  if (stackup.value.can_add_inner_layer(layer_index)) {
+    add_before = () => { stackup.value.add_inner_layer(layer_index); };
+  }
   return {
-    delete: editor.try_delete_layer(index),
-    add_above: editor.try_add_prepreg_layer(index),
-    valid_types,
-    type: computed<LayerType>({
-      get() {
-        return layer.type;
-      },
-      set(type: LayerType) {
-        const handler = change_type[type];
-        handler?.();
-      },
-    }),
-    id: layer.id,
     parent: layer,
+    id: layer.id,
+    delete: layer.delete,
+    add_before,
+    types: stackup.value.get_layer_types(layer_index),
+    set type(type: LayerType) {
+      stackup.value.set_layer_type(layer_index, type);
+    },
+    get type(): LayerType {
+      return this.parent.type;
+    },
   };
 }));
 
-const append_layer_to_end = computed(() => editor.try_add_prepreg_layer(editor.layers.length));
+const append_layer = computed(() => {
+  let append_layer = undefined;
+  const N = stackup.value.layers.length;
+  if (stackup.value.can_add_inner_layer(N)) {
+    append_layer = () => { stackup.value.add_inner_layer(N); };
+  }
+  return append_layer;
+});
 
 </script>
 
 <template>
   <div class="grid grid-cols-[1.5rem_auto_2rem] gap-x-1 gap-y-0">
     <template v-for="(layer, layer_index) in layers" :key="layer.id">
-      <div v-if="layer.add_above" class="add-button col-span-3" @click="layer.add_above()"></div>
+      <div v-if="layer.add_before" class="add-button col-span-3" @click="layer.add_before()"></div>
       <div class="flex flex-col justify-center font-medium ml-1">L{{ layer_index }}:</div>
-      <select v-model="layer.type.value" class="w-full select">
-        <template v-for="(type, index) in layer.valid_types" :key="index">
+      <select v-model="layer.type" class="w-full select">
+        <template v-for="type in layer.types" :key="type">
           <option :value="type">{{ type }}</option>
         </template>
       </select>
@@ -57,7 +56,7 @@ const append_layer_to_end = computed(() => editor.try_add_prepreg_layer(editor.l
         </button>
       </div>
     </template>
-    <div v-if="append_layer_to_end" class="add-button col-span-3" @click="append_layer_to_end()"></div>
+    <div v-if="append_layer" class="add-button col-span-3" @click="append_layer()"></div>
   </div>
 </template>
 

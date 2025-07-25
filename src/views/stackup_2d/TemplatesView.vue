@@ -1,33 +1,23 @@
 <script setup lang="ts">
 import { ref, watch, computed } from "vue";
 import { useRouter } from "vue-router";
-import { StackupParameters } from "./parameters.ts";
 import {
-  StackupEditor,
-  BroadsideStackupEditor,
-  ColinearStackupEditor,
-} from "./editor.ts";
-import {
-  broadside_layer_templates, broadside_trace_templates,
-  colinear_layer_templates, colinear_trace_templates,
-} from "./editor_templates.ts";
+  create_colinear_stackup, create_broadside_stackup, layer_template_types,
+} from "./stackup_templates.ts";
 import VisualiserView from "../visualiser_2d/VisualiserView.vue";
 import { type VisualiserConfig, get_default_viewer_config, StackupVisualiser } from "./stackup_to_visualiser.ts";
 import { SearchIcon } from "lucide-vue-next";
 import "fuzzysort";
 import fuzzysort from "fuzzysort";
-import { providers } from "../../providers/providers.ts";
 
-const user_data = providers.user_data.value;
-const parameters = new StackupParameters(user_data);
 interface Tag {
-  type: string;
+  stackup: string;
   layer: string;
   trace: string;
 };
 
 function tag_to_title(tag: Tag): string {
-  return [tag.type, tag.layer, tag.trace]
+  return [tag.stackup, tag.layer, tag.trace]
     .join(' ')
     .split(' ')
     .map(word => {
@@ -37,12 +27,11 @@ function tag_to_title(tag: Tag): string {
 }
 
 function tag_to_query_string(tag: Tag): string {
-  return `type=${tag.type}&layer=${tag.layer}&trace=${tag.trace}`;
+  return `stackup=${tag.stackup}&layer=${tag.layer}&trace=${tag.trace}`;
 }
 
 interface Template {
   tag: Tag;
-  editor: StackupEditor;
   title: string;
   prepared_title: Fuzzysort.Prepared;
   visualiser: StackupVisualiser;
@@ -52,39 +41,28 @@ const templates: Template[] = [];
 
 const visualiser_config: VisualiserConfig = {
   ...get_default_viewer_config(),
-  stackup_minimum_width: 150,
-  stackup_minimum_x_padding: 25,
+  stackup_minimum_width: 200,
+  stackup_minimum_x_padding: 50,
 };
 
-const stackup_types = [
-  {
-    name: "colinear",
-    ctor: ColinearStackupEditor,
-    layer_templates: colinear_layer_templates,
-    trace_templates: colinear_trace_templates,
-  },
-  {
-    name: "broadside",
-    ctor: BroadsideStackupEditor,
-    layer_templates: broadside_layer_templates,
-    trace_templates: broadside_trace_templates,
-  },
-];
 
-for (const stackup of stackup_types) {
-  for (const [layer_name, layer_template] of Object.entries(stackup.layer_templates)) {
-    for (const [trace_name, trace_template] of Object.entries(stackup.trace_templates)) {
-      const editor = new stackup.ctor(parameters, trace_template, layer_template);
+for (const layer_type of layer_template_types) {
+  const stackups = {
+    colinear: create_colinear_stackup(layer_type),
+    broadside: create_broadside_stackup(layer_type),
+  };
+  for (const [stackup_type, stackup] of Object.entries(stackups)) {
+    for (const trace_type of Object.keys(stackup.layouts)) {
+      (stackup.selected_layout as string) = trace_type;
       const tag: Tag = {
-        type: stackup.name,
-        trace: trace_name,
-        layer: layer_name,
+        stackup: stackup_type,
+        trace: trace_type,
+        layer: layer_type,
       };
       const title = tag_to_title(tag);
       const prepared_title = fuzzysort.prepare(title);
-      const visualiser = new StackupVisualiser(editor.get_viewer_stackup(), visualiser_config);
+      const visualiser = new StackupVisualiser(stackup, false, visualiser_config);
       templates.push({
-        editor,
         tag,
         title,
         prepared_title,

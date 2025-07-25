@@ -1,5 +1,4 @@
 import { type Parameter, type Stackup } from "./stackup.ts";
-import { create_layout_from_stackup } from "./layout.ts";
 import { type StackupGridConfig, StackupGrid } from "./stackup_to_grid.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
@@ -205,7 +204,6 @@ export function search_parameters(
   module: WasmModule,
   target_impedance: number,
   stackup: Stackup, params: Parameter[],
-  get_parameter: (param: Parameter) => number,
   stackup_config: StackupGridConfig,
   search_config: ParameterSearchConfig,
   profiler: Profiler,
@@ -228,7 +226,7 @@ export function search_parameters(
   }
 
   const parameter_label = params
-    .map(param => param.name)
+    .map(param => param.label)
     .filter(name => name !== undefined)
     .join(",");
 
@@ -247,12 +245,8 @@ export function search_parameters(
     };
     profiler.begin(`search_${curr_iter}`, undefined, metadata);
 
-    profiler.begin("create_layout", "Create layout from transmission line stackup");
-    const layout = create_layout_from_stackup(stackup, get_parameter, profiler);
-    profiler.end();
-
     profiler.begin("create_grid", "Create simulation grid from layout");
-    const stackup_grid = new StackupGrid(module, layout, get_parameter, profiler, stackup_config);
+    const stackup_grid = new StackupGrid(module, stackup, stackup_config, profiler);
     profiler.end();
 
     profiler.begin("run", "Perform impedance measurements", {
