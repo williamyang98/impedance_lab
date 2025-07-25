@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, defineEmits, computed, watch, toRef } from "vue";
+import { defineProps, defineEmits, computed, watch } from "vue";
 import { TriangleAlert, SearchIcon, InfoIcon } from "lucide-vue-next";
 import {
   type Stackup,
@@ -14,7 +14,7 @@ const props = defineProps<{
   stackup: Stackup,
 }>();
 
-const stackup = toRef(props.stackup);
+const stackup = computed(() => props.stackup);
 
 const emits = defineEmits<{
   search: [parameters: Parameter[]],
