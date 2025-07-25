@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { providers } from "../../providers/providers.ts";
-import { ref, toRaw, computed, watch, type ComputedGetter } from "vue";
+import { ref, toRaw, computed } from "vue";
 import { Profiler } from '../../utility/profiler.ts';
 import { calculate_via_impedance, type ImpedanceResult } from './impedance.ts';
 import GridViewer from '../../app/electrostatic_2d/GridViewer.vue';
@@ -15,6 +15,7 @@ import LayersEditorView from "./LayersEditorView.vue";
 import { Stackup, type Parameter } from "./stackup.ts";
 import ParameterForm from "./ParameterForm.vue";
 import ImpedanceResultView from "./ImpedanceResultView.vue";
+import { computed_ref } from "../../utility/computed_ref.ts";
 
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const impedance_result = ref<ImpedanceResult | undefined>(undefined);
@@ -43,12 +44,6 @@ function create_stackup(): Stackup {
 }
 
 const stackup = ref(create_stackup());
-function computed_ref<T>(callback: ComputedGetter<T>) {
-  const _value = computed(callback);
-  const value = ref(_value.value);
-  watch(_value, (new_value) => value.value = new_value);
-  return value;
-}
 const stackup_visualiser = computed_ref(() => new StackupVisualiser(stackup.value, is_editing.value));
 
 function mark_parameter_valid(param: Parameter) {
