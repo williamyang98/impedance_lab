@@ -14,6 +14,7 @@ export interface FormParameter {
   impedance_correlation?: "positive" | "negative";
   is_changed(): boolean;
   mark_unchanged(): void;
+  mark_changed(): void;
 }
 
 export interface SizeParameter extends FormParameter {
@@ -308,6 +309,10 @@ export abstract class LayerStackup {
         this.old_value = this.value;
         this.old_unit = this.unit;
       },
+      mark_changed() {
+        this.old_value = undefined;
+        this.old_unit = undefined;
+      },
     }
   }
 
@@ -358,6 +363,9 @@ export abstract class LayerStackup {
       mark_unchanged() {
         this.old_value = this.value;
       },
+      mark_changed() {
+        this.old_value = undefined;
+      },
       impedance_correlation: "negative" as const,
     };
     return epsilon;
@@ -379,6 +387,9 @@ export abstract class LayerStackup {
       },
       mark_unchanged() {
         this.old_value = this.value;
+      },
+      mark_changed() {
+        this.old_value = undefined;
       },
       impedance_correlation: "positive" as const,
     };
@@ -592,7 +603,7 @@ export class ColinearStackup extends LayerStackup {
   trace_spacing: Spacing;
   coplanar_spacing: Spacing;
   layouts: Record<ColinearLayout, LayerTraces>;
-  selected_layout: ColinearLayout = "single";
+  _selected_layout: ColinearLayout = "single";
 
   constructor() {
     super();
@@ -653,6 +664,21 @@ export class ColinearStackup extends LayerStackup {
 
   override has_traces(position: Position): boolean {
     return is_same_position(this.trace_position, position);
+  }
+
+  set selected_layout(layout: ColinearLayout) {
+    const is_changed = layout !== this._selected_layout;
+    this._selected_layout = layout;
+    if (is_changed) {
+      this.trace_width.mark_changed();
+      this.coplanar_width.mark_changed();
+      this.trace_spacing.width.mark_changed();
+      this.coplanar_spacing.width.mark_changed();
+    }
+  }
+
+  get selected_layout(): ColinearLayout {
+    return this._selected_layout;
   }
 
   create_trace_width(label: string, value: number, unit: DistanceUnit): SizeParameter {
@@ -735,7 +761,7 @@ export class BroadsideStackup extends LayerStackup {
   coplanar_spacing: Spacing;
   broadside_spacing: SizeParameter;
   layouts: Record<BroadsideLayout, BroadsideTraces>;
-  selected_layout: BroadsideLayout = "pair";
+  _selected_layout: BroadsideLayout = "pair";
 
   constructor() {
     super();
@@ -875,6 +901,23 @@ export class BroadsideStackup extends LayerStackup {
     if (this.has_traces_pair(position, "right")) return true;
     return false;
   }
+
+  set selected_layout(layout: BroadsideLayout) {
+    const is_changed = layout !== this._selected_layout;
+    this._selected_layout = layout;
+    if (is_changed) {
+      this.trace_width.mark_changed();
+      this.coplanar_width.mark_changed();
+      this.trace_spacing.width.mark_changed();
+      this.coplanar_spacing.width.mark_changed();
+      this.broadside_spacing.mark_changed();
+    }
+  }
+
+  get selected_layout(): BroadsideLayout {
+    return this._selected_layout;
+  }
+
 
   has_traces_pair(position: Position, pair: BroadsidePair): boolean {
     const trace_position = this.get_trace_position(pair);
