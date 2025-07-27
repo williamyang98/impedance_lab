@@ -159,6 +159,7 @@ export abstract class LayerStackup {
 
 
   abstract has_traces(position: Position): boolean;
+  abstract get_traces_in_layer(layer_id: LayerId): Trace[];
 
   get_layer_index(id: LayerId): number {
     const index = this.layer_id_to_index.get(id);
@@ -381,6 +382,26 @@ export abstract class LayerStackup {
       },
       value: 0,
       min: 0,
+      get max(): number | undefined {
+        const traces = this.parent.get_traces_in_layer(layer_id);
+        if (traces.length <= 0) return undefined;
+        const layer = this.parent.get_layer_by_id(layer_id);
+        const trace_height = layer.trace_height;
+        if (trace_height.value === undefined) return undefined;
+        let max_etch_factor = Infinity;
+        for (const trace of traces) {
+          const trace_width = trace.width;
+          if (trace_width.value === undefined) continue;
+          const height = convert_distance(trace_height.value, trace_height.unit, trace_width.unit);
+          const width = trace_width.value;
+          // etch_width = 2*etch_factor*trace_height
+          // etch_factor = etch_width/(2*trace_height)
+          const etch_factor = width/(2*height);
+          max_etch_factor = Math.min(etch_factor, max_etch_factor);
+        }
+        if (max_etch_factor === Infinity) return undefined;
+        return max_etch_factor;
+      },
       old_value: undefined as (number | undefined),
       is_changed() {
         return this.value !== this.old_value;
@@ -666,6 +687,11 @@ export class ColinearStackup extends LayerStackup {
     return is_same_position(this.trace_position, position);
   }
 
+  override get_traces_in_layer(layer_id: LayerId): Trace[] {
+    if (this.trace_position.layer_id !== layer_id) return [];
+    return this.trace_layout.traces;
+  }
+
   set selected_layout(layout: ColinearLayout) {
     const is_changed = layout !== this._selected_layout;
     this._selected_layout = layout;
@@ -900,6 +926,12 @@ export class BroadsideStackup extends LayerStackup {
     if (this.has_traces_pair(position, "left")) return true;
     if (this.has_traces_pair(position, "right")) return true;
     return false;
+  }
+
+  override get_traces_in_layer(layer_id: LayerId): Trace[] {
+    if (this.get_trace_position("left").layer_id === layer_id) return this.trace_layout.left.traces;
+    if (this.get_trace_position("right").layer_id === layer_id) return this.trace_layout.right.traces;
+    return [];
   }
 
   set selected_layout(layout: BroadsideLayout) {
