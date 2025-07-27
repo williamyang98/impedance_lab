@@ -87,7 +87,9 @@ function calculate_impedance() {
 
     new_profiler.end_all();
 
-    new_stackup_grid.parsed_parameters.forEach((param) => { mark_parameter_valid(param); });
+    for (const param of new_stackup_grid.parameter_cache.keys()) {
+      mark_parameter_valid(param);
+    }
     toRaw(stackup_grid.value)?.delete();
     stackup_grid.value = new_stackup_grid;
     impedance_result.value = new_result;

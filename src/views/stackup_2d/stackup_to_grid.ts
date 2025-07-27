@@ -88,7 +88,8 @@ export class StackupGrid extends ManagedObject {
   grid_builder_regions: Region[] = [];
   grid_builder_padding: GridBuilderPadding = {};
   grid_builder: GridBuilder;
-  used_parameters = new Set<Parameter>();
+  // cache parameter value to avoid unnecessary recomputation of complicated min/max bounds
+  parameter_cache = new Map<Parameter, number>();
   profiler?: Profiler;
 
   constructor(
@@ -135,16 +136,25 @@ export class StackupGrid extends ManagedObject {
   }
 
   get_parameter_value(param: Parameter): number {
+    let value = this.parameter_cache.get(param);
+    if (value !== undefined) return value;
     const valid_param = validate_parameter(param);
-    this.used_parameters.add(param);
     switch (valid_param.type) {
-      case "etch_factor": return valid_param.value;
-      case "epsilon": return valid_param.value;
+      case "etch_factor": {
+        value = valid_param.value;
+        break;
+      }
+      case "epsilon": {
+        value = valid_param.value;
+        break;
+      }
       case "size": {
-        const size = convert_distance(valid_param.value, valid_param.unit, this.target_unit);
-        return size;
+        value = convert_distance(valid_param.value, valid_param.unit, this.target_unit);
+        break;
       }
     }
+    this.parameter_cache.set(param, value);
+    return value;
   }
 
   setup_create_traces_x_region(): TracesXRegion {

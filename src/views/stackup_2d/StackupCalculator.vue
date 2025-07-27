@@ -145,9 +145,9 @@ async function calculate_impedance() {
     new_measurement = perform_measurement(new_stackup, new_profiler);
     new_profiler.end();
 
-    new_stackup.used_parameters.forEach((param) => {
+    for (const param of new_stackup.parameter_cache.keys()) {
       param.mark_unchanged();
-    });
+    }
     new_profiler.end();
   } catch (error) {
     toast.error(`calculate_impedance() failed with: ${String(error)}`);
@@ -207,9 +207,9 @@ async function perform_search(search_params: Parameter[]) {
     }
   }
   if (best_stackup_grid !== undefined) {
-    best_stackup_grid.used_parameters.forEach((param) => {
+    for (const param of best_stackup_grid.parameter_cache.keys()) {
       param.mark_unchanged();
-    });
+    }
   }
   is_running.value = false;
 }

@@ -83,7 +83,8 @@ export class StackupGrid extends ManagedObject {
   target_unit: DistanceUnit = "mm";
   readonly calculation_unit: DistanceUnit = "m";
   profiler?: Profiler;
-  parsed_parameters = new Set<Parameter>();
+  // cache parameter values to avoid recomputation of complex min/max bounds
+  parameter_cache = new Map<Parameter, number>();
 
   constructor(module: WasmModule, stackup: Stackup, profiler?: Profiler) {
     super(module);
@@ -134,13 +135,22 @@ export class StackupGrid extends ManagedObject {
   }
 
   setup_get_parameter_value(param: Parameter): number {
+    let value = this.parameter_cache.get(param);
+    if (value !== undefined) return value;
     const valid_param = validate_parameter(param);
-    this.parsed_parameters.add(param);
     switch (valid_param.type) {
-      case "size": return convert_distance(valid_param.value, valid_param.unit, this.target_unit);
-      case "epsilon": return valid_param.value;
-      case "etch_factor": return valid_param.value;
+      case "epsilon":
+      case "etch_factor": {
+        value = valid_param.value;
+        break;
+      }
+      case "size": {
+        value = convert_distance(valid_param.value, valid_param.unit, this.target_unit);
+        break;
+      }
     }
+    this.parameter_cache.set(param, value);
+    return value;
   }
 
   setup_create_regions(stackup: Stackup): ViaBarrelInfo {
