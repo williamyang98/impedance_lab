@@ -19,7 +19,7 @@ interface Tag {
 function tag_to_title(tag: Tag): string {
   return [tag.stackup, tag.layer, tag.trace]
     .join(' ')
-    .split(' ')
+    .split(/[\s_]/)
     .map(word => {
       return (word.at(0)?.toUpperCase() ?? '') + word.substring(1).toLowerCase();
     })
