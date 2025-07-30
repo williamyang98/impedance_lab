@@ -137,6 +137,7 @@ export class Stackup {
     const diameter = {
       parent: this,
       type: "size" as const,
+      label: "DB",
       value: 0.15, unit: "mm" as const,
       description: "Via barrel diameter",
       min: 0,
@@ -171,6 +172,7 @@ export class Stackup {
 
     const copper_thickness = {
       parent: this,
+      label: "TB",
       type: "size" as const,
       value: 0.5, unit: "oz" as const,
       description: "Via barrel copper plating thickness",
@@ -181,11 +183,14 @@ export class Stackup {
         const diameter = convert_distance(param.value, param.unit, this.unit);
         return diameter/2;
       },
-      impedance_correlation: "negative" as const,
+      // TODO: based on approximate inductance models where hollow wires have less ac inductance than solid wires
+      //       this seems counterinuitive, is this actually correct???
+      impedance_correlation: "positive" as const,
     };
 
     const epsilon = {
       type: "epsilon" as const,
+      label: "ERB",
       description: "Barrel filling dielectric constant",
       min: 0,
       value: 3.1,
