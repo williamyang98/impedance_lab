@@ -30,7 +30,7 @@ function create_chart() {
       if (!Number.isFinite(value)) return false;
       return true;
     })
-    .sort((a,b) => a.y - b.y);
+    .sort((a,b) => a.x - b.x);
 
   const x = results.map(result => result.x);
   const y = results.map(result => result.y);
