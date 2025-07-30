@@ -140,7 +140,12 @@ export class Stackup {
       label: "DB",
       value: 0.15, unit: "mm" as const,
       description: "Via barrel diameter",
-      min: 0,
+      get min(): number | undefined {
+        const thickness = this.parent.barrel.copper_thickness;
+        if (thickness.value === undefined) return 0;
+        const min_radius = convert_distance(thickness.value, thickness.unit, this.unit);
+        return min_radius*2;
+      },
       get max(): number | undefined {
         let min_diameter = Infinity;
         const read_diameter = (size?: SizeParameter) => {
@@ -440,7 +445,8 @@ export class Stackup {
       get min() { return this.parent.minimum_feature_size; },
       get label() { return `T${this.parent.get_layer_index(layer_id)}`; },
       description: "Copper thickness",
-      impedance_correlation: "negative" as const,
+      // Z0=sqrt(L/C) and it seems inductance increases faster than capacitance
+      impedance_correlation: "positive" as const,
     }
     this.parameters.copper_thickness.push(thickness);
     return thickness;
