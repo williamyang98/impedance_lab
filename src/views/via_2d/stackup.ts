@@ -197,7 +197,7 @@ export class Stackup {
       type: "epsilon" as const,
       label: "ERB",
       description: "Barrel filling dielectric constant",
-      min: 0,
+      min: 1,
       value: 3.1,
       impedance_correlation: "negative" as const,
     };
@@ -400,7 +400,7 @@ export class Stackup {
       parent: this,
       type: "epsilon" as const,
       value,
-      min: 0,
+      min: 1,
       get label() { return `ER${this.parent.get_layer_index(layer_id)}`; },
       description: "Soldermask height",
       impedance_correlation: "negative" as const,
