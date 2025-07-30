@@ -187,7 +187,7 @@ export class GridBuilderUserData implements GridBuilderConfig {
   constructor(storage: Storage) {
     this.storage = storage;
     const K = keys.mesh_2d_config;
-    this._minimum_grid_resolution = new NumberEntry(storage, K.minimum_grid_resolution, 0.001, "float");
+    this._minimum_grid_resolution = new NumberEntry(storage, K.minimum_grid_resolution, 0.0001, "float");
     this._padding_size_multiplier = new NumberEntry(storage, K.padding_size_multiplier, 5, "float");
     this._max_x_ratio = new NumberEntry(storage, K.max_x_ratio, 0.7, "float");
     this._min_x_subdivisions = new NumberEntry(storage, K.min_x_subdivisions, 10, "integer");
