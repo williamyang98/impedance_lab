@@ -91,7 +91,7 @@ function create_chart() {
           max: y_max,
           title: {
             display: true,
-            text: "Impedance (Ω)",
+            text: props.y_label,
             font: {
               weight: "bold",
               size: 14,
