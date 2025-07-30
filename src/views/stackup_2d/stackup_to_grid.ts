@@ -21,11 +21,6 @@ interface EpsilonValue {
   value: number;
 }
 
-export interface StackupGridConfig extends GridBuilderConfig {
-  min_epsilon_resolution: number; // smallest possible difference in dielectric epsilon values before they are considered the same
-  signal_amplitude: number; // voltage value to use for +/- signals
-}
-
 function validate_parameter(param: Parameter): Parameter & { value: number } {
   if (param.value === undefined) {
     param.error = "Field is required";
@@ -83,7 +78,7 @@ export class StackupGrid extends ManagedObject {
     ek_table: EpsilonValue[];
     soldermask_indices: Set<number>;
   };
-  config: StackupGridConfig;
+  config: GridBuilderConfig;
   traces_x_region: TracesXRegion;
   grid_builder_regions: Region[] = [];
   grid_builder_padding: GridBuilderPadding = {};
@@ -94,7 +89,7 @@ export class StackupGrid extends ManagedObject {
 
   constructor(
     module: WasmModule,
-    stackup: Stackup, config: StackupGridConfig,
+    stackup: Stackup, config: GridBuilderConfig,
     profiler: Profiler | undefined,
   ) {
     super(module);

@@ -73,6 +73,9 @@ export interface GridBuilderConfig {
   min_x_subdivisions: number; // minimum number of grid lines each region should have
   max_y_ratio: number; // maximum rate at which grid regions can grow/shrink relative to their neighbour
   min_y_subdivisions: number; // minimum number of grid lines each region should have
+  // TODO: move these somewhere else since grid builder doesnt actually use them
+  min_epsilon_resolution: number; // smallest possible difference in dielectric epsilon values before they are considered the same
+  signal_amplitude: number; // voltage value to use for +/- signals
 }
 
 export interface GridBuilderPadding {

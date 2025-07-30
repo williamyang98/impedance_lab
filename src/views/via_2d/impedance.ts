@@ -17,7 +17,17 @@ export interface ImpedanceResult {
 }
 
 export function calculate_via_impedance(stackup_grid: StackupGrid, profiler?: Profiler): ImpedanceResult {
+
   const grid = stackup_grid.grid;
+
+  profiler?.begin("bake");
+  grid.bake(profiler);
+  profiler?.end();
+
+  profiler?.begin("run");
+  grid.run(profiler);
+  profiler?.end();
+
   profiler?.begin("energy_homogenous", "Calculate energy stored without dielectric material");
   let energy_homogenous = grid.module.calculate_homogenous_energy_cylindrical(
     grid.ex_field, grid.ey_field,

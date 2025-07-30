@@ -86,18 +86,11 @@ export class StackupGrid extends ManagedObject {
   // cache parameter values to avoid recomputation of complex min/max bounds
   parameter_cache = new Map<Parameter, number>();
 
-  constructor(module: WasmModule, stackup: Stackup, profiler?: Profiler) {
+  constructor(module: WasmModule, stackup: Stackup, grid_builder_config: GridBuilderConfig, profiler?: Profiler) {
     super(module);
     this.profiler = profiler;
+    this.grid_builder_config = grid_builder_config;
     this.via_barrel_parameters = this.setup_create_regions(stackup);
-    this.grid_builder_config = {
-      minimum_grid_resolution: 1e-5,
-      padding_size_multiplier: 10,
-      max_x_ratio: 0.7,
-      min_x_subdivisions: 10,
-      max_y_ratio: 0.7,
-      min_y_subdivisions: 10,
-    };
     this.grid_builder_padding = {
       x_left: true,
       x_right: true,
@@ -120,12 +113,11 @@ export class StackupGrid extends ManagedObject {
     return this.grid_builder.grid;
   }
 
-  setup_push_epsilon(er: number, threshold?: number): number {
-    threshold = threshold ?? 1e-3;
+  setup_push_epsilon(er: number): number {
     for (let i = 0; i < this.epsilon_table.length; i++) {
       const old_er = this.epsilon_table[i];
       const delta = Math.abs(er-old_er);
-      if (delta < threshold) {
+      if (delta < this.grid_builder_config.min_epsilon_resolution) {
         return i;
       }
     }
@@ -336,6 +328,9 @@ export class StackupGrid extends ManagedObject {
 
   configure_voltage() {
     const v_table = this.grid.v_table.array_view;
+    const v_input = this.grid_builder_config.signal_amplitude;
+    this.voltage_table[1] = v_input;
+    this.grid.v_input = v_input;
     v_table.set(this.voltage_table);
   }
 }

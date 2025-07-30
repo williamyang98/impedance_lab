@@ -1,10 +1,10 @@
 import { type DistanceUnit, distance_units } from "../../utility/unit_types.ts";
-import { type StackupGridConfig } from "../../views/stackup_2d/stackup_to_grid.ts";
+import { type GridBuilderConfig } from "../../app/electrostatic_2d/grid_builder.ts";
 import {
   type ComputeBenchmarkConfig,
   type MemoryBandwidthBenchmarkConfig,
 } from "../../views/gpu_benchmark/config.ts";
-import { type ParameterSearchConfig } from "../../views/stackup_2d/search.ts";
+import { type ParameterSearchConfig } from "../../views/parameter_search/search.ts";
 
 function try_into_distance_unit(storage: Storage, key: string, default_value: DistanceUnit): DistanceUnit {
   const value = storage.getItem(key);
@@ -109,14 +109,14 @@ export const keys = {
   size_unit: "size_unit",
   copper_thickness_unit: "copper_thickness_unit",
   mesh_2d_config: {
-    minimum_grid_resolution: "mesh_2d.minimum_grid_resolution",
-    padding_size_multiplier: "mesh_2d.padding_size_multiplier",
-    max_x_ratio: "mesh_2d.max_x_ratio",
-    min_x_subdivisions: "mesh_2d.min_x_subdivisions",
-    max_y_ratio: "mesh_2d.max_y_ratio",
-    min_y_subdivisions: "mesh_2d.min_y_subdivisions",
-    min_epsilon_resolution: "mesh_2d.min_epsilon_resolution",
-    signal_amplitude: "mesh_2d.signal_amplitude",
+    minimum_grid_resolution: "grid_builder.minimum_grid_resolution",
+    padding_size_multiplier: "grid_builder.padding_size_multiplier",
+    max_x_ratio: "grid_builder.max_x_ratio",
+    min_x_subdivisions: "grid_builder.min_x_subdivisions",
+    max_y_ratio: "grid_builder.max_y_ratio",
+    min_y_subdivisions: "grid_builder.min_y_subdivisions",
+    min_epsilon_resolution: "grid_builder.min_epsilon_resolution",
+    signal_amplitude: "grid_builder.signal_amplitude",
   },
   compute_benchmark_config: {
     total_compute_units: "compute_benchmark.total_compute_units",
@@ -140,7 +140,7 @@ export class UserData {
   _is_dark_mode: BooleanEntry;
   _size_unit: DistanceEntry;
   _copper_thickness_unit: DistanceEntry;
-  stackup_2d_mesh_config: Stackup2DMeshConfig;
+  grid_builder_config: GridBuilderUserData;
   compute_benchmark_config: UserComputeBenchmarkConfig;
   memory_bandwidth_benchmark_config: UserMemoryBandwidthBenchmarkConfig;
   parameter_search_config: UserParameterSearchConfig;
@@ -150,7 +150,7 @@ export class UserData {
     this._is_dark_mode = new BooleanEntry(storage, keys.is_dark_mode, false);
     this._size_unit = new DistanceEntry(storage, keys.size_unit, "mm");
     this._copper_thickness_unit = new DistanceEntry(storage, keys.copper_thickness_unit, "oz");
-    this.stackup_2d_mesh_config = new Stackup2DMeshConfig(storage);
+    this.grid_builder_config = new GridBuilderUserData(storage);
     this.compute_benchmark_config = new UserComputeBenchmarkConfig(storage);
     this.memory_bandwidth_benchmark_config = new UserMemoryBandwidthBenchmarkConfig(storage);
     this.parameter_search_config = new UserParameterSearchConfig(storage);
@@ -173,7 +173,7 @@ export class UserData {
 
 }
 
-export class Stackup2DMeshConfig implements StackupGridConfig {
+export class GridBuilderUserData implements GridBuilderConfig {
   storage: Storage;
   _minimum_grid_resolution: NumberEntry;
   _padding_size_multiplier: NumberEntry;

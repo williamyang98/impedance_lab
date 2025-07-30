@@ -14,20 +14,19 @@ import { useRoute, type LocationQuery } from "vue-router";
 import LayersEditorView from "./LayersEditorView.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
-import ParameterSearchResultsGraph from "./ParameterSearchResultsGraph.vue";
 import GridViewer from "../../app/electrostatic_2d/GridViewer.vue";
 import GridBuilderView from "../../app/electrostatic_2d/GridBuilderView.vue";
 import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
 import ExportView from "./ExportView.vue";
 import TabsView from "../../utility/TabsView.vue";
-import MeshConfigForm from "./MeshConfigForm.vue";
+import GridBuilderConfigForm from "../../app/electrostatic_2d/GridBuilderConfigForm.vue";
 import VisualiserView from "../visualiser_2d/VisualiserView.vue";
-import ParameterSearchConfigForm from "./ParameterSearchConfigForm.vue";
+import ParameterSearchResultsGraph from "../parameter_search/ParameterSearchResultsGraph.vue";
+import ParameterSearchConfigForm from "../parameter_search/ParameterSearchConfigForm.vue";
 import { PencilIcon, EyeIcon, SettingsIcon } from "lucide-vue-next";
 // ts imports
 import {type Parameter, type StackupType, stackup_types } from "./stackup.ts";
 import { StackupGrid } from "./stackup_to_grid.ts";
-import { type SearchResults, search_parameters } from "./search.ts";
 import { type Measurement, perform_measurement } from "./measurement.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { providers } from "../../providers/providers.ts";
@@ -37,6 +36,7 @@ import {
   create_broadside_stackup, create_colinear_stackup,
   type LayerTemplateType, layer_template_types,
 } from "./stackup_templates.ts";
+import { search_parameters, type SearchResults } from "./search.ts";
 
 const toast = providers.toast_manager.value;
 const user_data = providers.user_data.value;
@@ -132,7 +132,7 @@ async function calculate_impedance() {
     new_stackup = new StackupGrid(
       wasm_module,
       stackup.value,
-      toRaw(user_data.stackup_2d_mesh_config),
+      toRaw(user_data.grid_builder_config),
       new_profiler,
     );
     new_profiler.end();
@@ -182,7 +182,7 @@ async function perform_search(search_params: Parameter[]) {
       target_impedance.value,
       stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
-      user_data.stackup_2d_mesh_config,
+      user_data.grid_builder_config,
       user_data.parameter_search_config,
       new_profiler, toast,
     );
@@ -298,7 +298,7 @@ const visualiser = computed_ref(() => {
                   <div class="text-lg font-bold p-0">2D Mesh Settings</div>
                   <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
                 </form>
-                <MeshConfigForm :config="user_data.stackup_2d_mesh_config"/>
+                <GridBuilderConfigForm :config="user_data.grid_builder_config"/>
               </div>
               <form method="dialog" class="modal-backdrop">
                 <button>Close</button>
@@ -328,7 +328,20 @@ const visualiser = computed_ref(() => {
     </div>
   </template>
   <template #b-1>
-    <ParameterSearchResultsGraph v-if="search_results" :results="search_results"/>
+    <ParameterSearchResultsGraph
+      v-if="search_results"
+      :results="search_results.results.map(result => {
+        return {
+          x: result.value,
+          y: result.impedance,
+          error: result.error,
+        };
+      })"
+      :selected_index="search_results.results.indexOf(search_results.best_result)"
+      :x_label="search_results.parameter_label"
+      :y_label="'Z0 (Ω)'"
+      :title="`Search Curve (${search_results.parameter_label})`"
+    />
     <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
       Perform parameter search to see search curve
     </div>

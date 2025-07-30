@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { defineProps, computed, ref, watch } from 'vue';
-import { type StackupGridConfig } from './stackup_to_grid.ts';
+import { type GridBuilderConfig } from "./grid_builder.ts";
 import { TriangleAlert } from "lucide-vue-next";
 import { NumberField, integer_validator, float_validator } from "../../utility/form_validation.ts";
 
 const props = defineProps<{
-  config: StackupGridConfig,
+  config: GridBuilderConfig,
 }>();
 
 // modify this and validate in realtime to update
 const config = computed(() => props.config);
 
-function create_fields(config: StackupGridConfig) {
+function create_fields(config: GridBuilderConfig) {
   return [
     new NumberField(config, "minimum_grid_resolution", "Minimum grid resolution", 1e-4, undefined, undefined, float_validator),
     new NumberField(config, "padding_size_multiplier", "Padding ratio", 1, 20, undefined, float_validator),

@@ -236,6 +236,7 @@ export class Stackup {
         if (Dantipad?.value === undefined) return undefined;
         return convert_distance(Dantipad.value, Dantipad.unit, this.unit);
       },
+      impedance_correlation: "negative" as const,
     };
     this.parameters.size.push(Dpad);
     return Dpad;

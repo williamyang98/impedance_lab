@@ -1,7 +1,7 @@
 import { type Parameter, type Stackup } from "./stackup.ts";
 import { StackupGrid } from "./stackup_to_grid.ts";
 import { type GridBuilderConfig } from "../../app/electrostatic_2d/grid_builder.ts";
-import { type Measurement, perform_measurement } from "./measurement.ts";
+import { type ImpedanceResult, calculate_via_impedance } from "./impedance.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
 import { WasmModule } from "../../wasm/index.ts";
 import { Profiler } from "../../utility/profiler.ts";
@@ -9,23 +9,20 @@ import { run_parameter_search, type ParameterSearchConfig } from "../parameter_s
 
 export class SearchResult {
   value: number;
-  impedance: number;
+  impedance: ImpedanceResult;
   iteration: number;
   error: number;
-  measurement: Measurement;
 
   constructor(
     value: number,
-    impedance: number,
+    impedance: ImpedanceResult,
     iteration: number,
     error: number,
-    measurement: Measurement,
   ) {
     this.value = value;
     this.impedance = impedance;
     this.iteration = iteration;
     this.error = error;
-    this.measurement = measurement;
   }
 }
 
@@ -103,17 +100,17 @@ export function search_parameters(
     const stackup_grid = new StackupGrid(module, stackup, grid_builder_config, profiler);
     profiler.end();
 
-    profiler.begin("run", "Perform impedance measurements", {
+    profiler.begin("calculate_impedance", "Perform impedance measurements", {
       "Total Columns": `${stackup_grid.grid.width}`,
       "Total Rows": `${stackup_grid.grid.height}`,
       "Total Cells": `${stackup_grid.grid.width*stackup_grid.grid.height}`,
     });
-    const measurement = perform_measurement(stackup_grid, profiler);
+    const measurement = calculate_via_impedance(stackup_grid, profiler);
     profiler.end();
 
     profiler.end();
 
-    const actual_impedance = measurement.type == "single" ? measurement.masked.Z0 : measurement.odd_masked.Z0;
+    const actual_impedance = measurement.Z0;
     const error_impedance = target_impedance-actual_impedance;
     const error = impedance_correlation == "positive" ? -error_impedance : error_impedance;
 
@@ -126,10 +123,9 @@ export function search_parameters(
 
     const result = new SearchResult(
       value,
-      actual_impedance,
+      measurement,
       curr_iter,
       error,
-      measurement,
     );
 
     results.push(result);

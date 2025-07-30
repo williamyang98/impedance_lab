@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { defineProps, ref, useTemplateRef, watch, computed } from "vue";
-import { type SearchResults } from "./search.ts";
 import Chart from "chart.js/auto";
 
+export interface SearchResult {
+  x: number;
+  y: number;
+  error: number;
+}
+
 const props = defineProps<{
-  results: SearchResults,
+  results: SearchResult[],
+  title?: string,
+  x_label?: string,
+  y_label?: string,
+  selected_index?: number,
 }>();
 
 const grid_canvas_elem = useTemplateRef<HTMLCanvasElement>("grid-canvas");
@@ -14,18 +23,17 @@ function create_chart() {
   const grid_canvas = grid_canvas_elem.value;
   if (grid_canvas === null) return;
 
-  const search = props.results;
-  const results = search.results
+  const results = props.results
     .filter(result => {
-      const value = result.error;
+      const value = result.y;
       if (Number.isNaN(value)) return false;
       if (!Number.isFinite(value)) return false;
       return true;
     })
-    .sort((a,b) => a.value - b.value);
+    .sort((a,b) => a.y - b.y);
 
-  const x = results.map(result => result.value);
-  const y = results.map(result => result.impedance);
+  const x = results.map(result => result.x);
+  const y = results.map(result => result.y);
 
   let x_min = x.reduce((a,b) => Math.min(a,b), Infinity);
   let x_max = x.reduce((a,b) => Math.max(a,b), -Infinity);
@@ -44,8 +52,8 @@ function create_chart() {
 
   const markers = results.map(result => {
     return {
-      x: result.value,
-      y: result.impedance,
+      x: result.x,
+      y: result.y,
     };
   })
 
@@ -70,7 +78,7 @@ function create_chart() {
           max: x_max,
           title: {
             display: true,
-            text: props.results.parameter_label,
+            text: props.x_label,
             font: {
               weight: "bold",
               size: 14,
@@ -97,7 +105,7 @@ function create_chart() {
         },
         title: {
           display: true,
-          text: `Search Curve (${props.results.parameter_label})`,
+          text: props.title,
           font: {
             size: 16,
           },
@@ -133,19 +141,19 @@ watch(results, () => {
           <thead>
             <tr>
               <th>Step</th>
-              <th>{{ results.parameter_label }}</th>
-              <th>Z0 (Ω)</th>
+              <th>{{ x_label }}</th>
+              <th>{{ y_label }}</th>
               <th>Error</th>
             </tr>
           </thead>
           <tbody>
             <tr
-              v-for="(result, index) in results.results" :key="index"
-              :class="`${result == results.best_result ? 'bg-success' : ''}`"
+              v-for="(result, index) in results" :key="index"
+              :class="`${index === selected_index ? 'bg-success' : ''}`"
             >
-              <td class="font-medium">{{ result.iteration }}</td>
-              <td>{{ result.value.toPrecision(3) }}</td>
-              <td>{{ result.impedance.toPrecision(3) }}</td>
+              <td class="font-medium">{{ index }}</td>
+              <td>{{ result.x.toPrecision(3) }}</td>
+              <td>{{ result.y.toPrecision(3) }}</td>
               <td>{{ result.error.toPrecision(3) }}</td>
             </tr>
           </tbody>
