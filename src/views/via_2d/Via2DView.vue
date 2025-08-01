@@ -170,8 +170,8 @@ async function perform_search(search_params: Parameter[]) {
 <TabsView :initial_tab="'0'">
   <template #h-0>Result</template>
   <template #b-0>
-    <div class="grid grid-cols-3 gap-2">
-      <div class="card card-border bg-base-100">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
+      <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
           <h2 class="card-title flex flex-row items-center justify-between gap-x-1 w-full">
             <span>Stackup</span>
@@ -182,11 +182,11 @@ async function perform_search(search_params: Parameter[]) {
           </h2>
           <div class="h-fit w-full flex flex-col gap-y-1">
             <LayersEditorView :stackup="stackup" v-if="is_editing"/>
-            <VisualiserView :visualiser="stackup_visualiser"/>
+            <VisualiserView :visualiser="stackup_visualiser" class="bg-white p-1 rounded-xs"/>
           </div>
         </div>
       </div>
-      <div class="card card-border bg-base-100">
+      <div class="w-full card card-border bg-base-100">
         <div class="card-body p-3">
           <h2 class="card-title flex flex-row items-center justify-between gap-x-1 w-full">
             <span>Parameters</span>
@@ -213,7 +213,7 @@ async function perform_search(search_params: Parameter[]) {
           />
         </div>
       </div>
-      <div class="card card-border bg-base-100">
+      <div class="w-full card card-border bg-base-100">
         <div class="card-body">
           <h2 class="card-title w-full flex flex-row justify-between">
             <span>Impedance</span>

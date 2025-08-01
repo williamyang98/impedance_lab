@@ -56,12 +56,12 @@ export interface Position {
 export interface SurfaceLayer {
   readonly type: "surface";
   id: LayerId;
-  soldermask?: {
-    height: SizeParameter;
-    epsilon: EpsilonParameter;
-  };
+  soldermask_height: SizeParameter;
+  soldermask_epsilon: EpsilonParameter;
   copper_thickness: SizeParameter;
   plane: ReferencePlane;
+  has_soldermask: boolean;
+  get orientation(): Orientation;
 }
 
 export interface InnerLayer {
@@ -235,7 +235,7 @@ export class Stackup {
       parent: this,
       type: "size" as const,
       value: 0.25, unit: "mm" as const,
-      get label() { return `D${this.parent.get_layer_index(position.layer_id)}`; },
+      get label() { return `DP${this.parent.get_layer_index(position.layer_id)}`; },
       get min(): number | undefined {
         const Dbarrel = this.parent.barrel.diameter;
         if (Dbarrel.value === undefined) return undefined;
@@ -300,7 +300,7 @@ export class Stackup {
       parent: this,
       type: "size" as const,
       value: 0.35, unit: "mm" as const,
-      get label() { return `D${this.parent.get_layer_index(position.layer_id)}`; },
+      get label() { return `DA${this.parent.get_layer_index(position.layer_id)}`; },
       description: "Antipad diameter",
       get min(): number {
         const Dpad = this.parent.get_via_pad(position);
@@ -423,20 +423,6 @@ export class Stackup {
     return { height, epsilon };
   }
 
-  add_soldermask(layer_id: LayerId) {
-    const layer_index = this.get_layer_index(layer_id);
-    const layer = this.layers[layer_index];
-    if (layer.type !== "surface") return;
-    layer.soldermask = this.create_soldermask(layer_id);
-  }
-
-  remove_soldermask(layer_id: LayerId) {
-    const layer_index = this.get_layer_index(layer_id);
-    const layer = this.layers[layer_index];
-    if (layer.type !== "surface") return;
-    layer.soldermask = undefined;
-  }
-
   create_copper_thickness(layer_id: LayerId, value: number, unit: DistanceUnit): SizeParameter {
     const thickness = {
       parent: this,
@@ -505,13 +491,30 @@ export class Stackup {
 
   create_surface_layer(): SurfaceLayer {
     const layer_id = this.layer_id_store.own();
-    return {
-      type: "surface",
+    const soldermask_height = {
+      parent: this,
+      type: "size" as const,
+      value: 0.015, unit: "mm" as const,
+      get label() { return `H${this.parent.get_layer_index(layer_id)}`; },
+      description: "Dielectric height",
+      get min() { return this.parent.minimum_feature_size; },
+      impedance_correlation: "positive" as const,
+    };
+    const layer = {
+      type: "surface" as const,
       id: layer_id,
-      soldermask: this.create_soldermask(layer_id),
+      parent: this,
+      soldermask_epsilon: this.create_epsilon_parameter(layer_id, 3.3),
+      soldermask_height,
+      has_soldermask: true,
+      get orientation(): Orientation {
+        const index = this.parent.get_layer_index(this.id);
+        return (index === 0) ? "bottom" : "top";
+      },
       copper_thickness: this.create_copper_thickness(layer_id, 1, "oz"),
       plane: this.create_reference_plane({ layer_id, orientation: "top" }),
-    }
+    };
+    return layer;
   }
 
   // operations on layers array are addressed by index

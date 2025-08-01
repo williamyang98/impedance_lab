@@ -218,13 +218,13 @@ export class StackupGrid extends ManagedObject {
         case "surface": {
           // soldermask
           let mask_height = undefined;
-          if (layer.soldermask) {
+          if (layer.has_soldermask) {
             mask_height = 0;
-            mask_height += this.setup_get_parameter_value(layer.soldermask.height);
+            mask_height += this.setup_get_parameter_value(layer.soldermask_height);
             if (layer.plane.has_copper) {
               mask_height += this.setup_get_parameter_value(layer.copper_thickness);
             }
-            const epsilon = this.setup_get_parameter_value(layer.soldermask.epsilon)
+            const epsilon = this.setup_get_parameter_value(layer.soldermask_epsilon)
             const y_top = y_offset;
             const y_bottom = y_top+mask_height;
             create_dielectric_layer(y_top, y_bottom, epsilon);
@@ -233,9 +233,8 @@ export class StackupGrid extends ManagedObject {
           if (layer.plane.has_copper) {
             trace_height = this.setup_get_parameter_value(layer.copper_thickness);
             let y_top = y_offset;
-            const is_bottom = (i == 0); // soldermask orientation
-            if (is_bottom && layer.soldermask) {
-              y_top += this.setup_get_parameter_value(layer.soldermask.height);
+            if (layer.orientation === "bottom" && layer.has_soldermask) {
+              y_top += this.setup_get_parameter_value(layer.soldermask_height);
             }
             const y_bottom = y_top+trace_height;
             create_reference_plane(layer.plane, y_top, y_bottom);

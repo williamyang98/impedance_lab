@@ -74,9 +74,9 @@ class Form {
           break;
         }
         case "surface": {
-          if (layer.soldermask) {
-            this.epsilon_params.push(layer.soldermask.epsilon);
-            this.soldermask_height_params.push(layer.soldermask.height);
+          if (layer.has_soldermask) {
+            this.epsilon_params.push(layer.soldermask_epsilon);
+            this.soldermask_height_params.push(layer.soldermask_height);
           }
           if (layer.plane.has_copper) {
             this.copper_plane_thickness_params.push(layer.copper_thickness);

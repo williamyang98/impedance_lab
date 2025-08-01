@@ -77,6 +77,7 @@ function get_view_box(viewport: Viewport): string {
   :viewBox="get_view_box(viewport)"
   preserveAspectRatio="xMidYMid meet"
   class="w-full h-full select-text"
+  :class="$attrs.class"
 >
 <template v-for="(e, index) of entities" :key="index">
 <!--Shapes-->
