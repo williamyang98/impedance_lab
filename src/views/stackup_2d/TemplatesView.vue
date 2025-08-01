@@ -9,6 +9,7 @@ import { type VisualiserConfig, get_default_viewer_config, StackupVisualiser } f
 import { SearchIcon } from "lucide-vue-next";
 import "fuzzysort";
 import fuzzysort from "fuzzysort";
+import { endpoints_table } from "../../routes.ts";
 
 interface Tag {
   stackup: string;
@@ -74,9 +75,15 @@ for (const layer_type of layer_template_types) {
 
 const router = useRouter();
 
-function get_template_url(tagged_editor: Template): string {
+const calculator_endpoint = endpoints_table.get("2d_transmission_line_calculator")?.route.path;
+if (calculator_endpoint === undefined) {
+  console.error("Failed to get calculator endpoint route to jump to for templates");
+}
+
+function get_template_url(tagged_editor: Template): string | undefined {
+  if (calculator_endpoint === undefined) return undefined;
   const query_string = tag_to_query_string(tagged_editor.tag);
-  const url = `/2d_stackup/editor?${query_string}`;
+  const url = `${calculator_endpoint}?${query_string}`;
   return router.resolve(url).href;
 }
 
