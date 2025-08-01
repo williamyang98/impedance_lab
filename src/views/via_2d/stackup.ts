@@ -148,23 +148,23 @@ export class Stackup {
       },
       get max(): number | undefined {
         let min_diameter = Infinity;
-        const read_diameter = (size?: SizeParameter) => {
-          if (size?.value === undefined) return;
+        const read_diameter = (size: SizeParameter) => {
+          if (size.value === undefined) return;
           const diameter = convert_distance(size.value, size.unit, this.unit);
           min_diameter = Math.min(min_diameter, diameter);
         };
         for (const layer of this.parent.layers) {
           switch (layer.type) {
             case "surface": {
-              read_diameter(layer.plane.Dpad);
-              read_diameter(layer.plane.Dantipad);
+              if (layer.plane.has_pad) read_diameter(layer.plane.Dpad);
+              if (layer.plane.has_plane) read_diameter(layer.plane.Dantipad);
               break;
             }
             case "inner": {
-              read_diameter(layer.planes.top.Dpad);
-              read_diameter(layer.planes.top.Dantipad);
-              read_diameter(layer.planes.bottom.Dpad);
-              read_diameter(layer.planes.bottom.Dantipad);
+              if (layer.planes.top.has_pad) read_diameter(layer.planes.top.Dpad);
+              if (layer.planes.top.has_plane) read_diameter(layer.planes.top.Dantipad);
+              if (layer.planes.bottom.has_pad) read_diameter(layer.planes.bottom.Dpad);
+              if (layer.planes.bottom.has_plane) read_diameter(layer.planes.bottom.Dantipad);
               break;
             }
           }
