@@ -44,10 +44,10 @@ function create_stackup(): Stackup {
   stackup.layers.push(L0, L1, L2, L3);
   stackup.regenerate_id_to_index();
 
-  L0.plane.add_via_pad?.();
-  L3.plane.add_via_pad?.();
-  L1.planes.bottom.add_via_pad?.();
-  L1.planes.bottom.add_reference_plane?.();
+  L0.plane.has_pad = true;
+  L3.plane.has_pad = true;
+  L1.planes.bottom.has_pad = true;
+  L1.planes.bottom.has_plane = true;
   return stackup;
 }
 

@@ -39,11 +39,11 @@ export interface ViaBarrel {
 }
 
 export interface ReferencePlane {
-  Dpad?: SizeParameter;
-  Dantipad?: SizeParameter;
+  Dpad: SizeParameter;
+  Dantipad: SizeParameter;
+  has_pad: boolean;
+  has_plane: boolean;
   get has_copper(): boolean;
-  add_via_pad?: () => void;
-  add_reference_plane?: () => void;
 }
 
 export type LayerId = number;
@@ -212,189 +212,6 @@ export class Stackup {
     }
   }
 
-  can_add_via_pad(_position: Position): boolean {
-    return true;
-  }
-
-  get_via_pad(position: Position): SizeParameter | undefined {
-    const layer_index = this.get_layer_index(position.layer_id);
-    const layer = this.layers[layer_index];
-    switch (layer.type) {
-      case "surface": return layer.plane.Dpad;
-      case "inner": {
-        switch (position.orientation) {
-          case "top": return layer.planes.top.Dpad;
-          case "bottom": return layer.planes.bottom.Dpad;
-        }
-      }
-    }
-  }
-
-  create_via_pad(position: Position): SizeParameter {
-    const Dpad = {
-      parent: this,
-      type: "size" as const,
-      value: 0.25, unit: "mm" as const,
-      get label() { return `DP${this.parent.get_layer_index(position.layer_id)}`; },
-      get min(): number | undefined {
-        const Dbarrel = this.parent.barrel.diameter;
-        if (Dbarrel.value === undefined) return undefined;
-        return convert_distance(Dbarrel.value, Dbarrel.unit, this.unit);
-      },
-      get max(): number | undefined {
-        const Dantipad = this.parent.get_reference_plane_antipad(position);
-        if (Dantipad?.value === undefined) return undefined;
-        return convert_distance(Dantipad.value, Dantipad.unit, this.unit);
-      },
-      impedance_correlation: "negative" as const,
-    };
-    this.parameters.size.push(Dpad);
-    return Dpad;
-  }
-
-  add_via_pad(position: Position) {
-    const layer_index = this.get_layer_index(position.layer_id);
-    const layer = this.layers[layer_index];
-    const Dpad = this.create_via_pad(position);
-    switch (layer.type) {
-      case "surface": {
-        layer.plane.Dpad = Dpad;
-        break;
-      }
-      case "inner": {
-        switch (position.orientation) {
-          case "top": {
-            layer.planes.top.Dpad = Dpad;
-            break;
-          }
-          case "bottom": {
-            layer.planes.bottom.Dpad = Dpad;
-            break;
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  can_add_reference_plane(_position: Position): boolean {
-    return true;
-  }
-
-  get_reference_plane_antipad(position: Position): SizeParameter | undefined {
-    const layer_index = this.get_layer_index(position.layer_id);
-    const layer = this.layers[layer_index];
-    switch (layer.type) {
-      case "surface": return layer.plane.Dantipad;
-      case "inner": {
-        switch (position.orientation) {
-          case "top": return layer.planes.top.Dantipad;
-          case "bottom": return layer.planes.bottom.Dantipad;
-        }
-      }
-    }
-  }
-
-  create_reference_plane_antipad(position: Position): SizeParameter {
-    const Dantipad = {
-      parent: this,
-      type: "size" as const,
-      value: 0.35, unit: "mm" as const,
-      get label() { return `DA${this.parent.get_layer_index(position.layer_id)}`; },
-      description: "Antipad diameter",
-      get min(): number {
-        const Dpad = this.parent.get_via_pad(position);
-        if (Dpad?.value === undefined) return 0;
-        return convert_distance(Dpad.value, Dpad.unit, this.unit);
-      },
-      impedance_correlation: "positive" as const,
-    };
-    this.parameters.size.push(Dantipad);
-    return Dantipad;
-  }
-
-  add_reference_plane(position: Position) {
-    const layer_id = position.layer_id;
-    const layer_index = this.get_layer_index(layer_id);
-    const layer = this.layers[layer_index];
-    const Dantipad = this.create_reference_plane_antipad(position);
-    switch (layer.type) {
-      case "surface": {
-        layer.plane.Dantipad = Dantipad;
-        break;
-      }
-      case "inner": {
-        switch (position.orientation) {
-          case "top": {
-            layer.planes.top.Dantipad = Dantipad;
-            break;
-          }
-          case "bottom": {
-            layer.planes.bottom.Dantipad = Dantipad;
-            break;
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  can_remove_via_pad(_position: Position): boolean {
-    return true;
-  }
-
-  remove_via_pad(position: Position) {
-    const layer_index = this.get_layer_index(position.layer_id);
-    const layer = this.layers[layer_index];
-    switch (layer.type) {
-      case "surface": {
-        layer.plane.Dpad = undefined;
-        break;
-      }
-      case "inner": {
-        switch (position.orientation) {
-          case "top": {
-            layer.planes.top.Dpad = undefined;
-            break;
-          }
-          case "bottom": {
-            layer.planes.bottom.Dpad = undefined;
-            break;
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  can_remove_reference_plane(_position: Position): boolean {
-    return true;
-  }
-
-  remove_reference_plane(position: Position) {
-    const layer_index = this.get_layer_index(position.layer_id);
-    const layer = this.layers[layer_index];
-    switch (layer.type) {
-      case "surface": {
-        layer.plane.Dantipad = undefined;
-        break;
-      }
-      case "inner": {
-        switch (position.orientation) {
-          case "top": {
-            layer.planes.top.Dantipad = undefined;
-            break;
-          }
-          case "bottom": {
-            layer.planes.bottom.Dantipad = undefined;
-            break;
-          }
-        }
-        break;
-      }
-    }
-  }
-
   create_epsilon_parameter(layer_id: LayerId, value: number): EpsilonParameter {
     const epsilon = {
       parent: this,
@@ -438,28 +255,66 @@ export class Stackup {
     return thickness;
   }
 
-  create_reference_plane(position: Position): ReferencePlane {
-    const plane = {
+  // create reference planes with shared pad/antipad parameters
+  create_reference_planes(layer_id: LayerId, count: number): ReferencePlane[] {
+    const planes: ReferencePlane[] = [];
+    for (let i = 0; i < count; i++) {
+      planes.push({
+        Dantipad: {} as SizeParameter,
+        Dpad: {} as SizeParameter,
+        has_pad: false,
+        has_plane: false,
+        get has_copper() {
+          return this.has_pad || this.has_plane;
+        },
+      });
+    }
+
+    const Dpad = {
       parent: this,
-      Dantipad: undefined as (SizeParameter | undefined),
-      Dpad: undefined as (SizeParameter | undefined),
-      get has_copper() {
-        return this.Dantipad !== undefined || this.Dpad !== undefined;
+      planes,
+      type: "size" as const,
+      value: 0.25, unit: "mm" as const,
+      get label() { return `DP${this.parent.get_layer_index(layer_id)}`; },
+      get min(): number | undefined {
+        const Dbarrel = this.parent.barrel.diameter;
+        if (Dbarrel.value === undefined) return undefined;
+        return convert_distance(Dbarrel.value, Dbarrel.unit, this.unit);
       },
-      get add_via_pad() {
-        if (this.parent.can_add_via_pad(position)) {
-          return () => { this.parent.add_via_pad(position); };
-        }
-        return undefined;
+      get max(): number | undefined {
+        const plane = this.planes.find(plane => plane.has_plane);
+        if (plane === undefined) return undefined;
+        const Dantipad = plane.Dantipad;
+        if (Dantipad.value === undefined) return undefined;
+        return convert_distance(Dantipad.value, Dantipad.unit, this.unit);
       },
-      get add_reference_plane() {
-        if (this.parent.can_add_reference_plane(position)) {
-          return () => { this.parent.add_reference_plane(position); };
-        }
-        return undefined;
-      }
+      impedance_correlation: "negative" as const,
     };
-    return plane;
+
+    const Dantipad = {
+      parent: this,
+      planes,
+      type: "size" as const,
+      value: 0.35, unit: "mm" as const,
+      get label() { return `DA${this.parent.get_layer_index(layer_id)}`; },
+      description: "Antipad diameter",
+      get min(): number {
+        const plane = this.planes.find(plane => plane.has_pad);
+        if (plane === undefined) return 0;
+        const Dpad = plane.Dpad;
+        if (Dpad.value === undefined) return 0;
+        return convert_distance(Dpad.value, Dpad.unit, this.unit);
+      },
+      impedance_correlation: "positive" as const,
+    };
+
+    this.parameters.size.push(Dpad);
+    this.parameters.size.push(Dantipad);
+    for (const plane of planes) {
+      plane.Dantipad = Dantipad;
+      plane.Dpad = Dpad;
+    }
+    return planes;
   }
 
   create_inner_layer(): InnerLayer {
@@ -476,6 +331,7 @@ export class Stackup {
     this.parameters.size.push(height);
     const copper_thickness = this.create_copper_thickness(layer_id, 1, "oz");
     const epsilon = this.create_epsilon_parameter(layer_id, 4.1);
+    const planes = this.create_reference_planes(layer_id, 2);
     return {
       type: "inner",
       id: layer_id,
@@ -483,8 +339,8 @@ export class Stackup {
       epsilon,
       planes: {
         copper_thickness,
-        top: this.create_reference_plane({ layer_id, orientation: "top" }),
-        bottom: this.create_reference_plane({ layer_id, orientation: "bottom" }),
+        top: planes[0],
+        bottom: planes[1],
       },
     }
   }
@@ -500,6 +356,7 @@ export class Stackup {
       get min() { return this.parent.minimum_feature_size; },
       impedance_correlation: "positive" as const,
     };
+    const plane = this.create_reference_planes(layer_id, 1)[0];
     const layer = {
       type: "surface" as const,
       id: layer_id,
@@ -512,7 +369,7 @@ export class Stackup {
         return (index === 0) ? "bottom" : "top";
       },
       copper_thickness: this.create_copper_thickness(layer_id, 1, "oz"),
-      plane: this.create_reference_plane({ layer_id, orientation: "top" }),
+      plane,
     };
     return layer;
   }

@@ -51,6 +51,9 @@ class Form {
   constructor(stackup: Stackup) {
     this.stackup = stackup;
 
+    const via_pad_diameter_params = new Set<SizeParameter>();
+    const plane_antipad_diameter_params = new Set<SizeParameter>();
+
     for (const layer of stackup.layers) {
       switch (layer.type) {
         case "inner": {
@@ -59,17 +62,17 @@ class Form {
           if (layer.planes.top.has_copper || layer.planes.bottom.has_copper) {
             this.copper_plane_thickness_params.push(layer.planes.copper_thickness);
           }
-          if (layer.planes.top.Dpad !== undefined) {
-            this.via_pad_diameter_params.push(layer.planes.top.Dpad);
+          if (layer.planes.top.has_pad) {
+            via_pad_diameter_params.add(layer.planes.top.Dpad);
           }
-          if (layer.planes.bottom.Dpad !== undefined) {
-            this.via_pad_diameter_params.push(layer.planes.bottom.Dpad);
+          if (layer.planes.bottom.has_pad) {
+            via_pad_diameter_params.add(layer.planes.bottom.Dpad);
           }
-          if (layer.planes.top.Dantipad !== undefined) {
-            this.plane_antipad_diameter_params.push(layer.planes.top.Dantipad);
+          if (layer.planes.top.has_plane) {
+            plane_antipad_diameter_params.add(layer.planes.top.Dantipad);
           }
-          if (layer.planes.bottom.Dantipad !== undefined) {
-            this.plane_antipad_diameter_params.push(layer.planes.bottom.Dantipad);
+          if (layer.planes.bottom.has_plane) {
+            plane_antipad_diameter_params.add(layer.planes.bottom.Dantipad);
           }
           break;
         }
@@ -81,16 +84,19 @@ class Form {
           if (layer.plane.has_copper) {
             this.copper_plane_thickness_params.push(layer.copper_thickness);
           }
-          if (layer.plane.Dpad !== undefined) {
-            this.via_pad_diameter_params.push(layer.plane.Dpad);
+          if (layer.plane.has_pad) {
+            via_pad_diameter_params.add(layer.plane.Dpad);
           }
-          if (layer.plane.Dantipad !== undefined) {
-            this.plane_antipad_diameter_params.push(layer.plane.Dantipad);
+          if (layer.plane.has_plane) {
+            plane_antipad_diameter_params.add(layer.plane.Dantipad);
           }
           break;
         }
       }
     }
+
+    this.via_pad_diameter_params = Array.from(via_pad_diameter_params);
+    this.plane_antipad_diameter_params = Array.from(plane_antipad_diameter_params);
     this.barrel_diameter = stackup.barrel.diameter;
     this.barrel_thickness = stackup.barrel.copper_thickness;
     this.barrel_epsilon = stackup.barrel.epsilon;

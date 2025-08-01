@@ -199,12 +199,12 @@ export class StackupGrid extends ManagedObject {
 
     const create_reference_plane = (plane: ReferencePlane, y_top: number, y_bottom: number) => {
       push_copper_bounds(y_top, y_bottom);
-      if (plane.Dpad !== undefined) {
+      if (plane.has_pad) {
         const Dpad = this.setup_get_parameter_value(plane.Dpad);
         create_via_pad(y_top, y_bottom, Dpad);
       }
       // reference plane antipad
-      if (plane.Dantipad !== undefined) {
+      if (plane.has_plane) {
         const Dantipad = this.setup_get_parameter_value(plane.Dantipad);
         create_plane_antipad(y_top, y_bottom, Dantipad);
       }

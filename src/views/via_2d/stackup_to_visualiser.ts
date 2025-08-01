@@ -1,17 +1,15 @@
 import {
   Stackup,
-  // type Stackup, type Parameter,
-  type Orientation, type Position,
+  type LayerId,
+  type Orientation,
+  type ReferencePlane,
   type SurfaceLayer,
-  // type ReferencePlane,
 } from "./stackup.ts";
 import type {
   Visualiser, Viewport,
   HorizontalDimensionLine, VerticalDimensionLine,
   RectangleShape,
-  // PolygonShape, PolygonPoint,
   TextLabel,
-  // IconLabel,
   Entity,
 } from "../visualiser_2d/visualiser.ts";
 import { colours, stroke, font } from "../visualiser_2d/pcb_defaults.ts";
@@ -134,14 +132,14 @@ export class StackupVisualiser implements Visualiser {
             this.diameter_label.y_barrel.push(y_plane+sizes.plane_height);
           }
           if (layer.plane.has_copper && layer.copper_thickness.label !== undefined) {
-            const x_copper = (layer.plane.Dantipad !== undefined || this.is_editing) ? this.height_label.x_antipad : this.height_label.x_pad;
+            const x_copper = (layer.plane.has_plane || this.is_editing) ? this.height_label.x_antipad : this.height_label.x_pad;
             const x_dielectric = this.height_label.x_dielectric;
             const x_top = orientation === "bottom" ? x_copper : x_dielectric;
             const x_bottom = orientation === "bottom" ? x_dielectric : x_copper;
             this.create_height_label(y_plane, sizes.plane_height, x_top, x_bottom, layer.copper_thickness.label);
           }
-          this.create_via_pad(y_plane, layer.plane.Dpad !== undefined, i, orientation);
-          this.create_reference_plane(y_plane, layer.plane.Dantipad !== undefined, i, orientation);
+          this.create_via_pad(y_plane, layer.plane, layer.id, orientation);
+          this.create_reference_plane(y_plane, layer.plane, layer.id, orientation);
           break;
         }
         case "inner": {
@@ -152,7 +150,7 @@ export class StackupVisualiser implements Visualiser {
             if (layer.planes.top.has_copper || this.is_editing) {
               if (layer.planes.top.has_copper && layer.planes.copper_thickness.label !== undefined) {
                 const x_top = this.height_label.x_dielectric;
-                const x_bottom = (layer.planes.top.Dantipad !== undefined || this.is_editing) ? this.height_label.x_antipad : this.height_label.x_pad;
+                const x_bottom = (layer.planes.top.has_plane || this.is_editing) ? this.height_label.x_antipad : this.height_label.x_pad;
                 this.create_height_label(y_offset, sizes.plane_height, x_top, x_bottom, layer.planes.copper_thickness.label);
               }
               y_offset += sizes.plane_height;
@@ -164,7 +162,7 @@ export class StackupVisualiser implements Visualiser {
             y_offset += sizes.dielectric_height;
             if (layer.planes.bottom.has_copper || this.is_editing) {
               if (layer.planes.bottom.has_copper && layer.planes.copper_thickness.label !== undefined) {
-                const x_top = (layer.planes.bottom.Dantipad !== undefined || this.is_editing) ? this.height_label.x_antipad : this.height_label.x_pad;
+                const x_top = (layer.planes.bottom.has_plane || this.is_editing) ? this.height_label.x_antipad : this.height_label.x_pad;
                 const x_bottom = this.height_label.x_dielectric;
                 this.create_height_label(y_offset, sizes.plane_height, x_top, x_bottom, layer.planes.copper_thickness.label);
               }
@@ -186,14 +184,14 @@ export class StackupVisualiser implements Visualiser {
           {
             const y_via = y_top;
             const orientation: Orientation = "top";
-            this.create_via_pad(y_via, layer.planes.top.Dpad !== undefined, i, orientation);
-            this.create_reference_plane(y_via, layer.planes.top.Dantipad !== undefined, i, orientation);
+            this.create_via_pad(y_via, layer.planes.top, layer.id, orientation);
+            this.create_reference_plane(y_via, layer.planes.top, layer.id, orientation);
           }
           {
             const y_via = y_bottom-sizes.plane_height;
             const orientation: Orientation = "bottom";
-            this.create_via_pad(y_via, layer.planes.bottom.Dpad !== undefined, i, orientation);
-            this.create_reference_plane(y_via, layer.planes.bottom.Dantipad !== undefined, i, orientation);
+            this.create_via_pad(y_via, layer.planes.bottom, layer.id, orientation);
+            this.create_reference_plane(y_via, layer.planes.bottom, layer.id, orientation);
           }
           {
             // drill hole goes through entire stackup and will be plated with copper
@@ -316,26 +314,14 @@ export class StackupVisualiser implements Visualiser {
     }
   }
 
-  create_via_pad(y: number, exists: boolean, layer_index: number, orientation: Orientation) {
+  create_via_pad(y: number, plane: ReferencePlane, layer_id: LayerId, orientation: Orientation) {
+    const exists = plane.has_pad;
     if (!exists && !this.is_editing) return;
 
-    const group_id = `${layer_index}_${orientation}`;
-    const layer = this.stackup.layers[layer_index];
-    const position: Position = { layer_id: layer.id, orientation };
+    const group_id = `${layer_id}_${orientation}`;
 
-    let on_click = undefined;
-    let is_hoverable = false;
-    let is_visible = exists;
-    if (this.is_editing && exists && this.stackup.can_remove_via_pad(position)) {
-      on_click = () => { this.stackup.remove_via_pad(position); };
-    }
-    if (this.is_editing && !exists && this.stackup.can_add_via_pad(position)) {
-      on_click = () => { this.stackup.add_via_pad(position); };
-      is_hoverable = true;
-      is_visible = true;
-    }
-
-    if (!is_visible) return;
+    const is_hoverable = !exists;
+    const on_click = this.is_editing ? () => { plane.has_pad = !plane.has_pad; } : undefined;
 
     const height = sizes.plane_height;
     const Dpad = sizes.pad_diameter;
@@ -389,26 +375,14 @@ export class StackupVisualiser implements Visualiser {
     }
   }
 
-  create_reference_plane(y: number, exists: boolean, layer_index: number, orientation: Orientation) {
+  create_reference_plane(y: number, plane: ReferencePlane, layer_id: LayerId, orientation: Orientation) {
+    const exists = plane.has_plane;
     if (!exists && !this.is_editing) return;
 
-    const group_id = `${layer_index}_${orientation}`;
-    const layer = this.stackup.layers[layer_index];
-    const position: Position = { layer_id: layer.id, orientation };
+    const group_id = `${layer_id}_${orientation}`;
 
-    let on_click = undefined;
-    let is_hoverable = false;
-    let is_visible = exists;
-    if (this.is_editing && exists && this.stackup.can_remove_reference_plane(position)) {
-      on_click = () => { this.stackup.remove_reference_plane(position); };
-    }
-    if (this.is_editing && !exists && this.stackup.can_add_reference_plane(position)) {
-      on_click = () => { this.stackup.add_reference_plane(position); };
-      is_hoverable = true;
-      is_visible = true;
-    }
-
-    if (!is_visible) return;
+    const on_click = this.is_editing ? () => { plane.has_plane = !plane.has_plane; } : undefined;
+    const is_hoverable = !exists;
 
     const Dantipad = sizes.antipad_diameter;
     const height = sizes.plane_height;
