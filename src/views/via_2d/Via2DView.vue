@@ -214,7 +214,7 @@ async function perform_search(search_params: Parameter[]) {
         </div>
       </div>
       <div class="w-full card card-border bg-base-100">
-        <div class="card-body">
+        <div class="card-body p-3">
           <h2 class="card-title w-full flex flex-row justify-between">
             <span>Impedance</span>
             <button class="btn size-[2.0rem] p-1" onclick="mesh_settings.showModal()">

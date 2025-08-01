@@ -6,7 +6,7 @@ import WasmProvider from "./providers/WasmProvider.vue";
 import ToastProvider from "./providers/toast/ToastProvider.vue";
 import UserDataProvider from "./providers/user_data/UserDataProvider.vue";
 import { MenuIcon, ChevronDownIcon } from 'lucide-vue-next';
-import { navigation_tree, type NavigationEndpoint } from "./routes.ts";
+import { navigation_tree, type NavigationEndpoint, endpoints_table } from "./routes.ts";
 import GithubIcon from "./assets/github.svg";
 import DarkModeToggle from "./utility/DarkModeToggle.vue";
 
@@ -18,6 +18,14 @@ watch(() => curr_route.fullPath, () => {
   if (document.activeElement) {
     (document.activeElement as HTMLElement).blur();
   }
+});
+
+watch(() => curr_route.name, (name) => {
+  const route_name = name?.toString();
+  if (route_name === undefined) return;
+  const endpoint = endpoints_table.get(route_name);
+  if (endpoint === undefined) return;
+  document.title = endpoint.name;
 });
 
 function get_navigation_class(item: NavigationEndpoint): string {

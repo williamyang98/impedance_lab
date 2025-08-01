@@ -97,3 +97,19 @@ export const routes = navigation_tree
     }
   })
   .map((endpoint) => endpoint.route);
+
+export const endpoints_table = new Map<string, NavigationEndpoint>();
+for (const item of navigation_tree) {
+  switch (item.type) {
+    case "endpoint": {
+      endpoints_table.set(item.route.name, item);
+      break;
+    }
+    case "group": {
+      for (const endpoint of item.endpoints) {
+        endpoints_table.set(endpoint.route.name, endpoint);
+      }
+      break;
+    }
+  }
+}
