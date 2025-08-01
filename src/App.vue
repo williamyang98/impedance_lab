@@ -44,11 +44,11 @@ function get_navigation_class(item: NavigationEndpoint): string {
     <div class="navbar bg-base-100 shadow-sm min-h-[3rem] p-1">
       <div class="navbar-start w-full md:w-[50%]">
         <!--Mobile hamburger navigation menu-->
-        <div class="dropdown md:hidden">
+        <div class="dropdown lg:hidden">
           <div tabindex="0" role="button" class="btn btn-ghost py-1 px-2">
             <MenuIcon class="w-[1.5rem] h-[1.5rem]"/>
           </div>
-          <ul tabindex="0" class="menu dropdown-content bg-base-100 rounded-box z-10 mt-3 w-52 p-2 shadow">
+          <ul tabindex="0" class="menu dropdown-content bg-base-100 rounded-box z-10 mt-3 min-w-52 p-2 shadow">
             <li v-for="item in navigation_tree" :key="item.name">
               <a
                 v-if="item.type === 'endpoint'"
@@ -85,7 +85,7 @@ function get_navigation_class(item: NavigationEndpoint): string {
         </div>
       </div>
       <!--Desktop navigation menu-->
-      <div class="navbar-center hidden md:flex">
+      <div class="navbar-center hidden lg:flex">
         <ul class="menu menu-horizontal px-1 gap-x-1 z-10 p-0">
           <li v-for="item in navigation_tree" :key="item.name">
             <a
@@ -105,7 +105,7 @@ function get_navigation_class(item: NavigationEndpoint): string {
                   <ChevronDownIcon class="size-4 mt-1"/>
                 </div>
               </div>
-              <ul tabindex="0" class="menu dropdown-content bg-base-100 rounded-box z-1 mt-3 ml-0 w-45 p-2 shadow">
+              <ul tabindex="0" class="menu dropdown-content bg-base-100 rounded-box z-1 mt-3 ml-0 min-w-45 p-2 shadow">
                 <li v-for="endpoint in item.endpoints" :key="endpoint.name">
                   <a
                     :href="router.resolve(endpoint.route.path).href"

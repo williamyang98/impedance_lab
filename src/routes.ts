@@ -27,7 +27,7 @@ export type NavigationItem = NavigationEndpoint | NavigationGroup;
 export const navigation_tree: NavigationItem[] = [
   import.meta.env.DEV && {
     type: "endpoint" as const,
-    name: "3D Stackup",
+    name: "3D FDTD Solvers",
     icon_component: LayersIcon,
     route: {
       name: "3d_stackup",
@@ -37,33 +37,33 @@ export const navigation_tree: NavigationItem[] = [
   },
   {
     type: "group" as const,
-    name: "2D Stackup",
+    name: "2D Electrostatic Solvers",
     icon_component: CircuitBoardIcon,
     endpoints: [
       {
         type: "endpoint" as const,
-        name: "Impedance Calculator",
+        name: "Transmission Line Impedance Calculator",
         route: {
-          name: "2d_stackup_editor",
-          path: "/2d_stackup/editor",
+          name: "2d_transmission_line_calculator",
+          path: "/2d/transmission_line_calculator",
           view_component: () => import("./views/stackup_2d/StackupCalculator.vue"),
         },
       },
       {
         type: "endpoint" as const,
-        name: "Example Stackups",
+        name: "Transmission Line Templates",
         route: {
-          name: "2d_stackup_templates",
-          path: "/2d_stackup/templates",
+          name: "2d_transmission_line_templates",
+          path: "/2d/transmission_line_templates",
           view_component: () => import("./views/stackup_2d/TemplatesView.vue"),
         },
       },
       {
         type: "endpoint" as const,
-        name: "Via 2D",
+        name: "Single Ended Via Impedance Calculator",
         route: {
-          name: "via_2d",
-          path: "/2d_stackup/via_2d",
+          name: "2d_via",
+          path: "/2d/via",
           view_component: () => import("./views/via_2d/Via2DView.vue"),
         },
       },
@@ -87,7 +87,7 @@ export const navigation_tree: NavigationItem[] = [
   },
 ].filter(item => item !== false);
 
-export const default_route_name = "2d_stackup_templates";
+export const default_route_name = "2d_transmission_line_templates";
 
 export const routes = navigation_tree
   .flatMap((item) => {

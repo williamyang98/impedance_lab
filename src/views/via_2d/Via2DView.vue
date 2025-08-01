@@ -168,7 +168,7 @@ async function perform_search(search_params: Parameter[]) {
 
 <template>
 <TabsView :initial_tab="'0'">
-  <template #h-0>Result</template>
+  <template #h-0>Calculator</template>
   <template #b-0>
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-2">
       <div class="w-full card card-border bg-base-100">
