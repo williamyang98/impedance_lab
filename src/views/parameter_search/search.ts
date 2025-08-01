@@ -55,8 +55,9 @@ export function run_parameter_search<T extends { error: number }>(
 
   // parameter search should include endpoints and initial value
   const v_required_search: number[] = [];
-  if (v_max !== undefined) v_required_search.push(v_max);
-  v_required_search.push(v_min, v_initial);
+  const epsilon_endpoints = 1e-6; // add some margin so floating point comparisons pass
+  if (v_max !== undefined) v_required_search.push(v_max*(1-epsilon_endpoints));
+  v_required_search.push(v_min*(1+epsilon_endpoints), v_initial);
 
   function clamp(value: number, min: number, max: number) {
     return Math.max(Math.min(value, max), min);
