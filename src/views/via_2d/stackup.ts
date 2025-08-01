@@ -225,21 +225,6 @@ export class Stackup {
     return epsilon;
   }
 
-  create_soldermask(layer_id: LayerId) {
-    const height = {
-      parent: this,
-      type: "size" as const,
-      value: 0.015, unit: "mm" as const,
-      get label() { return `H${this.parent.get_layer_index(layer_id)}`; },
-      description: "Soldermask height",
-      get min() { return this.parent.minimum_feature_size; },
-      impedance_correlation: "negative" as const,
-    };
-    this.parameters.size.push(height);
-    const epsilon = this.create_epsilon_parameter(layer_id, 3.3);
-    return { height, epsilon };
-  }
-
   create_copper_thickness(layer_id: LayerId, value: number, unit: DistanceUnit): SizeParameter {
     const thickness = {
       parent: this,
@@ -347,21 +332,22 @@ export class Stackup {
 
   create_surface_layer(): SurfaceLayer {
     const layer_id = this.layer_id_store.own();
+    const plane = this.create_reference_planes(layer_id, 1)[0];
     const soldermask_height = {
       parent: this,
       type: "size" as const,
       value: 0.015, unit: "mm" as const,
       get label() { return `H${this.parent.get_layer_index(layer_id)}`; },
-      description: "Dielectric height",
+      description: "Soldermask height",
       get min() { return this.parent.minimum_feature_size; },
-      impedance_correlation: "positive" as const,
+      impedance_correlation: "negative" as const,
     };
-    const plane = this.create_reference_planes(layer_id, 1)[0];
+    const soldermask_epsilon = this.create_epsilon_parameter(layer_id, 3.3);
     const layer = {
       type: "surface" as const,
       id: layer_id,
       parent: this,
-      soldermask_epsilon: this.create_epsilon_parameter(layer_id, 3.3),
+      soldermask_epsilon,
       soldermask_height,
       has_soldermask: true,
       get orientation(): Orientation {
@@ -371,6 +357,8 @@ export class Stackup {
       copper_thickness: this.create_copper_thickness(layer_id, 1, "oz"),
       plane,
     };
+
+    this.parameters.size.push(soldermask_height);
     return layer;
   }
 
