@@ -87,7 +87,7 @@ defineExpose({
 
 <template>
 <div class="w-full h-full grid grid-cols-1 sm:grid-cols-[auto_15rem] gap-x-2 gap-y-2">
-  <canvas ref="field-canvas" class="w-full h-full"></canvas>
+  <canvas ref="field-canvas" class="w-full h-full min-h-0"></canvas>
   <form class="flex flex-col gap-y-2 w-full">
     <fieldset class="fieldset">
       <legend for="mode" class="fieldset-legend w-full">Mode</legend>

@@ -171,7 +171,7 @@ defineExpose({
   <div class="relative overflow-hidden cursor-crosshair">
     <canvas
       ref="grid-canvas"
-      class="grid-view w-full h-full border-1 border-slate-300"
+      class="grid-view w-full h-full min-h-0 border-1 border-slate-300"
       @mousemove="on_mouse_move"
       @mouseenter="on_mouse_enter"
       @mouseleave="on_mouse_leave"

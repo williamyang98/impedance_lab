@@ -170,7 +170,7 @@ async function run() {
           </template>
         </div>
       </div>
-      <div class="w-full h-full">
+      <div class="w-full h-full min-h-0">
         <RendererView :grid="gpu_grid" ref="renderer_view"/>
       </div>
     </div>
