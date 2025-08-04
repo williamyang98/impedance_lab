@@ -133,7 +133,7 @@ async function run() {
       await gpu_device.queue.onSubmittedWorkDone();
     }
 
-    await renderer_view.value?.refresh();
+    renderer_view.value?.refresh();
 
     await gpu_grid.to_cpu(cpu_grid);
     await gpu_device.queue.onSubmittedWorkDone();

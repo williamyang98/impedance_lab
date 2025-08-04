@@ -3,6 +3,7 @@ import { type DisplayMode, Renderer } from "./renderer.ts";
 import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
 import { ref, watch, computed, useTemplateRef, defineProps, defineExpose } from "vue";
+import { debounce_animation_frame_async } from "../../utility/debounce.ts";
 
 const props = defineProps<{
   grid: GpuGrid,
@@ -48,36 +49,36 @@ watch(() => props.grid, (grid) => {
   copy_z.value = Math.min(Math.max(copy_z.value, 0), max_z.value);
 }, { immediate: true });
 
-watch(copy_z, async () => {
+watch(copy_z, debounce_animation_frame_async(async () => {
   const command_encoder = gpu_device.createCommandEncoder();
   upload_slice(command_encoder);
   update_display(command_encoder);
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone();
-});
+}));
 
-watch(scale_db, async () => {
+watch(scale_db, debounce_animation_frame_async(async () => {
   const command_encoder = gpu_device.createCommandEncoder();
   update_display(command_encoder);
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone();
-});
+}));
 
-watch(display_mode, async () => {
+watch(display_mode, debounce_animation_frame_async(async () => {
   const command_encoder = gpu_device.createCommandEncoder();
   update_display(command_encoder);
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone();
-});
+}));
 
 defineExpose({
-  async refresh() {
+  refresh: debounce_animation_frame_async(async () => {
     const command_encoder = gpu_device.createCommandEncoder();
     upload_slice(command_encoder);
     update_display(command_encoder);
     gpu_device.queue.submit([command_encoder.finish()]);
     await gpu_device.queue.onSubmittedWorkDone();
-  },
+  }),
   copy_z,
   scale_db,
 });
