@@ -1,9 +1,10 @@
-import { KernelJacobiSmooth, type Size3D } from '../../wgpu_kernels/electrostatic_3d';
+import { KernelCalculateResidual, KernelJacobiSmooth, type Size3D } from '../../wgpu_kernels/electrostatic_3d';
 import { Ndarray } from '../../utility/ndarray';
 
 export class CpuGrid {
   size: Size3D;
   x: Ndarray;
+  r: Ndarray;
   b: Ndarray;
   mask: Ndarray;
   dx: Ndarray;
@@ -15,6 +16,7 @@ export class CpuGrid {
 
     const total_cells = size.x*size.y*size.z;
     this.x = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    this.r = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
     this.b = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
     this.mask = Ndarray.create_zeros([Math.ceil(total_cells/32)], "u32");
     this.dx = Ndarray.create_zeros([size.x-1], "f32");
@@ -28,6 +30,7 @@ export class GpuGrid {
   device: GPUDevice;
   xin: GPUBuffer;
   xout: GPUBuffer;
+  r: GPUBuffer;
   b: GPUBuffer;
   mask: GPUBuffer;
   dx: GPUBuffer;
@@ -48,6 +51,7 @@ export class GpuGrid {
     const total_cells = size.x*size.y*size.z;
     this.xin = create_buffer(total_cells*4);
     this.xout = create_buffer(total_cells*4);
+    this.r = create_buffer(total_cells*4);
     this.b = create_buffer(total_cells*4);
     this.mask = create_buffer(Math.ceil(total_cells/8));
     this.dx = create_buffer((size.x-1)*4);
@@ -70,6 +74,7 @@ export class GpuGrid {
       this.device.queue.writeBuffer(gpu, 0, cpu.data, 0, cpu.data.length);
     };
     write_buffer(this.xin, cpu.x);
+    write_buffer(this.r, cpu.r);
     write_buffer(this.b, cpu.b);
     write_buffer(this.mask, cpu.mask);
     write_buffer(this.dx, cpu.dx);
@@ -96,32 +101,42 @@ export class GpuGrid {
       this.readback.unmap();
     };
     await read_buffer(this.xin, cpu.x);
+    await read_buffer(this.r, cpu.r);
   }
 }
 
 export class GpuEngine {
   device: GPUDevice;
   kernel_jacobi_smooth: KernelJacobiSmooth;
+  kernel_calculate_residual: KernelCalculateResidual;
 
   constructor(device: GPUDevice) {
     this.device = device;
     const workgroup_size: Size3D = { x: 16, y: 16, z: 1 };
     this.kernel_jacobi_smooth = new KernelJacobiSmooth(workgroup_size, this.device);
+    this.kernel_calculate_residual = new KernelCalculateResidual(workgroup_size, this.device);
   }
 
-  jacobi_smooth(grid: GpuGrid, total_steps: number) {
-    const command_encoder = this.device.createCommandEncoder();
+  jacobi_smooth(command_encoder: GPUCommandEncoder, grid: GpuGrid, total_steps: number) {
     const jacobi_smooth_beta = 0.95;
     for (let i = 0; i < total_steps; i++) {
       this.kernel_jacobi_smooth.create_pass(
         command_encoder,
-        grid.xin, grid.xout, grid.b, grid.mask,
+        grid.xout, grid.xin, grid.b, grid.mask,
         grid.dx, grid.dy, grid.dz,
         grid.size,
         jacobi_smooth_beta,
       );
       grid.swap();
     }
-    this.device.queue.submit([command_encoder.finish()]);
+  }
+
+  calculate_residual(command_encoder: GPUCommandEncoder, grid: GpuGrid) {
+    this.kernel_calculate_residual.create_pass(
+      command_encoder,
+      grid.r, grid.xin, grid.b, grid.mask,
+      grid.dx, grid.dy, grid.dz,
+      grid.size,
+    );
   }
 }

@@ -108,7 +108,7 @@ async function run() {
   }
   is_running.value = true;
   try {
-    const stride_size = 32;
+    const stride_size = 64;
     const total_strides = Math.ceil(total_steps.value/stride_size);
     run_status.value = {
       type: "running",
@@ -117,11 +117,21 @@ async function run() {
     };
 
     for (let i = 0; i < total_strides; i++) {
-      gpu_engine.jacobi_smooth(gpu_grid, stride_size);
+      const command_encoder = gpu_device.createCommandEncoder();
+      gpu_engine.jacobi_smooth(command_encoder, gpu_grid, stride_size);
+      gpu_device.queue.submit([command_encoder.finish()]);
       await gpu_device.queue.onSubmittedWorkDone();
       run_status.value.curr_step = (i+1)*stride_size;
     }
     toast.info(`GPU engine ran ${run_status.value.total_steps} steps`);
+
+    {
+      console.log("Calculating residual");
+      const command_encoder = gpu_device.createCommandEncoder();
+      gpu_engine.calculate_residual(command_encoder, gpu_grid);
+      gpu_device.queue.submit([command_encoder.finish()]);
+      await gpu_device.queue.onSubmittedWorkDone();
+    }
 
     await renderer_view.value?.refresh();
 

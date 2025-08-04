@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Renderer } from "./renderer.ts";
+import { type DisplayMode, Renderer } from "./renderer.ts";
 import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
 import { ref, watch, computed, useTemplateRef, defineProps, defineExpose } from "vue";
@@ -28,6 +28,7 @@ const canvas_context = computed<GPUCanvasContext>(() => {
 const copy_z = ref<number>(0);
 const max_z = ref<number>(0);
 const scale_db = ref<number>(0.0);
+const display_mode = ref<DisplayMode>("r");
 
 function upload_slice(command_encoder: GPUCommandEncoder) {
   renderer.upload_slice(command_encoder, props.grid, copy_z.value);
@@ -39,7 +40,7 @@ function update_display(command_encoder: GPUCommandEncoder) {
     width: canvas_context.value.canvas.width,
     height: canvas_context.value.canvas.height,
   };
-  renderer.update_display(command_encoder, canvas_context.value, canvas_size, scale);
+  renderer.update_display(command_encoder, canvas_context.value, canvas_size, display_mode.value, scale);
 }
 
 watch(() => props.grid, (grid) => {
@@ -56,6 +57,13 @@ watch(copy_z, async () => {
 });
 
 watch(scale_db, async () => {
+  const command_encoder = gpu_device.createCommandEncoder();
+  update_display(command_encoder);
+  gpu_device.queue.submit([command_encoder.finish()]);
+  await gpu_device.queue.onSubmittedWorkDone();
+});
+
+watch(display_mode, async () => {
   const command_encoder = gpu_device.createCommandEncoder();
   update_display(command_encoder);
   gpu_device.queue.submit([command_encoder.finish()]);
@@ -81,6 +89,13 @@ defineExpose({
   <canvas ref="field-canvas" class="w-full h-full"></canvas>
   <form class="flex flex-col gap-y-2 w-full">
     <fieldset class="fieldset">
+      <legend for="mode" class="fieldset-legend w-full">Mode</legend>
+      <select class="select w-full" v-model="display_mode">
+        <option :value="'x'">Voltage</option>
+        <option :value="'r'">Residual</option>
+      </select>
+    </fieldset>
+    <fieldset class="fieldset">
       <legend for="slice" class="fieldset-legend w-full flex flex-row justify-between">
         <span>Z-index</span>
         <span>{{ copy_z }}</span>
@@ -92,7 +107,7 @@ defineExpose({
         <span>Scale</span>
         <span>{{ scale_db.toFixed(2) }}dB</span>
       </legend>
-      <input id="scale" type="range" class="range w-full" v-model.number="scale_db" min="-4" max="4" step="0.1"/>
+      <input id="scale" type="range" class="range w-full" v-model.number="scale_db" min="-10" max="10" step="0.1"/>
     </fieldset>
   </form>
 </div>

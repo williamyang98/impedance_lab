@@ -2,13 +2,12 @@ struct Params {
     grid_size_x: u32,
     grid_size_y: u32,
     grid_size_z: u32,
-    beta: f32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
 // Ax=b
-@group(0) @binding(1) var<storage,read_write> xout_buf: array<f32>;
-@group(0) @binding(2) var<storage,read> xin_buf: array<f32>;
+@group(0) @binding(1) var<storage,read_write> r_buf: array<f32>;
+@group(0) @binding(2) var<storage,read> x_buf: array<f32>;
 @group(0) @binding(3) var<storage,read> b_buf: array<f32>;
 @group(0) @binding(4) var<storage,read> mask_buf: array<u32>;
 // grid spline
@@ -47,43 +46,39 @@ fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
 
     let is_dirchlet_boundary: u32 = (mask_buf[imask] >> imask_offset) & 0x01;
     if (is_dirchlet_boundary == 1) {
-        // Ax=b, A=1
-        // x=b
-        xout_buf[i] = b;
+        // r = Ax-b, A=1
+        // r = x-b
+        r_buf[i] = x_buf[i] - b;
         return;
     }
 
     // Ax=b
     // Ax = div(E) = b, div(E) = sum (V-Vi)/ds
-    // sum (V/ds) = b + sum Vi/ds
-    // V = (b + sum Vi/ds) / sum 1/ds
-    var div_E: f32 = b; // b + sum Vi/ds
-    var denom: f32 = 0; // sum 1/ds
+    // r = Ax-b
+    // r = div(E) - b
+    var div_E: f32 = 0;
     if (ix > 0 && ix < Nx-1) {
         // enforce div(Ex) only if there are Ex field lines on both sides of voltage grid point
-        div_E += xin_buf[i-1]/dx_buf[ix-1];
-        div_E += xin_buf[i+1]/dx_buf[ix];
+        div_E += x_buf[i-1]/dx_buf[ix-1];
+        div_E += x_buf[i+1]/dx_buf[ix];
     }
-    if (ix > 0) { denom += 1.0/dx_buf[ix-1]; }
-    if (ix < Nx-1) { denom += 1.0/dx_buf[ix]; }
+    if (ix > 0) { div_E -= x_buf[i]/dx_buf[ix-1]; }
+    if (ix < Nx-1) { div_E -= x_buf[i]/dx_buf[ix]; }
 
     if (iy > 0 && iy < Ny-1) {
         // enforce div(Ey) only if there are Ey field lines on both sides of voltage grid point
-        div_E += xin_buf[i-Nx]/dy_buf[iy-1];
-        div_E += xin_buf[i+Nx]/dy_buf[iy];
+        div_E += x_buf[i-Nx]/dy_buf[iy-1];
+        div_E += x_buf[i+Nx]/dy_buf[iy];
     }
-    if (iy > 0) { denom += 1.0/dy_buf[iy-1]; }
-    if (iy < Ny-1) { denom += 1.0/dy_buf[iy]; }
+    if (iy > 0) { div_E -= x_buf[i]/dy_buf[iy-1]; }
+    if (iy < Ny-1) { div_E -= x_buf[i]/dy_buf[iy]; }
 
     if (iz > 0 && iz < Nz-1) {
         // enforce div(Ez) onlz if there are Ez field lines on both sides of voltage grid point
-        div_E += xin_buf[i-Nxy]/dz_buf[iz];
-        div_E += xin_buf[i+Nxy]/dz_buf[iz-1];
+        div_E += x_buf[i-Nxy]/dz_buf[iz];
+        div_E += x_buf[i+Nxy]/dz_buf[iz-1];
     }
-    if (iz > 0) { denom += 1.0/dz_buf[iz-1]; }
-    if (iz < Nz-1) { denom += 1.0/dz_buf[iz]; }
-
-    let x_next: f32 = div_E/denom;
-    let beta: f32 = params.beta;
-    xout_buf[i] = (1.0-beta)*xin_buf[i] + beta*x_next;
+    if (iz > 0) { div_E -= x_buf[i]/dz_buf[iz-1]; }
+    if (iz < Nz-1) { div_E -= x_buf[i]/dz_buf[iz]; }
+    r_buf[i] = div_E - b;
 }

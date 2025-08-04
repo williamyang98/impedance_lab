@@ -30,6 +30,7 @@ const download_links = computed<DownloadLink[]>(() => {
     { name: "dx.npy", data: grid.dx },
     { name: "dy.npy", data: grid.dy },
     { name: "dz.npy", data: grid.dz },
+    { name: "r.npy", data: grid.r },
   ]
 });
 

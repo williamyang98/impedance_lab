@@ -2,6 +2,8 @@ import { ShaderComponentViewer } from "../../wgpu_kernels/view_2d";
 import { ComputeCopySliceToTexture, type Size2D } from "../../wgpu_kernels/electrostatic_3d";
 import { GpuGrid } from "./grid.ts";
 
+export type DisplayMode = "x" | "r";
+
 export class Renderer {
   device: GPUDevice;
   kernel_copy_to_texture: ComputeCopySliceToTexture;
@@ -11,8 +13,6 @@ export class Renderer {
     view: GPUTextureView;
     size: Size2D;
   };
-
-
 
   constructor(device: GPUDevice) {
     this.device = device;
@@ -46,6 +46,7 @@ export class Renderer {
     this.kernel_copy_to_texture.create_pass(
       command_encoder,
       grid.xin,
+      grid.r,
       slice.view,
       grid.size,
       copy_z,
@@ -55,7 +56,7 @@ export class Renderer {
   update_display(
     command_encoder: GPUCommandEncoder,
     canvas_context: GPUCanvasContext, canvas_size: { width: number, height: number },
-    scale: number,
+    display_mode: DisplayMode, scale: number,
   ) {
     canvas_context.configure({
       device: this.device,
@@ -69,11 +70,17 @@ export class Renderer {
 
     // NOTE: canvas texture view has to be retrieved here since the browser swaps it out in the swapchain
     const canvas_texture_view = canvas_context.getCurrentTexture().createView();
+    let axis = undefined;
+    switch (display_mode) {
+      case "x": axis = 1; break;
+      case "r": axis = 2; break;
+    }
+
     this.shader_component_viewer.create_pass(
       command_encoder,
       canvas_texture_view, this.slice.view,
       canvas_size,
-      scale, 1, "single_component",
+      scale, axis, "single_component",
     );
   }
 }
