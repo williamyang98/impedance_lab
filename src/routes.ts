@@ -26,14 +26,29 @@ export type NavigationItem = NavigationEndpoint | NavigationGroup;
 
 export const navigation_tree: NavigationItem[] = [
   import.meta.env.DEV && {
-    type: "endpoint" as const,
-    name: "3D FDTD Solvers",
+    type: "group" as const,
+    name: "3D Solvers",
     icon_component: LayersIcon,
-    route: {
-      name: "3d_stackup",
-      path: "/3d_stackup",
-      view_component: () => import("./views/app_3d/App3DView.vue"),
-    },
+    endpoints: [
+      {
+        type: "endpoint" as const,
+        name: "3D FDTD",
+        route: {
+          name: "3d_fdtd",
+          path: "/3d/fdtd",
+          view_component: () => import("./views/app_3d/App3DView.vue"),
+        },
+      },
+      {
+        type: "endpoint" as const,
+        name: "3D Via",
+        route: {
+          name: "",
+          path: "/3d/via",
+          view_component: () => import("./views/via_3d/Via3DView.vue"),
+        },
+      },
+    ],
   },
   {
     type: "group" as const,
