@@ -1,5 +1,5 @@
-import { LinesBuilder } from "../../app/mesher/lines_builder.ts";
-import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../../app/mesher/regions.ts";
+import { LinesBuilder } from "../mesher/lines_builder.ts";
+import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../mesher/regions.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { CpuGrid } from "./grid.ts";
 
