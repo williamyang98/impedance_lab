@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, defineProps, toRef } from "vue";
+import { computed, defineProps } from "vue";
 import { Stackup, type LayerType } from "./stackup.ts";
 import { Trash2Icon } from "lucide-vue-next";
 
@@ -7,7 +7,7 @@ const props = defineProps<{
   stackup: Stackup,
 }>();
 
-const stackup = toRef(props.stackup);
+const stackup = computed(() => props.stackup);
 
 const layers = computed(() => {
   return props.stackup.layers.map((layer, index) => {

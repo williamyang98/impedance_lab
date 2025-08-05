@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { LayerStackup, type LayerType } from "./stackup.ts";
-import { computed, defineProps, toRef } from "vue";
+import { computed, defineProps } from "vue";
 import { Trash2Icon } from "lucide-vue-next";
 
 const props = defineProps<{
   stackup: LayerStackup,
 }>();
 
-const stackup = toRef(props.stackup);
+const stackup = computed(() => props.stackup);
 
 const layers = computed(() => stackup.value.layers.map((layer, layer_index) => {
   let add_before = undefined;
