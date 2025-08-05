@@ -48,11 +48,7 @@ export class StackupGrid extends ManagedObject {
   grid_builder_config: GridBuilderConfig;
   grid_builder_padding: GridBuilderPadding;
   grid_builder_regions: Region[] = [];
-  via_barrel_parameters: {
-    height: number;
-    outer_diameter: number;
-    inner_diameter: number;
-  };
+  via_barrel_parameters: ViaBarrelInfo;
   // handle target_unit conversion and grid_builder scale normalisation in calculations
   energy_integral_scale: number;
   epsilon_table: number[] = [1];
