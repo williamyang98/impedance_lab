@@ -53,17 +53,17 @@ const grid_builder_config: GridBuilderConfig = {
   minimum_grid_resolution: 1e-4,
   padding_size_multiplier: 10,
   max_x_ratio: 0.7,
-  min_x_subdivisions: 10,
+  min_x_subdivisions: 5,
   max_y_ratio: 0.7,
-  min_y_subdivisions: 10,
+  min_y_subdivisions: 5,
   max_z_ratio: 0.7,
-  min_z_subdivisions: 10,
+  min_z_subdivisions: 5,
 };
 
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const executor_controls = ref<ExecutorControls>({
-  total_steps: 8192,
+  total_steps: 2048,
   stride_size: 64,
 });
 const executor = new Executor(gpu_device, executor_controls.value);
@@ -266,11 +266,11 @@ async function perform_search(search_params: Parameter[]) {
             <div class="w-full flex flex-col">
               <fieldset class="fieldset text-sm">
                 <legend class="fieldset-legend">Z0 target</legend>
-                <input class="input input w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
+                <input class="input w-full" type="number" step="any" v-model.number="target_impedance" min="0"/>
               </fieldset>
               <fieldset class="fieldset text-sm">
                 <legend class="fieldset-legend">Total steps</legend>
-                <input class="input" type="number" v-model.number="executor_controls.total_steps" min="0" step="1"/>
+                <input class="input w-full" type="number" step="1" v-model.number="executor_controls.total_steps" min="1"/>
               </fieldset>
             </div>
             <div class="rounded-sm w-full h-[2.0rem] bg-slate-300 border-1 border-slate-300 border-sm">
