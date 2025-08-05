@@ -51,7 +51,7 @@ export class SearchResults {
   }
 }
 
-export function search_parameters(
+export async function search_parameters(
   module: WasmModule,
   target_impedance: number,
   stackup: Stackup, params: Parameter[],
@@ -59,7 +59,7 @@ export function search_parameters(
   search_config: ParameterSearchConfig,
   profiler: Profiler,
   toast: ToastManager,
-): SearchResults {
+): Promise<SearchResults> {
   if (params.length <= 0) {
     throw Error("Got 0 parameters in parametric search");
   }
@@ -85,7 +85,8 @@ export function search_parameters(
   let best_result = undefined as (SearchResult | undefined);
   let best_stackup_grid = undefined as (StackupGrid | undefined);
 
-  const search_function = (value: number): SearchResult => {
+  // eslint-disable-next-line @typescript-eslint/require-await
+  const search_function = async (value: number): Promise<SearchResult> => {
     for (const param of params) {
       param.value = value;
     }
@@ -154,7 +155,7 @@ export function search_parameters(
   profiler.begin("run_binary_search");
   const initial_value = ref_param.value;
   try {
-    run_parameter_search(
+    await run_parameter_search(
       search_config,
       search_function,
       initial_value,

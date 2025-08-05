@@ -4,11 +4,11 @@ export interface ParameterSearchConfig {
   search_precision: number; // smallest difference between search points
 }
 
-export function run_parameter_search<T extends { error: number }>(
+export async function run_parameter_search<T extends { error: number }>(
   config: ParameterSearchConfig,
-  func: (value: number) => T,
+  func: (value: number) => Promise<T>,
   v_initial?: number, v_min?: number, v_max?: number,
-): T {
+): Promise<T> {
   const max_steps = config.max_steps;
   const error_threshold = config.impedance_tolerance;
   const value_threshold = config.search_precision;
@@ -97,7 +97,7 @@ export function run_parameter_search<T extends { error: number }>(
 
     let result = results.get(v_search);
     if (result === undefined) {
-      result = func(v_search);
+      result = await func(v_search);
       curr_step += 1;
       results.set(v_search, result);
     }
