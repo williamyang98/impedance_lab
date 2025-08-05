@@ -54,36 +54,59 @@ fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
     }
 
     // Ax=b
-    // Ax = div(E) = b, div(E) = sum (V-Vi)/ds
-    // sum (V/ds) = b + sum Vi/ds
-    // V = (b + sum Vi/ds) / sum 1/ds
-    var div_E: f32 = b; // b + sum Vi/ds
-    var denom: f32 = 0; // sum 1/ds
+    // Ax = div(E) = b
+    // div(E) = - (V[z,y,x+1]/dx[x+0])/(dx[x]+dx[x-1]) # Ex[z,y,x]
+    //          + (V[z,y,x+0]/dx[x+0])/(dx[x]+dx[x-1]) # Ex[z,y,x]
+    //          + (V[z,y,x+0]/dx[x-1])/(dx[x]+dx[x-1]) # Ex[z,y,x-1]
+    //          - (V[z,y,x-1]/dx[x-1])/(dx[x]+dx[x-1]) # Ex[z,y,x-1]
+    //          - (V[z,y+1,x]/dy[y+0])/(dy[y]+dy[y-1]) # Ey[z,y,x]
+    //          + (V[z,y+0,x]/dy[y+0])/(dy[y]+dy[y-1]) # Ey[z,y,x]
+    //          + (V[z,y+0,x]/dy[y-1])/(dy[y]+dy[y-1]) # Ey[z,y-1,x]
+    //          - (V[z,y-1,x]/dy[y-1])/(dy[y]+dy[y-1]) # Ey[z,y-1,x]
+    //          - (V[z+1,y,x]/dz[z+0])/(dz[z]+dz[z-1]) # Ez[z,y,x]
+    //          + (V[z+0,y,x]/dz[z+0])/(dz[z]+dz[z-1]) # Ez[z,y,x]
+    //          + (V[z+0,y,x]/dz[z-1])/(dz[z]+dz[z-1]) # Ez[z-1,y,x]
+    //          - (V[z-1,y,x]/dz[z-1])/(dz[z]+dz[z-1]) # Ez[z-1,y,x]
+
+    var rhs: f32 = b;
+    var denom: f32 = 0;
+    var has_div: bool = false;
     if (ix > 0 && ix < Nx-1) {
-        // enforce div(Ex) only if there are Ex field lines on both sides of voltage grid point
-        div_E += xin_buf[i-1]/dx_buf[ix-1];
-        div_E += xin_buf[i+1]/dx_buf[ix];
+        let dx0 = dx_buf[ix-1];
+        let dx1 = dx_buf[ix];
+        let norm = dx0+dx1;
+        rhs += (xin_buf[i-1]/dx0)/norm;
+        rhs += (xin_buf[i+1]/dx1)/norm;
+        denom += (1.0/dx0+1.0/dx1)/norm;
+        has_div = true;
     }
-    if (ix > 0) { denom += 1.0/dx_buf[ix-1]; }
-    if (ix < Nx-1) { denom += 1.0/dx_buf[ix]; }
 
     if (iy > 0 && iy < Ny-1) {
-        // enforce div(Ey) only if there are Ey field lines on both sides of voltage grid point
-        div_E += xin_buf[i-Nx]/dy_buf[iy-1];
-        div_E += xin_buf[i+Nx]/dy_buf[iy];
+        let dy0 = dy_buf[iy-1];
+        let dy1 = dy_buf[iy];
+        let norm = dy0+dy1;
+        rhs += (xin_buf[i-Nx]/dy0)/norm;
+        rhs += (xin_buf[i+Nx]/dy1)/norm;
+        denom += (1.0/dy0+1.0/dy1)/norm;
+        has_div = true;
     }
-    if (iy > 0) { denom += 1.0/dy_buf[iy-1]; }
-    if (iy < Ny-1) { denom += 1.0/dy_buf[iy]; }
 
     if (iz > 0 && iz < Nz-1) {
-        // enforce div(Ez) onlz if there are Ez field lines on both sides of voltage grid point
-        div_E += xin_buf[i-Nxy]/dz_buf[iz-1];
-        div_E += xin_buf[i+Nxy]/dz_buf[iz];
+        let dz0 = dz_buf[iz-1];
+        let dz1 = dz_buf[iz];
+        let norm = dz0+dz1;
+        rhs += (xin_buf[i-Nxy]/dz0)/norm;
+        rhs += (xin_buf[i+Nxy]/dz1)/norm;
+        denom += (1.0/dz0+1.0/dz1)/norm;
+        has_div = true;
     }
-    if (iz > 0) { denom += 1.0/dz_buf[iz-1]; }
-    if (iz < Nz-1) { denom += 1.0/dz_buf[iz]; }
 
-    let x_next: f32 = div_E/denom;
+    if (!has_div) {
+        rhs = 0;
+        denom = 1;
+    }
+
+    let x_next: f32 = rhs/denom;
     let beta: f32 = params.beta;
     xout_buf[i] = (1.0-beta)*xin_buf[i] + beta*x_next;
 }
