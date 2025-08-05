@@ -2,7 +2,7 @@ import { type DistanceUnit, convert_distance } from "../../utility/unit_types";
 import {
   GridBuilder,
   type GridBuilderConfig, type GridBuilderPadding,
-  type Region, type Shape,
+  type Region,
 } from "../../app/electrostatic_2d/grid_builder.ts";
 import {
   Stackup, type Parameter,
@@ -10,28 +10,6 @@ import {
 } from "./stackup.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { type WasmModule, ManagedObject } from "../../wasm";
-
-function create_symmetrical_cylinder(
-  y_top: number, y_bottom: number,
-  r_inner: number | undefined, r_outer: number | undefined,
-): Shape[] {
-  const shapes: Shape[] = [];
-  shapes.push({
-    type: "rectangle",
-    y_top,
-    y_bottom,
-    x_left: r_inner,
-    x_right: r_outer,
-  });
-  shapes.push({
-    type: "rectangle",
-    y_top,
-    y_bottom,
-    x_left: r_outer !== undefined ? -r_outer : undefined,
-    x_right: r_inner !== undefined ? -r_inner : undefined,
-  });
-  return shapes;
-}
 
 function validate_parameter(param: Parameter) {
   if (param.value === undefined) {
@@ -173,18 +151,47 @@ export class StackupGrid extends ManagedObject {
 
     const via_voltage_index = 1;
     const ground_voltage_plane_index = 0;
+    const create_plane_antipad = (y_top: number, y_bottom: number, Dantipad: number) => {
+      // create plane
+      regions.push({
+        type: "voltage",
+        voltage_index: ground_voltage_plane_index,
+        shapes: [
+          {
+            type: "rectangle",
+            y_top,
+            y_bottom,
+          },
+        ],
+      });
+      // create antipad inside plane
+      regions.push({
+        type: "voltage",
+        voltage_index: null,
+        shapes: [
+          {
+            type: "rectangle",
+            y_top,
+            y_bottom,
+            x_left: -Dantipad/2,
+            x_right: Dantipad/2,
+          },
+        ],
+      });
+    };
     const create_via_pad = (y_top: number, y_bottom: number, Dpad: number) => {
       regions.push({
         type: "voltage",
         voltage_index: via_voltage_index,
-        shapes: create_symmetrical_cylinder(y_top, y_bottom, Dbarrel/2, Dpad/2),
-      });
-    };
-    const create_plane_antipad = (y_top: number, y_bottom: number, Dantipad: number) => {
-      regions.push({
-        type: "voltage",
-        voltage_index: ground_voltage_plane_index,
-        shapes: create_symmetrical_cylinder(y_top, y_bottom, Dantipad/2, undefined),
+        shapes: [
+          {
+            type: "rectangle",
+            y_top,
+            y_bottom,
+            x_left: -Dpad/2,
+            x_right: Dpad/2,
+          },
+        ],
       });
     };
 
@@ -199,14 +206,13 @@ export class StackupGrid extends ManagedObject {
 
     const create_reference_plane = (plane: ReferencePlane, y_top: number, y_bottom: number) => {
       push_copper_bounds(y_top, y_bottom);
-      if (plane.has_pad) {
-        const Dpad = this.setup_get_parameter_value(plane.Dpad);
-        create_via_pad(y_top, y_bottom, Dpad);
-      }
-      // reference plane antipad
       if (plane.has_plane) {
         const Dantipad = this.setup_get_parameter_value(plane.Dantipad);
         create_plane_antipad(y_top, y_bottom, Dantipad);
+      }
+      if (plane.has_pad) {
+        const Dpad = this.setup_get_parameter_value(plane.Dpad);
+        create_via_pad(y_top, y_bottom, Dpad);
       }
     };
 
@@ -306,11 +312,36 @@ export class StackupGrid extends ManagedObject {
     // barrel conductor
     const barrel_thickness = this.setup_get_parameter_value(stackup.barrel.copper_thickness);
     const Dbarrel_inner = Math.max(Dbarrel-2*barrel_thickness, 0);
-    regions.push({
-      type: "voltage",
-      voltage_index: via_voltage_index,
-      shapes: create_symmetrical_cylinder(y_barrel_top, y_barrel_bottom, Dbarrel_inner/2, Dbarrel/2),
-    });
+    {
+      // fill entire barrel
+      regions.push({
+        type: "voltage",
+        voltage_index: via_voltage_index,
+        shapes: [
+          {
+            type: "rectangle",
+            y_top: y_barrel_top,
+            y_bottom: y_barrel_bottom,
+            x_left: -Dbarrel/2,
+            x_right: Dbarrel/2,
+          },
+        ],
+      });
+      // drill hole through barrel
+      regions.push({
+        type: "voltage",
+        voltage_index: null,
+        shapes: [
+          {
+            type: "rectangle",
+            y_top: y_barrel_top,
+            y_bottom: y_barrel_bottom,
+            x_left: -Dbarrel_inner/2,
+            x_right: Dbarrel_inner/2,
+          },
+        ],
+      });
+    }
 
     this.profiler?.end();
     return {
