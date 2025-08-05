@@ -14,17 +14,7 @@ export interface CircleShape {
   min_y_gridlines?: number;
 }
 
-export interface DonutShape {
-  readonly type: "donut";
-  x: number;
-  y: number;
-  outer_radius: number;
-  inner_radius: number;
-  min_x_gridlines?: number;
-  min_y_gridlines?: number;
-}
-
- export interface RectangleShape {
+export interface RectangleShape {
   readonly type: "rectangle";
   x_left?: number; // undefined means unbounded
   x_right?: number;
@@ -44,17 +34,17 @@ export interface TriangleShape {
   min_y_gridlines?: number;
 }
 
-export type Shape = CircleShape | DonutShape | RectangleShape | TriangleShape;
+export type Shape = CircleShape | RectangleShape | TriangleShape;
 
 export interface VoltageRegion {
   readonly type: "voltage";
-  voltage_index: number;
+  voltage_index: number | null; // null removes voltage
   shapes: Shape[];
 }
 
 export interface DielectricRegion {
   readonly type: "dielectric";
-  dielectric_index: number;
+  dielectric_index: number | null; // null removes dielectric
   shapes: Shape[];
 }
 
@@ -128,8 +118,8 @@ interface SDF {
 }
 
 type RegionSDF =
-  { type: "voltage", sdfs: SDF[], voltage_index: number } |
-  { type: "dielectric", sdfs: SDF[], dielectric_index: number } |
+  { type: "voltage", sdfs: SDF[], voltage_index: number | null } |
+  { type: "dielectric", sdfs: SDF[], dielectric_index: number | null } |
   { type: "empty", sdfs: SDF[] };
 
 // Grid builder breaks down regions into the following heirarchy
@@ -197,7 +187,9 @@ export class GridBuilder extends ManagedObject {
       const sdfs = region.shapes.map(region => this.setup_create_sdf_from_shape(region));
       switch (region.type) {
         case "voltage": {
-          this.voltage_indices.add(region.voltage_index);
+          if (region.voltage_index !== null) {
+            this.voltage_indices.add(region.voltage_index);
+          }
           fill_regions.push({
             type: "voltage" as const,
             sdfs: sdfs,
@@ -206,7 +198,9 @@ export class GridBuilder extends ManagedObject {
           break;
         }
         case "dielectric": {
-          this.dielectric_indices.add(region.dielectric_index);
+          if (region.dielectric_index !== null) {
+            this.dielectric_indices.add(region.dielectric_index);
+          }
           fill_regions.push({
             type: "dielectric" as const,
             sdfs: sdfs,
@@ -251,40 +245,6 @@ export class GridBuilder extends ManagedObject {
 
         const radius_squared = 0.5**2;
         const sdf = (y: number, x: number) => ((y-0.5)**2 + (x-0.5)**2 < radius_squared) ? 1.0 : 0.0;
-        const multisample_sdf = get_sdf_multisample(sdf);
-        region_sdf = {
-          rx_left,
-          rx_right,
-          ry_top,
-          ry_bottom,
-          fill: {
-            type: "multisample",
-            sdf: multisample_sdf,
-          },
-        };
-        break;
-      }
-      case "donut": {
-        const x_left = shape.x-shape.outer_radius;
-        const x_right = shape.x+shape.outer_radius;
-        const y_top = shape.y-shape.outer_radius;
-        const y_bottom = shape.y+shape.outer_radius;
-
-        const rx_left = this.x_region_lines_builder.push(x_left);
-        const rx_right = this.x_region_lines_builder.push(x_right);
-        const ry_top = this.y_region_lines_builder.push(y_top);
-        const ry_bottom = this.y_region_lines_builder.push(y_bottom);
-
-
-        const inner_radius_norm = shape.inner_radius/shape.outer_radius
-        const outer_radius_squared = 0.5**2;
-        const inner_radius_squared = (inner_radius_norm*0.5)**2;
-
-        const sdf = (y: number, x: number) => {
-          const r2 = (y-0.5)**2 + (x-0.5)**2;
-          const inside_donut = r2 > inner_radius_squared && r2 < outer_radius_squared;
-          return inside_donut ? 1.0 : 0.0;
-        };
         const multisample_sdf = get_sdf_multisample(sdf);
         region_sdf = {
           rx_left,
@@ -520,31 +480,11 @@ export class GridBuilder extends ManagedObject {
     for (const fill of this.sdf_regions) {
       switch (fill.type) {
         case "voltage": {
-          const get_value = (old_value: number, beta: number) => {
-            const new_index = fill.voltage_index;
-            const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
-            if (old_index !== new_index) {
-              return Grid.pack_index_beta(new_index, beta);
-            } else {
-              const new_beta = Math.min(beta+old_beta, 1.0);
-              return Grid.pack_index_beta(new_index, new_beta);
-            }
-          };
-          fill.sdfs.forEach(region => { this.setup_fill_sdf(region, true, get_value); });
+          fill.sdfs.forEach(region => { this.setup_fill_sdf(region, "voltage", fill.voltage_index); });
           break;
         }
         case "dielectric": {
-          const get_value = (old_value: number, beta: number) => {
-            const new_index = fill.dielectric_index;
-            const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
-            if (old_index !== new_index) {
-              return Grid.pack_index_beta(new_index, beta);
-            } else {
-              const new_beta = Math.min(beta+old_beta, 1.0);
-              return Grid.pack_index_beta(new_index, new_beta);
-            }
-          };
-          fill.sdfs.forEach(region => { this.setup_fill_sdf(region, false, get_value); });
+          fill.sdfs.forEach(region => { this.setup_fill_sdf(region, "dielectric", fill.dielectric_index); });
           break;
         }
         case "empty": {
@@ -555,7 +495,7 @@ export class GridBuilder extends ManagedObject {
     this.profiler?.end();
   }
 
-  setup_fill_sdf(sdf: SDF, is_voltage: boolean, get_value: (old_value: number, beta: number) => number) {
+  setup_fill_sdf(sdf: SDF, type: "voltage" | "dielectric", index: number | null) {
     const {
       rx_left,
       rx_right,
@@ -564,9 +504,59 @@ export class GridBuilder extends ManagedObject {
       fill,
     } = sdf;
 
-    const grid = is_voltage ? this.grid.v_index_beta : this.grid.ek_index_beta;
-    const [Ny, Nx] = grid.shape;
-    const data = grid.ndarray.data;
+    let Nx = undefined as (undefined | number);
+    let Ny = undefined as (undefined | number);
+    let set_data = undefined as (undefined | ((i: number, beta: number) => void));
+    switch (type) {
+      case "voltage": {
+        const arr = this.grid.v_index_beta;
+        const data = arr.array_view;
+        Ny = arr.shape[0];
+        Nx = arr.shape[1];
+        if (index === null) {
+          const v_none = Grid.pack_index_beta(0, 0);
+          set_data = (i: number, beta: number): void => {
+            if (beta > 0.5) data[i] = v_none;
+          }
+        } else {
+          set_data = (i: number, beta: number): void => {
+            const old_value = data[i];
+            const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
+            if (old_index !== index) {
+              data[i] = Grid.pack_index_beta(index, beta);
+            } else {
+              const new_beta = Math.min(beta+old_beta, 1.0);
+              data[i] = Grid.pack_index_beta(index, new_beta);
+            }
+          }
+        }
+        break;
+      }
+      case "dielectric": {
+        const arr = this.grid.ek_index_beta;
+        const data = arr.array_view;
+        Ny = arr.shape[0];
+        Nx = arr.shape[1];
+        if (index === null) {
+          const er0 = Grid.pack_index_beta(0, 0);
+          set_data = (i: number, beta: number): void => {
+            if (beta > 0.5) data[i] = er0;
+          }
+        } else {
+          set_data = (i: number, beta: number): void => {
+            const old_value = data[i];
+            const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
+            if (old_index !== index) {
+              data[i] = Grid.pack_index_beta(index, beta);
+            } else {
+              const new_beta = Math.min(beta+old_beta, 1.0);
+              data[i] = Grid.pack_index_beta(index, new_beta);
+            }
+          }
+        }
+        break;
+      }
+    }
 
     let gx_left = rx_left !== undefined ? this.x_region_to_grid_map.id_to_grid_index(rx_left) : undefined;
     let gx_right = rx_right !== undefined ? this.x_region_to_grid_map.id_to_grid_index(rx_right) : undefined;
@@ -574,7 +564,7 @@ export class GridBuilder extends ManagedObject {
     let gy_bottom = ry_bottom !== undefined ? this.y_region_to_grid_map.id_to_grid_index(ry_bottom) : undefined;
 
     // voltage SDF should include boundaries of grid region
-    if (is_voltage) {
+    if (type === "voltage") {
       if (gx_right !== undefined) gx_right += 1;
       if (gy_bottom !== undefined) gy_bottom += 1;
     }
@@ -585,6 +575,8 @@ export class GridBuilder extends ManagedObject {
     gy_bottom = gy_bottom ?? Ny;
 
     // get normalised grid coordinates for SDFs
+    const My = gy_bottom-gy_top;
+    const Mx = gx_right-gx_left;
     const X = this.x_region_to_grid_map.grid_lines.slice(gx_left, gx_right);
     const Y = this.y_region_to_grid_map.grid_lines.slice(gy_top, gy_bottom);
     const dX = this.x_region_to_grid_map.grid_segments.slice(gx_left, gx_right);
@@ -596,8 +588,16 @@ export class GridBuilder extends ManagedObject {
     const norm_dX = dX.map(dx => dx/abs_width);
     const norm_dY = dY.map(dy => dy/abs_height);
 
-    const My = gy_bottom-gy_top;
-    const Mx = gx_right-gx_left;
+    if (type === "dielectric") {
+      // centre coordinate to dielectric cell
+      for (let x = 0; x < Mx; x++) {
+        X[x] += dX[x]/2;
+      }
+      for (let y = 0; y < My; y++) {
+        Y[y] += dY[y]/2;
+      }
+    }
+
 
     switch (fill.type) {
       case "point": {
@@ -610,8 +610,7 @@ export class GridBuilder extends ManagedObject {
             const gx = gx_left+x;
             const i = gx + gy*Nx;
             const beta = sdf(norm_y, norm_x);
-            const value = get_value(data[i], beta);
-            data[i] = value;
+            set_data(i, beta);
           }
         }
         break;
@@ -628,21 +627,19 @@ export class GridBuilder extends ManagedObject {
             const gx = gx_left+x;
             const i = gx + gy*Nx;
             const beta = sdf(norm_y, norm_x, norm_dy, norm_dx);
-            const value = get_value(data[i], beta);
-            data[i] = value;
+            set_data(i, beta);
           }
         }
         break;
       }
       case "constant": {
         const beta = 1.0;
-        const value = get_value(0, beta);
         for (let y = 0; y < My; y++) {
           const gy = gy_top+y;
           for (let x = 0; x < Mx; x++) {
             const gx = gx_left+x;
             const i = gx + gy*Nx;
-            data[i] = value;
+            set_data(i, beta);
           }
         }
         break;
