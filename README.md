@@ -8,11 +8,17 @@
 
 [Open in your browser here](https://williamyang98.github.io/impedance_lab/)
 
-## ⚡️2D PCB Stackup
-- Transmission line impedance calculator
+## ⚡️2D Transmission Line Impedance Calculator 
 - Configurable PCB stackup (e.g. microstrip, stripline, ...)
 - Different types of transmission lines (e.g. single ended, differential pair, broadside pair, ...)
 - Parametric search (e.g. trace width, separation, ...)
 - Field visualisation and export
 
-![Website Screenshot](docs/website_screenshot.png)
+![Transmission line 2D](docs/screenshots/transmission_line_2d.png)
+
+## ⚡️2D Single Ended Via Impedance Calculator
+- Configurable PCB stackup (e.g. microstrip, stripline, ...)
+- Parametric search (e.g. barrel diameter, pad diameter, reference plane anti-pad, ...)
+- Field visualisation and export
+
+![Via 2D](docs/screenshots/via_2d.png)
