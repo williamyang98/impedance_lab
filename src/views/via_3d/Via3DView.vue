@@ -22,6 +22,7 @@ import VisualiserView from "../visualiser_2d/VisualiserView.vue";
 import LayersEditorView from "../via_2d/LayersEditorView.vue";
 import ParameterForm from "../via_2d/ParameterForm.vue";
 import { type ImpedanceResult } from './impedance.ts';
+import MeshViewer from '../../app/electrostatic_3d/MeshViewer.vue';
 
 const gpu_device = toRaw(providers.gpu_device.value);
 const toast = providers.toast_manager.value;
@@ -49,20 +50,20 @@ const stackup_visualiser = computed_ref(() => new StackupVisualiser(stackup.valu
 
 const profiler = ref<Profiler | undefined>(undefined);
 const grid_builder_config: GridBuilderConfig = {
-  minimum_grid_resolution: 1e-6,
+  minimum_grid_resolution: 1e-4,
   padding_size_multiplier: 10,
   max_x_ratio: 0.7,
-  min_x_subdivisions: 5,
+  min_x_subdivisions: 10,
   max_y_ratio: 0.7,
-  min_y_subdivisions: 5,
+  min_y_subdivisions: 10,
   max_z_ratio: 0.7,
-  min_z_subdivisions: 5,
+  min_z_subdivisions: 10,
 };
 
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const executor_controls = ref<ExecutorControls>({
-  total_steps: 2048,
+  total_steps: 8192,
   stride_size: 64,
 });
 const executor = new Executor(gpu_device, executor_controls.value);
@@ -334,6 +335,12 @@ async function perform_search(search_params: Parameter[]) {
     </div>
     <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
       Perform parameter search to see search curve
+    </div>
+  </template>
+  <template #h-5>Mesh</template>
+  <template #b-5>
+    <div class="w-full h-full min-h-0">
+      <MeshViewer v-if="stackup_grid" :builder="stackup_grid.grid_builder"/>
     </div>
   </template>
 </TabsView>
