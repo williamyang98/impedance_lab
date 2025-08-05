@@ -75,8 +75,8 @@ fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
 
     if (iz > 0 && iz < Nz-1) {
         // enforce div(Ez) onlz if there are Ez field lines on both sides of voltage grid point
-        div_E += x_buf[i-Nxy]/dz_buf[iz];
-        div_E += x_buf[i+Nxy]/dz_buf[iz-1];
+        div_E += x_buf[i-Nxy]/dz_buf[iz-1];
+        div_E += x_buf[i+Nxy]/dz_buf[iz];
     }
     if (iz > 0) { div_E -= x_buf[i]/dz_buf[iz-1]; }
     if (iz < Nz-1) { div_E -= x_buf[i]/dz_buf[iz]; }
