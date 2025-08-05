@@ -463,7 +463,8 @@ export class GridBuilder {
     const { x_left, x_right, y_top, y_bottom, z_top, z_bottom } = this.unpadded_boundary;
     const stackup_width = x_right-x_left;
     const stackup_height = y_bottom-y_top;
-    const padding_size = Math.max(stackup_width, stackup_height)*this.config.padding_size_multiplier;
+    const stackup_length = z_bottom-z_top;
+    const padding_size = Math.max(stackup_width, stackup_height, stackup_length)*this.config.padding_size_multiplier;
     const padded_boundary: typeof this.padded_boundary = {};
     if (this.padding.x_left) {
       const x_left_pad = x_left-padding_size;
