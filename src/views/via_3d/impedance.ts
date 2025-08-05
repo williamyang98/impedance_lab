@@ -17,7 +17,76 @@ export interface ImpedanceResult {
   dc_resistance: number;
 }
 
-function calculate_energy_homogenous(stackup_grid: StackupGrid): number {
+function calculate_energy_homogenous_0(stackup_grid: StackupGrid): number {
+  const v_buf = stackup_grid.cpu_grid.Xin.cast(Float32Array);
+  const dx_buf = stackup_grid.cpu_grid.dx.cast(Float32Array);
+  const _dy_buf = stackup_grid.cpu_grid.dy.cast(Float32Array);
+  const dz_buf = stackup_grid.cpu_grid.dz.cast(Float32Array);
+  const x_buf = stackup_grid.cpu_grid.x.cast(Float32Array);
+  const size = stackup_grid.size;
+  const Nz = size.z;
+  const Ny = size.y;
+  const Nx = size.x;
+  const Nxy = Nx*Ny;
+
+  const Mx = Nx-1;
+  const Mz = Nz-1;
+
+  const y = Math.floor(Ny/2);
+
+  let energy = 0;
+  for (let z = 0; z < Mz; z++) {
+    const dz = dz_buf[z];
+    for (let x = 0; x < Mx; x++) {
+      const iv = x + y*Nx + z*Nxy;
+      const dx = dx_buf[x];
+      const r = Math.abs(x_buf[x]+dx/2);
+      const Ex = (v_buf[iv+1]-v_buf[iv])/dx;
+      const Ez = (v_buf[iv+Nxy]-v_buf[iv])/dz;
+      energy += (Ex*Ex+Ez*Ez)*dx*dz*Math.PI*r;
+    }
+  }
+  return energy;
+}
+
+function calculate_energy_inhomogenous_0(stackup_grid: StackupGrid): number {
+  const v_buf = stackup_grid.cpu_grid.Xin.cast(Float32Array);
+  const er_buf = stackup_grid.cpu_grid.er.cast(Float32Array);
+  const dx_buf = stackup_grid.cpu_grid.dx.cast(Float32Array);
+  const _dy_buf = stackup_grid.cpu_grid.dx.cast(Float32Array);
+  const dz_buf = stackup_grid.cpu_grid.dz.cast(Float32Array);
+  const x_buf = stackup_grid.cpu_grid.x.cast(Float32Array);
+  const size = stackup_grid.size;
+  const Nz = size.z;
+  const Ny = size.y;
+  const Nx = size.x;
+  const Nxy = Nx*Ny;
+
+  const Mx = Nx-1;
+  const My = Ny-1;
+  const Mz = Nz-1;
+  const Mxy = Mx*My;
+
+  const y = Math.round(Ny/2);
+
+  let energy = 0;
+  for (let z = 0; z < Mz; z++) {
+    const dz = dz_buf[z];
+    for (let x = 0; x < Mx; x++) {
+      const iv = x + y*Nx + z*Nxy;
+      const ier = x + y*Mx + z*Mxy;
+      const dx = dx_buf[x];
+      const r = Math.abs(x_buf[x]+dx/2);
+      const Ex = (v_buf[iv+1]-v_buf[iv])/dx;
+      const Ez = (v_buf[iv+Nxy]-v_buf[iv])/dz;
+      const er = er_buf[ier];
+      energy += (Ex*Ex+Ez*Ez)*dx*dz*Math.PI*r*er;
+    }
+  }
+  return energy;
+}
+
+function calculate_energy_homogenous_1(stackup_grid: StackupGrid): number {
   const v_buf = stackup_grid.cpu_grid.Xin.cast(Float32Array);
   const dx_buf = stackup_grid.cpu_grid.dx.cast(Float32Array);
   const dy_buf = stackup_grid.cpu_grid.dy.cast(Float32Array);
@@ -51,7 +120,7 @@ function calculate_energy_homogenous(stackup_grid: StackupGrid): number {
   return energy;
 }
 
-function calculate_energy_inhomogenous(stackup_grid: StackupGrid): number {
+function calculate_energy_inhomogenous_1(stackup_grid: StackupGrid): number {
   const v_buf = stackup_grid.cpu_grid.Xin.cast(Float32Array);
   const dx_buf = stackup_grid.cpu_grid.dx.cast(Float32Array);
   const dy_buf = stackup_grid.cpu_grid.dy.cast(Float32Array);
@@ -89,7 +158,11 @@ function calculate_energy_inhomogenous(stackup_grid: StackupGrid): number {
   return energy;
 }
 
-export function calculate_via_impedance(stackup_grid: StackupGrid, profiler?: Profiler): ImpedanceResult {
+export function calculate_via_impedance(stackup_grid: StackupGrid, profiler?: Profiler, mode?: number): ImpedanceResult {
+  mode = mode ?? 0;
+  const calculate_energy_homogenous = mode === 0 ? calculate_energy_homogenous_0 : calculate_energy_homogenous_1;
+  const calculate_energy_inhomogenous = mode === 0 ? calculate_energy_inhomogenous_0 : calculate_energy_inhomogenous_1;
+
   profiler?.begin("energy_homogenous", "Calculate energy stored without dielectric material");
   let energy_homogenous = calculate_energy_homogenous(stackup_grid);
   profiler?.end();
