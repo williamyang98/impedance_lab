@@ -2,7 +2,7 @@ import { ShaderComponentViewer } from "../../wgpu_kernels/view_2d";
 import { ComputeCopySliceToTexture, type Size2D } from "../../wgpu_kernels/electrostatic_3d";
 import { GpuGrid } from "./grid.ts";
 
-export type DisplayMode = "x" | "r";
+export type DisplayMode = "x" | "r" | "b";
 
 export class Renderer {
   device: GPUDevice;
@@ -45,8 +45,7 @@ export class Renderer {
     const slice = this._update_slice_size({ x: grid.size.x, y: grid.size.y });
     this.kernel_copy_to_texture.create_pass(
       command_encoder,
-      grid.xin,
-      grid.r,
+      grid.Xin, grid.r, grid.b,
       slice.view,
       grid.size,
       copy_z,
@@ -72,8 +71,9 @@ export class Renderer {
     const canvas_texture_view = canvas_context.getCurrentTexture().createView();
     let axis = undefined;
     switch (display_mode) {
-      case "x": axis = 1; break;
-      case "r": axis = 2; break;
+      case "x": axis = 1 << 0; break;
+      case "r": axis = 1 << 1; break;
+      case "b": axis = 1 << 2; break;
     }
 
     this.shader_component_viewer.create_pass(

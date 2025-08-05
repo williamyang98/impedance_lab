@@ -8,7 +8,8 @@ struct Params {
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> x_buf: array<f32>;
 @group(0) @binding(2) var<storage, read> r_buf: array<f32>;
-@group(0) @binding(3) var x_texture: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(3) var<storage, read> b_buf: array<f32>;
+@group(0) @binding(4) var x_texture: texture_storage_2d<rgba16float, write>;
 
 override workgroup_size_x = 16;
 override workgroup_size_y = 16;
@@ -36,6 +37,7 @@ fn main(@builtin(global_invocation_id) _i: vec3<u32>) {
 
     let x: f32 = x_buf[src_i];
     let r: f32 = r_buf[src_i];
-    let colour = vec4<f32>(x,r,0.0,0.0);
+    let b: f32 = b_buf[src_i];
+    let colour = vec4<f32>(x,r,b,0.0);
     textureStore(x_texture, dst_i, colour);
 }

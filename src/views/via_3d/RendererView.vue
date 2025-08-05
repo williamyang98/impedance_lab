@@ -94,6 +94,7 @@ defineExpose({
       <select class="select w-full" v-model="display_mode">
         <option :value="'x'">Voltage</option>
         <option :value="'r'">Residual</option>
+        <option :value="'b'">Input voltage</option>
       </select>
     </fieldset>
     <fieldset class="fieldset">

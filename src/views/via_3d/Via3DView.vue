@@ -1,90 +1,214 @@
 <script lang="ts" setup>
 import { toRaw, ref, useTemplateRef, watch } from 'vue';
 import { providers } from '../../providers/providers';
-import { type Size3D } from '../../wgpu_kernels/electrostatic_3d';
 import { CpuGrid, GpuGrid, GpuEngine } from "./grid.ts";
+import { GridBuilder, type Region, type GridBuilderConfig, type GridBuilderPadding } from './grid_builder.ts';
 import ExportView from './ExportView.vue';
 import RendererView from './RendererView.vue';
 import TabsView from '../../utility/TabsView.vue';
+import { Profiler } from '../../utility/profiler.ts';
+import ProfilerFlameChart from '../../utility/ProfilerFlameChart.vue';
 
 const gpu_device = toRaw(providers.gpu_device.value);
 const toast = providers.toast_manager.value;
 
-const grid_size: Size3D = { x: 128, y: 128, z: 64 };
-const cpu_grid = new CpuGrid(grid_size);
-{
-  cpu_grid.dx.data.fill(1);
-  cpu_grid.dy.data.fill(1);
-  cpu_grid.dz.data.fill(1);
-  cpu_grid.mask.data.fill(0);
-  const Nx = cpu_grid.size.x;
-  const Ny = cpu_grid.size.y;
-  const _Nz = cpu_grid.size.z;
-  {
-    // ground plane
-    const height = 16;
-    const v_force = 0;
-    cpu_grid.b.hi([height,Ny,Nx]).fill(v_force)
-    const mask = cpu_grid.mask.cast(Uint32Array);
-    const Nxy = Nx*Ny;
-    for (let z = 0; z < height; z++) {
-      for (let y = 0; y < Ny; y++) {
-        for (let x = 0; x < Nx; x++) {
-          const i = x+y*Nx+z*Nxy;
-          const imask = Math.floor(i/32);
-          const imask_offset = i-imask*32;
-          mask[imask] |= (1 << imask_offset);
+const profiler = ref<Profiler | undefined>(undefined);
+
+function create_grid(): GridBuilder {
+  const regions: Region[] = [
+    // reference planes
+    {
+      type: "voltage",
+      voltage: 0,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { z: 0 },
+          end: { z: 0.1 },
+          config: {},
         }
-      }
-    }
-  }
-  {
-    // voltage plate
-    const Nz0 = 32;
-    const Nz1 = 35;
-    const Ny0 = 32;
-    const Ny1 = 64;
-    const Nx0 = 32;
-    const Nx1 = 64;
-    const v_force = 1;
-    cpu_grid.b.hi([Nz1,Ny1,Nx1]).lo([Nz0,Ny0,Nx0]).fill(v_force)
-    const mask = cpu_grid.mask.cast(Uint32Array);
-    const Nxy = Nx*Ny;
-    for (let z = Nz0; z < Nz1; z++) {
-      for (let y = Ny0; y < Ny1; y++) {
-        for (let x = Nx0; x < Nx1; x++) {
-          const i = x+y*Nx+z*Nxy;
-          const imask = Math.floor(i/32);
-          const imask_offset = i-imask*32;
-          mask[imask] |= (1 << imask_offset);
+      ],
+    },
+    {
+      type: "dielectric",
+      epsilon: 4.1,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { z: 0.05 },
+          end: { z: 0.25 },
+          config: {},
         }
-      }
-    }
-  }
-  {
-    // voltage plate
-    const Nz0 = 52;
-    const Nz1 = 55;
-    const Ny0 = 62;
-    const Ny1 = 94;
-    const Nx0 = 62;
-    const Nx1 = 94;
-    const v_force = -1;
-    cpu_grid.b.hi([Nz1,Ny1,Nx1]).lo([Nz0,Ny0,Nx0]).fill(v_force)
-    const mask = cpu_grid.mask.cast(Uint32Array);
-    const Nxy = Nx*Ny;
-    for (let z = Nz0; z < Nz1; z++) {
-      for (let y = Ny0; y < Ny1; y++) {
-        for (let x = Nx0; x < Nx1; x++) {
-          const i = x+y*Nx+z*Nxy;
-          const imask = Math.floor(i/32);
-          const imask_offset = i-imask*32;
-          mask[imask] |= (1 << imask_offset);
+      ],
+    },
+    {
+      type: "voltage",
+      voltage: 0,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { z: 0.2 },
+          end: { z: 0.3 },
+          config: {},
         }
-      }
-    }
-  }
+      ],
+    },
+    {
+      type: "dielectric",
+      epsilon: 4.6,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { z: 0.25 },
+          end: { z: 0.45 },
+          config: {},
+        }
+      ],
+    },
+    {
+      type: "voltage",
+      voltage: 0,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { z: 0.4 },
+          end: { z: 0.5 },
+          config: {},
+        }
+      ],
+    },
+    // antipad
+    {
+      type: "voltage",
+      voltage: null,
+      shapes: [
+        {
+          type: "cylinder",
+          center: {
+            x: 0, y: 0, z: 0,
+          },
+          radius: 0.5,
+          length: 0.5,
+          axis: "z",
+          config: {},
+        }
+      ],
+    },
+    // via
+    {
+      type: "voltage",
+      voltage: 1,
+      shapes: [
+        {
+          type: "cylinder",
+          center: {
+            x: 0, y: 0, z: 0,
+          },
+          radius: 0.25,
+          length: 0.5,
+          axis: "z",
+          config: {},
+        }
+      ],
+    },
+    // pads
+    {
+      type: "voltage",
+      voltage: 1,
+      shapes: [
+        {
+          type: "cylinder",
+          center: {
+            x: 0, y: 0, z: 0,
+          },
+          radius: 0.3,
+          length: 0.1,
+          axis: "z",
+          config: {},
+        }
+      ],
+    },
+    {
+      type: "voltage",
+      voltage: 1,
+      shapes: [
+        {
+          type: "cylinder",
+          center: {
+            x: 0, y: 0, z: 0.4,
+          },
+          radius: 0.3,
+          length: 0.1,
+          axis: "z",
+          config: {},
+        }
+      ],
+    },
+    // drill through via
+    {
+      type: "voltage",
+      voltage: null,
+      shapes: [
+        {
+          type: "cylinder",
+          center: {
+            x: 0, y: 0, z: 0,
+          },
+          radius: 0.2,
+          length: 0.5,
+          axis: "z",
+          config: {},
+        }
+      ],
+    },
+    {
+      type: "dielectric",
+      epsilon: 3.3,
+      shapes: [
+        {
+          type: "cylinder",
+          center: {
+            x: 0, y: 0, z: 0,
+          },
+          radius: 0.2,
+          length: 0.5,
+          axis: "z",
+          config: {},
+        }
+      ],
+    },
+  ];
+
+  const config: GridBuilderConfig = {
+    minimum_grid_resolution: 1e-5,
+    padding_size_multiplier: 1,
+    max_x_ratio: 0.7,
+    min_x_subdivisions: 5,
+    max_y_ratio: 0.7,
+    min_y_subdivisions: 5,
+    max_z_ratio: 0.7,
+    min_z_subdivisions: 5,
+  };
+  const padding: GridBuilderPadding = {
+    x_left: true,
+    x_right: true,
+    y_top: true,
+    y_bottom: true,
+    z_top: true,
+    z_bottom: true,
+  };
+
+  const new_profiler = new Profiler();
+  const builder = new GridBuilder(regions, config, padding, new_profiler);
+  new_profiler.end_all();
+  profiler.value = new_profiler;
+  return builder;
 }
+
+const grid_builder = create_grid();
+const cpu_grid: CpuGrid = grid_builder.grid;
+const grid_size = cpu_grid.size;
+
 const gpu_grid = new GpuGrid(grid_size, gpu_device);
 gpu_grid.from_cpu(cpu_grid);
 const gpu_engine = new GpuEngine(gpu_device);
@@ -99,7 +223,7 @@ const is_running = ref<boolean>(false);
 const renderer_view = useTemplateRef<typeof RendererView>("renderer_view");
 watch(renderer_view, (view) => {
   if (view === null) return;
-  view.copy_z = 32;
+  view.copy_z = Math.round(grid_size.z/2);
 });
 
 async function run() {
@@ -179,6 +303,12 @@ async function run() {
   <template #b-1>
     <div class="w-full flex justify-center-safe overflow-x-auto">
       <ExportView :grid="cpu_grid" class="w-fit border border-base-300 bg-base-100"/>
+    </div>
+  </template>
+  <template #h-2>Profiler</template>
+  <template #b-2>
+    <div class="w-full h-full">
+      <ProfilerFlameChart v-if="profiler" :profiler="profiler"/>
     </div>
   </template>
 </TabsView>

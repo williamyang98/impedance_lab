@@ -24,13 +24,17 @@ interface DownloadLink {
 const download_links = computed<DownloadLink[]>(() => {
   const grid = toRaw(props.grid);
   return [
-    { name: "x.npy", data: grid.x },
+    { name: "Xin.npy", data: grid.Xin },
     { name: "b.npy", data: grid.b },
+    { name: "r.npy", data: grid.r },
     { name: "mask.npy", data: grid.mask },
     { name: "dx.npy", data: grid.dx },
     { name: "dy.npy", data: grid.dy },
     { name: "dz.npy", data: grid.dz },
-    { name: "r.npy", data: grid.r },
+    { name: "x.npy", data: grid.x },
+    { name: "y.npy", data: grid.y },
+    { name: "z.npy", data: grid.z },
+    { name: "er.npy", data: grid.er },
   ]
 });
 

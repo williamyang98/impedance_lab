@@ -3,39 +3,50 @@ import { Ndarray } from '../../utility/ndarray';
 
 export class CpuGrid {
   size: Size3D;
-  x: Ndarray;
+  Xin: Ndarray;
   r: Ndarray;
   b: Ndarray;
   mask: Ndarray;
   dx: Ndarray;
   dy: Ndarray;
   dz: Ndarray;
+  x: Ndarray;
+  y: Ndarray;
+  z: Ndarray;
+  er: Ndarray;
 
   constructor(size: Size3D) {
     this.size = size;
 
     const total_cells = size.x*size.y*size.z;
-    this.x = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    this.Xin = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
     this.r = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
     this.b = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    this.er = Ndarray.create_zeros([size.z-1,size.y-1,size.x-1], "f32");
     this.mask = Ndarray.create_zeros([Math.ceil(total_cells/32)], "u32");
     this.dx = Ndarray.create_zeros([size.x-1], "f32");
     this.dy = Ndarray.create_zeros([size.y-1], "f32");
     this.dz = Ndarray.create_zeros([size.z-1], "f32");
+    this.x = Ndarray.create_zeros([size.x], "f32");
+    this.y = Ndarray.create_zeros([size.y], "f32");
+    this.z = Ndarray.create_zeros([size.z], "f32");
   }
 }
 
 export class GpuGrid {
   size: Size3D;
   device: GPUDevice;
-  xin: GPUBuffer;
-  xout: GPUBuffer;
+  Xin: GPUBuffer;
+  Xout: GPUBuffer;
   r: GPUBuffer;
   b: GPUBuffer;
   mask: GPUBuffer;
   dx: GPUBuffer;
   dy: GPUBuffer;
   dz: GPUBuffer;
+  x: GPUBuffer;
+  y: GPUBuffer;
+  z: GPUBuffer;
   readback: GPUBuffer;
 
   constructor(size: Size3D, device: GPUDevice) {
@@ -49,37 +60,43 @@ export class GpuGrid {
       return buffer;
     };
     const total_cells = size.x*size.y*size.z;
-    this.xin = create_buffer(total_cells*4);
-    this.xout = create_buffer(total_cells*4);
+    this.Xin = create_buffer(total_cells*4);
+    this.Xout = create_buffer(total_cells*4);
     this.r = create_buffer(total_cells*4);
     this.b = create_buffer(total_cells*4);
-    this.mask = create_buffer(Math.ceil(total_cells/8));
+    this.mask = create_buffer(Math.ceil(total_cells/32)*4);
     this.dx = create_buffer((size.x-1)*4);
     this.dy = create_buffer((size.y-1)*4);
     this.dz = create_buffer((size.z-1)*4);
+    this.x = create_buffer(size.x*4);
+    this.y = create_buffer(size.y*4);
+    this.z = create_buffer(size.z*4);
     this.readback = device.createBuffer({
       size: total_cells*4,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
   }
 
-  swap() {
-    const tmp = this.xin;
-    this.xin = this.xout;
-    this.xout = tmp;
+  swap_X() {
+    const tmp = this.Xin;
+    this.Xin = this.Xout;
+    this.Xout = tmp;
   }
 
   from_cpu(cpu: CpuGrid) {
     const write_buffer = (gpu: GPUBuffer, cpu: Ndarray) => {
       this.device.queue.writeBuffer(gpu, 0, cpu.data, 0, cpu.data.length);
     };
-    write_buffer(this.xin, cpu.x);
+    write_buffer(this.Xin, cpu.Xin);
     write_buffer(this.r, cpu.r);
     write_buffer(this.b, cpu.b);
     write_buffer(this.mask, cpu.mask);
     write_buffer(this.dx, cpu.dx);
     write_buffer(this.dy, cpu.dy);
     write_buffer(this.dz, cpu.dz);
+    write_buffer(this.x, cpu.x);
+    write_buffer(this.y, cpu.y);
+    write_buffer(this.z, cpu.z);
   }
 
   async to_cpu(cpu: CpuGrid) {
@@ -100,7 +117,7 @@ export class GpuGrid {
       dst_view.set(src_view);
       this.readback.unmap();
     };
-    await read_buffer(this.xin, cpu.x);
+    await read_buffer(this.Xin, cpu.Xin);
     await read_buffer(this.r, cpu.r);
   }
 }
@@ -122,19 +139,19 @@ export class GpuEngine {
     for (let i = 0; i < total_steps; i++) {
       this.kernel_jacobi_smooth.create_pass(
         command_encoder,
-        grid.xout, grid.xin, grid.b, grid.mask,
+        grid.Xout, grid.Xin, grid.b, grid.mask,
         grid.dx, grid.dy, grid.dz,
         grid.size,
         jacobi_smooth_beta,
       );
-      grid.swap();
+      grid.swap_X();
     }
   }
 
   calculate_residual(command_encoder: GPUCommandEncoder, grid: GpuGrid) {
     this.kernel_calculate_residual.create_pass(
       command_encoder,
-      grid.r, grid.xin, grid.b, grid.mask,
+      grid.r, grid.Xin, grid.b, grid.mask,
       grid.dx, grid.dy, grid.dz,
       grid.size,
     );

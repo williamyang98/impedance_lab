@@ -82,7 +82,7 @@ export class KernelJacobiSmooth {
     assert_buffer_size(xout, total_cells*4);
     assert_buffer_size(xin, total_cells*4);
     assert_buffer_size(b, total_cells*4);
-    assert_buffer_size(mask, Math.ceil(total_cells/8)); // mask bits packed as single bits
+    assert_buffer_size(mask, Math.ceil(total_cells/32)*4); // mask bits packed as single bits
     assert_buffer_size(dx, (grid_size.x-1)*4);
     assert_buffer_size(dy, (grid_size.y-1)*4);
     assert_buffer_size(dz, (grid_size.z-1)*4);
@@ -199,7 +199,7 @@ export class KernelCalculateResidual {
     assert_buffer_size(r, total_cells*4);
     assert_buffer_size(x, total_cells*4);
     assert_buffer_size(b, total_cells*4);
-    assert_buffer_size(mask, Math.ceil(total_cells/8)); // mask bits packed as single bits
+    assert_buffer_size(mask, Math.ceil(total_cells/32)*4); // mask bits packed as single bits
     assert_buffer_size(dx, (grid_size.x-1)*4);
     assert_buffer_size(dy, (grid_size.y-1)*4);
     assert_buffer_size(dz, (grid_size.z-1)*4);
@@ -298,6 +298,11 @@ export class ComputeCopySliceToTexture {
         {
           binding: 3,
           visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        },
+        {
+          binding: 4,
+          visibility: GPUShaderStage.COMPUTE,
           storageTexture: {
             access: "write-only",
             format: "rgba16float",
@@ -322,7 +327,7 @@ export class ComputeCopySliceToTexture {
 
   create_pass(
     command_encoder: GPUCommandEncoder,
-    x_buf: GPUBuffer, r_buf: GPUBuffer,
+    x_buf: GPUBuffer, r_buf: GPUBuffer, b_buf: GPUBuffer,
     gpu_texture_view: GPUTextureView,
     grid_size: Size3D,
     copy_z: number,
@@ -354,6 +359,10 @@ export class ComputeCopySliceToTexture {
         },
         {
           binding: 3,
+          resource: { buffer: b_buf, offset: 0, size: b_buf.size },
+        },
+        {
+          binding: 4,
           resource: gpu_texture_view,
         },
       ],
