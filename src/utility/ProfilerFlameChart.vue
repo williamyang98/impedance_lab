@@ -158,7 +158,7 @@ function on_span_enter(ev: MouseEvent) {
                     </tr>
                     <template v-if="span.trace.metadata">
                       <tr v-for="([key, value], row_index) in Object.entries(span.trace.metadata)" :key="row_index">
-                        <td class="font-medium">{{ key }}</td>
+                        <td class="font-medium text-nowrap">{{ key }}</td>
                         <td>{{ value }}</td>
                       </tr>
                     </template>
