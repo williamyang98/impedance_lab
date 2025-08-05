@@ -17,7 +17,7 @@ import ParameterForm from "./ParameterForm.vue";
 import GridViewer from "../../app/electrostatic_2d/GridViewer.vue";
 import GridBuilderView from "../../app/electrostatic_2d/GridBuilderView.vue";
 import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
-import ExportView from "./ExportView.vue";
+import ExportView from "../../app/electrostatic_2d/ExportView.vue";
 import TabsView from "../../utility/TabsView.vue";
 import GridBuilderConfigForm from "../../app/electrostatic_2d/GridBuilderConfigForm.vue";
 import VisualiserView from "../visualiser_2d/VisualiserView.vue";
@@ -177,7 +177,7 @@ async function perform_search(search_params: Parameter[]) {
   let new_search_results: SearchResults | undefined = undefined;
   const new_profiler = new Profiler("perform_search");
   try {
-    new_search_results = search_parameters(
+    new_search_results = await search_parameters(
       wasm_module,
       target_impedance.value,
       stackup.value,
