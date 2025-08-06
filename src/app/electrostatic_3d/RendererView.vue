@@ -36,6 +36,10 @@ function upload_slice(command_encoder: GPUCommandEncoder) {
 }
 
 function update_display(command_encoder: GPUCommandEncoder) {
+  // can't render to 0 sized canvas
+  const canvas = canvas_element.value;
+  if (canvas === null || canvas.width === 0 || canvas.height == 0) return;
+
   const scale = Math.pow(10, scale_db.value);
   const canvas_size = {
     width: canvas_context.value.canvas.width,
@@ -43,6 +47,14 @@ function update_display(command_encoder: GPUCommandEncoder) {
   };
   renderer.update_display(command_encoder, canvas_context.value, canvas_size, display_mode.value, scale);
 }
+
+const refresh = debounce_animation_frame_async(async () => {
+  const command_encoder = gpu_device.createCommandEncoder();
+  upload_slice(command_encoder);
+  update_display(command_encoder);
+  gpu_device.queue.submit([command_encoder.finish()]);
+  await gpu_device.queue.onSubmittedWorkDone();
+});
 
 watch(() => props.grid, (grid) => {
   max_z.value = grid.size.z;
@@ -71,14 +83,27 @@ watch(display_mode, debounce_animation_frame_async(async () => {
   await gpu_device.queue.onSubmittedWorkDone();
 }));
 
+// rerender grid if canvas was resized
+let resize_observer: ResizeObserver | undefined = undefined;
+watch(canvas_element, (elem) => {
+  if (elem === null) return;
+  resize_observer?.disconnect();
+  resize_observer = new ResizeObserver(() => {
+    const canvas = canvas_element.value;
+    if (canvas === null) return;
+    if (canvas.width == canvas.clientWidth && canvas.height == canvas.clientHeight) {
+      return;
+    }
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    refresh();
+  });
+  resize_observer.observe(elem);
+});
+
+
 defineExpose({
-  refresh: debounce_animation_frame_async(async () => {
-    const command_encoder = gpu_device.createCommandEncoder();
-    upload_slice(command_encoder);
-    update_display(command_encoder);
-    gpu_device.queue.submit([command_encoder.finish()]);
-    await gpu_device.queue.onSubmittedWorkDone();
-  }),
+  refresh,
   copy_z,
   scale_db,
 });
@@ -87,7 +112,7 @@ defineExpose({
 
 <template>
 <div class="w-full h-full grid grid-cols-1 sm:grid-cols-[auto_15rem] gap-x-2 gap-y-2">
-  <canvas ref="field-canvas" class="w-full h-full min-h-0"></canvas>
+  <canvas ref="field-canvas" class="w-full h-full min-h-0 grid-view"></canvas>
   <form class="flex flex-col gap-y-2 w-full">
     <fieldset class="fieldset">
       <legend for="mode" class="fieldset-legend w-full">Mode</legend>
@@ -114,3 +139,11 @@ defineExpose({
   </form>
 </div>
 </template>
+
+<style scoped>
+canvas.grid-view {
+  image-rendering: auto;
+  display: block;
+  scale: 100% -100%;
+}
+</style>
