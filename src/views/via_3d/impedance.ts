@@ -23,27 +23,27 @@ function calculate_energy_homogenous(stackup_grid: StackupGrid): number {
   const dy_buf = stackup_grid.cpu_grid.dy.cast(Float32Array);
   const dz_buf = stackup_grid.cpu_grid.dz.cast(Float32Array);
   const size = stackup_grid.size;
-  const Nz = size.z;
-  const Ny = size.y;
-  const Nx = size.x;
-  const Nxy = Nx*Ny;
 
-  const Mx = Nx-1;
-  const My = Ny-1;
-  const Mz = Nz-1;
+  const Nx = size.x;
+  const Ny = size.y;
+  const Nz = size.z;
+
+  const My = size.y+1;
+  const Mx = size.x+1;
+  const Mxy = Mx*My;
 
   let energy = 0;
-  for (let z = 0; z < Mz; z++) {
+  for (let z = 0; z < Nz; z++) {
     const dz = dz_buf[z];
-    for (let y = 0; y < My; y++) {
+    for (let y = 0; y < Ny; y++) {
       const dy = dy_buf[y];
-      for (let x = 0; x < Mx; x++) {
-        const iv = x + y*Nx + z*Nxy;
+      for (let x = 0; x < Nx; x++) {
+        const iv = x + y*Mx + z*Mxy;
         const dx = dx_buf[x];
         const dA = dx*dy*dz;
         const Ex = (v_buf[iv+1]-v_buf[iv])/dx;
-        const Ey = (v_buf[iv+Nx]-v_buf[iv])/dy;
-        const Ez = (v_buf[iv+Nxy]-v_buf[iv])/dz;
+        const Ey = (v_buf[iv+Mx]-v_buf[iv])/dy;
+        const Ez = (v_buf[iv+Mxy]-v_buf[iv])/dz;
         energy += (Ex*Ex+Ey*Ey+Ez*Ez)*dA;
       }
     }
@@ -58,29 +58,29 @@ function calculate_energy_inhomogenous(stackup_grid: StackupGrid): number {
   const dz_buf = stackup_grid.cpu_grid.dz.cast(Float32Array);
   const er_buf = stackup_grid.cpu_grid.er.cast(Float32Array);
   const size = stackup_grid.size;
-  const Nz = size.z;
-  const Ny = size.y;
+
   const Nx = size.x;
+  const Ny = size.y;
+  const Nz = size.z;
   const Nxy = Nx*Ny;
 
-  const Mx = Nx-1;
-  const My = Ny-1;
-  const Mz = Nz-1;
+  const My = size.y+1;
+  const Mx = size.x+1;
   const Mxy = Mx*My;
 
   let energy = 0;
-  for (let z = 0; z < Mz; z++) {
+  for (let z = 0; z < Nz; z++) {
     const dz = dz_buf[z];
-    for (let y = 0; y < My; y++) {
+    for (let y = 0; y < Ny; y++) {
       const dy = dy_buf[y];
-      for (let x = 0; x < Mx; x++) {
-        const iv = x + y*Nx + z*Nxy;
-        const ier = x + y*Mx + z*Mxy;
+      for (let x = 0; x < Nx; x++) {
+        const iv = x + y*Mx + z*Mxy;
+        const ier = x + y*Nx + z*Nxy;
         const dx = dx_buf[x];
         const dA = dx*dy*dz;
         const Ex = (v_buf[iv+1]-v_buf[iv])/dx;
-        const Ey = (v_buf[iv+Nx]-v_buf[iv])/dy;
-        const Ez = (v_buf[iv+Nxy]-v_buf[iv])/dz;
+        const Ey = (v_buf[iv+Mx]-v_buf[iv])/dy;
+        const Ez = (v_buf[iv+Mxy]-v_buf[iv])/dz;
         const er = er_buf[ier];
         energy += (Ex*Ex+Ey*Ey+Ez*Ez)*dA*er;
       }

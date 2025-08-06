@@ -26,13 +26,13 @@ fn main(@builtin(global_invocation_id) _i: vec3<u32>) {
     if (ix >= width) { return; }
     if (iy >= height) { return; }
 
-    let Nx = params.size_x;
-    let Ny = params.size_y;
-    let Nz = params.size_z;
-    let Nxy = Ny*Nx;
+    let Mx = params.size_x+1;
+    let My = params.size_y+1;
+    let Mz = params.size_z+1;
+    let Mxy = My*Mx;
     let iz = params.copy_z;
 
-    let src_i = ix + iy*Nx + iz*Nxy;
+    let src_i = ix + iy*Mx + iz*Mxy;
     let dst_i = vec2<u32>(u32(ix), u32(iy));
 
     let x: f32 = x_buf[src_i];

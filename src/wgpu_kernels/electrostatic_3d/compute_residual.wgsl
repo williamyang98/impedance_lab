@@ -22,20 +22,20 @@ override workgroup_size_z = 1;
 @compute
 @workgroup_size(workgroup_size_x, workgroup_size_y, workgroup_size_z)
 fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
-    let Nx = params.grid_size_x;
-    let Ny = params.grid_size_y;
-    let Nz = params.grid_size_z;
+    let Mx = params.grid_size_x+1;
+    let My = params.grid_size_y+1;
+    let Mz = params.grid_size_z+1;
 
     // out bounds
     let ix = _j.x;
     let iy = _j.y;
     let iz = _j.z;
-    if (ix >= Nx) { return; }
-    if (iy >= Ny) { return; }
-    if (iz >= Nz) { return; }
+    if (ix >= Mx) { return; }
+    if (iy >= My) { return; }
+    if (iz >= Mz) { return; }
 
-    let Nxy = Nx*Ny;
-    let i: u32 = ix + iy*Nx + iz*Nxy;
+    let Mxy = Mx*My;
+    let i: u32 = ix + iy*Mx + iz*Mxy;
 
     // mask is packed into 1bit within 32bit buffer
     const mask_pack: u32 = 32;
@@ -69,7 +69,7 @@ fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
     // r = Ax-b
     // r = div(E) - b
     var div_E: f32 = 0;
-    if (ix > 0 && ix < Nx-1) {
+    if (ix > 0 && ix < Mx-1) {
         let dx0 = dx_buf[ix-1];
         let dx1 = dx_buf[ix];
         let norm = dx0+dx1;
@@ -77,20 +77,20 @@ fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
         div_E += ((x_buf[i]-x_buf[i+1])/dx1)/norm;
     }
 
-    if (iy > 0 && iy < Ny-1) {
+    if (iy > 0 && iy < My-1) {
         let dy0 = dy_buf[iy-1];
         let dy1 = dy_buf[iy];
         let norm = dy0+dy1;
-        div_E += ((x_buf[i]-x_buf[i-Nx])/dy0)/norm;
-        div_E += ((x_buf[i]-x_buf[i+Nx])/dy1)/norm;
+        div_E += ((x_buf[i]-x_buf[i-Mx])/dy0)/norm;
+        div_E += ((x_buf[i]-x_buf[i+Mx])/dy1)/norm;
     }
 
-    if (iz > 0 && iz < Nz-1) {
+    if (iz > 0 && iz < Mz-1) {
         let dz0 = dz_buf[iz-1];
         let dz1 = dz_buf[iz];
         let norm = dz0+dz1;
-        div_E += ((x_buf[i]-x_buf[i-Nxy])/dz0)/norm;
-        div_E += ((x_buf[i]-x_buf[i+Nxy])/dz1)/norm;
+        div_E += ((x_buf[i]-x_buf[i-Mxy])/dz0)/norm;
+        div_E += ((x_buf[i]-x_buf[i+Mxy])/dz1)/norm;
     }
     r_buf[i] = div_E - b;
 }

@@ -2,6 +2,7 @@ import { StructView } from "../../utility/cstyle_struct.ts";
 import compute_jacobi_smooth from "./compute_jacobi_smooth.wgsl?raw";
 import compute_residual from "./compute_residual.wgsl?raw";
 import compute_copy_slice from "./compute_copy_slice.wgsl?raw";
+import { CpuGrid } from "../../app/electrostatic_3d/grid.ts";
 
 export interface Size3D {
   x: number;
@@ -78,19 +79,21 @@ export class KernelJacobiSmooth {
         throw Error(`Got buffer with size ${buf.size} but expected ${expected_size} bytes`);
       }
     }
-    const total_cells = grid_size.x*grid_size.y*grid_size.z;
-    assert_buffer_size(xout, total_cells*4);
-    assert_buffer_size(xin, total_cells*4);
-    assert_buffer_size(b, total_cells*4);
-    assert_buffer_size(mask, Math.ceil(total_cells/32)*4); // mask bits packed as single bits
-    assert_buffer_size(dx, (grid_size.x-1)*4);
-    assert_buffer_size(dy, (grid_size.y-1)*4);
-    assert_buffer_size(dz, (grid_size.z-1)*4);
+    const total_points = (grid_size.x+1)*(grid_size.y+1)*(grid_size.z+1);
+    const sizeof_f32 = 4;
+    const sizeof_u32 = 4;
+    assert_buffer_size(xout, total_points*sizeof_f32);
+    assert_buffer_size(xin, total_points*sizeof_f32);
+    assert_buffer_size(b, total_points*sizeof_f32);
+    assert_buffer_size(mask, Math.ceil(total_points/CpuGrid.total_mask_bits)*sizeof_u32);
+    assert_buffer_size(dx, grid_size.x*sizeof_f32);
+    assert_buffer_size(dy, grid_size.y*sizeof_f32);
+    assert_buffer_size(dz, grid_size.z*sizeof_f32);
 
     const dispatch_size: Size3D = {
-      x: Math.ceil(grid_size.x/this.workgroup_size.x),
-      y: Math.ceil(grid_size.y/this.workgroup_size.y),
-      z: Math.ceil(grid_size.z/this.workgroup_size.z),
+      x: Math.ceil((grid_size.x+1)/this.workgroup_size.x),
+      y: Math.ceil((grid_size.y+1)/this.workgroup_size.y),
+      z: Math.ceil((grid_size.z+1)/this.workgroup_size.z),
     };
     this.params.set("grid_size_x", grid_size.x);
     this.params.set("grid_size_y", grid_size.y);
@@ -195,19 +198,21 @@ export class KernelCalculateResidual {
         throw Error(`Got buffer with size ${buf.size} but expected ${expected_size} bytes`);
       }
     }
-    const total_cells = grid_size.x*grid_size.y*grid_size.z;
-    assert_buffer_size(r, total_cells*4);
-    assert_buffer_size(x, total_cells*4);
-    assert_buffer_size(b, total_cells*4);
-    assert_buffer_size(mask, Math.ceil(total_cells/32)*4); // mask bits packed as single bits
-    assert_buffer_size(dx, (grid_size.x-1)*4);
-    assert_buffer_size(dy, (grid_size.y-1)*4);
-    assert_buffer_size(dz, (grid_size.z-1)*4);
+    const total_points = (grid_size.x+1)*(grid_size.y+1)*(grid_size.z+1);
+    const sizeof_f32 = 4;
+    const sizeof_u32 = 4;
+    assert_buffer_size(r, total_points*sizeof_f32);
+    assert_buffer_size(x, total_points*sizeof_f32);
+    assert_buffer_size(b, total_points*sizeof_f32);
+    assert_buffer_size(mask, Math.ceil(total_points/CpuGrid.total_mask_bits)*sizeof_u32);
+    assert_buffer_size(dx, grid_size.x*sizeof_f32);
+    assert_buffer_size(dy, grid_size.y*sizeof_f32);
+    assert_buffer_size(dz, grid_size.z*sizeof_f32);
 
     const dispatch_size: Size3D = {
-      x: Math.ceil(grid_size.x/this.workgroup_size.x),
-      y: Math.ceil(grid_size.y/this.workgroup_size.y),
-      z: Math.ceil(grid_size.z/this.workgroup_size.z),
+      x: Math.ceil((grid_size.x+1)/this.workgroup_size.x),
+      y: Math.ceil((grid_size.y+1)/this.workgroup_size.y),
+      z: Math.ceil((grid_size.z+1)/this.workgroup_size.z),
     };
     this.params.set("grid_size_x", grid_size.x);
     this.params.set("grid_size_y", grid_size.y);

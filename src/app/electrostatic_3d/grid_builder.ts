@@ -608,9 +608,9 @@ export class GridBuilder {
   setup_create_simulation_grid(): CpuGrid {
     this.profiler?.begin("create_simulation_grid");
     const grid = new CpuGrid({
-      x: this.x_region_to_grid_map.total_grid_lines,
-      y: this.y_region_to_grid_map.total_grid_lines,
-      z: this.z_region_to_grid_map.total_grid_lines,
+      x: this.x_region_to_grid_map.total_grid_segments,
+      y: this.y_region_to_grid_map.total_grid_segments,
+      z: this.z_region_to_grid_map.total_grid_segments,
     });
     grid.dx.data.set(this.x_region_to_grid_map.grid_segments);
     grid.dy.data.set(this.y_region_to_grid_map.grid_segments);

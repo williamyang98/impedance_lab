@@ -42,7 +42,7 @@ export class Renderer {
   }
 
   upload_slice(command_encoder: GPUCommandEncoder, grid: GpuGrid, copy_z: number) {
-    const slice = this._update_slice_size({ x: grid.size.x, y: grid.size.y });
+    const slice = this._update_slice_size({ x: grid.size.x+1, y: grid.size.y+1 });
     this.kernel_copy_to_texture.create_pass(
       command_encoder,
       grid.Xin, grid.r, grid.b,
@@ -76,11 +76,15 @@ export class Renderer {
       case "b": axis = 1 << 2; break;
     }
 
+    const alpha_scale = 1.0;
     this.shader_component_viewer.create_pass(
       command_encoder,
       canvas_texture_view, this.slice.view,
       canvas_size,
-      scale, axis, "single_component",
+      scale, axis,
+      "single_component",
+      alpha_scale,
+      "nearest",
     );
   }
 }

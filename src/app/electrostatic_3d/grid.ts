@@ -15,21 +15,23 @@ export class CpuGrid {
   z: Ndarray;
   er: Ndarray;
 
+  static readonly total_mask_bits = 32;
+
   constructor(size: Size3D) {
     this.size = size;
 
-    const total_cells = size.x*size.y*size.z;
-    this.Xin = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
-    this.r = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
-    this.b = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
-    this.er = Ndarray.create_zeros([size.z-1,size.y-1,size.x-1], "f32");
-    this.mask = Ndarray.create_zeros([Math.ceil(total_cells/32)], "u32");
-    this.dx = Ndarray.create_zeros([size.x-1], "f32");
-    this.dy = Ndarray.create_zeros([size.y-1], "f32");
-    this.dz = Ndarray.create_zeros([size.z-1], "f32");
-    this.x = Ndarray.create_zeros([size.x], "f32");
-    this.y = Ndarray.create_zeros([size.y], "f32");
-    this.z = Ndarray.create_zeros([size.z], "f32");
+    const total_points = (size.x+1)*(size.y+1)*(size.z+1);
+    this.Xin = Ndarray.create_zeros([size.z+1,size.y+1,size.x+1], "f32");
+    this.r = Ndarray.create_zeros([size.z+1,size.y+1,size.x+1], "f32");
+    this.b = Ndarray.create_zeros([size.z+1,size.y+1,size.x+1], "f32");
+    this.er = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    this.mask = Ndarray.create_zeros([Math.ceil(total_points/CpuGrid.total_mask_bits)], "u32");
+    this.dx = Ndarray.create_zeros([size.x], "f32");
+    this.dy = Ndarray.create_zeros([size.y], "f32");
+    this.dz = Ndarray.create_zeros([size.z], "f32");
+    this.x = Ndarray.create_zeros([size.x+1], "f32");
+    this.y = Ndarray.create_zeros([size.y+1], "f32");
+    this.z = Ndarray.create_zeros([size.z+1], "f32");
   }
 }
 
@@ -52,27 +54,34 @@ export class GpuGrid {
   constructor(size: Size3D, device: GPUDevice) {
     this.size = size;
     this.device = device;
+    let max_buffer_size = -Infinity;
     const create_buffer = (size: number): GPUBuffer => {
       const buffer = device.createBuffer({
         size,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
       });
+      max_buffer_size = Math.max(max_buffer_size, size);
       return buffer;
     };
-    const total_cells = size.x*size.y*size.z;
-    this.Xin = create_buffer(total_cells*4);
-    this.Xout = create_buffer(total_cells*4);
-    this.r = create_buffer(total_cells*4);
-    this.b = create_buffer(total_cells*4);
-    this.mask = create_buffer(Math.ceil(total_cells/32)*4);
-    this.dx = create_buffer((size.x-1)*4);
-    this.dy = create_buffer((size.y-1)*4);
-    this.dz = create_buffer((size.z-1)*4);
-    this.x = create_buffer(size.x*4);
-    this.y = create_buffer(size.y*4);
-    this.z = create_buffer(size.z*4);
+    const total_points = (size.x+1)*(size.y+1)*(size.z+1);
+    const sizeof_f32 = 4;
+    const sizeof_u32 = 4;
+    this.Xin = create_buffer(total_points*sizeof_f32);
+    this.Xout = create_buffer(total_points*sizeof_f32);
+    this.r = create_buffer(total_points*sizeof_f32);
+    this.b = create_buffer(total_points*sizeof_f32);
+    this.mask = create_buffer(Math.ceil(total_points/CpuGrid.total_mask_bits)*sizeof_u32);
+    this.dx = create_buffer((size.x)*sizeof_f32);
+    this.dy = create_buffer((size.y)*sizeof_f32);
+    this.dz = create_buffer((size.z)*sizeof_f32);
+    this.x = create_buffer((size.x+1)*sizeof_f32);
+    this.y = create_buffer((size.y+1)*sizeof_f32);
+    this.z = create_buffer((size.z+1)*sizeof_f32);
+    if (!Number.isFinite(max_buffer_size)) {
+      throw Error("Unable to determine maximum buffer size for readback buffer");
+    }
     this.readback = device.createBuffer({
-      size: total_cells*4,
+      size: max_buffer_size,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
     });
   }
