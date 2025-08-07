@@ -237,9 +237,10 @@ export class GridBuilder {
         let z_min = undefined as (undefined | number);
         let z_max = undefined as (undefined | number);
         let sdf = undefined as (undefined | ((z: number, y: number, x: number) => number));
-        const radius_squared = 0.5**2;
+        const epsilon = 1e-3; // guarantee boundaries are included
+        const radius_squared = 0.5**2 + epsilon;
         const common_sdf = (x: number, y: number): number => {
-          return ((x-0.5)**2 + (y-0.5)**2 < radius_squared) ? 1.0 : 0.0;
+          return ((x-0.5)**2 + (y-0.5)**2 <= radius_squared) ? 1.0 : 0.0;
         };
         switch (shape.axis) {
           case "x": {
@@ -737,6 +738,7 @@ export class GridBuilder {
     const dX = this.x_region_to_grid_map.grid_segments.slice(gx_left, gx_right);
     const dY = this.y_region_to_grid_map.grid_segments.slice(gy_top, gy_bottom);
     const dZ = this.z_region_to_grid_map.grid_segments.slice(gz_top, gz_bottom);
+
     if (type === "dielectric") {
       // centre coordinate for dielectric cell
       for (let x = 0; x < Mx; x++) {
@@ -757,16 +759,22 @@ export class GridBuilder {
     const norm_Y = Y.map(y => (y-Y[0])/abs_height);
     const norm_Z = Z.map(z => (z-Z[0])/abs_depth);
 
+    // nulling out voltage means we ignore the boundary of the fill shape
+    let fill_padding = 0;
+    if (type === "voltage" && value === null) {
+      fill_padding = 1;
+    }
+
     switch (fill.type) {
       case "point": {
         const sdf = fill.sdf;
-        for (let z = 0; z < Mz; z++) {
+        for (let z = fill_padding; z < Mz-fill_padding; z++) {
           const norm_z = norm_Z[z];
           const gz = gz_top+z;
-          for (let y = 0; y < My; y++) {
+          for (let y = fill_padding; y < My-fill_padding; y++) {
             const norm_y = norm_Y[y];
             const gy = gy_top+y;
-            for (let x = 0; x < Mx; x++) {
+            for (let x = fill_padding; x < Mx-fill_padding; x++) {
               const norm_x = norm_X[x];
               const gx = gx_left+x;
               const i = gx + gy*Nx + gz*Nxy;
@@ -779,11 +787,11 @@ export class GridBuilder {
       }
       case "constant": {
         const beta: number = 1.0;
-        for (let z = 0; z < Mz; z++) {
+        for (let z = fill_padding; z < Mz-fill_padding; z++) {
           const gz = gz_top+z;
-          for (let y = 0; y < My; y++) {
+          for (let y = fill_padding; y < My-fill_padding; y++) {
             const gy = gy_top+y;
-            for (let x = 0; x < Mx; x++) {
+            for (let x = fill_padding; x < Mx-fill_padding; x++) {
               const gx = gx_left+x;
               const i = gx + gy*Nx + gz*Nxy;
               set_data(i, beta);

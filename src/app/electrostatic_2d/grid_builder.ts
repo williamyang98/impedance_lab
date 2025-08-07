@@ -243,8 +243,9 @@ export class GridBuilder extends ManagedObject {
         const ry_top = this.y_region_lines_builder.push(y_top);
         const ry_bottom = this.y_region_lines_builder.push(y_bottom);
 
-        const radius_squared = 0.5**2;
-        const sdf = (y: number, x: number) => ((y-0.5)**2 + (x-0.5)**2 < radius_squared) ? 1.0 : 0.0;
+        const epsilon = 1e-3;
+        const radius_squared = 0.5**2 + epsilon;
+        const sdf = (y: number, x: number) => ((y-0.5)**2 + (x-0.5)**2 <= radius_squared) ? 1.0 : 0.0;
         const multisample_sdf = get_sdf_multisample(sdf);
         region_sdf = {
           rx_left,
@@ -581,12 +582,6 @@ export class GridBuilder extends ManagedObject {
     const Y = this.y_region_to_grid_map.grid_lines.slice(gy_top, gy_bottom);
     const dX = this.x_region_to_grid_map.grid_segments.slice(gx_left, gx_right);
     const dY = this.y_region_to_grid_map.grid_segments.slice(gy_top, gy_bottom);
-    const abs_width = dX.reduce((a,b) => a+b, 0);
-    const abs_height = dY.reduce((a,b) => a+b, 0);
-    const norm_X = X.map(x => (x-X[0])/abs_width);
-    const norm_Y = Y.map(y => (y-Y[0])/abs_height);
-    const norm_dX = dX.map(dx => dx/abs_width);
-    const norm_dY = dY.map(dy => dy/abs_height);
 
     if (type === "dielectric") {
       // centre coordinate to dielectric cell
@@ -598,14 +593,26 @@ export class GridBuilder extends ManagedObject {
       }
     }
 
+    const abs_width = dX.reduce((a,b) => a+b, 0);
+    const abs_height = dY.reduce((a,b) => a+b, 0);
+    const norm_X = X.map(x => (x-X[0])/abs_width);
+    const norm_Y = Y.map(y => (y-Y[0])/abs_height);
+    const norm_dX = dX.map(dx => dx/abs_width);
+    const norm_dY = dY.map(dy => dy/abs_height);
+
+    // nulling out voltage means we ignore the boundary of the fill shape
+    let fill_padding = 0;
+    if (type === "voltage" && index === null) {
+      fill_padding = 1;
+    }
 
     switch (fill.type) {
       case "point": {
         const sdf = fill.sdf;
-        for (let y = 0; y < My; y++) {
+        for (let y = fill_padding; y < My-fill_padding; y++) {
           const norm_y = norm_Y[y];
           const gy = gy_top+y;
-          for (let x = 0; x < Mx; x++) {
+          for (let x = fill_padding; x < Mx-fill_padding; x++) {
             const norm_x = norm_X[x];
             const gx = gx_left+x;
             const i = gx + gy*Nx;
@@ -617,11 +624,11 @@ export class GridBuilder extends ManagedObject {
       }
       case "multisample": {
         const sdf = fill.sdf;
-        for (let y = 0; y < My; y++) {
+        for (let y = fill_padding; y < My-fill_padding; y++) {
           const norm_y = norm_Y[y];
           const norm_dy = norm_dY[y];
           const gy = gy_top+y;
-          for (let x = 0; x < Mx; x++) {
+          for (let x = fill_padding; x < Mx-fill_padding; x++) {
             const norm_x = norm_X[x];
             const norm_dx = norm_dX[x];
             const gx = gx_left+x;
@@ -634,9 +641,9 @@ export class GridBuilder extends ManagedObject {
       }
       case "constant": {
         const beta = 1.0;
-        for (let y = 0; y < My; y++) {
+        for (let y = fill_padding; y < My-fill_padding; y++) {
           const gy = gy_top+y;
-          for (let x = 0; x < Mx; x++) {
+          for (let x = fill_padding; x < Mx-fill_padding; x++) {
             const gx = gx_left+x;
             const i = gx + gy*Nx;
             set_data(i, beta);
