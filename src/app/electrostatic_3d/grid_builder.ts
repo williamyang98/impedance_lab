@@ -50,9 +50,19 @@ export interface TriangularPrismShape {
 
 export type Shape = CylinderShape | CuboidShape | TriangularPrismShape;
 
+export interface Bound3D<T> {
+  x_min: T;
+  x_max: T;
+  y_min: T;
+  y_max: T;
+  z_min: T;
+  z_max: T;
+}
+
 export interface VoltageRegion {
   readonly type: "voltage";
   voltage: number | null; // null = remove voltage from that region
+  ignore_boundary?: Partial<Bound3D<boolean>>;
   shapes: Shape[];
 }
 
@@ -118,7 +128,7 @@ interface SDF {
 }
 
 type RegionSDF =
-  { type: "voltage", sdfs: SDF[], voltage: number | null } |
+  { type: "voltage", sdfs: SDF[], voltage: number | null, ignore_boundary?: Partial<Bound3D<boolean>> } |
   { type: "dielectric", sdfs: SDF[], epsilon: number | null } |
   { type: "empty", sdfs: SDF[] };
 
@@ -194,6 +204,7 @@ export class GridBuilder {
             type: "voltage" as const,
             sdfs: sdfs,
             voltage: region.voltage,
+            ignore_boundary: region.ignore_boundary,
           });
           break;
         }
@@ -627,45 +638,26 @@ export class GridBuilder {
   setup_fill_sdf_regions() {
     this.profiler?.begin("fill_sdfs");
     for (const fill of this.sdf_regions) {
-      switch (fill.type) {
-        case "voltage": {
-          fill.sdfs.forEach(region => { this.setup_fill_sdf(region, "voltage", fill.voltage); });
-          break;
-        }
-        case "dielectric": {
-          fill.sdfs.forEach(region => { this.setup_fill_sdf(region, "dielectric", fill.epsilon); });
-          break;
-        }
-        case "empty": {
-          break;
-        }
-      }
+      this.setup_fill_sdf_region(fill);
     }
     this.profiler?.end();
   }
 
-  setup_fill_sdf(sdf: SDF, type: "voltage" | "dielectric", value: number | null) {
-    const {
-      rx_left,
-      rx_right,
-      ry_top,
-      ry_bottom,
-      rz_top,
-      rz_bottom,
-      fill,
-    } = sdf;
+  setup_fill_sdf_region(region: RegionSDF) {
+    if (region.type === "empty") return;
 
     let Nz = undefined as (undefined | number);
     let Ny = undefined as (undefined | number);
     let Nx = undefined as (undefined | number);
     let set_data = undefined as (undefined | ((i: number, beta: number) => void));
-    switch (type) {
+    switch (region.type) {
       case "dielectric": {
         Nz = this.grid.er.shape[0];
         Ny = this.grid.er.shape[1];
         Nx = this.grid.er.shape[2];
         const er = this.grid.er.data;
-        if (value === null) {
+        const epsilon = region.epsilon;
+        if (epsilon === null) {
           set_data = (i: number, beta: number) => {
             if (beta < 0.5) return;
             er[i] = er0;
@@ -673,7 +665,7 @@ export class GridBuilder {
         } else {
           set_data = (i: number, beta: number) => {
             if (beta < 0.5) return;
-            er[i] = value;
+            er[i] = epsilon;
           }
         }
         break;
@@ -685,7 +677,8 @@ export class GridBuilder {
         const b = this.grid.b.data;
         const mask = this.grid.mask.data;
         const mask_bits = 32;
-        if (value === null) {
+        const voltage = region.voltage;
+        if (voltage === null) {
           set_data = (i: number, beta: number) => {
             if (beta < 0.5) return;
             b[i] = 0;
@@ -696,7 +689,7 @@ export class GridBuilder {
         } else {
           set_data = (i: number, beta: number) => {
             if (beta < 0.5) return;
-            b[i] = value;
+            b[i] = voltage;
             const imask = Math.floor(i/mask_bits);
             const imask_offset = i-imask*mask_bits;
             mask[imask] |= (1 << imask_offset);
@@ -707,100 +700,122 @@ export class GridBuilder {
     }
     const Nxy = Nx*Ny;
 
-    let gx_left = rx_left !== undefined ? this.x_region_to_grid_map.id_to_grid_index(rx_left) : undefined;
-    let gx_right = rx_right !== undefined ? this.x_region_to_grid_map.id_to_grid_index(rx_right) : undefined;
-    let gy_top = ry_top !== undefined ? this.y_region_to_grid_map.id_to_grid_index(ry_top) : undefined;
-    let gy_bottom = ry_bottom !== undefined ? this.y_region_to_grid_map.id_to_grid_index(ry_bottom) : undefined;
-    let gz_top = rz_top !== undefined ? this.z_region_to_grid_map.id_to_grid_index(rz_top) : undefined;
-    let gz_bottom = rz_bottom !== undefined ? this.z_region_to_grid_map.id_to_grid_index(rz_bottom) : undefined;
+    for (const sdf of region.sdfs) {
+      const {
+        rx_left,
+        rx_right,
+        ry_top,
+        ry_bottom,
+        rz_top,
+        rz_bottom,
+        fill,
+      } = sdf;
 
-    // voltage SDF should include boundaries of grid region
-    if (type === "voltage") {
-      if (gx_right !== undefined) gx_right += 1;
-      if (gy_bottom !== undefined) gy_bottom += 1;
-      if (gz_bottom !== undefined) gz_bottom += 1;
-    }
+      let gx_left = rx_left !== undefined ? this.x_region_to_grid_map.id_to_grid_index(rx_left) : undefined;
+      let gx_right = rx_right !== undefined ? this.x_region_to_grid_map.id_to_grid_index(rx_right) : undefined;
+      let gy_top = ry_top !== undefined ? this.y_region_to_grid_map.id_to_grid_index(ry_top) : undefined;
+      let gy_bottom = ry_bottom !== undefined ? this.y_region_to_grid_map.id_to_grid_index(ry_bottom) : undefined;
+      let gz_top = rz_top !== undefined ? this.z_region_to_grid_map.id_to_grid_index(rz_top) : undefined;
+      let gz_bottom = rz_bottom !== undefined ? this.z_region_to_grid_map.id_to_grid_index(rz_bottom) : undefined;
 
-    gx_left = gx_left ?? 0;
-    gx_right = gx_right ?? Nx;
-    gy_top = gy_top ?? 0;
-    gy_bottom = gy_bottom ?? Ny;
-    gz_top = gz_top ?? 0;
-    gz_bottom = gz_bottom ?? Nz;
-
-    // get normalised grid coordinates for SDFs
-    const Mz = gz_bottom-gz_top;
-    const My = gy_bottom-gy_top;
-    const Mx = gx_right-gx_left;
-    const X = this.x_region_to_grid_map.grid_lines.slice(gx_left, gx_right);
-    const Y = this.y_region_to_grid_map.grid_lines.slice(gy_top, gy_bottom);
-    const Z = this.z_region_to_grid_map.grid_lines.slice(gz_top, gz_bottom);
-    const dX = this.x_region_to_grid_map.grid_segments.slice(gx_left, gx_right);
-    const dY = this.y_region_to_grid_map.grid_segments.slice(gy_top, gy_bottom);
-    const dZ = this.z_region_to_grid_map.grid_segments.slice(gz_top, gz_bottom);
-
-    if (type === "dielectric") {
-      // centre coordinate for dielectric cell
-      for (let x = 0; x < Mx; x++) {
-        X[x] += dX[x]/2;
+      // voltage SDF should include boundaries of grid region
+      if (region.type === "voltage") {
+        if (gx_right !== undefined) gx_right += 1;
+        if (gy_bottom !== undefined) gy_bottom += 1;
+        if (gz_bottom !== undefined) gz_bottom += 1;
       }
-      for (let y = 0; y < My; y++) {
-        Y[y] += dY[y]/2;
+
+      gx_left = gx_left ?? 0;
+      gx_right = gx_right ?? Nx;
+      gy_top = gy_top ?? 0;
+      gy_bottom = gy_bottom ?? Ny;
+      gz_top = gz_top ?? 0;
+      gz_bottom = gz_bottom ?? Nz;
+
+      // get normalised grid coordinates for SDFs
+      const Mz = gz_bottom-gz_top;
+      const My = gy_bottom-gy_top;
+      const Mx = gx_right-gx_left;
+      const X = this.x_region_to_grid_map.grid_lines.slice(gx_left, gx_right);
+      const Y = this.y_region_to_grid_map.grid_lines.slice(gy_top, gy_bottom);
+      const Z = this.z_region_to_grid_map.grid_lines.slice(gz_top, gz_bottom);
+      const dX = this.x_region_to_grid_map.grid_segments.slice(gx_left, gx_right);
+      const dY = this.y_region_to_grid_map.grid_segments.slice(gy_top, gy_bottom);
+      const dZ = this.z_region_to_grid_map.grid_segments.slice(gz_top, gz_bottom);
+
+      if (region.type === "dielectric") {
+        // centre coordinate for dielectric cell
+        for (let x = 0; x < Mx; x++) {
+          X[x] += dX[x]/2;
+        }
+        for (let y = 0; y < My; y++) {
+          Y[y] += dY[y]/2;
+        }
+        for (let z = 0; z < Mz; z++) {
+          Z[z] += dZ[z]/2;
+        }
       }
-      for (let z = 0; z < Mz; z++) {
-        Z[z] += dZ[z]/2;
+
+      const abs_width = dX.reduce((a,b) => a+b, 0);
+      const abs_height = dY.reduce((a,b) => a+b, 0);
+      const abs_depth = dZ.reduce((a,b) => a+b, 0);
+      const norm_X = X.map(x => (x-X[0])/abs_width);
+      const norm_Y = Y.map(y => (y-Y[0])/abs_height);
+      const norm_Z = Z.map(z => (z-Z[0])/abs_depth);
+
+      let mx_min = 0;
+      let mx_max = Mx;
+      let my_min = 0;
+      let my_max = My;
+      let mz_min = 0;
+      let mz_max = Mz;
+      // voltage region allows customisation of whether outer or inner boundaries are used
+      if (region.type === "voltage" && region.ignore_boundary !== undefined) {
+        if (region.ignore_boundary.x_min) mx_min = 1;
+        if (region.ignore_boundary.x_max) mx_max = Mx-1;
+        if (region.ignore_boundary.y_min) my_min = 1;
+        if (region.ignore_boundary.y_max) my_max = My-1;
+        if (region.ignore_boundary.z_min) mz_min = 1;
+        if (region.ignore_boundary.z_max) mz_max = Mz-1;
       }
-    }
 
-    const abs_width = dX.reduce((a,b) => a+b, 0);
-    const abs_height = dY.reduce((a,b) => a+b, 0);
-    const abs_depth = dZ.reduce((a,b) => a+b, 0);
-    const norm_X = X.map(x => (x-X[0])/abs_width);
-    const norm_Y = Y.map(y => (y-Y[0])/abs_height);
-    const norm_Z = Z.map(z => (z-Z[0])/abs_depth);
-
-    // nulling out voltage means we ignore the boundary of the fill shape
-    let fill_padding = 0;
-    if (type === "voltage" && value === null) {
-      fill_padding = 1;
-    }
-
-    switch (fill.type) {
-      case "point": {
-        const sdf = fill.sdf;
-        for (let z = fill_padding; z < Mz-fill_padding; z++) {
-          const norm_z = norm_Z[z];
-          const gz = gz_top+z;
-          for (let y = fill_padding; y < My-fill_padding; y++) {
-            const norm_y = norm_Y[y];
-            const gy = gy_top+y;
-            for (let x = fill_padding; x < Mx-fill_padding; x++) {
-              const norm_x = norm_X[x];
-              const gx = gx_left+x;
-              const i = gx + gy*Nx + gz*Nxy;
-              const beta = sdf(norm_z, norm_y, norm_x);
-              set_data(i, beta);
+      switch (fill.type) {
+        case "point": {
+          const sdf = fill.sdf;
+          for (let z = mz_min; z < mz_max; z++) {
+            const norm_z = norm_Z[z];
+            const gz = gz_top+z;
+            for (let y = my_min; y < my_max; y++) {
+              const norm_y = norm_Y[y];
+              const gy = gy_top+y;
+              for (let x = mx_min; x < mx_max; x++) {
+                const norm_x = norm_X[x];
+                const gx = gx_left+x;
+                const i = gx + gy*Nx + gz*Nxy;
+                const beta = sdf(norm_z, norm_y, norm_x);
+                set_data(i, beta);
+              }
             }
           }
+          break;
         }
-        break;
-      }
-      case "constant": {
-        const beta: number = 1.0;
-        for (let z = fill_padding; z < Mz-fill_padding; z++) {
-          const gz = gz_top+z;
-          for (let y = fill_padding; y < My-fill_padding; y++) {
-            const gy = gy_top+y;
-            for (let x = fill_padding; x < Mx-fill_padding; x++) {
-              const gx = gx_left+x;
-              const i = gx + gy*Nx + gz*Nxy;
-              set_data(i, beta);
+        case "constant": {
+          const beta: number = 1.0;
+          for (let z = mz_min; z < mz_max; z++) {
+            const gz = gz_top+z;
+            for (let y = mz_min; y < my_max; y++) {
+              const gy = gy_top+y;
+              for (let x = mz_min; x < mx_max; x++) {
+                const gx = gx_left+x;
+                const i = gx + gy*Nx + gz*Nxy;
+                set_data(i, beta);
+              }
             }
           }
+          break;
         }
-        break;
-      }
 
+      }
     }
   }
 }

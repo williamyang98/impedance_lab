@@ -164,6 +164,10 @@ export class StackupGrid extends ManagedObject {
       regions.push({
         type: "voltage",
         voltage_index: null,
+        ignore_boundary: {
+          x_min: true,
+          x_max: true,
+        },
         shapes: [
           {
             type: "rectangle",
@@ -327,6 +331,10 @@ export class StackupGrid extends ManagedObject {
       regions.push({
         type: "voltage",
         voltage_index: null,
+        ignore_boundary: {
+          x_min: true,
+          x_max: true,
+        },
         shapes: [
           {
             type: "rectangle",

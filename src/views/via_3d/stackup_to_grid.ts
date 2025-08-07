@@ -161,6 +161,12 @@ export class StackupGrid {
       regions.push({
         type: "voltage",
         voltage: null,
+        ignore_boundary: {
+          x_min: true,
+          x_max: true,
+          y_min: true,
+          y_max: true,
+        },
         shapes: [
           {
             type: "cylinder",
@@ -344,6 +350,12 @@ export class StackupGrid {
       regions.push({
         type: "voltage",
         voltage: null,
+        ignore_boundary: {
+          x_min: true,
+          x_max: true,
+          y_min: true,
+          y_max: true,
+        },
         shapes: [
           {
             type: "cylinder",
