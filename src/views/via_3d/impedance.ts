@@ -17,6 +17,69 @@ export interface ImpedanceResult {
   dc_resistance: number;
 }
 
+function lerp(v0: number, v1: number, x: number): number {
+  return v0*(1-x) + v1*x;
+}
+
+function calculate_cell_energy(
+  v_buf: Float32Array, iv: number, Mx: number, Mxy: number,
+  dx: number, dy: number, dz: number,
+): number {
+  // Use a n=2 Gauss-Legendre integral which can support k=2n-1=3rd order polynomials
+  const X0: number = 0.21132;
+  const X1: number = 0.78868;
+  const W0: number = 0.5;
+  const W1: number = 0.5;
+
+  // v(z,y,x)
+  const v000 = v_buf[iv];
+  const v001 = v_buf[iv+1];
+  const v010 = v_buf[iv+Mx];
+  const v011 = v_buf[iv+Mx+1];
+  const v100 = v_buf[iv+Mxy];
+  const v101 = v_buf[iv+Mxy+1];
+  const v110 = v_buf[iv+Mxy+Mx];
+  const v111 = v_buf[iv+Mxy+Mx+1];
+
+  // Ex(z,y)
+  const ex00 = (v001-v000)/dx;
+  const ex01 = (v011-v010)/dx;
+  const ex10 = (v101-v100)/dx;
+  const ex11 = (v111-v110)/dx;
+
+  // Ey(z,x)
+  const ey00 = (v010-v000)/dy;
+  const ey01 = (v011-v001)/dy;
+  const ey10 = (v110-v100)/dy;
+  const ey11 = (v111-v101)/dy;
+
+  // Ez(y,x)
+  const ez00 = (v100-v000)/dz;
+  const ez01 = (v101-v001)/dz;
+  const ez10 = (v110-v010)/dz;
+  const ez11 = (v111-v011)/dz;
+
+
+  function f(x: number, y: number, z: number): number {
+    const ex = lerp(lerp(ex00, ex01, y), lerp(ex10, ex11, y), z);
+    const ey = lerp(lerp(ey00, ey01, x), lerp(ey10, ey11, x), z);
+    const ez = lerp(lerp(ez00, ez01, x), lerp(ez10, ez11, x), y);
+    return ex*ex + ey*ey + ez*ez;
+  }
+
+  const dA = dx*dy*dz;
+  const gauss_integral =
+    f(X0,X0,X0)*W0*W0*W0 +
+    f(X0,X0,X1)*W0*W0*W1 +
+    f(X0,X1,X0)*W0*W1*W0 +
+    f(X0,X1,X1)*W0*W1*W1 +
+    f(X1,X0,X0)*W1*W0*W0 +
+    f(X1,X0,X1)*W1*W0*W1 +
+    f(X1,X1,X0)*W1*W1*W0 +
+    f(X1,X1,X1)*W1*W1*W1;
+  return gauss_integral*dA;
+}
+
 function calculate_energy_homogenous(stackup_grid: StackupGrid): number {
   const v_buf = stackup_grid.cpu_grid.Xin.cast(Float32Array);
   const dx_buf = stackup_grid.cpu_grid.dx.cast(Float32Array);
@@ -38,13 +101,9 @@ function calculate_energy_homogenous(stackup_grid: StackupGrid): number {
     for (let y = 0; y < Ny; y++) {
       const dy = dy_buf[y];
       for (let x = 0; x < Nx; x++) {
-        const iv = x + y*Mx + z*Mxy;
         const dx = dx_buf[x];
-        const dA = dx*dy*dz;
-        const Ex = (v_buf[iv+1]-v_buf[iv])/dx;
-        const Ey = (v_buf[iv+Mx]-v_buf[iv])/dy;
-        const Ez = (v_buf[iv+Mxy]-v_buf[iv])/dz;
-        energy += (Ex*Ex+Ey*Ey+Ez*Ez)*dA;
+        const iv = x + y*Mx + z*Mxy;
+        energy += calculate_cell_energy(v_buf, iv, Mx, Mxy, dx, dy, dz);
       }
     }
   }
@@ -74,15 +133,11 @@ function calculate_energy_inhomogenous(stackup_grid: StackupGrid): number {
     for (let y = 0; y < Ny; y++) {
       const dy = dy_buf[y];
       for (let x = 0; x < Nx; x++) {
+        const dx = dx_buf[x];
         const iv = x + y*Mx + z*Mxy;
         const ier = x + y*Nx + z*Nxy;
-        const dx = dx_buf[x];
-        const dA = dx*dy*dz;
-        const Ex = (v_buf[iv+1]-v_buf[iv])/dx;
-        const Ey = (v_buf[iv+Mx]-v_buf[iv])/dy;
-        const Ez = (v_buf[iv+Mxy]-v_buf[iv])/dz;
         const er = er_buf[ier];
-        energy += (Ex*Ex+Ey*Ey+Ez*Ez)*dA*er;
+        energy += calculate_cell_energy(v_buf, iv, Mx, Mxy, dx, dy, dz)*er;
       }
     }
   }
