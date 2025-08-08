@@ -19,19 +19,29 @@ export class LinesBuilder {
   sort() {
     if (this.is_sorted) return;
     const N = this.lines.length;
-    const sort_indices: number[] = new Array(N);
-    for (let i = 0; i < N; i++) {
-      sort_indices[i] = i;
+    const new_index_to_old_index: number[] = new Array(N);
+    for (let new_index = 0; new_index < N; new_index++) {
+      const old_index = new_index;
+      new_index_to_old_index[new_index] = old_index;
     }
 
-    sort_indices.sort((a,b) => this.lines[a] - this.lines[b]);
-    this.lines = sort_indices.map((i) => this.lines[i]);
-    const new_id_to_index = new Array(N);
-    for (let i = 0; i < N; i++) {
-      const new_i = sort_indices[i];
-      new_id_to_index[new_i] = this.id_to_index[i];
+    new_index_to_old_index.sort((a,b) => this.lines[a] - this.lines[b]);
+    this.lines = new_index_to_old_index.map((i) => this.lines[i]);
+
+    // invert mapping
+    const old_index_to_new_index = new Array(N);
+    for (let new_index = 0; new_index < N; new_index++) {
+      const old_index = new_index_to_old_index[new_index];
+      old_index_to_new_index[old_index] = new_index;
     }
-    this.id_to_index = new_id_to_index;
+
+    // assign new id to index pairs
+    for (let id = 0; id < this.id_to_index.length; id++) {
+      const old_index = this.id_to_index[id];
+      const new_index = old_index_to_new_index[old_index];
+      this.id_to_index[id] = new_index;
+    }
+
     this.is_sorted = true;
   }
 
