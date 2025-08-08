@@ -278,7 +278,7 @@ async function perform_search(search_params: Parameter[]) {
               <dialog id="mesh_settings" class="modal">
                 <div class="modal-box">
                   <form method="dialog">
-                    <div class="text-lg font-bold p-0">2D Mesh Settings</div>
+                    <div class="text-lg font-bold p-0">3D Mesh Settings</div>
                     <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
                   </form>
                   <GridBuilderConfigForm :config="user_data.grid_builder_config_3d"/>
