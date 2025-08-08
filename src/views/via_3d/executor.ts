@@ -51,10 +51,15 @@ export class Executor {
     };
     profiler?.begin("gpu_solve", undefined, gpu_solve_metadata);
     for (let i = 0; i < total_strides; i++) {
-      const command_encoder = this.gpu_device.createCommandEncoder();
-      this.gpu_engine.jacobi_smooth(command_encoder, gpu_grid, stride_size);
-      this.gpu_device.queue.submit([command_encoder.finish()]);
-      await this.gpu_device.queue.onSubmittedWorkDone();
+      {
+        const command_encoder = this.gpu_device.createCommandEncoder();
+        for (let j = 0; j < stride_size; j++) {
+          const beta = 0.95;
+          this.gpu_engine.jacobi_smooth(command_encoder, gpu_grid, beta);
+        }
+        this.gpu_device.queue.submit([command_encoder.finish()]);
+        await this.gpu_device.queue.onSubmittedWorkDone();
+      }
       const curr_step = (i+1)*stride_size;
       this.controls.run_status.curr_step = curr_step;
       gpu_solve_metadata["Current Stride"] = String(i+1);

@@ -143,18 +143,15 @@ export class GpuEngine {
     this.kernel_calculate_residual = new KernelCalculateResidual(workgroup_size, this.device);
   }
 
-  jacobi_smooth(command_encoder: GPUCommandEncoder, grid: GpuGrid, total_steps: number) {
-    const jacobi_smooth_beta = 0.95;
-    for (let i = 0; i < total_steps; i++) {
-      this.kernel_jacobi_smooth.create_pass(
-        command_encoder,
-        grid.Xout, grid.Xin, grid.b, grid.mask,
-        grid.dx, grid.dy, grid.dz,
-        grid.size,
-        jacobi_smooth_beta,
-      );
-      grid.swap_X();
-    }
+  jacobi_smooth(command_encoder: GPUCommandEncoder, grid: GpuGrid, beta: number) {
+    this.kernel_jacobi_smooth.create_pass(
+      command_encoder,
+      grid.Xout, grid.Xin, grid.b, grid.mask,
+      grid.dx, grid.dy, grid.dz,
+      grid.size,
+      beta,
+    );
+    grid.swap_X();
   }
 
   calculate_residual(command_encoder: GPUCommandEncoder, grid: GpuGrid) {
