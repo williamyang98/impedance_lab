@@ -71,12 +71,9 @@ export class StackupGrid {
     this.grid_builder_config = grid_builder_config;
     this.via_barrel_parameters = this.setup_create_regions(stackup);
     this.grid_builder_padding = {
-      x_left: true,
-      x_right: true,
-      y_top: true,
-      y_bottom: true,
-      z_top: true,
-      z_bottom: true,
+      x: { min: true, max: true },
+      y: { min: true, max: true },
+      z: { min: true, max: true },
     };
     this.grid_builder = new GridBuilder(
       this.grid_builder_regions,
@@ -162,10 +159,14 @@ export class StackupGrid {
         type: "voltage",
         voltage: null,
         ignore_boundary: {
-          x_min: true,
-          x_max: true,
-          y_min: true,
-          y_max: true,
+          x: {
+            min: true,
+            max: true,
+          },
+          y: {
+            min: true,
+            max: true,
+          },
         },
         shapes: [
           {
@@ -351,10 +352,14 @@ export class StackupGrid {
         type: "voltage",
         voltage: null,
         ignore_boundary: {
-          x_min: true,
-          x_max: true,
-          y_min: true,
-          y_max: true,
+          x: {
+            min: true,
+            max: true,
+          },
+          y: {
+            min: true,
+            max: true,
+          },
         },
         shapes: [
           {

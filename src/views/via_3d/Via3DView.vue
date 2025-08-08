@@ -49,22 +49,53 @@ const stackup = ref(create_stackup());
 const stackup_visualiser = computed_ref(() => new StackupVisualiser(stackup.value, is_editing.value));
 
 const profiler = ref<Profiler | undefined>(undefined);
+
 const grid_builder_config: GridBuilderConfig = {
   minimum_grid_resolution: 1e-4,
   padding_size_multiplier: 10,
-  max_x_ratio: 0.7,
-  min_x_subdivisions: 5,
-  max_y_ratio: 0.7,
-  min_y_subdivisions: 5,
-  max_z_ratio: 0.7,
-  min_z_subdivisions: 5,
+  mesh: {
+    x: {
+      max_ratio: 1.7,
+      min_subdivisions: 3,
+    },
+    y: {
+      max_ratio: 1.7,
+      min_subdivisions: 3,
+    },
+    z: {
+      max_ratio: 1.7,
+      min_subdivisions: 3,
+    },
+  },
 };
+
+// const grid_builder_config: GridBuilderConfig = {
+//   minimum_grid_resolution: 1e-4,
+//   padding_size_multiplier: 10,
+//   max_x_ratio: 1.7,
+//   min_x_subdivisions: 5,
+//   max_y_ratio: 1.7,
+//   min_y_subdivisions: 5,
+//   max_z_ratio: 1.7,
+//   min_z_subdivisions: 5,
+// };
+
+// const grid_builder_config: GridBuilderConfig = {
+//   minimum_grid_resolution: 1e-4,
+//   padding_size_multiplier: 10,
+//   max_x_ratio: 0.7,
+//   min_x_subdivisions: 10,
+//   max_y_ratio: 0.7,
+//   min_y_subdivisions: 10,
+//   max_z_ratio: 0.7,
+//   min_z_subdivisions: 10,
+// };
 
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const executor_controls = ref<ExecutorControls>({
   total_steps: 2048,
-  stride_size: 64,
+  stride_size: 256,
 });
 const executor = new Executor(gpu_device, executor_controls.value);
 const renderer_view = useTemplateRef<typeof RendererView>("renderer_view");
@@ -99,6 +130,40 @@ async function sleep(millis: number) {
 }
 
 const impedance_result = ref<ImpedanceResult | undefined>(undefined);
+
+async function iterate_solution() {
+  if (stackup_grid.value === undefined) return;
+
+  if (is_running.value) {
+    return;
+  }
+  is_running.value = true;
+  await sleep(0);
+
+  try {
+    const new_profiler = new Profiler();
+
+    const grid_size = stackup_grid.value.size;
+    new_profiler.begin("run", undefined, {
+      "Grid Size": `[${grid_size.x},${grid_size.y},${grid_size.z}]`,
+      "Total Cells": `${grid_size.x*grid_size.y*grid_size.z}`,
+    });
+    const new_impedance_result = await executor.run(stackup_grid.value, toast, new_profiler);
+    new_profiler.end();
+
+    new_profiler.end_all();
+
+    renderer_view.value?.refresh();
+    for (const param of stackup_grid.value.parameter_cache.keys()) {
+      mark_parameter_valid(param);
+    }
+    profiler.value = new_profiler;
+    impedance_result.value = new_impedance_result;
+  } catch (error) {
+    toast.error(`run failed with: ${String(error)}`);
+  }
+  is_running.value = false;
+}
 
 async function calculate_impedance() {
   if (is_running.value) {
@@ -287,7 +352,10 @@ async function perform_search(search_params: Parameter[]) {
             <div v-else class="w-full my-2 text-center text-xl">
               Run simulation for results
             </div>
-            <button class="btn w-full" @click="calculate_impedance()" :disabled="is_running">Run</button>
+            <div class="flex flex-row gap-x-2 justify-end">
+              <button class="btn" @click="iterate_solution()" :disabled="is_running || stackup_grid === undefined">Step</button>
+              <button class="btn" @click="calculate_impedance()" :disabled="is_running">Run</button>
+            </div>
           </div>
         </div>
       </div>
