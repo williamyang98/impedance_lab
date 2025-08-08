@@ -25,12 +25,12 @@ export interface NavigationGroup {
 export type NavigationItem = NavigationEndpoint | NavigationGroup;
 
 export const navigation_tree: NavigationItem[] = [
-  import.meta.env.DEV && {
+  {
     type: "group" as const,
     name: "3D Solvers",
     icon_component: LayersIcon,
     endpoints: [
-      {
+      import.meta.env.DEV && {
         type: "endpoint" as const,
         name: "3D FDTD",
         route: {
@@ -41,18 +41,18 @@ export const navigation_tree: NavigationItem[] = [
       },
       {
         type: "endpoint" as const,
-        name: "3D Via",
+        name: "Via Impedance Calculator",
         route: {
           name: "",
           path: "/3d/via",
           view_component: () => import("./views/via_3d/Via3DView.vue"),
         },
       },
-    ],
+    ].filter(x => x !== false),
   },
   {
     type: "group" as const,
-    name: "2D Electrostatic Solvers",
+    name: "2D Solvers",
     icon_component: CircuitBoardIcon,
     endpoints: [
       {
@@ -100,7 +100,7 @@ export const navigation_tree: NavigationItem[] = [
       }
     ],
   },
-].filter(item => item !== false);
+];
 
 export const default_route_name = "2d_transmission_line_templates";
 
