@@ -3,6 +3,7 @@ import { GpuEngine } from "../../app/electrostatic_3d/grid.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
 import { type ImpedanceResult, calculate_via_impedance } from "./impedance.ts";
 import type { Profiler } from "../../utility/profiler.ts";
+import type { Size3D } from "../../wgpu_kernels/electrostatic_3d/index.ts";
 
 export interface RunStatus {
   curr_step: number;
@@ -13,6 +14,12 @@ export interface ExecutorControls {
   total_steps: number;
   run_status?: RunStatus;
   stride_size: number;
+}
+
+export function calculate_ideal_total_steps(size: Size3D): number {
+  const D = Math.ceil((size.x*size.x + size.y*size.y + size.z*size.z)**0.5);
+  const total_bounces = 16;
+  return D*total_bounces*2;
 }
 
 export class Executor {

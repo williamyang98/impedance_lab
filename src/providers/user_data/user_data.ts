@@ -1,5 +1,9 @@
 import { type DistanceUnit, distance_units } from "../../utility/unit_types.ts";
-import { type GridBuilderConfig } from "../../app/electrostatic_2d/grid_builder.ts";
+import { type GridBuilderConfig as GridBuilderConfig2D } from "../../app/electrostatic_2d/grid_builder.ts";
+import {
+  type GridBuilderConfig as GridBuilderConfig3D,
+  type AxisValue, axes as axes_3d,
+} from "../../app/electrostatic_3d/grid_builder.ts";
 import {
   type ComputeBenchmarkConfig,
   type MemoryBandwidthBenchmarkConfig,
@@ -104,56 +108,27 @@ class BooleanEntry {
   }
 }
 
-export const keys = {
-  is_dark_mode: "is_dark_mode",
-  size_unit: "size_unit",
-  copper_thickness_unit: "copper_thickness_unit",
-  mesh_2d_config: {
-    minimum_grid_resolution: "grid_builder.minimum_grid_resolution",
-    padding_size_multiplier: "grid_builder.padding_size_multiplier",
-    max_x_ratio: "grid_builder.max_x_ratio",
-    min_x_subdivisions: "grid_builder.min_x_subdivisions",
-    max_y_ratio: "grid_builder.max_y_ratio",
-    min_y_subdivisions: "grid_builder.min_y_subdivisions",
-    min_epsilon_resolution: "grid_builder.min_epsilon_resolution",
-    signal_amplitude: "grid_builder.signal_amplitude",
-  },
-  compute_benchmark_config: {
-    total_compute_units: "compute_benchmark.total_compute_units",
-    total_warmup_steps: "compute_benchmark.total_warmup_steps",
-    total_warm_steps: "compute_benchmark.total_warm_steps",
-    work_multiplier: "compute_benchmark.work_multiplier",
-    is_running: "compute_benchmark.is_running",
-  },
-  memory_bandwidth: {
-    total_transfers: "memory_bandwidth_benchmark.total_transfers",
-  },
-  parameter_search: {
-    max_steps: "parameter_search.max_steps",
-    impedance_tolerance: "parameter_search.impedance_tolerance",
-    search_precision: "parameter_search.search_precision",
-  },
-};
-
 export class UserData {
   storage: Storage;
   _is_dark_mode: BooleanEntry;
   _size_unit: DistanceEntry;
   _copper_thickness_unit: DistanceEntry;
-  grid_builder_config: GridBuilderUserData;
+  grid_builder_config_2d: GridBuilderUserData2D;
+  grid_builder_config_3d: GridBuilderUserData3D;
   compute_benchmark_config: UserComputeBenchmarkConfig;
   memory_bandwidth_benchmark_config: UserMemoryBandwidthBenchmarkConfig;
   parameter_search_config: UserParameterSearchConfig;
 
   constructor(storage: Storage) {
     this.storage = storage;
-    this._is_dark_mode = new BooleanEntry(storage, keys.is_dark_mode, false);
-    this._size_unit = new DistanceEntry(storage, keys.size_unit, "mm");
-    this._copper_thickness_unit = new DistanceEntry(storage, keys.copper_thickness_unit, "oz");
-    this.grid_builder_config = new GridBuilderUserData(storage);
-    this.compute_benchmark_config = new UserComputeBenchmarkConfig(storage);
-    this.memory_bandwidth_benchmark_config = new UserMemoryBandwidthBenchmarkConfig(storage);
-    this.parameter_search_config = new UserParameterSearchConfig(storage);
+    this._is_dark_mode = new BooleanEntry(storage, "is_dark_mode", false);
+    this._size_unit = new DistanceEntry(storage, "size_unit", "mm");
+    this._copper_thickness_unit = new DistanceEntry(storage, "copper_thickness_unit", "oz");
+    this.grid_builder_config_2d = new GridBuilderUserData2D(storage, "grid_builder_config_2d");
+    this.grid_builder_config_3d = new GridBuilderUserData3D(storage, "grid_builder_config_3d");
+    this.compute_benchmark_config = new UserComputeBenchmarkConfig(storage, "gpu.compute_benchmark");
+    this.memory_bandwidth_benchmark_config = new UserMemoryBandwidthBenchmarkConfig(storage, "gpu.memory_bandwidth_benchmark");
+    this.parameter_search_config = new UserParameterSearchConfig(storage, "parameter_search");
   }
 
   get is_dark_mode(): boolean { return this._is_dark_mode.value; }
@@ -173,7 +148,7 @@ export class UserData {
 
 }
 
-export class GridBuilderUserData implements GridBuilderConfig {
+export class GridBuilderUserData2D implements GridBuilderConfig2D {
   storage: Storage;
   _minimum_grid_resolution: NumberEntry;
   _padding_size_multiplier: NumberEntry;
@@ -184,17 +159,17 @@ export class GridBuilderUserData implements GridBuilderConfig {
   _min_epsilon_resolution: NumberEntry;
   _signal_amplitude: NumberEntry;
 
-  constructor(storage: Storage) {
+  constructor(storage: Storage, prefix: string) {
     this.storage = storage;
-    const K = keys.mesh_2d_config;
-    this._minimum_grid_resolution = new NumberEntry(storage, K.minimum_grid_resolution, 0.0001, "float");
-    this._padding_size_multiplier = new NumberEntry(storage, K.padding_size_multiplier, 5, "float");
-    this._max_x_ratio = new NumberEntry(storage, K.max_x_ratio, 0.7, "float");
-    this._min_x_subdivisions = new NumberEntry(storage, K.min_x_subdivisions, 10, "integer");
-    this._max_y_ratio = new NumberEntry(storage, K.max_y_ratio, 0.7, "float");
-    this._min_y_subdivisions = new NumberEntry(storage, K.min_y_subdivisions, 10, "integer");
-    this._min_epsilon_resolution = new NumberEntry(storage, K.min_epsilon_resolution, 0.01, "float");
-    this._signal_amplitude = new NumberEntry(storage, K.signal_amplitude, 1, "float");
+    const get_name = (name: string) => `${prefix}.${name}`;
+    this._minimum_grid_resolution = new NumberEntry(storage, get_name("minimum_grid_resolution"), 0.0001, "float");
+    this._padding_size_multiplier = new NumberEntry(storage, get_name("padding_size_multiplier"), 5, "float");
+    this._max_x_ratio = new NumberEntry(storage, get_name("max_x_ratio"), 0.7, "float");
+    this._min_x_subdivisions = new NumberEntry(storage, get_name("min_x_subdivisions"), 10, "integer");
+    this._max_y_ratio = new NumberEntry(storage, get_name("max_y_ratio"), 0.7, "float");
+    this._min_y_subdivisions = new NumberEntry(storage, get_name("min_y_subdivisions"), 10, "integer");
+    this._min_epsilon_resolution = new NumberEntry(storage, get_name("min_epsilon_resolution"), 0.01, "float");
+    this._signal_amplitude = new NumberEntry(storage, get_name("signal_amplitude"), 1, "float");
   }
 
   get minimum_grid_resolution() { return this._minimum_grid_resolution.value; }
@@ -215,6 +190,53 @@ export class GridBuilderUserData implements GridBuilderConfig {
   set signal_amplitude(value: number) { this._signal_amplitude.value = value; }
 }
 
+export class GridBuilderUserData3D implements GridBuilderConfig3D {
+  storage: Storage;
+  _minimum_grid_resolution: NumberEntry;
+  _padding_size_multiplier: NumberEntry;
+  _mesh: AxisValue<{
+    max_ratio: NumberEntry,
+    min_subdivisions: NumberEntry,
+  }>;
+  mesh: AxisValue<{ max_ratio: number, min_subdivisions: number }>;
+
+  constructor(storage: Storage, prefix: string) {
+    this.storage = storage;
+    const get_name = (name: string) => `${prefix}.${name}`;
+    this._minimum_grid_resolution = new NumberEntry(storage, get_name("minimum_grid_resolution"), 0.0001, "float");
+    this._padding_size_multiplier = new NumberEntry(storage, get_name("padding_size_multiplier"), 5, "float");
+
+    const _mesh: Partial<typeof this._mesh> = {};
+    for (const axis of axes_3d) {
+      _mesh[axis] = {
+        max_ratio: new NumberEntry(storage, get_name(`max_${axis}_ratio`), 0.7, "float"),
+        min_subdivisions: new NumberEntry(storage, get_name(`min_${axis}_subdivisions`), 5, "integer"),
+      };
+    }
+    this._mesh = _mesh as typeof this._mesh;
+
+    const mesh: Partial<typeof this.mesh> = {};
+    for (const axis of axes_3d) {
+      const parent = this._mesh[axis];
+      const config = {
+        parent,
+        get max_ratio() { return this.parent.max_ratio.value; },
+        set max_ratio(value: number) { this.parent.max_ratio.value = value; },
+        get min_subdivisions() { return this.parent.min_subdivisions.value; },
+        set min_subdivisions(value: number) { this.parent.min_subdivisions.value = value; },
+      };
+      mesh[axis] = config;
+    }
+    this.mesh = mesh as typeof this.mesh;
+  }
+
+  get minimum_grid_resolution() { return this._minimum_grid_resolution.value; }
+  set minimum_grid_resolution(value: number) { this._minimum_grid_resolution.value = value; }
+  get padding_size_multiplier() { return this._padding_size_multiplier.value; }
+  set padding_size_multiplier(value: number) { this._padding_size_multiplier.value = value; }
+
+}
+
 export class UserComputeBenchmarkConfig implements ComputeBenchmarkConfig {
   storage: Storage;
   _total_compute_units: NumberEntry;
@@ -222,13 +244,13 @@ export class UserComputeBenchmarkConfig implements ComputeBenchmarkConfig {
   _total_warm_steps: NumberEntry;
   _work_multiplier: NumberEntry;
 
-  constructor(storage: Storage) {
+  constructor(storage: Storage, prefix: string) {
+    const get_name = (name: string) => `${prefix}.${name}`;
     this.storage = storage;
-    const K = keys.compute_benchmark_config;
-    this._total_compute_units = new NumberEntry(storage, K.total_compute_units, 12, "integer");
-    this._total_warmup_steps = new NumberEntry(storage, K.total_warmup_steps, 4, "integer");
-    this._total_warm_steps = new NumberEntry(storage, K.total_warm_steps, 8, "integer");
-    this._work_multiplier = new NumberEntry(storage, K.work_multiplier, 1, "integer");
+    this._total_compute_units = new NumberEntry(storage, get_name("total_compute_units"), 12, "integer");
+    this._total_warmup_steps = new NumberEntry(storage, get_name("total_warmup_steps"), 4, "integer");
+    this._total_warm_steps = new NumberEntry(storage, get_name("total_warm_steps"), 8, "integer");
+    this._work_multiplier = new NumberEntry(storage, get_name("work_multiplier"), 1, "integer");
   }
 
   get total_compute_units(): number { return this._total_compute_units.value; };
@@ -245,10 +267,10 @@ export class UserMemoryBandwidthBenchmarkConfig implements MemoryBandwidthBenchm
   storage: Storage;
   _total_transfers: NumberEntry;
 
-  constructor(storage: Storage) {
+  constructor(storage: Storage, prefix: string) {
     this.storage = storage;
-    const K = keys.memory_bandwidth;
-    this._total_transfers = new NumberEntry(storage, K.total_transfers, 30, "integer");
+    const get_name = (name: string) => `${prefix}.${name}`;
+    this._total_transfers = new NumberEntry(storage, get_name("total_transfers"), 30, "integer");
   }
 
   get total_transfers(): number { return this._total_transfers.value; }
@@ -261,12 +283,12 @@ export class UserParameterSearchConfig implements ParameterSearchConfig {
   _impedance_tolerance: NumberEntry;
   _search_precision: NumberEntry;
 
-  constructor(storage: Storage) {
+  constructor(storage: Storage, prefix: string) {
     this.storage = storage;
-    const K = keys.parameter_search;
-    this._max_steps = new NumberEntry(storage, K.max_steps, 16, "integer");
-    this._impedance_tolerance = new NumberEntry(storage, K.impedance_tolerance, 0.1, "float");
-    this._search_precision = new NumberEntry(storage, K.search_precision, 0.001, "float");
+    const get_name = (name: string) => `${prefix}.${name}`;
+    this._max_steps = new NumberEntry(storage, get_name("max_steps"), 16, "integer");
+    this._impedance_tolerance = new NumberEntry(storage, get_name("impedance_tolerance"), 0.1, "float");
+    this._search_precision = new NumberEntry(storage, get_name("search_precision"), 0.001, "float");
   }
 
   get max_steps(): number { return this._max_steps.value; }

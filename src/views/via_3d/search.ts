@@ -5,7 +5,7 @@ import { type ImpedanceResult } from "./impedance.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { run_parameter_search, type ParameterSearchConfig } from "../parameter_search/search.ts";
-import { Executor } from "./executor.ts";
+import { Executor, calculate_ideal_total_steps } from "./executor.ts";
 
 export class SearchResult {
   value: number;
@@ -101,7 +101,7 @@ export async function search_parameters(
     profiler.end();
 
     const grid_size = stackup_grid.size;
-    executor.controls.total_steps = Math.max(grid_size.x, grid_size.y, grid_size.z)*2*16;
+    executor.controls.total_steps = calculate_ideal_total_steps(grid_size);
 
     profiler.begin("run", undefined, {
       "Grid Size": `[${grid_size.x},${grid_size.y},${grid_size.z}]`,

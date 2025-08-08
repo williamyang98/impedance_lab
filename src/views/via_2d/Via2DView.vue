@@ -85,7 +85,7 @@ async function calculate_impedance() {
     new_profiler.begin("build_grid");
     const new_stackup_grid = new StackupGrid(
       wasm_module,
-      stackup.value, user_data.value.grid_builder_config,
+      stackup.value, user_data.value.grid_builder_config_2d,
       new_profiler,
     );
     new_profiler.end();
@@ -132,7 +132,7 @@ async function perform_search(search_params: Parameter[]) {
       target_impedance.value,
       stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
-      user_data.value.grid_builder_config,
+      user_data.value.grid_builder_config_2d,
       user_data.value.parameter_search_config,
       new_profiler, toast,
     );
@@ -226,7 +226,7 @@ async function perform_search(search_params: Parameter[]) {
                   <div class="text-lg font-bold p-0">2D Mesh Settings</div>
                   <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
                 </form>
-                <GridBuilderConfigForm :config="user_data.grid_builder_config"/>
+                <GridBuilderConfigForm :config="user_data.grid_builder_config_2d"/>
               </div>
               <form method="dialog" class="modal-backdrop">
                 <button>Close</button>

@@ -1,7 +1,6 @@
 <script lang="ts" setup>
 import { toRaw, ref, useTemplateRef, watch } from 'vue';
 import { providers } from '../../providers/providers';
-import { type GridBuilderConfig } from '../../app/electrostatic_3d/grid_builder.ts';
 import ImpedanceResultView from './ImpedanceResultView.vue';
 import ExportView from '../../app/electrostatic_3d/ExportView.vue';
 import RendererView from '../../app/electrostatic_3d/RendererView.vue';
@@ -10,19 +9,19 @@ import { Profiler } from '../../utility/profiler.ts';
 import { StackupGrid } from "./stackup_to_grid.ts";
 import { Stackup, type Parameter } from "../via_2d/stackup.ts";
 import ProfilerFlameChart from '../../utility/ProfilerFlameChart.vue';
-import { Executor, type ExecutorControls } from './executor.ts';
+import { Executor, type ExecutorControls, calculate_ideal_total_steps } from './executor.ts';
 import { computed_ref } from '../../utility/computed_ref.ts';
 import { StackupVisualiser } from '../via_2d/stackup_to_visualiser.ts';
 import { search_parameters, type SearchResults } from './search.ts';
 import { SettingsIcon, PencilIcon, EyeIcon } from 'lucide-vue-next';
 import ParameterSearchConfigForm from '../parameter_search/ParameterSearchConfigForm.vue';
 import ParameterSearchResultsGraph from '../parameter_search/ParameterSearchResultsGraph.vue';
-
 import VisualiserView from "../visualiser_2d/VisualiserView.vue";
 import LayersEditorView from "../via_2d/LayersEditorView.vue";
 import ParameterForm from "../via_2d/ParameterForm.vue";
 import { type ImpedanceResult } from './impedance.ts';
 import MeshViewer from '../../app/electrostatic_3d/MeshViewer.vue';
+import GridBuilderConfigForm from '../../app/electrostatic_3d/GridBuilderConfigForm.vue';
 
 const gpu_device = toRaw(providers.gpu_device.value);
 const toast = providers.toast_manager.value;
@@ -49,47 +48,6 @@ const stackup = ref(create_stackup());
 const stackup_visualiser = computed_ref(() => new StackupVisualiser(stackup.value, is_editing.value));
 
 const profiler = ref<Profiler | undefined>(undefined);
-
-const grid_builder_config: GridBuilderConfig = {
-  minimum_grid_resolution: 1e-4,
-  padding_size_multiplier: 10,
-  mesh: {
-    x: {
-      max_ratio: 1.7,
-      min_subdivisions: 3,
-    },
-    y: {
-      max_ratio: 1.7,
-      min_subdivisions: 3,
-    },
-    z: {
-      max_ratio: 1.7,
-      min_subdivisions: 3,
-    },
-  },
-};
-
-// const grid_builder_config: GridBuilderConfig = {
-//   minimum_grid_resolution: 1e-4,
-//   padding_size_multiplier: 10,
-//   max_x_ratio: 1.7,
-//   min_x_subdivisions: 5,
-//   max_y_ratio: 1.7,
-//   min_y_subdivisions: 5,
-//   max_z_ratio: 1.7,
-//   min_z_subdivisions: 5,
-// };
-
-// const grid_builder_config: GridBuilderConfig = {
-//   minimum_grid_resolution: 1e-4,
-//   padding_size_multiplier: 10,
-//   max_x_ratio: 0.7,
-//   min_x_subdivisions: 10,
-//   max_y_ratio: 0.7,
-//   min_y_subdivisions: 10,
-//   max_z_ratio: 0.7,
-//   min_z_subdivisions: 10,
-// };
 
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
@@ -178,13 +136,13 @@ async function calculate_impedance() {
     new_profiler.begin("build_grid");
     const new_stackup_grid = new StackupGrid(
       gpu_device, stackup.value,
-      grid_builder_config,
+      user_data.value.grid_builder_config_3d,
       new_profiler,
     );
     new_profiler.end();
 
     const grid_size = new_stackup_grid.size;
-    executor.controls.total_steps = Math.max(grid_size.x, grid_size.y, grid_size.z)*2*16;
+    executor.controls.total_steps = calculate_ideal_total_steps(grid_size);
 
     new_profiler.begin("run", undefined, {
       "Grid Size": `[${grid_size.x},${grid_size.y},${grid_size.z}]`,
@@ -227,7 +185,7 @@ async function perform_search(search_params: Parameter[]) {
       target_impedance.value,
       stackup.value,
       toRaw(search_params), // avoid triggering vue updates with toRaw(...)
-      grid_builder_config,
+      user_data.value.grid_builder_config_3d,
       user_data.value.parameter_search_config,
       new_profiler, toast,
     );
@@ -323,7 +281,7 @@ async function perform_search(search_params: Parameter[]) {
                     <div class="text-lg font-bold p-0">2D Mesh Settings</div>
                     <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
                   </form>
-                  <!-- <GridBuilderConfigForm :config="user_data.grid_builder_config"/> -->
+                  <GridBuilderConfigForm :config="user_data.grid_builder_config_3d"/>
                 </div>
                 <form method="dialog" class="modal-backdrop">
                   <button>Close</button>
