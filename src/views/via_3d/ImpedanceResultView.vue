@@ -14,7 +14,7 @@ const _props = defineProps<{
   <col class="w-fit">
   <tbody>
     <tr>
-      <td class="font-medium">Z0</td>
+      <td class="font-medium">Impedance</td>
       <td>{{ with_standard_suffix(result.Z0, "Ω", 4) }}</td>
     </tr>
     <tr>

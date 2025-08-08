@@ -355,39 +355,21 @@ async function perform_search(search_params: Parameter[]) {
               Run simulation for results
             </div>
             <div class="flex flex-row gap-x-2 justify-end">
-              <button class="btn" @click="iterate_solution()" :disabled="is_running || stackup_grid === undefined">Step</button>
-              <button class="btn" @click="calculate_impedance()" :disabled="is_running">Run</button>
+              <button class="btn" @click="iterate_solution()" :disabled="is_running || stackup_grid === undefined">Refine</button>
+              <button class="btn" @click="calculate_impedance()" :disabled="is_running">Calculate</button>
             </div>
           </div>
         </div>
       </div>
     </div>
   </template>
-  <template #h-1>Export</template>
-  <template #b-1>
-    <div class="w-full flex justify-center-safe overflow-x-auto">
-      <ExportView v-if="stackup_grid" :grid="stackup_grid.cpu_grid" class="w-fit border border-base-300 bg-base-100"/>
-    </div>
-  </template>
-  <template #h-2>Profiler</template>
-  <template #b-2>
-    <div class="w-full h-full">
-      <ProfilerFlameChart v-if="profiler" :profiler="profiler"/>
-    </div>
-  </template>
-  <template #h-3>Viewer</template>
-  <template #b-3>
-    <div class="w-full h-full min-h-0">
-      <RendererView v-if="stackup_grid" :grid="stackup_grid.gpu_grid" ref="renderer_view"/>
-    </div>
-  </template>
-  <template #h-4>
+  <template #h-1>
     <div class="flex flex-row gap-x-2 items-center">
       <span class="text-nowrap">Parameter Search</span>
       <div v-if="search_results" class="badge badge-sm badge-secondary">{{ search_results.results.length }}</div>
     </div>
   </template>
-  <template #b-4>
+  <template #b-1>
     <div class="w-full h-full" v-if="search_results">
       <ParameterSearchResultsGraph
         :results="search_results.results.map(result => {
@@ -407,10 +389,28 @@ async function perform_search(search_params: Parameter[]) {
       Perform parameter search to see search curve
     </div>
   </template>
-  <template #h-5>Mesh</template>
-  <template #b-5>
+  <template #h-2>Viewer</template>
+  <template #b-2>
+    <div class="w-full h-full min-h-0">
+      <RendererView v-if="stackup_grid" :grid="stackup_grid.gpu_grid" ref="renderer_view"/>
+    </div>
+  </template>
+  <template #h-3>Mesh</template>
+  <template #b-3>
     <div class="w-full h-full min-h-0">
       <MeshViewer v-if="stackup_grid" :builder="stackup_grid.grid_builder"/>
+    </div>
+  </template>
+  <template #h-4>Profiler</template>
+  <template #b-4>
+    <div class="w-full h-full">
+      <ProfilerFlameChart v-if="profiler" :profiler="profiler"/>
+    </div>
+  </template>
+  <template #h-5>Export</template>
+  <template #b-5>
+    <div class="w-full flex justify-center-safe overflow-x-auto">
+      <ExportView v-if="stackup_grid" :grid="stackup_grid.cpu_grid" class="w-fit border border-base-300 bg-base-100"/>
     </div>
   </template>
 </TabsView>
