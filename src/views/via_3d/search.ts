@@ -101,6 +101,8 @@ export async function search_parameters(
     profiler.end();
 
     const grid_size = stackup_grid.size;
+    executor.controls.total_steps = Math.max(grid_size.x, grid_size.y, grid_size.z)*2*16;
+
     profiler.begin("run", undefined, {
       "Grid Size": `[${grid_size.x},${grid_size.y},${grid_size.z}]`,
       "Total Cells": `${grid_size.x*grid_size.y*grid_size.z}`,

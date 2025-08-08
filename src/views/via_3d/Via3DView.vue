@@ -184,6 +184,8 @@ async function calculate_impedance() {
     new_profiler.end();
 
     const grid_size = new_stackup_grid.size;
+    executor.controls.total_steps = Math.max(grid_size.x, grid_size.y, grid_size.z)*2*16;
+
     new_profiler.begin("run", undefined, {
       "Grid Size": `[${grid_size.x},${grid_size.y},${grid_size.z}]`,
       "Total Cells": `${grid_size.x*grid_size.y*grid_size.z}`,
