@@ -260,6 +260,9 @@ export class GridBuilder {
             y_max = shape.center.y+shape.radius;
             z_min = shape.center.z-shape.radius;
             z_max = shape.center.z+shape.radius;
+            // make sure radii of circle is correctly represented
+            this.y_region_lines_builder.push(shape.center.y);
+            this.z_region_lines_builder.push(shape.center.z);
             if (shape.length !== undefined) {
               x_min = Math.min(shape.center.x, shape.center.x+shape.length);
               x_max = Math.max(shape.center.x, shape.center.x+shape.length);
@@ -273,6 +276,9 @@ export class GridBuilder {
             x_max = shape.center.x+shape.radius;
             z_min = shape.center.z-shape.radius;
             z_max = shape.center.z+shape.radius;
+            // make sure radii of circle is correctly represented
+            this.x_region_lines_builder.push(shape.center.x);
+            this.z_region_lines_builder.push(shape.center.z);
             if (shape.length !== undefined) {
               y_min = Math.min(shape.center.y, shape.center.y+shape.length);
               y_max = Math.max(shape.center.y, shape.center.y+shape.length);
@@ -286,6 +292,9 @@ export class GridBuilder {
             x_max = shape.center.x+shape.radius;
             y_min = shape.center.y-shape.radius;
             y_max = shape.center.y+shape.radius;
+            // make sure radii of circle is correctly represented
+            this.x_region_lines_builder.push(shape.center.x);
+            this.y_region_lines_builder.push(shape.center.y);
             if (shape.length !== undefined) {
               z_min = Math.min(shape.center.z, shape.center.z+shape.length);
               z_max = Math.max(shape.center.z, shape.center.z+shape.length);
