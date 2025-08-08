@@ -4,7 +4,18 @@ export class LinesBuilder {
   is_sorted: boolean = false;
   scale: number = 1.0;
 
-  push(line: number): number {
+  push(line: number, threshold?: number): number {
+    if (threshold !== undefined) {
+      for (let id = 0; id < this.id_to_index.length; id++) {
+        const index = this.id_to_index[id];
+        const old_line = this.lines[index];
+        const delta = Math.abs(line-old_line);
+        if (delta < threshold) {
+          return id;
+        }
+      }
+    }
+
     const id = this.id_to_index.length;
     const N = this.lines.length;
     if (N > 0 && this.is_sorted && this.lines[N-1] > line) {
