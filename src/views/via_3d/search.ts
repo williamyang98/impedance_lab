@@ -1,4 +1,5 @@
-import { type Parameter, type Stackup } from "../via_2d/stackup.ts";
+import { Stackup } from "./stackup.ts";
+import { type Parameter } from "../via_2d/stackup.ts";
 import { StackupGrid } from "./stackup_to_grid.ts";
 import { type GridBuilderConfig } from "../../app/electrostatic_3d/grid_builder.ts";
 import { type ImpedanceResult } from "./impedance.ts";

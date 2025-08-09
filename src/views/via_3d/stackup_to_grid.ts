@@ -7,10 +7,8 @@ import {
 import {
   CpuGrid, GpuGrid,
 } from "../../app/electrostatic_3d/grid.ts";
-import {
-  Stackup, type Parameter,
-  type ReferencePlane,
-} from "../via_2d/stackup.ts";
+import { type ReferencePlane, type Parameter } from "../via_2d/stackup.ts";
+import { Stackup } from "./stackup.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import type { Size3D } from "../../wgpu_kernels/electrostatic_3d/index.ts";
 
@@ -300,6 +298,62 @@ export class StackupGrid {
       throw Error("Stackup does not have any vertical dimension. Did you forget to add layers?");
     }
     const barrel_height = z_barrel_bottom-z_barrel_top;
+
+    // create stitching ground vias
+    {
+      const total_vias = stackup.total_stitching_vias;
+      const Dvia = Dbarrel/2;
+      let Dantipad_max = -Infinity;
+      for (const layer of stackup.layers) {
+        switch (layer.type) {
+          case "surface": {
+            if (layer.plane.has_plane) {
+              const Dantipad = this.setup_get_parameter_value(layer.plane.Dantipad);
+              Dantipad_max = Math.max(Dantipad_max, Dantipad);
+            }
+            break;
+          }
+          case "inner": {
+            if (layer.planes.bottom.has_plane) {
+              const Dantipad = this.setup_get_parameter_value(layer.planes.bottom.Dantipad);
+              Dantipad_max = Math.max(Dantipad_max, Dantipad);
+            }
+            if (layer.planes.top.has_plane) {
+              const Dantipad = this.setup_get_parameter_value(layer.planes.top.Dantipad);
+              Dantipad_max = Math.max(Dantipad_max, Dantipad);
+            }
+            break;
+          }
+        }
+      }
+      if (Number.isFinite(Dantipad_max)) {
+        const Dspacing = Dantipad_max/2 + Dvia/2;
+        for (let k = 0; k < total_vias; k++) {
+          const angle = 2*Math.PI*k/total_vias;
+          const x = Dspacing*Math.cos(angle);
+          const y = Dspacing*Math.sin(angle);
+          // fill entire barrel
+          regions.push({
+            type: "voltage",
+            voltage: ground_voltage,
+            shapes: [
+              {
+                type: "cylinder",
+                center: {
+                  x,
+                  y,
+                  z: z_barrel_top,
+                },
+                length: z_barrel_bottom-z_barrel_top,
+                radius: Dvia/2,
+                axis: "z",
+                config: {},
+              },
+            ],
+          });
+        }
+      }
+    }
 
     // barrel dielectric
     {
