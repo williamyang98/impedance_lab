@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { defineProps } from "vue";
 import { type ImpedanceResult } from "./impedance.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 

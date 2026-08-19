@@ -14,7 +14,7 @@ import { Executor, type ExecutorControls, calculate_ideal_total_steps } from './
 import { computed_ref } from '../../utility/computed_ref.ts';
 import { StackupVisualiser } from '../via_2d/stackup_to_visualiser.ts';
 import { search_parameters, type SearchResults } from './search.ts';
-import { SettingsIcon, PencilIcon, EyeIcon } from 'lucide-vue-next';
+import { SettingsIcon, PencilIcon, EyeIcon } from '@lucide/vue';
 import ParameterSearchConfigForm from '../parameter_search/ParameterSearchConfigForm.vue';
 import ParameterSearchResultsGraph from '../parameter_search/ParameterSearchResultsGraph.vue';
 import VisualiserView from "../visualiser_2d/VisualiserView.vue";

@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from "vue";
 import { providers } from "../../providers/providers.ts";
-import { SearchIcon } from "lucide-vue-next";
-import fuzzysort from "fuzzysort";
+import { SearchIcon } from "@lucide/vue";
+import * as fuzzysort from "fuzzysort";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
@@ -30,7 +30,7 @@ const all_features: GPUFeatureName[] = [
 
 interface PreparedFeature {
   feature: GPUFeatureName;
-  prepared: Fuzzysort.Prepared;
+  prepared: fuzzysort.Prepared;
 }
 
 const prepared_features: PreparedFeature[] = all_features.map((feature) => {
@@ -42,7 +42,7 @@ const prepared_features: PreparedFeature[] = all_features.map((feature) => {
 
 interface SearchResult {
   feature: GPUFeatureName;
-  result: Fuzzysort.Result;
+  result: fuzzysort.Result;
 }
 const search_results = ref<SearchResult[] | undefined>(undefined);
 

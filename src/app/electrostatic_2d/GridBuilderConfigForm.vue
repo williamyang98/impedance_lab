@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { defineProps, computed, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { type GridBuilderConfig } from "./grid_builder.ts";
-import { TriangleAlert } from "lucide-vue-next";
+import { TriangleAlert } from "@lucide/vue";
 import { NumberField, integer_validator, float_validator } from "../../utility/form_validation.ts";
 
 const props = defineProps<{

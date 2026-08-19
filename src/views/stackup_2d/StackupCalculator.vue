@@ -23,7 +23,7 @@ import GridBuilderConfigForm from "../../app/electrostatic_2d/GridBuilderConfigF
 import VisualiserView from "../visualiser_2d/VisualiserView.vue";
 import ParameterSearchResultsGraph from "../parameter_search/ParameterSearchResultsGraph.vue";
 import ParameterSearchConfigForm from "../parameter_search/ParameterSearchConfigForm.vue";
-import { PencilIcon, EyeIcon, SettingsIcon } from "lucide-vue-next";
+import { PencilIcon, EyeIcon, SettingsIcon } from "@lucide/vue";
 // ts imports
 import {type Parameter, type StackupType, stackup_types } from "./stackup.ts";
 import { StackupGrid } from "./stackup_to_grid.ts";

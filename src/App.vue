@@ -5,7 +5,7 @@ import GpuProvider from "./providers/GpuProvider.vue";
 import WasmProvider from "./providers/WasmProvider.vue";
 import ToastProvider from "./providers/toast/ToastProvider.vue";
 import UserDataProvider from "./providers/user_data/UserDataProvider.vue";
-import { MenuIcon, ChevronDownIcon } from 'lucide-vue-next';
+import { MenuIcon, ChevronDownIcon } from '@lucide/vue';
 import { navigation_tree, type NavigationEndpoint, endpoints_table } from "./routes.ts";
 import GithubIcon from "./assets/github.svg";
 import DarkModeToggle from "./utility/DarkModeToggle.vue";

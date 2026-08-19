@@ -6,9 +6,8 @@ import {
 } from "./stackup_templates.ts";
 import VisualiserView from "../visualiser_2d/VisualiserView.vue";
 import { type VisualiserConfig, get_default_viewer_config, StackupVisualiser } from "./stackup_to_visualiser.ts";
-import { SearchIcon } from "lucide-vue-next";
-import "fuzzysort";
-import fuzzysort from "fuzzysort";
+import { SearchIcon } from "@lucide/vue";
+import * as fuzzysort from "fuzzysort";
 import { endpoints_table } from "../../routes.ts";
 
 interface Tag {
@@ -34,7 +33,7 @@ function tag_to_query_string(tag: Tag): string {
 interface Template {
   tag: Tag;
   title: string;
-  prepared_title: Fuzzysort.Prepared;
+  prepared_title: fuzzysort.Prepared;
   visualiser: StackupVisualiser;
 }
 
@@ -89,7 +88,7 @@ function get_template_url(tagged_editor: Template): string | undefined {
 
 interface SearchResult {
   template: Template;
-  result: Fuzzysort.Result;
+  result: fuzzysort.Result;
 }
 const search_string = ref<string | undefined>(undefined);
 const search_results = ref<SearchResult[] | undefined>(undefined);

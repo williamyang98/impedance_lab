@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import {
-  toRaw,
-  ref, computed, watch, useTemplateRef, defineExpose, onMounted, onBeforeUnmount, defineProps,
-} from "vue";
+import { toRaw, ref, computed, watch, useTemplateRef, onMounted, onBeforeUnmount } from "vue";
 import { Grid } from "./grid.ts";
 import { MasterRenderer, RendererCore, type Tooltip } from "./grid_viewer_renderer.ts";
 import { providers } from "../../providers/providers.ts";

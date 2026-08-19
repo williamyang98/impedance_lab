@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { defineProps, defineEmits, computed, watch } from "vue";
-import { TriangleAlert, SearchIcon, InfoIcon } from "lucide-vue-next";
+import { computed, watch } from "vue";
+import { TriangleAlert, SearchIcon, InfoIcon } from "@lucide/vue";
 import {
   type Stackup,
   type Parameter, type SizeParameter, type EtchFactorParameter, type EpsilonParameter,

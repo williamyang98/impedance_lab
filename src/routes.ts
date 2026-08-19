@@ -1,6 +1,6 @@
 import type { FunctionalComponent } from 'vue';
 import { type RouteComponent } from 'vue-router';
-import { LayersIcon, CircuitBoardIcon, TimerIcon } from 'lucide-vue-next';
+import { LayersIcon, CircuitBoardIcon, TimerIcon } from '@lucide/vue';
 
 export interface CustomRoute {
   name: string;

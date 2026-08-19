@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, ref, useTemplateRef, watch, computed, toRaw } from "vue";
+import { ref, useTemplateRef, watch, computed, toRaw } from "vue";
 import { GridBuilder } from "./grid_builder.ts";
 import RegionTable from "../mesher/RegionTable.vue";
 import TabsView from "../../utility/TabsView.vue";

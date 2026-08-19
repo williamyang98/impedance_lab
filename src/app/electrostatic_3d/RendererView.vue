@@ -2,7 +2,7 @@
 import { type DisplayMode, Renderer } from "./renderer.ts";
 import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
-import { ref, watch, computed, useTemplateRef, defineProps, defineExpose } from "vue";
+import { ref, watch, computed, useTemplateRef } from "vue";
 import { debounce_animation_frame_async } from "../../utility/debounce.ts";
 
 const props = defineProps<{

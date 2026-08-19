@@ -9,7 +9,7 @@ import GridBuilderConfigForm from "../../app/electrostatic_2d/GridBuilderConfigF
 import VisualiserView from "../visualiser_2d/VisualiserView.vue";
 import LayersEditorView from "./LayersEditorView.vue";
 import ImpedanceResultView from "./ImpedanceResultView.vue";
-import { PencilIcon, EyeIcon, SettingsIcon } from "lucide-vue-next";
+import { PencilIcon, EyeIcon, SettingsIcon } from "@lucide/vue";
 import ParameterSearchResultsGraph from "../parameter_search/ParameterSearchResultsGraph.vue";
 import ParameterSearchConfigForm from "../parameter_search/ParameterSearchConfigForm.vue";
 

@@ -3,9 +3,7 @@ import { type GridDisplayMode, type FieldDisplayMode, Renderer } from "./rendere
 import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
 
-import {
-  ref, watch, computed, useTemplateRef, defineExpose,
-} from "vue";
+import { ref, watch, computed, useTemplateRef } from "vue";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;

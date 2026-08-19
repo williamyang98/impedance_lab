@@ -5,7 +5,7 @@ import { KernelBenchmark, type BenchmarkType } from "../../wgpu_kernels/benchmar
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 import { GPUTimer } from "./gpu_timer.ts";
 import { NumberField, integer_validator } from "../../utility/form_validation.ts";
-import { TriangleAlert } from "lucide-vue-next";
+import { TriangleAlert } from "@lucide/vue";
 
 const gpu_device = providers.gpu_device.value;
 const user_data = providers.user_data.value;

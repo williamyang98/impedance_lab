@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { useSlots, defineProps, defineExpose, ref, computed } from 'vue';
+import { useSlots, ref, computed } from 'vue';
 
 const props = defineProps<{
   initial_tab?: string;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, computed } from "vue";
+import { computed } from "vue";
 import { type Measurement } from "./measurement";
 import { type DistanceUnit, convert_distance, is_unit_metric } from "../../utility/unit_types.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix";

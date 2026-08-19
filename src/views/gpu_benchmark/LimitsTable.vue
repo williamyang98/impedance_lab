@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { computed, ref, watch } from "vue";
 import { providers } from "../../providers/providers.ts";
-import { SearchIcon } from "lucide-vue-next";
-import fuzzysort from "fuzzysort";
+import { SearchIcon } from "@lucide/vue";
+import * as fuzzysort from "fuzzysort";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
@@ -55,7 +55,7 @@ const prepared_limit_fields = all_limit_fields.map((field) => {
 
 interface SearchResult {
   field: LimitField;
-  result: Fuzzysort.Result;
+  result: fuzzysort.Result;
 }
 const search_results = ref<SearchResult[] | undefined>(undefined);
 

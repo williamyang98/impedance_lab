@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { LayerStackup, type LayerType } from "./stackup.ts";
-import { computed, defineProps } from "vue";
-import { Trash2Icon } from "lucide-vue-next";
+import { computed } from "vue";
+import { Trash2Icon } from "@lucide/vue";
 
 const props = defineProps<{
   stackup: LayerStackup,

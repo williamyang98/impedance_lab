@@ -1,7 +1,7 @@
 <script lang="ts" setup>
-import { defineProps, toRaw, computed } from "vue";
+import { toRaw, computed } from "vue";
 import { CpuGrid } from "./grid.ts";
-import { DownloadIcon } from "lucide-vue-next";
+import { DownloadIcon } from "@lucide/vue";
 import { Uint8ArrayNdarrayWriter } from "../../utility/ndarray.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";

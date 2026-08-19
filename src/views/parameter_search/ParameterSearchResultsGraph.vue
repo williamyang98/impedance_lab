@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineProps, ref, useTemplateRef, watch, computed } from "vue";
+import { ref, useTemplateRef, watch, computed } from "vue";
 import Chart from "chart.js/auto";
 
 export interface SearchResult {

@@ -11,7 +11,7 @@ import {
   type Layer, type SurfaceLayer, type InnerLayer,
   type LayerTraces, type Voltage, type BroadsidePair,
 } from "./stackup.ts";
-import { CirclePlusIcon, CircleMinusIcon } from "lucide-vue-next";
+import { CirclePlusIcon, CircleMinusIcon } from "@lucide/vue";
 import { font, stroke, colours } from "../visualiser_2d/pcb_defaults.ts";
 
 const sizes = {
