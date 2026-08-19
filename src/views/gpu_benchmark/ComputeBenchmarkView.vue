@@ -127,8 +127,10 @@ async function run_benchmarks() {
     <div class="w-full">
       <div v-if="gpu_features.has('timestamp-query')" class="flex flex-col gap-x-1">
         <table class="table table-compact w-full">
-          <col class="w-fit">
-          <col class="w-full">
+          <colgroup>
+            <col class="w-fit">
+            <col class="w-full">
+          </colgroup>
           <tbody>
             <tr v-for="field of config_form" :key="field.key">
               <td class="font-medium text-nowrap">{{ field.name }}</td>

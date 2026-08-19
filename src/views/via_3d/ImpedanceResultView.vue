@@ -10,7 +10,10 @@ const _props = defineProps<{
 
 <template>
 <table class="table table-compact" :class="$attrs.class">
-  <col class="w-fit">
+  <colgroup>
+    <col class="w-fit">
+    <col class="w-fit">
+  </colgroup>
   <tbody>
     <tr>
       <td class="font-medium">Impedance</td>
