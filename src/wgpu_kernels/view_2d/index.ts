@@ -40,8 +40,8 @@ export class ShaderComponentViewer {
   bind_group_layout: GPUBindGroupLayout;
   pipeline_layout: GPUPipelineLayout;
   render_pipelines = new Map<string, GPURenderPipeline>();
-  vertices: Float32Array;
-  indices: Uint16Array;
+  vertices: Float32Array<ArrayBuffer>;
+  indices: Uint16Array<ArrayBuffer>;
   vertex_buffer: GPUBuffer;
   index_buffer: GPUBuffer;
   vertex_buffer_layout: GPUVertexBufferLayout;
@@ -255,8 +255,8 @@ export class ShaderQuiverGrid {
   bind_group_layout: GPUBindGroupLayout;
   pipeline_layout: GPUPipelineLayout;
   render_pipeline: GPURenderPipeline;
-  vertices: Float32Array;
-  indices: Uint16Array;
+  vertices: Float32Array<ArrayBuffer>;
+  indices: Uint16Array<ArrayBuffer>;
   vertex_buffer: GPUBuffer;
   index_buffer: GPUBuffer;
   vertex_buffer_layout: GPUVertexBufferLayout;
@@ -478,8 +478,8 @@ export class ShaderIndexBeta {
   bind_group_layout: GPUBindGroupLayout;
   pipeline_layout: GPUPipelineLayout;
   render_pipelines = new Map<number, GPURenderPipeline>();
-  vertices: Float32Array;
-  indices: Uint16Array;
+  vertices: Float32Array<ArrayBuffer>;
+  indices: Uint16Array<ArrayBuffer>;
   vertex_buffer: GPUBuffer;
   index_buffer: GPUBuffer;
   vertex_buffer_layout: GPUVertexBufferLayout;
