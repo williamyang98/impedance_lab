@@ -554,12 +554,12 @@ export class Ndarray extends NdarrayView {
 }
 
 export interface NdarrayWriter {
-  init: (size: number) => Uint8Array;
+  init: (size: number) => Uint8Array<ArrayBuffer>;
 }
 
 export class Uint8ArrayNdarrayWriter implements NdarrayWriter {
-  buffer?: Uint8Array;
-  init(size: number): Uint8Array {
+  buffer?: Uint8Array<ArrayBuffer>;
+  init(size: number): Uint8Array<ArrayBuffer> {
     this.buffer = new Uint8Array(size);
     return this.buffer;
   }
