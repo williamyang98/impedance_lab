@@ -60,3 +60,6 @@ jobs:
 
     - name: Typescript static checks
       run: npm run type-check
+
+    - name: Run tests supported by cpu
+      run: npm run test

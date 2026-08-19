@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
@@ -14,6 +15,14 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       svgLoader(),
     ],
+    server: {
+      watch: {
+        ignored: ["test/**"],
+      },
+    },
+    test: {
+      include: ["test/**/*.test.ts"],
+    },
     base: env.VITE_BASE_URL,
   }
 })
