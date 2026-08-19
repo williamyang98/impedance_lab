@@ -57,7 +57,8 @@ function get_arrow_string(x: number, y: number, size: number, direction: ArrowDi
 
 function get_icon_transform(label: IconLabel): string {
   const { width, height } = label.icon;
-  return `translate(${label.x},${label.y}) scale(${width},${height})`;
+  const scale = 0.6;
+  return `translate(${label.x-scale*width},${label.y-scale*height}) scale(${scale}, ${scale})`;
 }
 
 function get_view_box(viewport: Viewport): string {
@@ -259,8 +260,6 @@ function get_view_box(viewport: Viewport): string {
   <g :transform="get_icon_transform(e)">
     <component
       :is="e.icon.component"
-      x="-0.5" y="-0.5"
-      width="1" height="1"
       :stroke="e.icon.colour"
       @click="e.on_click?.()"
       @mouseenter="e.on_hover?.(true)"
