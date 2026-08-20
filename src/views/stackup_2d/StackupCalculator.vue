@@ -44,14 +44,15 @@ const wasm_module = toRaw(providers.wasm_module.value);
 
 // stackup
 const is_editing = ref<boolean>(true);
-const layer_template_type = ref<LayerTemplateType>("microstrip");
 const selected_stackup = ref<StackupType>("colinear");
-const stackups = computed_ref(() => {
+
+function create_stackups(layer_template_type: LayerTemplateType) {
   return {
-    colinear: create_colinear_stackup(layer_template_type.value),
-    broadside: create_broadside_stackup(layer_template_type.value),
+    colinear: create_colinear_stackup(layer_template_type),
+    broadside: create_broadside_stackup(layer_template_type),
   };
-});
+}
+const stackups = ref(create_stackups("microstrip"));
 const stackup = computed(() => {
   return stackups.value[selected_stackup.value];
 });
@@ -71,7 +72,7 @@ function read_query_parameters(query: LocationQuery) {
 
   const layer_type = layer_template_types.find(elem => elem === query_layer_type);
   if (layer_type !== undefined) {
-    layer_template_type.value = layer_type;
+    stackups.value = create_stackups(layer_type);
     was_queried = true;
   } else if (query_layer_type !== undefined) {
     toast.error(`Bad query parameter layer='${query_layer_type}'`);
@@ -99,10 +100,9 @@ function read_query_parameters(query: LocationQuery) {
 }
 
 const route = useRoute();
-read_query_parameters(route.query);
 watch(() => route.query, (new_query) => {
   read_query_parameters(new_query);
-});
+}, { immediate: true });
 
 // calculator controls and results
 const is_running = ref<boolean>(false);
