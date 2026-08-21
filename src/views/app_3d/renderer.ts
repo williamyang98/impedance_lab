@@ -91,7 +91,7 @@ export class Renderer {
           command_encoder,
           canvas_texture_view, this.display_texture_view,
           canvas_size,
-          scale, 1, "single_component",
+          scale, 1, 0, "single_component",
         );
         break;
       }
@@ -100,7 +100,7 @@ export class Renderer {
           command_encoder,
           canvas_texture_view, this.display_texture_view,
           canvas_size,
-          scale, 2, "single_component",
+          scale, 2, 0, "single_component",
         );
         break;
       }
@@ -109,7 +109,7 @@ export class Renderer {
           command_encoder,
           canvas_texture_view, this.display_texture_view,
           canvas_size,
-          scale, 4, "single_component",
+          scale, 4, 0, "single_component",
         );
         break;
       }
@@ -118,7 +118,7 @@ export class Renderer {
           command_encoder,
           canvas_texture_view, this.display_texture_view,
           canvas_size,
-          scale, (1 | 2 | 4), "magnitude",
+          scale, (1 | 2 | 4), 0, "magnitude",
         );
         break;
       }

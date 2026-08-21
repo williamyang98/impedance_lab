@@ -254,7 +254,7 @@ class VoltageFieldRenderer implements Renderer {
     const texture_view = texture.createView({ dimension: "2d" });
     this.core.shader_component.create_pass(
       command_encoder, output_texture,
-      texture_view, canvas_size, this.scale, 1, "single_component", this.alpha, "nearest",
+      texture_view, canvas_size, this.scale, 1, 0, "single_component", this.alpha, "nearest",
     );
   }
 
@@ -304,28 +304,28 @@ class ElectricFieldRenderer implements Renderer {
       case "x": {
         this.core.shader_component.create_pass(
           command_encoder, output_texture,
-          texture_view, canvas_size, this.scale, 1, "single_component", this.alpha, "nearest",
+          texture_view, canvas_size, this.scale, 1, 0, "single_component", this.alpha, "nearest",
         );
         break;
       }
       case "y": {
         this.core.shader_component.create_pass(
           command_encoder, output_texture,
-          texture_view, canvas_size, this.scale, 2, "single_component", this.alpha, "nearest",
+          texture_view, canvas_size, this.scale, 2, 0, "single_component", this.alpha, "nearest",
         );
         break;
       }
       case "vec": {
         this.core.shader_component.create_pass(
           command_encoder, output_texture,
-          texture_view, canvas_size, this.scale, (1 | 2), "vector", this.alpha, "nearest",
+          texture_view, canvas_size, this.scale, (1 | 2), 0, "vector", this.alpha, "nearest",
         );
         break;
       }
       case "mag": {
         this.core.shader_component.create_pass(
           command_encoder, output_texture,
-          texture_view, canvas_size, this.scale, (1 | 2), "magnitude", this.alpha, "nearest",
+          texture_view, canvas_size, this.scale, (1 | 2), 0, "magnitude", this.alpha, "nearest",
         );
         break;
       }

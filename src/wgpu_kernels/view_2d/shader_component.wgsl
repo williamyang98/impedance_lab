@@ -1,6 +1,9 @@
 struct Params {
     scale: f32,
     alpha_scale: f32,
+    _pad: vec2<u32>,
+    clear_colour: vec4<f32>,
+    mask_colour: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -8,6 +11,7 @@ struct Params {
 @group(0) @binding(2) var grid: texture_2d<f32>;
 
 override axis_mode = 0;
+override mask_mode = 0;
 override colour_mode = 0;
 
 struct VertexOut {
@@ -21,6 +25,17 @@ fn vertex_main(@location(0) position: vec2f) -> VertexOut {
     output.vertex_position = vec4f(position.x*2.0 - 1.0, position.y*2.0 - 1.0, 0.0, 1.0);
     output.frag_position = vec2f(position.x, position.y);
     return output;
+}
+
+fn red_green_cmap_with_mid(value: f32, mid_colour: vec3<f32>) -> vec3<f32> {
+    const neg_colour = vec3<f32>(1.0, 0.0, 0.0);
+    const pos_colour = vec3<f32>(0.0, 1.0, 0.0);
+    let alpha = clamp(value, -1.0, 1.0);
+    if (alpha < 0.0) {
+        return mix(neg_colour, mid_colour, alpha+1);
+    } else {
+        return mix(mid_colour, pos_colour, alpha);
+    }
 }
 
 fn red_green_cmap(value: f32) -> vec3<f32> {
@@ -47,7 +62,7 @@ fn get_1d_colour(value: f32) -> vec4<f32> {
     if (colour_mode == 0) {
         let mag: f32 = value*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
-        colour = vec4f(-mag, mag, 0.0, alpha);
+        colour = vec4f(red_green_cmap_with_mid(mag, params.clear_colour.rgb), alpha);
     } else if (colour_mode == 1) {
         let mag: f32 = value*params.scale;
         let alpha = abs(mag)*params.alpha_scale;
@@ -127,6 +142,17 @@ fn get_4d_colour(value: vec4<f32>) -> vec4<f32> {
 fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
     let sample = textureSampleLevel(grid, grid_sampler, vertex.frag_position, 0.0);
     var colour = vec4(0.0, 0.0, 0.0, 0.0);
+    var mask: f32 = 1.0;
+
+    if (mask_mode == (1)) {
+        mask = sample.r;
+    } else if (mask_mode == (2)) {
+        mask = sample.g;
+    } else if (mask_mode == (4)) {
+        mask = sample.b;
+    } else if (mask_mode == (8)) {
+        mask = sample.a;
+    }
 
     // 4d
     if (axis_mode == (1 | 2 | 4 | 8)) {
@@ -163,5 +189,6 @@ fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
     } else if (axis_mode == (8)) {
         colour = get_1d_colour(sample.a);
     }
-    return colour;
+
+    return mix(params.mask_colour, colour, mask);
 }

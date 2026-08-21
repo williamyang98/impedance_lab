@@ -33,6 +33,9 @@ export class ShaderComponentViewer {
   params = new StructView({
     scale: "f32",
     alpha_scale: "f32",
+    _pad: ["u32", "u32"],
+    clear_colour: ["f32", "f32", "f32", "f32"],
+    mask_colour: ["f32", "f32", "f32", "f32"],
   });
   params_uniform: GPUBuffer;
   shader_source: string;
@@ -45,7 +48,8 @@ export class ShaderComponentViewer {
   vertex_buffer: GPUBuffer;
   index_buffer: GPUBuffer;
   vertex_buffer_layout: GPUVertexBufferLayout;
-  clear_colour: GPUColor;
+  clear_colour: GPUColorDict;
+  mask_colour: GPUColorDict;
   grid_samplers = new Map<GPUFilterMode, GPUSampler>();
 
   constructor(device: GPUDevice) {
@@ -112,6 +116,7 @@ export class ShaderComponentViewer {
       bindGroupLayouts: [this.bind_group_layout],
     });
     this.clear_colour = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
+    this.mask_colour = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
   }
 
   get_grid_sampler(mode: GPUFilterMode): GPUSampler {
@@ -126,9 +131,9 @@ export class ShaderComponentViewer {
     return sampler;
   }
 
-  get_render_pipeline(axis_mode: number, colour_mode: ColourMode): GPURenderPipeline {
+  get_render_pipeline(axis_mode: number, mask_mode: number, colour_mode: ColourMode): GPURenderPipeline {
     const colour_mode_index = get_colour_mode_index(colour_mode);
-    const key = `${axis_mode}_${colour_mode_index}`;
+    const key = `${axis_mode}_${mask_mode}_${colour_mode_index}`;
     let pipeline = this.render_pipelines.get(key);
     if (pipeline === undefined) {
       pipeline = this.device.createRenderPipeline({
@@ -142,6 +147,7 @@ export class ShaderComponentViewer {
           entryPoint: "fragment_main",
           constants: {
             "axis_mode": axis_mode,
+            "mask_mode": mask_mode,
             "colour_mode": colour_mode_index,
           },
           targets: [
@@ -181,7 +187,8 @@ export class ShaderComponentViewer {
     output_texture_view: GPUTextureView,
     grid_texture_view: GPUTextureView,
     canvas_size: { width: number, height: number },
-    scale: number, axis_mask: number, colour_mode: ColourMode,
+    scale: number,
+    axis_mode: number, mask_mode: number, colour_mode: ColourMode,
     alpha_scale?: number, interpolation?: GPUFilterMode,
   ) {
     alpha_scale = alpha_scale ?? 1.0;
@@ -189,6 +196,9 @@ export class ShaderComponentViewer {
 
     this.params.set("scale", scale);
     this.params.set("alpha_scale", alpha_scale);
+    const rgba_to_array = (colour: GPUColorDict) => [colour.r, colour.g, colour.b, colour.a];
+    this.params.set_array("clear_colour", rgba_to_array(this.clear_colour));
+    this.params.set_array("mask_colour", rgba_to_array(this.mask_colour));
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
     const grid_sampler = this.get_grid_sampler(interpolation);
@@ -225,7 +235,7 @@ export class ShaderComponentViewer {
       canvas_size.width, canvas_size.height,
       0, 1,
     );
-    const render_pipeline = this.get_render_pipeline(axis_mask, colour_mode);
+    const render_pipeline = this.get_render_pipeline(axis_mode, mask_mode, colour_mode);
     render_pass.setPipeline(render_pipeline);
     render_pass.setBindGroup(0, bind_group);
     render_pass.setVertexBuffer(0, this.vertex_buffer);
