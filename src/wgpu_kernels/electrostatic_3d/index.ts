@@ -308,6 +308,11 @@ export class ComputeCopySliceToTexture {
         {
           binding: 4,
           visibility: GPUShaderStage.COMPUTE,
+          buffer: { type: "read-only-storage" },
+        },
+        {
+          binding: 5,
+          visibility: GPUShaderStage.COMPUTE,
           storageTexture: {
             access: "write-only",
             format: "rgba16float",
@@ -332,7 +337,7 @@ export class ComputeCopySliceToTexture {
 
   create_pass(
     command_encoder: GPUCommandEncoder,
-    x_buf: GPUBuffer, r_buf: GPUBuffer, b_buf: GPUBuffer,
+    x_buf: GPUBuffer, r_buf: GPUBuffer, b_buf: GPUBuffer, mask_buf: GPUBuffer,
     gpu_texture_view: GPUTextureView,
     grid_size: Size3D,
     copy_z: number,
@@ -368,6 +373,10 @@ export class ComputeCopySliceToTexture {
         },
         {
           binding: 4,
+          resource: { buffer: mask_buf, offset: 0, size: mask_buf.size },
+        },
+        {
+          binding: 5,
           resource: gpu_texture_view,
         },
       ],

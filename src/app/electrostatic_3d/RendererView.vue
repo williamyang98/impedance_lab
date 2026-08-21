@@ -29,7 +29,7 @@ const canvas_context = computed<GPUCanvasContext>(() => {
 const copy_z = ref<number>(0);
 const max_z = ref<number>(0);
 const scale_db = ref<number>(0.0);
-const display_mode = ref<DisplayMode>("r");
+const display_mode = ref<DisplayMode>("x");
 
 function upload_slice(command_encoder: GPUCommandEncoder) {
   renderer.upload_slice(command_encoder, props.grid, copy_z.value);
@@ -118,8 +118,8 @@ defineExpose({
       <legend for="mode" class="fieldset-legend w-full">Mode</legend>
       <select class="select w-full" v-model="display_mode">
         <option :value="'x'">Voltage</option>
-        <option :value="'r'">Residual</option>
         <option :value="'b'">Input voltage</option>
+        <option :value="'r'">Residual</option>
       </select>
     </fieldset>
     <fieldset class="fieldset">
