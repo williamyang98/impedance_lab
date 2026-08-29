@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" width="355" height="245">
+<style>
+.cell {
+ stroke: black;
+ fill: none;
+ stroke-width: 1;
+}
+
+.cell .back {
+ stroke: grey;
+ stroke-width: 0.5;
+}
+
+.staggered-cell {
+ stroke: black;
+ fill: none;
+ stroke-width: 0.5;
+ stroke-dasharray: 2 2;
+}
+
+.axis {
+ stroke: black;
+ fill: none;
+ stroke-width: 1;
+}
+
+.e-field {
+ stroke: red;
+ fill: red;
+}
+
+.h-field {
+ stroke: blue;
+ fill: blue;
+}
+
+.field line {
+ stroke-width: 2;
+}
+
+.field text {
+ stroke-width: 0.25;
+ font-size: 7px;
+}
+
+.field .background {
+ stroke: black;
+ stroke-width: 1px;
+ /* stroke-width: 0; */
+ fill: #ffffffcc;
+}
+
+.coord {
+ fill: black;
+ font-size: 9px;
+}
+
+.coord .back {
+ fill: grey;
+}
+
+text {
+ font-family: monospace;
+}
+</style>
+<!--Background-->
+<rect width="100%" height="100%" fill="white"/>
+<!-- Axis -->
+<g transform="translate(10, 10)">
+ <line class="axis" x1="0" y1="0" x2="0" y2="30"/>
+ <polygon points="-3.75 0, 3.75 0, 0 -6.25" fill="black" />
+ <line class="axis" x1="0" y1="30" x2="30" y2="30"/>
+ <polygon points="30 26.75, 30 33.75, 36.25 30" fill="black" />
+ <line class="axis" x1="0" y1="30" x2="20" y2="10"/>
+ <polygon points="18 8, 22 12, 25 5" fill="black" />
+ <text class="coord" x="15" y="38" text-anchor="center">x</text>
+ <text class="coord" x="-2" y="15" text-anchor="end">y</text>
+ <text class="coord" x="17" y="20" text-anchor="start">z</text>
+</g>
+<g transform="translate(60 15)">
+<!-- Corner coordinates -->
+<g class="coord" transform="translate(0 -2.5)">
+ <text x="-5" y="225" text-anchor="end">(i,j,k)</text>
+ <text x="155" y="225" text-anchor="start">(i+1,j,k)</text>
+ <text x="-5" y="75" text-anchor="end">(i,j+1,k)</text>
+ <text x="155" y="75" text-anchor="start">(i+1,j+1,k)</text>
+ <text x="70" y="150" text-anchor="end" class="back">(i,j,k+1)</text>
+ <text x="230" y="150" text-anchor="start" class="back">(i+1,j,k+1)</text>
+ <text x="70" y="0" text-anchor="end" class="back">(i,j+1,k+1)</text>
+ <text x="230" y="0" text-anchor="start" class="back">(i+1,j+1,k+1)</text>
+</g>
+<!-- Staggered cell lines -->
+<g class="staggered-cell">
+ <line x1="0" y1="150" x2="37.5" y2="112.5"/>
+ <line x1="37.5" y1="187.5" x2="37.5" y2="112.5"/>
+ <line x1="37.5" y1="187.5" x2="112.5" y2="187.5"/>
+ <line x1="75" y1="225" x2="112.5" y2="187.5"/>
+ <line x1="0" y1="150" x2="75" y2="150"/>
+ <line x1="75" y1="150" x2="75" y2="225"/>
+</g>
+<!-- Grid cell -->
+<g class="cell">
+ <rect class="back" height="150" width="150" x="75" y="0"/>
+ <rect height="150" width="150" x="0" y="75"/>
+ <line class="back" x1="0" y1="75" x2="75" y2="0"/>
+ <line class="back" x1="150" y1="75" x2="225" y2="0"/>
+ <line class="back" x1="0" y1="225" x2="75" y2="150"/>
+ <line class="back" x1="150" y1="225" x2="225" y2="150"/>
+</g>
+<!-- E fields -->
+<g class="field e-field">
+ <g transform="translate(0 150)">
+  <line x1="0" y1="0" x2="0" y2="-20"/>
+  <polygon points="-3.75 -20, 3.75 -20, 0 -26.25"/>
+  <rect class="background" width="53" height="10" x="-55" y="-14.5"/>
+  <text x="-2" y="-8" text-anchor="end">Ey(i,j+0.5,k)</text>
+ </g>
+ <g transform="translate(75 225)">
+  <line x1="0" y1="0" x2="20" y2="0"/>
+  <polygon points="20 -3.75, 20 3.75, 26.25 0"/>
+  <rect class="background" width="54" height="10" x="-27" y="-14.5"/>
+  <text x="0" y="-8" text-anchor="middle">Ex(i+0.5,j,k)</text>
+ </g>
+ <g transform="translate(37.5 187.5)">
+  <line x1="0" y1="0" x2="15" y2="-15"/>
+  <polygon points="13 -16, 16 -14, 17 -18"/>
+  <rect class="background" width="51" height="10" x="-48" y="-14.5"/>
+  <text x="4" y="-8" text-anchor="end">Ez(i,j,k+0.5)</text>
+ </g>
+</g>
+<!-- H fields -->
+<g class="field h-field">
+ <g transform="translate(37.5 112.5)">
+  <line x1="0" y1="0" x2="20" y2="0"/>
+  <polygon points="20 -3.75, 20 3.75, 26.25 0"/>
+  <rect class="background" width="70" height="10" x="-36" y="-14.5"/>
+  <text x="0" y="-8" text-anchor="middle">Hx(i,j+0.5,k+0.5)</text>
+ </g>
+ <g transform="translate(112.5 187.5)">
+  <line x1="0" y1="0" x2="0" y2="-20"/>
+  <polygon points="-3.75 -20, 3.75 -20, 0 -26.25"/>
+  <rect class="background" width="69" height="10" x="-43" y="0"/>
+  <text x="-8" y="7" text-anchor="middle">Hy(i+0.5,j,k+0.5)</text>
+ </g>
+ <g transform="translate(75 150)">
+  <line x1="0" y1="0" x2="15" y2="-15"/>
+  <polygon points="13 -16, 16 -14, 17 -18"/>
+  <rect class="background" width="70" height="10" x="-20" y="-29"/>
+  <text x="15" y="-22" text-anchor="middle">Hz(i+0.5,j+0.5,k)</text>
+ </g>
+</g>
+</g>
+</svg>

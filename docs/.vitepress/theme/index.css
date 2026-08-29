@@ -1,0 +1,35 @@
+/* Widen the main content container */
+.VPDoc.has-aside .content-container {
+  max-width: 100% !important;
+}
+
+.VPDoc .container {
+  max-width: 100% !important;
+}
+
+/* Widen the overall page width variable used across the theme */
+:root {
+  --vp-layout-max-width: 100%;
+}
+
+/* If you don't use the sidebar/aside, this widens content too */
+.VPDoc:not(.has-sidebar) .content {
+  max-width: 100% !important;
+}
+
+/* Nav bar width */
+.VPNav .container,
+.VPNavBar .container {
+  max-width: 100% !important;
+}
+
+/* Footer */
+.VPFooter .container {
+  max-width: 100% !important;
+}
+
+/* Mathjax fixes */
+mjx-container.MathJax {
+  overflow-y: hidden;
+  overflow-x: auto;
+}
