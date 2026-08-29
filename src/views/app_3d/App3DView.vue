@@ -19,7 +19,7 @@ const curr_step = ref<number>(0);
 const max_timesteps = ref<number>(8192);
 const time_taken = ref<number>(0);
 const total_cells = ref<number>(setup.grid.total_cells);
-const loop_timer_id = ref<number | undefined>(undefined);
+const tick_promise = ref<Promise<void> | undefined>(undefined);
 const ms_start = ref<number | undefined>(undefined);
 const display_rate: number = 128;
 
@@ -27,14 +27,11 @@ const step_rate = computed<number>(() => {
   return curr_step.value / Math.max(time_taken.value, 1e-6);
 });
 const cell_rate = computed<number>(() => {
-  return (curr_step.value*total_cells.value) / Math.max(time_taken.value, 1e-6);
+  const dt = Math.max(time_taken.value, 1e-6);
+  return curr_step.value*total_cells.value/dt;
 });
-const is_running = computed<boolean>(() => {
-  return loop_timer_id.value !== undefined;
-});
-const progress_percentage = computed<number>(() => {
-  return curr_step.value/max_timesteps.value*100;
-});
+const is_running = computed(() => tick_promise.value !== undefined);
+const progress_percentage = computed(() => curr_step.value/max_timesteps.value*100);
 
 function update_progress() {
   ms_start.value = ms_start.value ?? performance.now();
@@ -55,11 +52,16 @@ async function refresh_display() {
   await gpu_device.queue.onSubmittedWorkDone();
 }
 
+function sleep(millis: number) {
+  return new Promise(resolve => setTimeout(resolve, millis));
+}
+
 async function simulation_loop() {
-  const update_stride = 16; // avoid overhead of setTimeout
+  const update_stride = 32;
   for (let i = 0; i < update_stride; i++) {
     if (curr_step.value >= max_timesteps.value) {
-      loop_timer_id.value = undefined;
+      await sleep(0);
+      tick_promise.value = undefined;
       return;
     }
     gpu_engine.step_fdtd(gpu_grid, curr_step.value);
@@ -72,33 +74,34 @@ async function simulation_loop() {
       update_progress();
     }
   }
-  if (loop_timer_id.value === undefined) return;
-  loop_timer_id.value = setTimeout(async () => { await simulation_loop(); }, 0);
+  await sleep(0);
+  if (tick_promise.value === undefined) return;
+  tick_promise.value = simulation_loop();
 }
 
-function stop_loop() {
-  if (loop_timer_id.value !== undefined) {
-    clearTimeout(loop_timer_id.value);
-    loop_timer_id.value = undefined;
-  }
+async function stop_loop() {
+  if (tick_promise.value === undefined) return;
+  const promise = tick_promise.value;
+  tick_promise.value = undefined;
+  await promise;
 }
 
-function start_loop() {
-  stop_loop();
+async function start_loop() {
+  await stop_loop();
   ms_start.value = performance.now();
   curr_step.value = 0;
   gpu_grid.reset();
-  loop_timer_id.value = setTimeout(async () => { await simulation_loop(); }, 0);
+  tick_promise.value = simulation_loop();
 }
 
-function resume_loop() {
-  stop_loop();
-  loop_timer_id.value = setTimeout(async () => { await simulation_loop(); }, 0);
+async function resume_loop() {
+  await stop_loop();
+  tick_promise.value = simulation_loop();
 }
 
 async function tick_loop() {
   if (curr_step.value >= max_timesteps.value) return;
-  stop_loop();
+  await stop_loop();
   gpu_engine.step_fdtd(gpu_grid, curr_step.value);
   curr_step.value++;
   await refresh_display();
@@ -112,11 +115,11 @@ onMounted(() => {
   }
   viewer_3d.set_grid(gpu_grid);
   viewer_3d.set_copy_z(Math.round(gpu_grid.size[0]/2));
-  start_loop();
+  void start_loop();
 });
 
 onBeforeUnmount(() => {
-  stop_loop();
+  void stop_loop();
 });
 </script>
 
