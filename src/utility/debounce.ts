@@ -40,7 +40,7 @@ export function debounce_timeout<T extends (...args: any[]) => void>(fn: T, time
   let current_timeout: number | null = null;
   return (...args: Parameters<T>) => {
     if (current_timeout !== null) return;
-    current_timeout = setTimeout(() => {
+    current_timeout = window.setTimeout(() => {
       current_timeout = null;
     }, timeout_ms);
     fn(...args);
@@ -52,7 +52,7 @@ export function debounce_timeout_async<T extends (...args: any[]) => Promise<voi
   let current_timeout: number | null = null;
   return (...args: Parameters<T>) => {
     if (current_timeout !== null) return;
-    current_timeout = setTimeout(() => {
+    current_timeout = window.setTimeout(() => {
       current_timeout = null;
     }, timeout_ms);
     void fn(...args);
