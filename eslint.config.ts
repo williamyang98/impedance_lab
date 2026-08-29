@@ -14,6 +14,7 @@ export default defineConfigWithVueTs(
     '**/coverage/**',
     'src/wasm/build/**',
     'src/wasm/vendor/**',
+    'docs/.vitepress/cache/**',
   ]),
   vueTsConfigs.strictTypeChecked,
   pluginVue.configs['flat/essential'],
