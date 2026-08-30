@@ -57,6 +57,14 @@ fn get_Ez(i: i32, j: i32, k: i32) -> f32 {
     return Ez[k*(Mx*My) + j*Mx + i];
 }
 
+fn get_phi(i: i32, j: i32, k: i32) -> f32 {
+    let Mx = i32(params.size_x);
+    let My = i32(params.size_y);
+    let Mz = i32(params.size_z);
+    let index = get_clamped_index(i, j, k, Mx, My, Mz);
+    return phi[index];
+}
+
 @compute
 @workgroup_size(workgroup_size_x, workgroup_size_y, workgroup_size_z)
 fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
@@ -98,18 +106,27 @@ fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
     let cEy_i1jk1 = Ex_i1jk/dz_k1 + Ez_i2jk1/dx_i1 - Ex_i1jk2/dz_k1 - Ez_ijk1/dx_i1;
     let cEz_i1j1k = Ey_ij1k/dx_i1 + Ex_i1j2k/dy_j1 - Ey_i2j1k/dx_i1 - Ex_i1jk/dy_j1;
 
+    let phi_i1j1k1 = get_phi(i,j,k);
+    let phi_i0j1k1 = get_phi(i-1,j,k);
+    let phi_i1j0k1 = get_phi(i,j-1,k);
+    let phi_i1j1k0 = get_phi(i,j,k-1);
+
+    let phi_ij1k1 = (phi_i1j1k1+phi_i0j1k1)/2.0;
+    let phi_i1jk1 = (phi_i1j1k1+phi_i1j0k1)/2.0;
+    let phi_i1j1k = (phi_i1j1k1+phi_i1j1k0)/2.0;
+
     if (j < Ny && k < Nz) {
         let index_Hx_ij1k1 = get_clamped_index(i,j,k,Nx+1,Ny,Nz);
-        Hx[index_Hx_ij1k1] = Hx[index_Hx_ij1k1] - phi_ijk*cEx_ij1k1;
+        Hx[index_Hx_ij1k1] = Hx[index_Hx_ij1k1] - phi_ij1k1*cEx_ij1k1;
     }
 
     if (i < Nx && k < Nz) {
         let index_Hy_i1jk1 = get_clamped_index(i,j,k,Nx,Ny+1,Nz);
-        Hy[index_Hy_i1jk1] = Hy[index_Hy_i1jk1] - phi_ijk*cEy_i1jk1;
+        Hy[index_Hy_i1jk1] = Hy[index_Hy_i1jk1] - phi_i1jk1*cEy_i1jk1;
     }
 
     if (i < Nx && j < Ny) {
         let index_Hz_i1j1k = get_clamped_index(i,j,k,Nx,Ny,Nz+1);
-        Hz[index_Hz_i1j1k] = Hz[index_Hz_i1j1k] - phi_ijk*cEz_i1j1k;
+        Hz[index_Hz_i1j1k] = Hz[index_Hz_i1j1k] - phi_i1j1k*cEz_i1j1k;
     }
 }
