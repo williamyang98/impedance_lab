@@ -33,7 +33,7 @@ function set_grid(new_gpu_grid: GpuGrid) {
   gpu_grid.value = new_gpu_grid;
   const new_max_z = new_gpu_grid.size.z-1;
   max_z.value = new_max_z;
-  copy_z.value = Math.min(Math.max(Math.floor(new_max_z/2), 0), new_max_z);
+  copy_z.value = Math.min(Math.max(Math.floor(copy_z.value), 0), new_max_z);
 }
 
 function set_copy_z(new_copy_z: number) {

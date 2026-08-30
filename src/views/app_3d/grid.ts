@@ -243,13 +243,19 @@ export class GpuEngine {
   step_fdtd(setup: SimulationSetup, timestep: number) {
     const sources = setup.sources;
     const gpu = setup.gpu;
-    const command_encoder = this.device.createCommandEncoder();
     for (const source of sources) {
       if (timestep < source.signal.length) {
         const e0 = source.signal[timestep];
+        // FIXME: we cannot reuse the uniform buffer for each pass since it just references the same uniform buffer
+        //        this has the unintended consequence of writing to the very last location for all the sources
+        //        we can allocate a new uniform buffer for each unique pass that is used by each source
+        const command_encoder = this.device.createCommandEncoder();
         this.kernel_current_source.create_pass(command_encoder, gpu.E, e0, gpu.size, source.offset, source.size);
+        this.device.queue.submit([command_encoder.finish()]);
       }
     }
+
+    const command_encoder = this.device.createCommandEncoder();
     this.kernel_update_e_field.create_pass(command_encoder, gpu.d, gpu.E, gpu.H, gpu.bake_alpha, gpu.bake_beta, gpu.size);
     this.kernel_update_h_field.create_pass(command_encoder, gpu.d, gpu.H, gpu.E, gpu.bake_phi, gpu.size);
     this.device.queue.submit([command_encoder.finish()]);

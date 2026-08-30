@@ -22,15 +22,17 @@ override workgroup_size_z = 16;
 
 @compute
 @workgroup_size(workgroup_size_x, workgroup_size_y, workgroup_size_z)
-fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
-    let _i = vec3<u32>(_j.z, _j.y, _j.x);
-    if (_i.x >= params.source_size_x) { return; }
-    if (_i.y >= params.source_size_y) { return; }
-    if (_i.z >= params.source_size_z) { return; }
+fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
+    let i = _index.x;
+    let j = _index.y;
+    let k = _index.z;
+    if (i >= params.source_size_x) { return; }
+    if (j >= params.source_size_y) { return; }
+    if (k >= params.source_size_z) { return; }
 
-    let ix = _i.x + params.source_offset_x;
-    let iy = _i.y + params.source_offset_y;
-    let iz = _i.z + params.source_offset_z;
+    let io = i + params.source_offset_x;
+    let jo = j + params.source_offset_y;
+    let ko = k + params.source_offset_z;
 
     let Nx = params.grid_size_x;
     let Ny = params.grid_size_y;
@@ -40,10 +42,11 @@ fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
     let Mx = Nx+1;
     let My = Ny+1;
     let Mz = Nz;
-    if (ix >= Mx) { return; }
-    if (iy >= My) { return; }
-    if (iz >= Mz) { return; }
-    let i = iz*(Mx*My) + iy*Mx + ix;
+    if (io >= Mx) { return; }
+    if (jo >= My) { return; }
+    if (ko >= Mz) { return; }
+
+    let index_Ez_ijk = ko*(Mx*My) + jo*Mx + io;
     let Jz = params.e0;
-    Ez[i] += Jz;
+    Ez[index_Ez_ijk] += Jz;
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import Viewer3D from "./Viewer3D.vue";
 
-import { create_simulation_setup } from "./app_3d.ts";
+import { create_single_ended_setup, create_differential_setup } from "./app_3d.ts";
 import { GpuEngine } from "./grid.ts";
 import {
   ref, computed, useTemplateRef, onMounted, onBeforeUnmount,
@@ -11,7 +11,15 @@ import { providers } from "../../providers/providers.ts";
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
 
-const setup = create_simulation_setup(gpu_adapter, gpu_device);
+type SetupMode = "single_ended" | "differential";
+function create_setup(mode: SetupMode) {
+  switch (mode) {
+  case "single_ended": return create_single_ended_setup(gpu_adapter, gpu_device);
+  case "differential": return create_differential_setup(gpu_adapter, gpu_device);
+  }
+}
+
+const setup = create_setup("differential");
 const gpu_engine = new GpuEngine(gpu_adapter, gpu_device);
 
 const curr_step = ref<number>(0);
@@ -107,14 +115,15 @@ async function tick_loop() {
   update_progress();
 }
 
-onMounted(() => {
+onMounted(async () => {
   const viewer_3d = viewer_3d_elem.value;
   if (viewer_3d === null) {
     throw Error(`Failed to acquire viewer 3d child component`);
   }
   viewer_3d.set_grid(setup.gpu);
+  await sleep(0);
   viewer_3d.set_copy_z(Math.round(setup.size.z/2));
-  void start_loop();
+  await start_loop();
 });
 
 onBeforeUnmount(() => {
