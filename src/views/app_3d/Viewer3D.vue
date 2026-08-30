@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { type AxisDisplayMode, type FieldDisplayMode, Renderer } from "./renderer.ts";
+import { Renderer } from "./renderer.ts";
 import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
-
 import { ref, watch, computed, useTemplateRef } from "vue";
+
+type AxisDisplayMode = "x" | "y" | "z";
+type FieldDisplayMode = "e_field" | "h_field";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
@@ -11,10 +13,41 @@ const gpu_renderer = new Renderer(gpu_adapter, gpu_device);
 
 const gpu_grid = ref<GpuGrid | undefined>(undefined);
 const copy_z = ref<number>(0);
-const max_z = ref<number>(0);
 const scale_db = ref<number>(0.0);
 const axis_mode = ref<AxisDisplayMode>("z");
 const field_mode = ref<FieldDisplayMode>("e_field");
+
+const selected_ndgpuarray = computed(() => {
+  if (gpu_grid.value === undefined) return undefined;
+  const grid = gpu_grid.value;
+  switch (field_mode.value) {
+    case "e_field": {
+      switch (axis_mode.value) {
+        case "x": return grid.E.x;
+        case "y": return grid.E.y;
+        case "z": return grid.E.z;
+        default: return undefined;
+      }
+    }
+    case "h_field": {
+      switch (axis_mode.value) {
+        case "x": return grid.H.x;
+        case "y": return grid.H.y;
+        case "z": return grid.H.z;
+        default: return undefined;
+      }
+    }
+  }
+});
+
+const max_z = computed(() => {
+  if (selected_ndgpuarray.value === undefined) return 0;
+  return selected_ndgpuarray.value.shape[0]-1;
+});
+
+watch(max_z, (max_z) => {
+  copy_z.value = Math.min(Math.max(Math.floor(copy_z.value), 0), max_z);
+}, { immediate: true });
 
 const canvas_element = useTemplateRef<HTMLCanvasElement>("field-canvas");
 const canvas_context = computed<GPUCanvasContext>(() => {
@@ -31,19 +64,17 @@ const canvas_context = computed<GPUCanvasContext>(() => {
 
 function set_grid(new_gpu_grid: GpuGrid) {
   gpu_grid.value = new_gpu_grid;
-  const new_max_z = new_gpu_grid.size.z-1;
-  max_z.value = new_max_z;
-  copy_z.value = Math.min(Math.max(Math.floor(copy_z.value), 0), new_max_z);
 }
 
 function set_copy_z(new_copy_z: number) {
-  copy_z.value = new_copy_z;
+  copy_z.value = Math.min(Math.max(new_copy_z, 0), max_z.value);
 }
 
 function upload_slice(command_encoder: GPUCommandEncoder) {
-  if (gpu_grid.value === undefined) return;
-  copy_z.value = Math.min(Math.max(copy_z.value, 0), gpu_grid.value.size.z-1);
-  gpu_renderer.upload_slice(command_encoder, gpu_grid.value, copy_z.value, field_mode.value, axis_mode.value);
+  const array = selected_ndgpuarray.value;
+  if (array === undefined) return;
+  copy_z.value = Math.min(Math.max(copy_z.value, 0), array.shape[0]-1);
+  gpu_renderer.upload_slice(command_encoder, array, copy_z.value);
 }
 
 function update_display(command_encoder: GPUCommandEncoder) {

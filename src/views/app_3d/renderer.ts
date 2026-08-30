@@ -1,9 +1,6 @@
 import { ComputeCopyToTexture } from "../../wgpu_kernels/view_3d/index.ts";
 import { ShaderComponentViewer } from "../../wgpu_kernels/view_2d/index.ts";
-import { GpuGrid } from "./grid.ts";
-
-export type AxisDisplayMode = "x" | "y" | "z";
-export type FieldDisplayMode = "e_field" | "h_field";
+import type { NdGpuArray } from "../../wgpu_kernels/fdtd_3d/index.ts";
 
 export class Renderer {
   adapter: GPUAdapter;
@@ -40,30 +37,7 @@ export class Renderer {
     this.display_texture_view = this.display_texture.createView({ dimension: "2d" });
   }
 
-  upload_slice(command_encoder: GPUCommandEncoder, grid: GpuGrid, copy_z: number, field_mode: FieldDisplayMode, axis_mode: AxisDisplayMode) {
-    const get_buffer = (field_mode: FieldDisplayMode, axis_mode: AxisDisplayMode) => {
-      switch (field_mode) {
-        case "e_field": {
-          switch (axis_mode) {
-            case "x": return grid.E.x;
-            case "y": return grid.E.y;
-            case "z": return grid.E.z;
-          }
-          break;
-        }
-        case "h_field": {
-          switch (axis_mode) {
-            case "x": return grid.H.x;
-            case "y": return grid.H.y;
-            case "z": return grid.H.z;
-          }
-          break;
-        }
-      }
-    };
-
-
-    const buffer = get_buffer(field_mode, axis_mode);
+  upload_slice(command_encoder: GPUCommandEncoder, buffer: NdGpuArray, copy_z: number) {
     const [Nz, Ny, Nx] = buffer.shape;
     const display_size = { x: Nx, y: Ny };
     if (copy_z < 0 || copy_z >= Nz) {
