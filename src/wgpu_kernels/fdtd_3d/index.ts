@@ -1,11 +1,34 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
+import type { NdarrayType } from "../../utility/ndarray.ts";
 import compute_current_source_wgsl from "./compute_current_source.wgsl?raw";
 import compute_update_e_field_wgsl from "./compute_update_e_field.wgsl?raw";
 import compute_update_h_field_wgsl from "./compute_update_h_field.wgsl?raw";
 
+export interface Size3D {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface NdGpuArray {
+  data: GPUBuffer;
+  dtype: NdarrayType;
+  shape: number[];
+}
+
+export interface GpuFieldBuffers {
+  x: NdGpuArray;
+  y: NdGpuArray;
+  z: NdGpuArray;
+}
+
+function create_ndgpuarray_bindgroup(buffer: NdGpuArray) {
+  return { buffer: buffer.data, offset: 0, size: buffer.data.size };
+}
+
 export class KernelCurrentSource {
   label: string;
-  workgroup_size: [number, number, number];
+  workgroup_size: Size3D;
   device: GPUDevice;
   params = new StructView({
     grid_size_x: "u32",
@@ -26,7 +49,7 @@ export class KernelCurrentSource {
   pipeline_layout: GPUPipelineLayout;
   compute_pipeline: GPUComputePipeline;
 
-  constructor(workgroup_size: [number, number, number], device: GPUDevice) {
+  constructor(workgroup_size: Size3D, device: GPUDevice) {
     this.label = "current_source";
     this.workgroup_size = workgroup_size;
     this.device = device;
@@ -42,18 +65,21 @@ export class KernelCurrentSource {
       entries: [
         { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
         { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
+        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
+        { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
       ],
     });
     this.pipeline_layout = device.createPipelineLayout({ bindGroupLayouts: [this.bind_group_layout] });
     this.compute_pipeline = device.createComputePipeline({
+      label: this.label,
       layout: this.pipeline_layout,
       compute: {
         module: this.shader_module,
         entryPoint: "main",
         constants: {
-          workgroup_size_x: this.workgroup_size[2],
-          workgroup_size_y: this.workgroup_size[1],
-          workgroup_size_z: this.workgroup_size[0],
+          workgroup_size_x: this.workgroup_size.x,
+          workgroup_size_y: this.workgroup_size.y,
+          workgroup_size_z: this.workgroup_size.z,
         },
       },
     });
@@ -61,46 +87,42 @@ export class KernelCurrentSource {
 
   create_pass(
     command_encoder: GPUCommandEncoder,
-    gpu_E: GPUBuffer, e0: number,
-    grid_size: [number, number, number],
-    source_offset: [number, number, number],
-    source_size: [number, number, number],
+    E: GpuFieldBuffers, e0: number,
+    grid_size: Size3D,
+    source_offset: Size3D,
+    source_size: Size3D,
   ) {
-    const dispatch_size: [number, number, number] = [
-      Math.ceil(source_size[0]/this.workgroup_size[0]),
-      Math.ceil(source_size[1]/this.workgroup_size[1]),
-      Math.ceil(source_size[2]/this.workgroup_size[2]),
-    ];
-    this.params.set("grid_size_x", grid_size[0]);
-    this.params.set("grid_size_y", grid_size[1]);
-    this.params.set("grid_size_z", grid_size[2]);
-    this.params.set("source_offset_x", source_offset[0]);
-    this.params.set("source_offset_y", source_offset[1]);
-    this.params.set("source_offset_z", source_offset[2]);
-    this.params.set("source_size_x", source_size[0]);
-    this.params.set("source_size_y", source_size[1]);
-    this.params.set("source_size_z", source_size[2]);
+    const dispatch_size: Size3D = {
+      x: Math.ceil((source_size.x+1)/this.workgroup_size.x),
+      y: Math.ceil((source_size.y+1)/this.workgroup_size.y),
+      z: Math.ceil((source_size.z+1)/this.workgroup_size.z),
+    };
+    this.params.set("grid_size_x", grid_size.x);
+    this.params.set("grid_size_y", grid_size.y);
+    this.params.set("grid_size_z", grid_size.z);
+    this.params.set("source_offset_x", source_offset.x);
+    this.params.set("source_offset_y", source_offset.y);
+    this.params.set("source_offset_z", source_offset.z);
+    this.params.set("source_size_x", source_size.x);
+    this.params.set("source_size_y", source_size.y);
+    this.params.set("source_size_z", source_size.z);
     this.params.set("e0", e0);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size },
-        },
-        {
-          binding: 1,
-          resource: { buffer: gpu_E, offset: 0, size: gpu_E.size },
-        },
+        { binding: 0, resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size } },
+        { binding: 1, resource: create_ndgpuarray_bindgroup(E.x) },
+        { binding: 2, resource: create_ndgpuarray_bindgroup(E.y) },
+        { binding: 3, resource: create_ndgpuarray_bindgroup(E.z) },
       ],
     });
 
     const compute_pass = command_encoder.beginComputePass();
     compute_pass.setPipeline(this.compute_pipeline);
     compute_pass.setBindGroup(0, bind_group);
-    compute_pass.dispatchWorkgroups(dispatch_size[2], dispatch_size[1], dispatch_size[0]);
+    compute_pass.dispatchWorkgroups(dispatch_size.x, dispatch_size.y, dispatch_size.z);
     compute_pass.end();
     return compute_pass;
   }
@@ -108,7 +130,7 @@ export class KernelCurrentSource {
 
 export class KernelUpdateElectricField {
   label: string;
-  workgroup_size: [number, number, number];
+  workgroup_size: Size3D;
   device: GPUDevice;
   params = new StructView({
     grid_size_x: "u32",
@@ -122,7 +144,7 @@ export class KernelUpdateElectricField {
   pipeline_layout: GPUPipelineLayout;
   compute_pipeline: GPUComputePipeline;
 
-  constructor(workgroup_size: [number, number, number], device: GPUDevice) {
+  constructor(workgroup_size: Size3D, device: GPUDevice) {
     this.label = "update_e_field";
     this.workgroup_size = workgroup_size;
     this.device = device;
@@ -137,22 +159,30 @@ export class KernelUpdateElectricField {
     this.bind_group_layout = device.createBindGroupLayout({
       entries: [
         { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
-        { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
-        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-        { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-        { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+        { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // dx
+        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // dy
+        { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // dz
+        { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }, // Ex
+        { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }, // Ey
+        { binding: 6, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }, // Ez
+        { binding: 7, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // Hx
+        { binding: 8, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // Hy
+        { binding: 9, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // Hz
+        { binding: 10, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // alpha
+        { binding: 11, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // beta
       ],
     });
     this.pipeline_layout = device.createPipelineLayout({ bindGroupLayouts: [this.bind_group_layout] });
     this.compute_pipeline = device.createComputePipeline({
+      label: this.label,
       layout: this.pipeline_layout,
       compute: {
         module: this.shader_module,
         entryPoint: "main",
         constants: {
-          workgroup_size_x: this.workgroup_size[2],
-          workgroup_size_y: this.workgroup_size[1],
-          workgroup_size_z: this.workgroup_size[0],
+          workgroup_size_x: this.workgroup_size.x,
+          workgroup_size_y: this.workgroup_size.y,
+          workgroup_size_z: this.workgroup_size.z,
         },
       },
     });
@@ -160,52 +190,45 @@ export class KernelUpdateElectricField {
 
   create_pass(
     command_encoder: GPUCommandEncoder,
-    gpu_E: GPUBuffer,
-    gpu_H: GPUBuffer,
-    gpu_A0: GPUBuffer,
-    gpu_A1: GPUBuffer,
-    grid_size: [number, number, number],
+    d: GpuFieldBuffers,
+    E: GpuFieldBuffers,
+    H: GpuFieldBuffers,
+    bake_alpha: NdGpuArray,
+    bake_beta: NdGpuArray,
+    grid_size: Size3D,
   ) {
-    const dispatch_size: [number, number, number] = [
-      Math.ceil(grid_size[0]/this.workgroup_size[0]),
-      Math.ceil(grid_size[1]/this.workgroup_size[1]),
-      Math.ceil(grid_size[2]/this.workgroup_size[2]),
-    ];
-    this.params.set("grid_size_x", grid_size[0]);
-    this.params.set("grid_size_y", grid_size[1]);
-    this.params.set("grid_size_z", grid_size[2]);
+    const dispatch_size: Size3D = {
+      x: Math.ceil((grid_size.x+1)/this.workgroup_size.x),
+      y: Math.ceil((grid_size.y+1)/this.workgroup_size.y),
+      z: Math.ceil((grid_size.z+1)/this.workgroup_size.z),
+    };
+    this.params.set("grid_size_x", grid_size.x);
+    this.params.set("grid_size_y", grid_size.y);
+    this.params.set("grid_size_z", grid_size.z);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size },
-        },
-        {
-          binding: 1,
-          resource: { buffer: gpu_E, offset: 0, size: gpu_E.size },
-        },
-        {
-          binding: 2,
-          resource: { buffer: gpu_H, offset: 0, size: gpu_H.size },
-        },
-        {
-          binding: 3,
-          resource: { buffer: gpu_A0, offset: 0, size: gpu_A0.size },
-        },
-        {
-          binding: 4,
-          resource: { buffer: gpu_A1, offset: 0, size: gpu_A1.size },
-        },
+        { binding: 0, resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size } },
+        { binding: 1, resource: create_ndgpuarray_bindgroup(d.x) },
+        { binding: 2, resource: create_ndgpuarray_bindgroup(d.y) },
+        { binding: 3, resource: create_ndgpuarray_bindgroup(d.z) },
+        { binding: 4, resource: create_ndgpuarray_bindgroup(E.x) },
+        { binding: 5, resource: create_ndgpuarray_bindgroup(E.y) },
+        { binding: 6, resource: create_ndgpuarray_bindgroup(E.z) },
+        { binding: 7, resource: create_ndgpuarray_bindgroup(H.x) },
+        { binding: 8, resource: create_ndgpuarray_bindgroup(H.y) },
+        { binding: 9, resource: create_ndgpuarray_bindgroup(H.z) },
+        { binding: 10, resource: create_ndgpuarray_bindgroup(bake_alpha) },
+        { binding: 11, resource: create_ndgpuarray_bindgroup(bake_beta) },
       ],
     });
 
     const compute_pass = command_encoder.beginComputePass();
     compute_pass.setPipeline(this.compute_pipeline);
     compute_pass.setBindGroup(0, bind_group);
-    compute_pass.dispatchWorkgroups(dispatch_size[2], dispatch_size[1], dispatch_size[0]);
+    compute_pass.dispatchWorkgroups(dispatch_size.x, dispatch_size.y, dispatch_size.z);
     compute_pass.end();
     return compute_pass;
   }
@@ -213,13 +236,12 @@ export class KernelUpdateElectricField {
 
 export class KernelUpdateMagneticField {
   label: string;
-  workgroup_size: [number, number, number];
+  workgroup_size: Size3D;
   device: GPUDevice;
   params = new StructView({
     grid_size_x: "u32",
     grid_size_y: "u32",
     grid_size_z: "u32",
-    b0: "f32",
   });
   params_uniform: GPUBuffer;
   shader_source: string;
@@ -228,7 +250,7 @@ export class KernelUpdateMagneticField {
   pipeline_layout: GPUPipelineLayout;
   compute_pipeline: GPUComputePipeline;
 
-  constructor(workgroup_size: [number, number, number], device: GPUDevice) {
+  constructor(workgroup_size: Size3D, device: GPUDevice) {
     this.label = "update_h_field";
     this.workgroup_size = workgroup_size;
     this.device = device;
@@ -243,20 +265,29 @@ export class KernelUpdateMagneticField {
     this.bind_group_layout = device.createBindGroupLayout({
       entries: [
         { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
-        { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
-        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+        { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // dx
+        { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // dy
+        { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // dz
+        { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }, // Hx
+        { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }, // Hy
+        { binding: 6, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }, // Hz
+        { binding: 7, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // Ex
+        { binding: 8, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // Ey
+        { binding: 9, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // Ez
+        { binding: 10, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } }, // bake_phi
       ],
     });
     this.pipeline_layout = device.createPipelineLayout({ bindGroupLayouts: [this.bind_group_layout] });
     this.compute_pipeline = device.createComputePipeline({
+      label: this.label,
       layout: this.pipeline_layout,
       compute: {
         module: this.shader_module,
         entryPoint: "main",
         constants: {
-          workgroup_size_x: this.workgroup_size[2],
-          workgroup_size_y: this.workgroup_size[1],
-          workgroup_size_z: this.workgroup_size[0],
+          workgroup_size_x: this.workgroup_size.x,
+          workgroup_size_y: this.workgroup_size.y,
+          workgroup_size_z: this.workgroup_size.z,
         },
       },
     });
@@ -264,44 +295,43 @@ export class KernelUpdateMagneticField {
 
   create_pass(
     command_encoder: GPUCommandEncoder,
-    gpu_H: GPUBuffer,
-    gpu_E: GPUBuffer,
-    gpu_b0: number,
-    grid_size: [number, number, number],
+    d: GpuFieldBuffers,
+    H: GpuFieldBuffers,
+    E: GpuFieldBuffers,
+    bake_phi: NdGpuArray,
+    grid_size: Size3D,
   ) {
-    const dispatch_size: [number, number, number] = [
-      Math.ceil(grid_size[0]/this.workgroup_size[0]),
-      Math.ceil(grid_size[1]/this.workgroup_size[1]),
-      Math.ceil(grid_size[2]/this.workgroup_size[2]),
-    ];
-    this.params.set("grid_size_x", grid_size[0]);
-    this.params.set("grid_size_y", grid_size[1]);
-    this.params.set("grid_size_z", grid_size[2]);
-    this.params.set("b0", gpu_b0);
+    const dispatch_size: Size3D = {
+      x: Math.ceil((grid_size.x+1)/this.workgroup_size.x),
+      y: Math.ceil((grid_size.y+1)/this.workgroup_size.y),
+      z: Math.ceil((grid_size.z+1)/this.workgroup_size.z),
+    };
+    this.params.set("grid_size_x", grid_size.x);
+    this.params.set("grid_size_y", grid_size.y);
+    this.params.set("grid_size_z", grid_size.z);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size },
-        },
-        {
-          binding: 1,
-          resource: { buffer: gpu_H, offset: 0, size: gpu_H.size },
-        },
-        {
-          binding: 2,
-          resource: { buffer: gpu_E, offset: 0, size: gpu_E.size },
-        },
+        { binding: 0, resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size } },
+        { binding: 1, resource: create_ndgpuarray_bindgroup(d.x) },
+        { binding: 2, resource: create_ndgpuarray_bindgroup(d.y) },
+        { binding: 3, resource: create_ndgpuarray_bindgroup(d.z) },
+        { binding: 4, resource: create_ndgpuarray_bindgroup(H.x) },
+        { binding: 5, resource: create_ndgpuarray_bindgroup(H.y) },
+        { binding: 6, resource: create_ndgpuarray_bindgroup(H.z) },
+        { binding: 7, resource: create_ndgpuarray_bindgroup(E.x) },
+        { binding: 8, resource: create_ndgpuarray_bindgroup(E.y) },
+        { binding: 9, resource: create_ndgpuarray_bindgroup(E.z) },
+        { binding: 10, resource: create_ndgpuarray_bindgroup(bake_phi) },
       ],
     });
 
     const compute_pass = command_encoder.beginComputePass();
     compute_pass.setPipeline(this.compute_pipeline);
     compute_pass.setBindGroup(0, bind_group);
-    compute_pass.dispatchWorkgroups(dispatch_size[2], dispatch_size[1], dispatch_size[0]);
+    compute_pass.dispatchWorkgroups(dispatch_size.x, dispatch_size.y, dispatch_size.z);
     compute_pass.end();
     return compute_pass;
   }

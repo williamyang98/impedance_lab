@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type GridDisplayMode, type FieldDisplayMode, Renderer } from "./renderer.ts";
+import { type AxisDisplayMode, type FieldDisplayMode, Renderer } from "./renderer.ts";
 import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
 
@@ -13,7 +13,7 @@ const gpu_grid = ref<GpuGrid | undefined>(undefined);
 const copy_z = ref<number>(0);
 const max_z = ref<number>(0);
 const scale_db = ref<number>(0.0);
-const axis_mode = ref<GridDisplayMode>("x");
+const axis_mode = ref<AxisDisplayMode>("z");
 const field_mode = ref<FieldDisplayMode>("e_field");
 
 const canvas_element = useTemplateRef<HTMLCanvasElement>("field-canvas");
@@ -31,9 +31,9 @@ const canvas_context = computed<GPUCanvasContext>(() => {
 
 function set_grid(new_gpu_grid: GpuGrid) {
   gpu_grid.value = new_gpu_grid;
-  const new_max_z = new_gpu_grid.size[0]-1;
+  const new_max_z = new_gpu_grid.size.z-1;
   max_z.value = new_max_z;
-  copy_z.value = Math.min(Math.max(copy_z.value, 0), new_max_z);
+  copy_z.value = Math.min(Math.max(Math.floor(new_max_z/2), 0), new_max_z);
 }
 
 function set_copy_z(new_copy_z: number) {
@@ -42,8 +42,8 @@ function set_copy_z(new_copy_z: number) {
 
 function upload_slice(command_encoder: GPUCommandEncoder) {
   if (gpu_grid.value === undefined) return;
-  copy_z.value = Math.min(Math.max(copy_z.value, 0), gpu_grid.value.size[0]-1);
-  gpu_renderer.upload_slice(command_encoder, gpu_grid.value, copy_z.value, field_mode.value);
+  copy_z.value = Math.min(Math.max(copy_z.value, 0), gpu_grid.value.size.z-1);
+  gpu_renderer.upload_slice(command_encoder, gpu_grid.value, copy_z.value, field_mode.value, axis_mode.value);
 }
 
 function update_display(command_encoder: GPUCommandEncoder) {
@@ -59,7 +59,7 @@ function update_display(command_encoder: GPUCommandEncoder) {
     width: canvas_context.value.canvas.width,
     height: canvas_context.value.canvas.height,
   };
-  gpu_renderer.update_display(command_encoder, canvas_context.value, canvas_size, scale, axis_mode.value);
+  gpu_renderer.update_display(command_encoder, canvas_context.value, canvas_size, scale);
 }
 
 watch(copy_z, async (_new_value, _old_value) => {
@@ -80,6 +80,7 @@ watch(field_mode, async (_new_value, _old_value) => {
 
 watch(axis_mode, async (_new_value, _old_value) => {
   const command_encoder = gpu_device.createCommandEncoder();
+  upload_slice(command_encoder);
   update_display(command_encoder);
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone();
@@ -103,20 +104,19 @@ defineExpose({
 <template>
   <form class="grid grid-cols-4 gap-x-2 px-4 my-2">
     <fieldset class="fieldset">
-      <legend for="slice" class="fieldset-legend">Z-index</legend>
+      <legend for="slice" class="fieldset-legend">z-index ({{ copy_z }} / {{ max_z }})</legend>
       <input id="slice" type="range" class="range" v-model.number="copy_z" min="0" :max="max_z" step="1"/>
     </fieldset>
     <fieldset class="fieldset">
-      <legend for="scale" class="fieldset-legend">Scale</legend>
+      <legend for="scale" class="fieldset-legend">Scale ({{ scale_db.toFixed(2) }}dB)</legend>
       <input id="scale" type="range" class="range" v-model.number="scale_db" min="-4" max="4" step="0.1"/>
     </fieldset>
     <fieldset class="fieldset">
       <legend for="axis" class="fieldset-legend">Axis</legend>
       <select id="axis" class="select" v-model="axis_mode">
-        <option :value="'x'">Ex</option>
-        <option :value="'y'">Ey</option>
-        <option :value="'z'">Ez</option>
-        <option :value="'mag'">Magnitude</option>
+        <option :value="'x'">x</option>
+        <option :value="'y'">y</option>
+        <option :value="'z'">z</option>
       </select>
     </fieldset>
     <fieldset class="fieldset">

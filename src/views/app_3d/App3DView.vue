@@ -2,7 +2,7 @@
 import Viewer3D from "./Viewer3D.vue";
 
 import { create_simulation_setup } from "./app_3d.ts";
-import { GpuGrid, GpuEngine } from "./grid.ts";
+import { GpuEngine } from "./grid.ts";
 import {
   ref, computed, useTemplateRef, onMounted, onBeforeUnmount,
 } from "vue";
@@ -11,14 +11,13 @@ import { providers } from "../../providers/providers.ts";
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
 
-const setup = create_simulation_setup();
-const gpu_grid = new GpuGrid(gpu_adapter, gpu_device, setup);
+const setup = create_simulation_setup(gpu_adapter, gpu_device);
 const gpu_engine = new GpuEngine(gpu_adapter, gpu_device);
 
 const curr_step = ref<number>(0);
 const max_timesteps = ref<number>(8192);
 const time_taken = ref<number>(0);
-const total_cells = ref<number>(setup.grid.total_cells);
+const total_cells = ref<number>(setup.size.x*setup.size.y*setup.size.z);
 const tick_promise = ref<Promise<void> | undefined>(undefined);
 const ms_start = ref<number | undefined>(undefined);
 const display_rate: number = 128;
@@ -44,7 +43,7 @@ const viewer_3d_elem = useTemplateRef<typeof Viewer3D>("viewer_3d");
 async function refresh_display() {
   const viewer_3d = viewer_3d_elem.value;
   if (viewer_3d === null) return;
-  viewer_3d.set_grid(gpu_grid);
+  viewer_3d.set_grid(setup.gpu);
   const command_encoder = gpu_device.createCommandEncoder();
   viewer_3d.upload_slice(command_encoder);
   viewer_3d.update_display(command_encoder);
@@ -64,7 +63,7 @@ async function simulation_loop() {
       tick_promise.value = undefined;
       return;
     }
-    gpu_engine.step_fdtd(gpu_grid, curr_step.value);
+    gpu_engine.step_fdtd(setup, curr_step.value);
     if (curr_step.value % display_rate == 0) {
       await refresh_display();
       update_progress();
@@ -90,7 +89,7 @@ async function start_loop() {
   await stop_loop();
   ms_start.value = performance.now();
   curr_step.value = 0;
-  gpu_grid.reset();
+  setup.reset();
   tick_promise.value = simulation_loop();
 }
 
@@ -102,7 +101,7 @@ async function resume_loop() {
 async function tick_loop() {
   if (curr_step.value >= max_timesteps.value) return;
   await stop_loop();
-  gpu_engine.step_fdtd(gpu_grid, curr_step.value);
+  gpu_engine.step_fdtd(setup, curr_step.value);
   curr_step.value++;
   await refresh_display();
   update_progress();
@@ -113,8 +112,8 @@ onMounted(() => {
   if (viewer_3d === null) {
     throw Error(`Failed to acquire viewer 3d child component`);
   }
-  viewer_3d.set_grid(gpu_grid);
-  viewer_3d.set_copy_z(Math.round(gpu_grid.size[0]/2));
+  viewer_3d.set_grid(setup.gpu);
+  viewer_3d.set_copy_z(Math.round(setup.size.z/2));
   void start_loop();
 });
 

@@ -15,7 +15,7 @@ export type NdarrayType =
   "s32" | "u32" |
   "f32" | "f64";
 
-const get_array_constructor_from_dtype = (dtype: NdarrayType) => {
+export function get_array_constructor_from_dtype(dtype: NdarrayType) {
   switch (dtype) {
   case "s8": return Int8Array;
   case "u8": return Uint8Array;
@@ -29,7 +29,11 @@ const get_array_constructor_from_dtype = (dtype: NdarrayType) => {
   }
 }
 
-const get_dtype_from_array = (buffer: NdarrayData): NdarrayType => {
+export function get_dtype_size(dtype: NdarrayType): number {
+  return get_array_constructor_from_dtype(dtype).BYTES_PER_ELEMENT;
+}
+
+export function get_dtype_from_array(buffer: NdarrayData): NdarrayType {
   if (buffer instanceof Int8Array) return "s8";
   if (buffer instanceof Uint8Array) return "u8";
   if (buffer instanceof Uint8ClampedArray) return "u8_clamped";

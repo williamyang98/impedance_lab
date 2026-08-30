@@ -1,123 +1,224 @@
-import { Ndarray } from "../../utility/ndarray.ts";
-import { KernelCurrentSource, KernelUpdateElectricField, KernelUpdateMagneticField } from "../../wgpu_kernels/fdtd_3d/index.ts";
+import { Ndarray, get_dtype_size, type NdarrayType } from "../../utility/ndarray.ts";
+import {
+  KernelCurrentSource, KernelUpdateElectricField, KernelUpdateMagneticField,
+  type Size3D, type GpuFieldBuffers, type NdGpuArray,
+} from "../../wgpu_kernels/fdtd_3d/index.ts";
 
-export class SimulationGrid {
-  size: [number, number, number];
-  total_cells: number;
-  init_e_field: Ndarray;
-  init_h_field: Ndarray;
-  init_sigma_k: Ndarray;
-  init_epsilon_k: Ndarray;
-  init_mu_k: number;
-  init_d_xyz: number;
-  init_dt: number;
+export interface CpuFieldBuffers {
+  x: Ndarray;
+  y: Ndarray;
+  z: Ndarray;
+}
 
-  bake_a0: Ndarray;
-  bake_a1: Ndarray;
-  bake_b0: number;
+export class CpuGrid {
+  size: Size3D;
 
-  constructor(size: [number, number, number]) {
+  d: CpuFieldBuffers;
+  dt: number;
+
+  sigma_k: Ndarray;
+  epsilon_r: Ndarray;
+  mu_r: Ndarray;
+
+  E: CpuFieldBuffers;
+  H: CpuFieldBuffers;
+
+  bake_alpha: Ndarray;
+  bake_beta: Ndarray;
+  bake_phi: Ndarray;
+
+  constructor(size: Size3D) {
     this.size = size;
-    this.total_cells = size.reduce((a,b) => a*b, 1);
-    const total_dims = 3;
 
-    this.init_e_field = Ndarray.create_zeros([...size, total_dims], "f32");
-    this.init_h_field = Ndarray.create_zeros([...size, total_dims], "f32");
-    this.init_sigma_k = Ndarray.create_zeros(size, "f32");
-    this.init_epsilon_k = Ndarray.create_zeros(size, "f32");
-    this.init_mu_k = 1;
-    this.init_d_xyz = 1;
-    this.init_dt = 1;
+    this.d = {
+      x: Ndarray.create_zeros([size.x], "f32"),
+      y: Ndarray.create_zeros([size.y], "f32"),
+      z: Ndarray.create_zeros([size.z], "f32"),
+    };
+    this.dt = 1;
 
-    this.bake_a0 = Ndarray.create_zeros(size, "f32");
-    this.bake_a1 = Ndarray.create_zeros(size, "f32");
-    this.bake_b0 = 0;
+    this.sigma_k = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    this.epsilon_r = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    this.mu_r = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+
+    this.E = {
+      x: Ndarray.create_zeros([size.z+1,size.y+1,size.x], "f32"),
+      y: Ndarray.create_zeros([size.z+1,size.y,size.x+1], "f32"),
+      z: Ndarray.create_zeros([size.z,size.y+1,size.x+1], "f32"),
+    };
+
+    this.H = {
+      x: Ndarray.create_zeros([size.z,size.y,size.x+1], "f32"),
+      y: Ndarray.create_zeros([size.z,size.y+1,size.x], "f32"),
+      z: Ndarray.create_zeros([size.z+1,size.y,size.x], "f32"),
+    };
+
+    // alpha = 1/(1+sigma_k/e_k*dt)
+    // beta = dt/e_k
+    // phi = dt/mu_k
+    this.bake_alpha = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    this.bake_beta = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    this.bake_phi = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
   }
 
-  bake() {
-    // a0 = 1/(1+sigma_k/e_k*dt)
-    // a1 = 1/(e_k*d_xyz) * dt
-    // b0 = 1/(mu_k*d_xyz) * dt
-    const dt = this.init_dt;
-    const d_xyz = this.init_d_xyz;
+  calculate_minimum_timestep() {
+    // https://en.wikipedia.org/wiki/Courant%E2%80%93Friedrichs%E2%80%93Lewy_condition#The_two_and_general_n-dimensional_case
+    // satisfy courant criteria
+    // Cmax >= dt*sum(ui/xi), u = speed, x = distance
+    // Cmax >= dt*(c/dx + c/dy + c/dz)
+    // dt <= Cmax/[c*(1/dx+1/dy+1/dz)]
+    // For an explicit time marching solver Cmax=1
+    // dt <= Cmax/[c*(1/dx+1/dy+1/dz)]
+    // dt(min) = Cmax/[c*(1/dx(min)+1/dy(min)+1/dz(min))]
+    const dx_min = this.d.x.cast(Float32Array).reduce((a, b) => Math.min(a,b), Infinity);
+    const dy_min = this.d.y.cast(Float32Array).reduce((a, b) => Math.min(a,b), Infinity);
+    const dz_min = this.d.z.cast(Float32Array).reduce((a, b) => Math.min(a,b), Infinity);
+    if (dx_min === 0) throw Error("min(dx) is zero but must have a finite non-zero cell dimension");
+    if (dy_min === 0) throw Error("min(dy) is zero but must have a finite non-zero cell dimension");
+    if (dz_min === 0) throw Error("min(dz) is zero but must have a finite non-zero cell dimension");
+    const Cmax = 0.98; // slightly less than 1 to guarantee stability
+    const c = 299792458;
+    const k_max = 1/dx_min + 1/dy_min + 1/dz_min;
+    const dt_min = Cmax/(c*k_max);
+    return dt_min;
+  }
+
+  bake_materials() {
+    const dt = this.calculate_minimum_timestep();
     const epsilon_0 = 8.85e-12;
     const mu_0 = 1.26e-6;
-    const mu_k = this.init_mu_k*mu_0;
 
-    const [Nx,Ny,Nz] = this.size;
-    for (let x = 0; x < Nx; x++) {
+    const {x: Nx, y: Ny, z: Nz } = this.size;
+    this.dt = dt;
+    for (let z = 0; z < Nz; z++) {
       for (let y = 0; y < Ny; y++) {
-        for (let z = 0; z < Nz; z++) {
-          const i = [x,y,z];
-          const epsilon_k = this.init_epsilon_k.get(i)*epsilon_0;
-          const sigma_k = this.init_sigma_k.get(i);
-          const a0 = 1/(1+sigma_k/epsilon_k*dt);
-          const a1 = dt/(epsilon_k*d_xyz);
-          this.bake_a0.set(i, a0);
-          this.bake_a1.set(i, a1);
+        for (let x = 0; x < Nx; x++) {
+          const i = [z,y,x];
+          const epsilon_k = this.epsilon_r.get(i)*epsilon_0;
+          const mu_k = this.mu_r.get(i)*mu_0;
+          const sigma_k = this.sigma_k.get(i);
+
+          const alpha = 1/(1+sigma_k/epsilon_k*dt);
+          const beta = dt/epsilon_k;
+          const phi = dt/mu_k;
+          this.bake_alpha.set(i, alpha);
+          this.bake_beta.set(i, beta);
+          this.bake_phi.set(i, phi);
         }
       }
     }
-    this.bake_b0 = dt/(mu_k*d_xyz);
   }
-}
-
-export class SimulationSource {
-  signal: number[] = [];
-  offset: [number, number, number] = [0,0,0];
-  size: [number, number, number] = [0,0,0];
-}
-
-export interface SimulationSetup {
-  grid: SimulationGrid;
-  sources: SimulationSource[];
 }
 
 export class GpuGrid {
+  size: Size3D;
   adapter: GPUAdapter;
   device: GPUDevice;
-  setup: SimulationSetup;
 
-  e_field: GPUBuffer;
-  h_field: GPUBuffer;
-  bake_a0: GPUBuffer;
-  bake_a1: GPUBuffer;
-  bake_b0: number;
+  d: GpuFieldBuffers;
+  E: GpuFieldBuffers;
+  H: GpuFieldBuffers;
 
-  constructor(adapter: GPUAdapter, device: GPUDevice, setup: SimulationSetup) {
+  bake_alpha: NdGpuArray;
+  bake_beta: NdGpuArray;
+  bake_phi: NdGpuArray;
+
+  constructor(adapter: GPUAdapter, device: GPUDevice, size: Size3D) {
     this.adapter = adapter;
     this.device = device;
-    this.setup = setup;
+    this.size = size;
 
-    const create_from_ndarray = (arr: Ndarray): GPUBuffer => {
-      const buffer = device.createBuffer({
-        size: arr.data.byteLength,
+    const create_buffer = (shape: number[], dtype: NdarrayType): NdGpuArray => {
+      const elem_size_bytes = get_dtype_size(dtype);
+      const total_elements = shape.reduce((a,b) => a*b, 1);
+      const byte_length = total_elements*elem_size_bytes;
+      const data = device.createBuffer({
+        size: byte_length,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
       });
-      device.queue.writeBuffer(buffer, 0, arr.data, 0, arr.data.length);
-      return buffer;
+      return {
+        data,
+        shape,
+        dtype,
+      };
     };
 
-    this.e_field = create_from_ndarray(setup.grid.init_e_field);
-    this.h_field = create_from_ndarray(setup.grid.init_h_field);
-    this.bake_a0 = create_from_ndarray(setup.grid.bake_a0);
-    this.bake_a1 = create_from_ndarray(setup.grid.bake_a1);
-    this.bake_b0 = setup.grid.bake_b0;
+    this.d = {
+      x: create_buffer([size.x], "f32"),
+      y: create_buffer([size.y], "f32"),
+      z: create_buffer([size.z], "f32"),
+    };
+
+    this.E = {
+      x: create_buffer([size.z+1,size.y+1,size.x], "f32"),
+      y: create_buffer([size.z+1,size.y,size.x+1], "f32"),
+      z: create_buffer([size.z,size.y+1,size.x+1], "f32"),
+    };
+
+    this.H = {
+      x: create_buffer([size.z,size.y,size.x+1], "f32"),
+      y: create_buffer([size.z,size.y+1,size.x], "f32"),
+      z: create_buffer([size.z+1,size.y,size.x], "f32"),
+    };
+
+    this.bake_alpha = create_buffer([size.z,size.y,size.x], "f32");
+    this.bake_beta = create_buffer([size.z,size.y,size.x], "f32");
+    this.bake_phi = create_buffer([size.z,size.y,size.x], "f32");
+  }
+
+  copy_from_cpu(cpu: CpuGrid) {
+    const format_size = (size: Size3D) => `{x:${size.x},y:${size.y},z:${size.z}}`;
+    if (cpu.size.x !== this.size.x || cpu.size.y !== this.size.y || cpu.size.z !== this.size.z) {
+      throw Error(`Mismatching grid size gpu is ${format_size(this.size)} but cpu was ${format_size(cpu.size)}`);
+    }
+    const check_shape_match = (s0: number[], s1: number[]): boolean => {
+      if (s0.length !== s1.length) return false;
+      for (let i = 0; i < s0.length; i++) {
+        if (s0[i] !== s1[i]) return false;
+      }
+      return true;
+    };
+    const copy_buffer = (gpu: NdGpuArray, cpu: Ndarray) => {
+      if (!check_shape_match(gpu.shape, cpu.shape)) {
+        throw Error(`Mismatching gpu.shape=[${gpu.shape.join(',')}] with cpu.shape=[${cpu.shape.join(',')}]`);
+      }
+      this.device.queue.writeBuffer(gpu.data, 0, cpu.data, 0, cpu.data.length);
+    };
+    const copy_field_buffers = (gpu: GpuFieldBuffers, cpu: CpuFieldBuffers) => {
+      copy_buffer(gpu.x, cpu.x);
+      copy_buffer(gpu.y, cpu.y);
+      copy_buffer(gpu.z, cpu.z);
+    };
+    copy_field_buffers(this.d, cpu.d);
+    copy_field_buffers(this.E, cpu.E);
+    copy_field_buffers(this.H, cpu.H);
+    copy_buffer(this.bake_alpha, cpu.bake_alpha);
+    copy_buffer(this.bake_beta, cpu.bake_beta);
+    copy_buffer(this.bake_phi, cpu.bake_phi);
+  }
+}
+
+export interface SimulationSource {
+  signal: number[];
+  offset: Size3D;
+  size: Size3D;
+}
+
+export class SimulationSetup {
+  size: Size3D;
+  cpu: CpuGrid;
+  gpu: GpuGrid;
+  sources: SimulationSource[];
+
+  constructor(adapter: GPUAdapter, device: GPUDevice, size: Size3D) {
+    this.size = size;
+    this.cpu = new CpuGrid(size);
+    this.gpu = new GpuGrid(adapter, device, size);
+    this.sources = [];
   }
 
   reset() {
-    const reset_buffer = (gpu_buffer: GPUBuffer, cpu_buffer: Ndarray) => {
-      this.device.queue.writeBuffer(gpu_buffer, 0, cpu_buffer.data, 0, cpu_buffer.data.length);
-    };
-    reset_buffer(this.e_field, this.setup.grid.init_e_field);
-    reset_buffer(this.h_field, this.setup.grid.init_h_field);
-    reset_buffer(this.bake_a0, this.setup.grid.bake_a0);
-    reset_buffer(this.bake_a1, this.setup.grid.bake_a1);
-    this.bake_b0 = this.setup.grid.bake_b0;
-  }
-
-  get size(): [number, number, number] {
-    return this.setup.grid.size;
+    this.gpu.copy_from_cpu(this.cpu);
   }
 }
 
@@ -132,23 +233,25 @@ export class GpuEngine {
   constructor(adapter: GPUAdapter, device: GPUDevice) {
     this.adapter = adapter;
     this.device = device;
-    const source_workgroup_size: [number, number, number] = [16,16,1];
-    const grid_workgroup_size: [number, number, number] = [1,1,256];
+    const source_workgroup_size: Size3D = { x: 16, y: 16, z: 1 };
+    const grid_workgroup_size: Size3D = { x: 16, y: 16, z: 1 };
     this.kernel_current_source = new KernelCurrentSource(source_workgroup_size, device);
     this.kernel_update_e_field = new KernelUpdateElectricField(grid_workgroup_size, device);
     this.kernel_update_h_field = new KernelUpdateMagneticField(grid_workgroup_size, device);
   }
 
-  step_fdtd(grid: GpuGrid, timestep: number) {
+  step_fdtd(setup: SimulationSetup, timestep: number) {
+    const sources = setup.sources;
+    const gpu = setup.gpu;
     const command_encoder = this.device.createCommandEncoder();
-    for (const source of grid.setup.sources) {
+    for (const source of sources) {
       if (timestep < source.signal.length) {
         const e0 = source.signal[timestep];
-        this.kernel_current_source.create_pass(command_encoder, grid.e_field, e0, grid.size, source.offset, source.size);
+        this.kernel_current_source.create_pass(command_encoder, gpu.E, e0, gpu.size, source.offset, source.size);
       }
     }
-    this.kernel_update_e_field.create_pass(command_encoder, grid.e_field, grid.h_field, grid.bake_a0, grid.bake_a1, grid.size);
-    this.kernel_update_h_field.create_pass(command_encoder, grid.h_field, grid.e_field, grid.bake_b0, grid.size);
+    this.kernel_update_e_field.create_pass(command_encoder, gpu.d, gpu.E, gpu.H, gpu.bake_alpha, gpu.bake_beta, gpu.size);
+    this.kernel_update_h_field.create_pass(command_encoder, gpu.d, gpu.H, gpu.E, gpu.bake_phi, gpu.size);
     this.device.queue.submit([command_encoder.finish()]);
   }
 }

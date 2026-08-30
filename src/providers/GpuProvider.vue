@@ -30,6 +30,9 @@ async function create_gpu_instance() {
   });
   const requested_device = await requested_adapter.requestDevice({
     requiredFeatures: requested_features,
+    requiredLimits: {
+      maxStorageBuffersPerShaderStage: 11,
+    },
   });
   adapter.value = requested_adapter;
   device.value = requested_device;
