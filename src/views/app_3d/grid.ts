@@ -204,21 +204,51 @@ export interface SimulationSource {
   size: Size3D;
 }
 
+export class Timer {
+  start_millis?: number;
+  end_millis?: number;
+
+  get elapsed_seconds() {
+    if (this.start_millis === undefined) return undefined;
+    if (this.end_millis === undefined) return undefined;
+    return (this.end_millis-this.start_millis)*1e-3;
+  }
+
+  reset() {
+    this.end_millis = undefined;
+    this.start_millis = undefined;
+  }
+
+  trigger() {
+    const now_millis = performance.now();
+    if (this.start_millis === undefined) {
+      this.start_millis = now_millis;
+    }
+    this.end_millis = now_millis;
+  }
+}
+
 export class SimulationSetup {
   size: Size3D;
   cpu: CpuGrid;
   gpu: GpuGrid;
   sources: SimulationSource[];
+  current_step: number;
+  timer: Timer;
 
   constructor(adapter: GPUAdapter, device: GPUDevice, size: Size3D) {
     this.size = size;
     this.cpu = new CpuGrid(size);
     this.gpu = new GpuGrid(adapter, device, size);
     this.sources = [];
+    this.current_step = 0;
+    this.timer = new Timer();
   }
 
   reset() {
     this.gpu.copy_from_cpu(this.cpu);
+    this.current_step = 0;
+    this.timer.reset();
   }
 }
 
@@ -240,12 +270,13 @@ export class GpuEngine {
     this.kernel_update_h_field = new KernelUpdateMagneticField(grid_workgroup_size, device);
   }
 
-  step_fdtd(setup: SimulationSetup, timestep: number) {
+  step_fdtd(setup: SimulationSetup) {
     const sources = setup.sources;
     const gpu = setup.gpu;
+    setup.timer.trigger();
     for (const source of sources) {
-      if (timestep < source.signal.length) {
-        const e0 = source.signal[timestep];
+      if (setup.current_step < source.signal.length) {
+        const e0 = source.signal[setup.current_step];
         // FIXME: we cannot reuse the uniform buffer for each pass since it just references the same uniform buffer
         //        this has the unintended consequence of writing to the very last location for all the sources
         //        we can allocate a new uniform buffer for each unique pass that is used by each source
@@ -259,5 +290,7 @@ export class GpuEngine {
     this.kernel_update_e_field.create_pass(command_encoder, gpu.d, gpu.E, gpu.H, gpu.bake_alpha, gpu.bake_beta, gpu.size);
     this.kernel_update_h_field.create_pass(command_encoder, gpu.d, gpu.H, gpu.E, gpu.bake_phi, gpu.size);
     this.device.queue.submit([command_encoder.finish()]);
+    setup.current_step += 1;
+    setup.timer.trigger();
   }
 }
