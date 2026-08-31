@@ -1,5 +1,8 @@
-import { SimulationSetup, type SimulationSource } from "./grid.ts";
+import { SimulationSetup } from "../../app/fdtd_3d/grid.ts";
 import { type Size3D } from "../../wgpu_kernels/fdtd_3d/index.ts";
+import { type GridBuilderConfig } from "../../app/electrostatic_3d/grid_builder.ts";
+import { type Region, GridBuilder } from "../../app/fdtd_3d/grid_builder.ts";
+import { Profiler } from "../../utility/profiler.ts";
 
 function estimate_single_ended_impedance_ipc2141(er: number, h: number, w: number, t: number): number {
   // https://www.digikey.com.au/en/resources/conversion-calculators/conversion-calculator-pcb-trace-impedance
@@ -18,6 +21,146 @@ function estimate_differential_impedance_ipc2141(er: number, h: number, w: numbe
   // t = trace height
   // s = trace spacing
   return 174/Math.sqrt(er+1.41)*Math.log(5.98*h/(0.8*w+t))*(1-0.48*Math.exp(-0.96*s/h));
+}
+
+function create_sinc_pulse(period: number): number[] {
+  const values = [];
+  for (let i = 0; i < period; i++) {
+    const dt = Math.PI*i/period;
+    const amplitude = Math.sin(dt)**2;
+    values.push(amplitude);
+  }
+  return values;
+}
+
+export function create_single_ended_setup_vargrid(
+  gpu_adapter: GPUAdapter, gpu_device: GPUDevice,
+  profiler?: Profiler
+): SimulationSetup {
+  const plane_thickness = 0.035e-3;
+  const dielectric_height = 0.15e-3;
+  const trace_width = 0.15e-3;
+  const trace_length = 10e-3;
+  const trace_thickness = 0.035e-3;
+  const dielectric_constant = 4.1;
+  const terminator_thickness = 0.05e-3;
+  const Z0_estimate = estimate_single_ended_impedance_ipc2141(dielectric_constant, dielectric_height, trace_width, trace_thickness);
+  const terminator_conductivity = dielectric_height/(Z0_estimate*(terminator_thickness*trace_width));
+  const copper_conductivity = 1e8;
+
+  const grid_builder_config: GridBuilderConfig = {
+    minimum_grid_resolution: 0.001e-3,
+    padding_size_multiplier: {
+      x: 1,
+      y: 10,
+      z: 3,
+    },
+    mesh: {
+      x: { max_ratio: 0.1, min_subdivisions: 5 },
+      y: { max_ratio: 0.1, min_subdivisions: 5 },
+      z: { max_ratio: 0.1, min_subdivisions: 5 },
+    },
+  };
+
+  const grid_builder_padding = {
+    x: { min: true, max: true },
+    y: { min: true, max: true },
+    z: { min: false, max: true },
+  };
+
+  const regions: Region[] = [
+    // copper plane
+    {
+      type: "conductive",
+      conductivity: copper_conductivity,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { z: -plane_thickness },
+          end: { z: 0 },
+          config: {
+            min_gridlines: { z: 2 },
+          },
+        },
+      ],
+    },
+    // signal trace
+    {
+      type: "conductive",
+      conductivity: copper_conductivity,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { x: -trace_length/2, y: -trace_width/2, z: dielectric_height },
+          end: { x: trace_length/2, y: trace_width/2, z: dielectric_height+trace_thickness },
+          config: {},
+        },
+      ],
+    },
+    // dielectric
+    {
+      type: "dielectric",
+      permittivity: dielectric_constant,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { z: 0 },
+          end: { z: dielectric_height },
+          config: {},
+        },
+      ],
+    },
+    // terminator left
+    {
+      type: "conductive",
+      conductivity: terminator_conductivity,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { x: -trace_length/2, y: -trace_width/2, z: 0 },
+          end: { x: -trace_length/2+terminator_thickness, y: trace_width/2, z: dielectric_height },
+          config: {},
+        },
+      ],
+    },
+    // terminator right
+    {
+      type: "conductive",
+      conductivity: terminator_conductivity,
+      shapes: [
+        {
+          type: "cuboid",
+          start: { x: trace_length/2-terminator_thickness, y: -trace_width/2, z: 0 },
+          end: { x: trace_length/2, y: trace_width/2, z: dielectric_height },
+          config: {},
+        },
+      ],
+    },
+    // current source
+    {
+      type: "current",
+      current_id: 0,
+      shape: {
+        type: "cuboid",
+        start: { x: -terminator_thickness/2, y: -trace_width/2, z: 0 },
+        end: { x: terminator_thickness/2, y: trace_width/2, z: dielectric_height },
+        config: {},
+      },
+    },
+  ];
+
+  const grid_builder = new GridBuilder(regions, grid_builder_config, grid_builder_padding, gpu_adapter, gpu_device, profiler)
+  const setup = grid_builder.setup;
+
+  const signals = {
+    0: create_sinc_pulse(512),
+  };
+  setup.source_values = signals;
+  setup.maximum_steps = 8192*8;
+  setup.cpu.calculate_minimum_timestep();
+  setup.cpu.bake_materials();
+
+  return setup;
 }
 
 export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice): SimulationSetup {
@@ -61,20 +204,14 @@ export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice
     .fill(1e8);
 
   // source
-  const source: SimulationSource = {
-    signal: [],
-    offset: { x: 0, y: 0, z: 0 },
-    size: { x: 0, y: 0, z: 0 },
+  setup.source_values = {
+    0: create_sinc_pulse(256),
   };
-  const period = 256;
-  for (let i = 0; i < period; i++) {
-    const dt = Math.PI*i/period;
-    const amplitude = Math.sin(dt)**2;
-    source.signal.push(amplitude);
-  }
-  source.offset = { z: z_start+plane_height, y: Math.floor(Ny/2-signal_width/2), x: Math.floor(Nx/2) };
-  source.size = { z: separation_height, y: signal_width, x: 1 };
-  setup.sources.push(source);
+  setup.sources.push({
+    current_id: 0,
+    offset: { z: z_start+plane_height, y: Math.floor(Ny/2-signal_width/2), x: Math.floor(Nx/2) },
+    size: { z: separation_height, y: signal_width, x: 1 },
+  });
 
   // terminator resistors
   {
@@ -91,10 +228,11 @@ export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice
       .hi([separation_height, signal_width, terminator_thickness])
       .fill(sigma);
   }
+  cpu.calculate_minimum_timestep();
   cpu.bake_materials();
+  setup.maximum_steps = 8192;
 
   return setup;
-
 }
 
 export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice): SimulationSetup {
@@ -144,23 +282,23 @@ export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice
     .fill(1e8);
 
   // sources
-  const sinc_pulse = [];
-  const period = 256;
-  for (let i = 0; i < period; i++) {
-    const dt = Math.PI*i/period;
-    const amplitude = Math.sin(dt)**2;
-    sinc_pulse.push(amplitude);
-  }
+  const signal = create_sinc_pulse(256);
+  const signals = {
+    0: signal.map(v => v),
+    1: signal.map(v => -v),
+  };
+  setup.source_values = signals;
   setup.sources.push({
-    signal: sinc_pulse.map(v => v),
+    current_id: 0,
     offset: { z: z_start+plane_height, y: Math.floor(Ny/2-signal_spacing/2-signal_width), x: Math.floor(Nx/2) },
     size: { z: separation_height, y: signal_width, x: 1 },
   });
   setup.sources.push({
-    signal: sinc_pulse.map(v => -v),
+    current_id: 1,
     offset: { z: z_start+plane_height, y: Math.floor(Ny/2+signal_spacing/2), x: Math.floor(Nx/2) },
     size: { z: separation_height, y: signal_width, x: 1 },
   });
+  setup.maximum_steps = 8192;
 
   // terminator resistors
   {
@@ -179,6 +317,7 @@ export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice
     add_terminator(Nx-plane_border-terminator_thickness, Math.floor(Ny/2-signal_spacing/2-signal_width));
     add_terminator(Nx-plane_border-terminator_thickness, Math.floor(Ny/2+signal_spacing/2));
   }
+  cpu.calculate_minimum_timestep();
   cpu.bake_materials();
 
   return setup;

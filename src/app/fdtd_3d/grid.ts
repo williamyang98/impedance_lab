@@ -14,6 +14,7 @@ export class CpuGrid {
   size: Size3D;
 
   d: CpuFieldBuffers;
+  grid_lines: CpuFieldBuffers;
   dt: number;
 
   sigma_k: Ndarray;
@@ -34,6 +35,11 @@ export class CpuGrid {
       x: Ndarray.create_zeros([size.x], "f32"),
       y: Ndarray.create_zeros([size.y], "f32"),
       z: Ndarray.create_zeros([size.z], "f32"),
+    };
+    this.grid_lines = {
+      x: Ndarray.create_zeros([size.x+1], "f32"),
+      y: Ndarray.create_zeros([size.y+1], "f32"),
+      z: Ndarray.create_zeros([size.z+1], "f32"),
     };
     this.dt = 1;
 
@@ -69,7 +75,7 @@ export class CpuGrid {
     // dt <= Cmax/[c*(1/dx+1/dy+1/dz)]
     // For an explicit time marching solver Cmax=1
     // dt <= Cmax/[c*(1/dx+1/dy+1/dz)]
-    // dt(min) = Cmax/[c*(1/dx(min)+1/dy(min)+1/dz(min))]
+    // dt(max) = Cmax/[c*(1/dx(min)+1/dy(min)+1/dz(min))]
     const dx_min = this.d.x.cast(Float32Array).reduce((a, b) => Math.min(a,b), Infinity);
     const dy_min = this.d.y.cast(Float32Array).reduce((a, b) => Math.min(a,b), Infinity);
     const dz_min = this.d.z.cast(Float32Array).reduce((a, b) => Math.min(a,b), Infinity);
@@ -79,17 +85,16 @@ export class CpuGrid {
     const Cmax = 0.98; // slightly less than 1 to guarantee stability
     const c = 299792458;
     const k_max = 1/dx_min + 1/dy_min + 1/dz_min;
-    const dt_min = Cmax/(c*k_max);
-    return dt_min;
+    const dt_max = Cmax/(c*k_max);
+    this.dt = dt_max;
   }
 
   bake_materials() {
-    const dt = this.calculate_minimum_timestep();
+    const dt = this.dt;
     const epsilon_0 = 8.85e-12;
     const mu_0 = 1.26e-6;
 
     const {x: Nx, y: Ny, z: Nz } = this.size;
-    this.dt = dt;
     for (let z = 0; z < Nz; z++) {
       for (let y = 0; y < Ny; y++) {
         for (let x = 0; x < Nx; x++) {
@@ -199,7 +204,7 @@ export class GpuGrid {
 }
 
 export interface SimulationSource {
-  signal: number[];
+  current_id: number;
   offset: Size3D;
   size: Size3D;
 }
@@ -233,7 +238,9 @@ export class SimulationSetup {
   cpu: CpuGrid;
   gpu: GpuGrid;
   sources: SimulationSource[];
+  source_values: Partial<Record<number, number[]>>;
   current_step: number;
+  maximum_steps: number = 0;
   timer: Timer;
 
   constructor(adapter: GPUAdapter, device: GPUDevice, size: Size3D) {
@@ -243,6 +250,7 @@ export class SimulationSetup {
     this.sources = [];
     this.current_step = 0;
     this.timer = new Timer();
+    this.source_values = {};
   }
 
   reset() {
@@ -275,15 +283,17 @@ export class GpuEngine {
     const gpu = setup.gpu;
     setup.timer.trigger();
     for (const source of sources) {
-      if (setup.current_step < source.signal.length) {
-        const e0 = source.signal[setup.current_step];
-        // FIXME: we cannot reuse the uniform buffer for each pass since it just references the same uniform buffer
-        //        this has the unintended consequence of writing to the very last location for all the sources
-        //        we can allocate a new uniform buffer for each unique pass that is used by each source
-        const command_encoder = this.device.createCommandEncoder();
-        this.kernel_current_source.create_pass(command_encoder, gpu.E, e0, gpu.size, source.offset, source.size);
-        this.device.queue.submit([command_encoder.finish()]);
-      }
+      const values = setup.source_values[source.current_id];
+      if (values === undefined) continue;
+      const value = values.at(setup.current_step);
+      if (value === undefined) continue;
+
+      // FIXME: we cannot reuse the uniform buffer for each pass since it just references the same uniform buffer
+      //        this has the unintended consequence of writing to the very last location for all the sources
+      //        we can allocate a new uniform buffer for each unique pass that is used by each source
+      const command_encoder = this.device.createCommandEncoder();
+      this.kernel_current_source.create_pass(command_encoder, gpu.E, value, gpu.size, source.offset, source.size);
+      this.device.queue.submit([command_encoder.finish()]);
     }
 
     const command_encoder = this.device.createCommandEncoder();
