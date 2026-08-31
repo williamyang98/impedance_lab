@@ -14,14 +14,14 @@ const config = computed(() => props.config);
 function create_fields(config: GridBuilderConfig) {
   const fields = [
     new NumberField(config, "minimum_grid_resolution", "Minimum grid resolution", 1e-4, undefined, undefined, float_validator),
-    new NumberField(config, "padding_size_multiplier", "Padding ratio", 1, 20, undefined, float_validator),
   ];
-
   const axis_fields = [];
   for (const axis of axes) {
-    const parent = config.mesh[axis];
-    axis_fields.push(new NumberField(parent, "max_ratio", `Maximum ${axis} ratio`, 0.1, 2.0, 0.1, float_validator));
-    axis_fields.push(new NumberField(parent, "min_subdivisions", `Minimum ${axis} subdivisions`, 1, 20, 1, integer_validator));
+    axis_fields.push(new NumberField(config.padding_size_multiplier, axis, `Padding size ${axis} multiplier`, 0, 10, 0.1, float_validator));
+  }
+  for (const axis of axes) {
+    axis_fields.push(new NumberField(config.mesh[axis], "max_ratio", `Maximum ${axis} ratio`, 0.1, 2.0, 0.1, float_validator));
+    axis_fields.push(new NumberField(config.mesh[axis], "min_subdivisions", `Minimum ${axis} subdivisions`, 1, 20, 1, integer_validator));
   }
   return [...fields, ...axis_fields];
 }

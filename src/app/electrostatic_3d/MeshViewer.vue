@@ -27,16 +27,16 @@ function create_chart() {
     if (padded !== undefined && is_padded) return padded;
     return unpadded;
   }
-  const x_min = get_boundary(builder.unpadded_boundary.x.min, builder.padded_boundary.x?.min, true);
-  const x_max = get_boundary(builder.unpadded_boundary.x.max, builder.padded_boundary.x?.max, true);
-  const y_min = get_boundary(builder.unpadded_boundary.y.min, builder.padded_boundary.y?.min, true);
-  const y_max = get_boundary(builder.unpadded_boundary.y.max, builder.padded_boundary.y?.max, true);
+  const x_min = get_boundary(builder.unpadded_boundary.x.min, builder.padded_boundary.x.min, true);
+  const x_max = get_boundary(builder.unpadded_boundary.x.max, builder.padded_boundary.x.max, true);
+  const y_min = get_boundary(builder.unpadded_boundary.y.min, builder.padded_boundary.y.min, true);
+  const y_max = get_boundary(builder.unpadded_boundary.y.max, builder.padded_boundary.y.max, true);
 
   const show_padding = is_padded.value;
-  const show_x_min = get_boundary(builder.unpadded_boundary.x.min, builder.padded_boundary.x?.min, show_padding);
-  const show_x_max = get_boundary(builder.unpadded_boundary.x.max, builder.padded_boundary.x?.max, show_padding);
-  const show_y_min = get_boundary(builder.unpadded_boundary.y.min, builder.padded_boundary.y?.min, show_padding);
-  const show_y_max = get_boundary(builder.unpadded_boundary.y.max, builder.padded_boundary.y?.max, show_padding);
+  const show_x_min = get_boundary(builder.unpadded_boundary.x.min, builder.padded_boundary.x.min, show_padding);
+  const show_x_max = get_boundary(builder.unpadded_boundary.x.max, builder.padded_boundary.x.max, show_padding);
+  const show_y_min = get_boundary(builder.unpadded_boundary.y.min, builder.padded_boundary.y.min, show_padding);
+  const show_y_max = get_boundary(builder.unpadded_boundary.y.max, builder.padded_boundary.y.max, show_padding);
 
   chart.value?.destroy();
   chart.value = new Chart(canvas, {
@@ -143,10 +143,10 @@ watch(is_padded, (show_padding) => {
     return unpadded;
   }
 
-  const x_min = get_boundary(builder.unpadded_boundary.x.min, builder.padded_boundary.x?.min);
-  const x_max = get_boundary(builder.unpadded_boundary.x.max, builder.padded_boundary.x?.max);
-  const y_min = get_boundary(builder.unpadded_boundary.y.min, builder.padded_boundary.y?.min);
-  const y_max = get_boundary(builder.unpadded_boundary.y.max, builder.padded_boundary.y?.max);
+  const x_min = get_boundary(builder.unpadded_boundary.x.min, builder.padded_boundary.x.min);
+  const x_max = get_boundary(builder.unpadded_boundary.x.max, builder.padded_boundary.x.max);
+  const y_min = get_boundary(builder.unpadded_boundary.y.min, builder.padded_boundary.y.min);
+  const y_max = get_boundary(builder.unpadded_boundary.y.max, builder.padded_boundary.y.max);
   scales.x.min = x_min;
   scales.x.max = x_max;
   scales.y.min = y_min;

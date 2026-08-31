@@ -1,9 +1,6 @@
 import { type DistanceUnit, distance_units } from "../../utility/unit_types.ts";
 import { type GridBuilderConfig as GridBuilderConfig2D } from "../../app/electrostatic_2d/grid_builder.ts";
-import {
-  type GridBuilderConfig as GridBuilderConfig3D,
-  type AxisValue, axes as axes_3d,
-} from "../../app/electrostatic_3d/grid_builder.ts";
+import { type GridBuilderConfig as GridBuilderConfig3D, type AxisValue } from "../../app/electrostatic_3d/grid_builder.ts";
 import {
   type ComputeBenchmarkConfig,
   type MemoryBandwidthBenchmarkConfig,
@@ -194,11 +191,8 @@ export class GridBuilderUserData3D implements GridBuilderConfig3D {
   storage: Storage;
   _minimum_grid_resolution: NumberEntry;
   _padding_size_multiplier: NumberEntry;
-  _mesh: AxisValue<{
-    max_ratio: NumberEntry,
-    min_subdivisions: NumberEntry,
-  }>;
   mesh: AxisValue<{ max_ratio: number, min_subdivisions: number }>;
+  padding_size_multiplier: AxisValue<number>;
 
   constructor(storage: Storage, prefix: string) {
     this.storage = storage;
@@ -206,35 +200,42 @@ export class GridBuilderUserData3D implements GridBuilderConfig3D {
     this._minimum_grid_resolution = new NumberEntry(storage, get_name("minimum_grid_resolution"), 0.0001, "float");
     this._padding_size_multiplier = new NumberEntry(storage, get_name("padding_size_multiplier"), 5, "float");
 
-    const _mesh: Partial<typeof this._mesh> = {};
-    for (const axis of axes_3d) {
-      _mesh[axis] = {
-        max_ratio: new NumberEntry(storage, get_name(`max_${axis}_ratio`), 0.7, "float"),
-        min_subdivisions: new NumberEntry(storage, get_name(`min_${axis}_subdivisions`), 5, "integer"),
-      };
+    const create_mesh_axis = (axis: string) => {
+      return {
+        _max_ratio: new NumberEntry(storage, get_name(`max_${axis}_ratio`), 0.7, "float"),
+        _min_subdivisions: new NumberEntry(storage, get_name(`min_${axis}_subdivisions`), 5, "integer"),
+        get max_ratio() { return this._max_ratio.value; },
+        set max_ratio(value: number) { this._max_ratio.value = value; },
+        get min_subdivisions() { return this._min_subdivisions.value; },
+        set min_subdivisions(value: number) { this._min_subdivisions.value = value; },
+      }
+    };
+    this.mesh = {
+      x: create_mesh_axis("x"),
+      y: create_mesh_axis("x"),
+      z: create_mesh_axis("x"),
     }
-    this._mesh = _mesh as typeof this._mesh;
 
-    const mesh: Partial<typeof this.mesh> = {};
-    for (const axis of axes_3d) {
-      const parent = this._mesh[axis];
-      const config = {
-        parent,
-        get max_ratio() { return this.parent.max_ratio.value; },
-        set max_ratio(value: number) { this.parent.max_ratio.value = value; },
-        get min_subdivisions() { return this.parent.min_subdivisions.value; },
-        set min_subdivisions(value: number) { this.parent.min_subdivisions.value = value; },
-      };
-      mesh[axis] = config;
-    }
-    this.mesh = mesh as typeof this.mesh;
+    const create_padding_size_multiplier_axis = (axis: string) => {
+      return new NumberEntry(storage, get_name(`padding_multiplier_${axis}`), 5, "float");
+    };
+    const padding_size_multiplier = {
+      _x: create_padding_size_multiplier_axis("x"),
+      _y: create_padding_size_multiplier_axis("y"),
+      _z: create_padding_size_multiplier_axis("z"),
+      get x() { return this._x.value; },
+      set x(value: number) { this._x.value = value; },
+      get y() { return this._y.value; },
+      set y(value: number) { this._y.value = value; },
+      get z() { return this._z.value; },
+      set z(value: number) { this._z.value = value; },
+    };
+    this.padding_size_multiplier = padding_size_multiplier;
   }
+
 
   get minimum_grid_resolution() { return this._minimum_grid_resolution.value; }
   set minimum_grid_resolution(value: number) { this._minimum_grid_resolution.value = value; }
-  get padding_size_multiplier() { return this._padding_size_multiplier.value; }
-  set padding_size_multiplier(value: number) { this._padding_size_multiplier.value = value; }
-
 }
 
 export class UserComputeBenchmarkConfig implements ComputeBenchmarkConfig {

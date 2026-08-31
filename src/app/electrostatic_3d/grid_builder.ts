@@ -71,7 +71,11 @@ export type RegionType = Region["type"];
 
 export interface GridBuilderConfig {
   minimum_grid_resolution: number; // smallest possible region size before it is ignored
-  padding_size_multiplier: number; // amount of air padding to add around simulation region
+  padding_size_multiplier: { // amount of air padding to add around simulation region
+    x: number;
+    y: number;
+    z: number;
+  };
   mesh: AxisValue<{
     max_ratio: number, // maximum ratio between adjacent grid sections
     min_subdivisions: number, // minimum number of grid sections between region lines
@@ -127,7 +131,7 @@ export class GridBuilder {
     count: number,
   }[]>;
   unpadded_boundary: AxisBound<number>;
-  padded_boundary: Partial<AxisBound<number>>;
+  padded_boundary: AxisBound<number | undefined>;
   grid_scale: number = 1.0;
   dielectric_indices = new Set<number>();
   voltage_indices = new Set<number>();
@@ -429,21 +433,32 @@ export class GridBuilder {
 
   setup_pad_grid(): typeof this.padded_boundary {
     this.profiler?.begin("pad_grid");
-    const padding_size = axes
-      .map(axis => this.unpadded_boundary[axis])
-      .map(bound => bound.max-bound.min)
-      .reduce((a,b) => Math.max(a,b), -Infinity)
-      *this.config.padding_size_multiplier;
+    const padded_boundary: typeof this.padded_boundary = {
+      x: { min: undefined, max: undefined },
+      y: { min: undefined, max: undefined },
+      z: { min: undefined, max: undefined },
+    };
 
-    const padded_boundary: typeof this.padded_boundary = {};
     for (const axis of axes) {
-      const bound = this.unpadded_boundary[axis];
-      const pad_min = bound.min-padding_size;
-      const pad_max = bound.max+padding_size;
-      padded_boundary[axis] = { min: pad_min, max: pad_max };
+      const unpadded_bound = this.unpadded_boundary[axis];
+      const unpadded_size = unpadded_bound.max-unpadded_bound.min;
+      const multiplier = this.config.padding_size_multiplier[axis];
+      const padding_size = unpadded_size*multiplier;
+
       const lines_builder = this.grid_lines_builder[axis];
-      lines_builder.push(pad_min);
-      lines_builder.push(pad_max);
+      const bound = this.unpadded_boundary[axis];
+      const is_pad = this.padding[axis];
+      const padded = padded_boundary[axis];
+      if (is_pad.min) {
+        const pad_min = bound.min-padding_size;
+        lines_builder.push(pad_min);
+        padded.min = pad_min;
+      }
+      if (is_pad.max) {
+        const pad_max = bound.max+padding_size;
+        lines_builder.push(pad_max);
+        padded.max = pad_max;
+      }
     }
     this.profiler?.end();
     return padded_boundary;
@@ -492,7 +507,7 @@ export class GridBuilder {
       const overrides = this.min_gridlines[axis];
       for (const override of overrides) {
         const i_start = line_builder.get_index(override.region_id_min);
-        const i_end = line_builder.get_index(override.region_id_min);
+        const i_end = line_builder.get_index(override.region_id_max);
         for (let i = i_start; i < i_end; i++) {
           const spec = specs[i];
           if (spec.total_grid_lines === undefined || spec.total_grid_lines < override.count) {
