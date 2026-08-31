@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, useTemplateRef, onMounted, onBeforeUnmount, reactive } from "vue";
 import RendererView from "../../app/fdtd_3d/RendererView.vue";
-import { GpuEngine } from "../../app/fdtd_3d/grid.ts";
+import TabsView from "../../utility/TabsView.vue";
+import MeshViewer from "../../app/fdtd_3d/MeshViewer.vue";
+import { GpuEngine } from "../../app/fdtd_3d/grid.ts" ;
 import { providers } from "../../providers/providers.ts";
 import {
   create_single_ended_setup,
@@ -19,9 +21,16 @@ const setups = reactive({
 });
 
 type SetupType = keyof typeof setups;
-const selected_setup = ref<SetupType>("single_ended");
+const selected_setup = ref<SetupType>("single_ended_vargrid");
 const setup = computed(() => {
+  if (selected_setup.value === "single_ended_vargrid") {
+    return setups.single_ended_vargrid.setup;
+  }
   return setups[selected_setup.value];
+});
+const grid_builder = computed(() => {
+  if (selected_setup.value !== "single_ended_vargrid") return undefined;
+  return setups.single_ended_vargrid;
 });
 const total_cells = computed(() => {
   const size = setup.value.size;
@@ -126,6 +135,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+<TabsView :initial_tab="'0'">
+<template #h-0>Viewer</template>
+<template #b-0>
   <div class="flex flex-col gap-y-1 max-w-[750px]">
     <RendererView ref="viewer_3d"></RendererView>
     <div class="rounded-sm w-full h-[2.0rem] bg-slate-300 border-1 border-slate-300 border-sm">
@@ -174,6 +186,15 @@ onBeforeUnmount(() => {
       </table>
     </div>
   </div>
+</template>
+<template #h-1>Mesh</template>
+<template #b-1>
+  <div class="w-full h-full min-h-0">
+    <MeshViewer v-if="grid_builder" :builder="grid_builder"/>
+  </div>
+</template>
+</TabsView>
+
 </template>
 
 <style scoped>

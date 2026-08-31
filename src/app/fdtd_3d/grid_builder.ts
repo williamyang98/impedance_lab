@@ -1,5 +1,5 @@
 import { LinesBuilder } from "../mesher/lines_builder.ts";
-import { generate_region_mesh_segments, type RegionSpecification } from "../mesher/regions.ts";
+import { generate_region_mesh_segments, RegionToGridMap, type RegionSpecification } from "../mesher/regions.ts";
 import { type GridBuilderConfig } from "../electrostatic_3d/grid_builder.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { SimulationSetup } from "./grid.ts";
@@ -131,7 +131,8 @@ export class GridBuilder {
   padding: GridBuilderPadding;
   current_sources: CurrentSource[];
   sdf_regions: RegionSDF[];
-  grid_lines_builder: AxisValue<LinesBuilder>;
+  region_lines_builder: AxisValue<LinesBuilder>;
+  region_to_grid_map: AxisValue<RegionToGridMap>;
   min_gridlines: AxisValue<{
     region_id_min: number,
     region_id_max: number,
@@ -153,7 +154,7 @@ export class GridBuilder {
     this.padding = padding;
     this.profiler = profiler;
 
-    this.grid_lines_builder = {
+    this.region_lines_builder = {
       x: new LinesBuilder(),
       y: new LinesBuilder(),
       z: new LinesBuilder(),
@@ -168,8 +169,9 @@ export class GridBuilder {
     this.unpadded_boundary = this.setup_calculate_unpadded_boundary();
     this.padded_boundary = this.setup_pad_grid();
     this.setup_merge_nearby_region_lines();
-    this.setup_subdivide_region_lines();
-    this.setup_rescale_region_lines();
+    this.region_to_grid_map = this.setup_subdivide_region_lines();
+    // We shouldn't be doing this to preserve distances properly
+    // this.setup_rescale_region_lines();
     this.setup = this.setup_create_grid(gpu_adapter, gpu_device);
     this.setup_fill_sdf_regions();
     this.setup_add_current_sources();
@@ -298,9 +300,9 @@ export class GridBuilder {
           }
         }
 
-        const r0_lines = this.grid_lines_builder[r0_axis];
-        const r1_lines = this.grid_lines_builder[r1_axis];
-        const length_lines = this.grid_lines_builder[length_axis];
+        const r0_lines = this.region_lines_builder[r0_axis];
+        const r1_lines = this.region_lines_builder[r1_axis];
+        const length_lines = this.region_lines_builder[length_axis];
         region_id[r0_axis].min = r0_lines.push(shape.center[r0_axis]-shape.radius);
         region_id[r0_axis].max = r0_lines.push(shape.center[r0_axis]+shape.radius);
         region_id[r1_axis].min = r1_lines.push(shape.center[r1_axis]-shape.radius);
@@ -341,7 +343,7 @@ export class GridBuilder {
           z: { min: undefined, max: undefined },
         };
         for (const axis of axes) {
-          const lines_builder = this.grid_lines_builder[axis];
+          const lines_builder = this.region_lines_builder[axis];
           region_id[axis].min = shape.start[axis] !== undefined ? lines_builder.push(shape.start[axis]) : undefined;
           region_id[axis].max = shape.end[axis] !== undefined ? lines_builder.push(shape.end[axis]) : undefined;
         }
@@ -409,9 +411,9 @@ export class GridBuilder {
           }
         }
 
-        const width_lines = this.grid_lines_builder[width_axis];
-        const height_lines = this.grid_lines_builder[height_axis];
-        const length_lines = this.grid_lines_builder[length_axis];
+        const width_lines = this.region_lines_builder[width_axis];
+        const height_lines = this.region_lines_builder[height_axis];
+        const length_lines = this.region_lines_builder[length_axis];
 
         const width_0 = shape.base[width_axis];
         const width_1 = shape.base[width_axis] + shape.width;
@@ -466,7 +468,7 @@ export class GridBuilder {
       z: { min: undefined, max: undefined, },
     };
     for (const axis of axes) {
-      const line_builder = this.grid_lines_builder[axis];
+      const line_builder = this.region_lines_builder[axis];
       line_builder.sort();
       const lines = line_builder.lines;
       if (lines.length <= 0) {
@@ -493,7 +495,7 @@ export class GridBuilder {
       const multiplier = this.config.padding_size_multiplier[axis];
       const padding_size = unpadded_size*multiplier;
 
-      const lines_builder = this.grid_lines_builder[axis];
+      const lines_builder = this.region_lines_builder[axis];
       const bound = this.unpadded_boundary[axis];
       const is_pad = this.padding[axis];
       const padded = padded_boundary[axis];
@@ -516,7 +518,7 @@ export class GridBuilder {
     this.profiler?.begin("merge_nearby_region_lines");
     const merge_size = this.config.minimum_grid_resolution;
     for (const axis of axes) {
-      const lines_builder = this.grid_lines_builder[axis];
+      const lines_builder = this.region_lines_builder[axis];
       lines_builder.merge(merge_size);
     }
     this.profiler?.end();
@@ -527,7 +529,7 @@ export class GridBuilder {
     const merge_size = this.config.minimum_grid_resolution;
     const region_sizes = [];
     for (const axis of axes) {
-      const regions = this.grid_lines_builder[axis].to_regions();
+      const regions = this.region_lines_builder[axis].to_regions();
       for (const region of regions) {
         if (region < merge_size) continue;
         region_sizes.push(region);
@@ -537,25 +539,26 @@ export class GridBuilder {
     const log_mean = get_log_median(region_sizes);
     const scale = 1.0/log_mean;
     for (const axis of axes) {
-      this.grid_lines_builder[axis].apply_scale(scale);
+      this.region_lines_builder[axis].apply_scale(scale);
     }
     this.grid_scale *= scale;
     this.profiler?.end();
   }
 
-  setup_subdivide_region_lines() {
+  setup_subdivide_region_lines(): typeof this.region_to_grid_map {
+    const region_to_grid_map: Partial<typeof this.region_to_grid_map> = {};
     for (const axis of axes) {
       const specs: RegionSpecification[] = [];
-      const line_builder = this.grid_lines_builder[axis];
-      const spacings = line_builder.to_regions();
+      const region_line_builder = this.region_lines_builder[axis];
+      const spacings = region_line_builder.to_regions();
       for (const spacing of spacings) {
         specs.push({ size: spacing });
       }
       const mesh_config = this.config.mesh[axis];
       const overrides = this.min_gridlines[axis];
       for (const override of overrides) {
-        const i_start = line_builder.get_index(override.region_id_min);
-        const i_end = line_builder.get_index(override.region_id_max);
+        const i_start = region_line_builder.get_index(override.region_id_min);
+        const i_end = region_line_builder.get_index(override.region_id_max);
         for (let i = i_start; i < i_end; i++) {
           const spec = specs[i];
           if (spec.total_grid_lines === undefined || spec.total_grid_lines < override.count) {
@@ -565,35 +568,26 @@ export class GridBuilder {
       }
 
       const segments = generate_region_mesh_segments(specs, mesh_config.min_subdivisions, mesh_config.max_ratio);
-      const offsets = line_builder.lines.slice(0, segments.length);
-      for (let i = 0; i < segments.length; i++) {
-        const segment = segments[i];
-        let offset = offsets[i];
-        const deltas = segment.generate_deltas();
-        for (const delta of deltas) {
-          offset += delta;
-          line_builder.push(offset);
-        }
-      }
-      line_builder.merge(this.config.minimum_grid_resolution*0.99);
+      region_to_grid_map[axis] = new RegionToGridMap(region_line_builder, segments);
     }
+    return region_to_grid_map as typeof this.region_to_grid_map;
   }
 
   setup_create_grid(gpu_adapter: GPUAdapter, gpu_device: GPUDevice): SimulationSetup {
     this.profiler?.begin("create_simulation_grid");
     const size = {
-      x: this.grid_lines_builder.x.lines.length-1,
-      y: this.grid_lines_builder.y.lines.length-1,
-      z: this.grid_lines_builder.z.lines.length-1,
+      x: this.region_to_grid_map.x.grid_lines.length-1,
+      y: this.region_to_grid_map.y.grid_lines.length-1,
+      z: this.region_to_grid_map.z.grid_lines.length-1,
     };
     const setup = new SimulationSetup(gpu_adapter, gpu_device, size);
     const cpu = setup.cpu;
-    cpu.d.x.data.set(this.grid_lines_builder.x.to_regions());
-    cpu.d.y.data.set(this.grid_lines_builder.y.to_regions());
-    cpu.d.z.data.set(this.grid_lines_builder.z.to_regions());
-    cpu.grid_lines.x.data.set(this.grid_lines_builder.x.lines);
-    cpu.grid_lines.y.data.set(this.grid_lines_builder.y.lines);
-    cpu.grid_lines.z.data.set(this.grid_lines_builder.z.lines);
+    cpu.d.x.data.set(this.region_to_grid_map.x.grid_segments);
+    cpu.d.y.data.set(this.region_to_grid_map.y.grid_segments);
+    cpu.d.z.data.set(this.region_to_grid_map.z.grid_segments);
+    cpu.grid_lines.x.data.set(this.region_to_grid_map.x.grid_lines);
+    cpu.grid_lines.y.data.set(this.region_to_grid_map.y.grid_lines);
+    cpu.grid_lines.z.data.set(this.region_to_grid_map.z.grid_lines);
     cpu.epsilon_r.data.fill(er0);
     cpu.mu_r.data.fill(mu0);
     cpu.sigma_k.fill(0.0);
@@ -614,7 +608,7 @@ export class GridBuilder {
     if (region.type === "empty") return;
     const cpu = this.setup.cpu;
 
-    const grid_count: AxisValue<number> = {
+    const array_size: AxisValue<number> = {
       x: 0,
       y: 0,
       z: 0,
@@ -624,9 +618,9 @@ export class GridBuilder {
       case "dielectric": {
         const arr = cpu.epsilon_r;
         const data = arr.data;
-        grid_count.z = arr.shape[0];
-        grid_count.y = arr.shape[1];
-        grid_count.x = arr.shape[2];
+        array_size.z = arr.shape[0];
+        array_size.y = arr.shape[1];
+        array_size.x = arr.shape[2];
         const epsilon = region.permittivity;
         if (epsilon === null) {
           set_data = (i: number, beta: number) => {
@@ -644,9 +638,9 @@ export class GridBuilder {
       case "magnetic": {
         const arr = cpu.mu_r;
         const data = arr.data;
-        grid_count.z = arr.shape[0];
-        grid_count.y = arr.shape[1];
-        grid_count.x = arr.shape[2];
+        array_size.z = arr.shape[0];
+        array_size.y = arr.shape[1];
+        array_size.x = arr.shape[2];
         const permeability = region.permeability;
         if (permeability === null) {
           set_data = (i: number, beta: number) => {
@@ -664,9 +658,9 @@ export class GridBuilder {
       case "conductive": {
         const arr = cpu.sigma_k;
         const data = arr.data;
-        grid_count.z = arr.shape[0];
-        grid_count.y = arr.shape[1];
-        grid_count.x = arr.shape[2];
+        array_size.z = arr.shape[0];
+        array_size.y = arr.shape[1];
+        array_size.x = arr.shape[2];
         const conductivity = region.conductivity;
         if (conductivity === null) {
           set_data = (i: number, beta: number) => {
@@ -683,13 +677,13 @@ export class GridBuilder {
       }
     }
 
-    const grid_count_x = grid_count.x;
-    const grid_count_xy = grid_count.x*grid_count.y;
+    const array_size_x = array_size.x;
+    const array_size_xy = array_size.x*array_size.y;
 
     for (const sdf of region.sdfs) {
       const { region_id, fill } = sdf;
 
-      const partial_region_bound: AxisBound<number | undefined> = {
+      const partial_grid_bound: AxisBound<number | undefined> = {
         x: { min: undefined, max: undefined },
         y: { min: undefined, max: undefined },
         z: { min: undefined, max: undefined },
@@ -697,69 +691,69 @@ export class GridBuilder {
 
       for (const axis of axes) {
         const id = region_id[axis];
-        const lines_builder = this.grid_lines_builder[axis];
+        const region_to_grid_map = this.region_to_grid_map[axis];
         if (id.min !== undefined) {
-          partial_region_bound[axis].min = lines_builder.get_index(id.min);
+          partial_grid_bound[axis].min = region_to_grid_map.id_to_grid_index(id.min);
         }
         if (id.max !== undefined) {
-          partial_region_bound[axis].max = lines_builder.get_index(id.max);
+          partial_grid_bound[axis].max = region_to_grid_map.id_to_grid_index(id.max);
         }
       }
 
       for (const axis of axes) {
-        if (partial_region_bound[axis].min === undefined) {
-          partial_region_bound[axis].min = 0;
+        if (partial_grid_bound[axis].min === undefined) {
+          partial_grid_bound[axis].min = 0;
         }
-        if (partial_region_bound[axis].max === undefined) {
-          partial_region_bound[axis].max = grid_count[axis];
+        if (partial_grid_bound[axis].max === undefined) {
+          partial_grid_bound[axis].max = array_size[axis];
         }
       }
 
-      const region_absolute_bound: AxisBound<number> = {
+      const grid_absolute_bound: AxisBound<number> = {
         x: { min: 0, max: 0 },
         y: { min: 0, max: 0 },
         z: { min: 0, max: 0 },
       };
       for (const axis of axes) {
-        const partial_bound = partial_region_bound[axis];
-        const bound = region_absolute_bound[axis];
+        const partial_bound = partial_grid_bound[axis];
+        const bound = grid_absolute_bound[axis];
         bound.min = partial_bound.min ?? 0;
-        bound.max = partial_bound.max ?? grid_count[axis];
+        bound.max = partial_bound.max ?? array_size[axis];
       }
 
       // get normalised grid coordinates for SDFs
-      const region_count: AxisValue<number> = {
+      const grid_count: AxisValue<number> = {
         x: 0,
         y: 0,
         z: 0,
       };
       for (const axis of axes) {
-        const bound = region_absolute_bound[axis];
-        region_count[axis] = bound.max - bound.min;
+        const bound = grid_absolute_bound[axis];
+        grid_count[axis] = bound.max - bound.min;
       }
 
-      const region_offset: AxisValue<number[]> = {
+      const grid_offset: AxisValue<number[]> = {
         x: [],
         y: [],
         z: [],
       };
-      const region_spacing: AxisValue<number[]> = {
+      const grid_spacing: AxisValue<number[]> = {
         x: [],
         y: [],
         z: [],
       };
       for (const axis of axes) {
-        const bound = region_absolute_bound[axis];
-        const lines_builder = this.grid_lines_builder[axis];
-        region_offset[axis] = lines_builder.lines.slice(bound.min, bound.max);
-        region_spacing[axis] = lines_builder.to_regions().slice(bound.min, bound.max);
+        const bound = grid_absolute_bound[axis];
+        const region_to_grid_map = this.region_to_grid_map[axis];
+        grid_offset[axis] = region_to_grid_map.grid_lines.slice(bound.min, bound.max);
+        grid_spacing[axis] = region_to_grid_map.grid_segments.slice(bound.min, bound.max);
       }
 
       // centre coordinate inside yee grid cell
       for (const axis of axes) {
-        const N = region_count[axis];
-        const offsets = region_offset[axis];
-        const spacings = region_spacing[axis];
+        const N = grid_count[axis];
+        const offsets = grid_offset[axis];
+        const spacings = grid_spacing[axis];
         if (offsets.length !== spacings.length) {
           throw Error(`Mismatch between grid lines (${offsets.length}) and grid spacing (${spacings.length}) array lengths along axis: ${axis}`);
         }
@@ -768,56 +762,56 @@ export class GridBuilder {
         }
       }
 
-      const region_total_size: AxisValue<number> = {
+      const grid_total_size: AxisValue<number> = {
         x: 0,
         y: 0,
         z: 0,
       };
       for (const axis of axes) {
-        const sizes = region_spacing[axis];
+        const sizes = grid_spacing[axis];
         let sum = 0;
         for (let i = 0; i < sizes.length; i++) {
           sum += sizes[i];
         }
-        region_total_size[axis] = sum;
+        grid_total_size[axis] = sum;
       }
-      const region_norm_spacing: AxisValue<number[]> = {
+      const grid_norm_spacing: AxisValue<number[]> = {
         x: [],
         y: [],
         z: [],
       };
-      const region_norm_offset: AxisValue<number[]> = {
+      const grid_norm_offset: AxisValue<number[]> = {
         x: [],
         y: [],
         z: [],
       };
       for (const axis of axes) {
-        const total_size = region_total_size[axis];
-        const offsets = region_offset[axis];
+        const total_size = grid_total_size[axis];
+        const offsets = grid_offset[axis];
         const min_offset = offsets[0];
-        region_norm_spacing[axis] = region_spacing[axis].map(size => size/total_size);
-        region_norm_offset[axis] = region_offset[axis].map(line => (line-min_offset)/total_size);
+        grid_norm_spacing[axis] = grid_spacing[axis].map(size => size/total_size);
+        grid_norm_offset[axis] = grid_offset[axis].map(line => (line-min_offset)/total_size);
       }
 
-      const region_relative_bound: AxisBound<number> = {
-        x: { min: 0, max: region_count.x },
-        y: { min: 0, max: region_count.y },
-        z: { min: 0, max: region_count.z },
+      const grid_relative_bound: AxisBound<number> = {
+        x: { min: 0, max: grid_count.x },
+        y: { min: 0, max: grid_count.y },
+        z: { min: 0, max: grid_count.z },
       };
 
       switch (fill.type) {
         case "point": {
           const sdf = fill.sdf;
-          for (let z = region_relative_bound.z.min; z < region_relative_bound.z.max; z++) {
-            const norm_z = region_norm_offset.z[z];
-            const gz = region_absolute_bound.z.min+z;
-            for (let y = region_relative_bound.y.min; y < region_relative_bound.y.max; y++) {
-              const norm_y = region_norm_offset.y[y];
-              const gy = region_absolute_bound.y.min+y;
-              for (let x = region_relative_bound.x.min; x < region_relative_bound.x.max; x++) {
-                const norm_x = region_norm_offset.x[x];
-                const gx = region_absolute_bound.x.min+x;
-                const i = gx + gy*grid_count.x + gz*grid_count_xy;
+          for (let z = grid_relative_bound.z.min; z < grid_relative_bound.z.max; z++) {
+            const norm_z = grid_norm_offset.z[z];
+            const gz = grid_absolute_bound.z.min+z;
+            for (let y = grid_relative_bound.y.min; y < grid_relative_bound.y.max; y++) {
+              const norm_y = grid_norm_offset.y[y];
+              const gy = grid_absolute_bound.y.min+y;
+              for (let x = grid_relative_bound.x.min; x < grid_relative_bound.x.max; x++) {
+                const norm_x = grid_norm_offset.x[x];
+                const gx = grid_absolute_bound.x.min+x;
+                const i = gx + gy*array_size_x + gz*array_size_xy;
                 const beta = sdf(norm_z, norm_y, norm_x);
                 set_data(i, beta);
               }
@@ -827,13 +821,13 @@ export class GridBuilder {
         }
         case "constant": {
           const beta: number = 1.0;
-          for (let z = region_relative_bound.z.min; z < region_relative_bound.z.max; z++) {
-            const gz = region_absolute_bound.z.min+z;
-            for (let y = region_relative_bound.y.min; y < region_relative_bound.y.max; y++) {
-              const gy = region_absolute_bound.y.min+y;
-              for (let x = region_relative_bound.x.min; x < region_relative_bound.x.max; x++) {
-                const gx = region_absolute_bound.x.min+x;
-                const i = gx + gy*grid_count_x + gz*grid_count_xy;
+          for (let z = grid_relative_bound.z.min; z < grid_relative_bound.z.max; z++) {
+            const gz = grid_absolute_bound.z.min+z;
+            for (let y = grid_relative_bound.y.min; y < grid_relative_bound.y.max; y++) {
+              const gy = grid_absolute_bound.y.min+y;
+              for (let x = grid_relative_bound.x.min; x < grid_relative_bound.x.max; x++) {
+                const gx = grid_absolute_bound.x.min+x;
+                const i = gx + gy*array_size_x + gz*array_size_xy;
                 set_data(i, beta);
               }
             }
@@ -847,33 +841,33 @@ export class GridBuilder {
 
   setup_add_current_sources() {
     for (const source of this.current_sources) {
-      const region_index: AxisBound<number> = {
+      const grid_index: AxisBound<number> = {
         x: { min: 0, max: this.setup.size.x },
         y: { min: 0, max: this.setup.size.y },
         z: { min: 0, max: this.setup.size.z },
       };
       for (const axis of axes) {
         const id = source.region_id[axis];
-        const lines_builder = this.grid_lines_builder[axis];
+        const region_to_grid_map = this.region_to_grid_map[axis];
         if (id.min !== undefined) {
-          region_index[axis].min = lines_builder.get_index(id.min);
+          grid_index[axis].min = region_to_grid_map.id_to_grid_index(id.min);
         }
         if (id.max !== undefined) {
-          region_index[axis].max = lines_builder.get_index(id.max);
+          grid_index[axis].max = region_to_grid_map.id_to_grid_index(id.max);
         }
       }
 
       this.setup.sources.push({
         current_id: source.current_id,
         offset: {
-          x: region_index.x.min,
-          y: region_index.y.min,
-          z: region_index.z.min,
+          x: grid_index.x.min,
+          y: grid_index.y.min,
+          z: grid_index.z.min,
         },
         size: {
-          x: Math.max(region_index.x.max-region_index.x.min, 1),
-          y: Math.max(region_index.y.max-region_index.y.min, 1),
-          z: Math.max(region_index.z.max-region_index.z.min, 1),
+          x: Math.max(grid_index.x.max-grid_index.x.min, 1),
+          y: Math.max(grid_index.y.max-grid_index.y.min, 1),
+          z: Math.max(grid_index.z.max-grid_index.z.min, 1),
         },
       })
     }

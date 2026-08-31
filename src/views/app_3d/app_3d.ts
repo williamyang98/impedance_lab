@@ -36,15 +36,17 @@ function create_sinc_pulse(period: number): number[] {
 export function create_single_ended_setup_vargrid(
   gpu_adapter: GPUAdapter, gpu_device: GPUDevice,
   profiler?: Profiler
-): SimulationSetup {
+): GridBuilder {
   const plane_thickness = 0.035e-3;
-  const dielectric_height = 0.15e-3;
-  const trace_width = 0.15e-3;
-  const trace_length = 10e-3;
+  const dielectric_height = 0.25e-3;
+  const trace_width = 0.3e-3;
+  const trace_length = 5e-3;
   const trace_thickness = 0.035e-3;
   const dielectric_constant = 4.1;
   const terminator_thickness = 0.05e-3;
   const Z0_estimate = estimate_single_ended_impedance_ipc2141(dielectric_constant, dielectric_height, trace_width, trace_thickness);
+
+  // TODO: actually set the conductivity scalar field correctly for non-uniform grid
   const terminator_conductivity = dielectric_height/(Z0_estimate*(terminator_thickness*trace_width));
   const copper_conductivity = 1e8;
 
@@ -52,13 +54,13 @@ export function create_single_ended_setup_vargrid(
     minimum_grid_resolution: 0.001e-3,
     padding_size_multiplier: {
       x: 1,
-      y: 10,
+      y: 5,
       z: 3,
     },
     mesh: {
-      x: { max_ratio: 0.1, min_subdivisions: 5 },
-      y: { max_ratio: 0.1, min_subdivisions: 5 },
-      z: { max_ratio: 0.1, min_subdivisions: 5 },
+      x: { max_ratio: 0.15, min_subdivisions: 3 },
+      y: { max_ratio: 0.15, min_subdivisions: 15 },
+      z: { max_ratio: 0.15, min_subdivisions: 3 },
     },
   };
 
@@ -79,7 +81,7 @@ export function create_single_ended_setup_vargrid(
           start: { z: -plane_thickness },
           end: { z: 0 },
           config: {
-            min_gridlines: { z: 2 },
+            min_gridlines: { z: 1 },
           },
         },
       ],
@@ -153,14 +155,14 @@ export function create_single_ended_setup_vargrid(
   const setup = grid_builder.setup;
 
   const signals = {
-    0: create_sinc_pulse(512),
+    0: create_sinc_pulse(256),
   };
   setup.source_values = signals;
-  setup.maximum_steps = 8192*8;
+  setup.maximum_steps = 8192;
   setup.cpu.calculate_minimum_timestep();
   setup.cpu.bake_materials();
 
-  return setup;
+  return grid_builder;
 }
 
 export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice): SimulationSetup {
