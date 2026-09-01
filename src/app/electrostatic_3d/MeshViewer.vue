@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, useTemplateRef, watch, computed, toRaw } from "vue";
 import { GridBuilder, type Axis3D } from "./grid_builder.ts";
+import RegionTable from "../mesher/RegionTable.vue";
+import TabsView from "../../utility/TabsView.vue";
 import Chart from "chart.js/auto";
 
 const props = defineProps<{
@@ -30,11 +32,16 @@ function create_chart() {
   // rescale from normalised to actual sizes
   const [a0, a1] = selected_axis.value;
 
-  const scale_0 = builder.grid_lines_builder[a0].scale;
-  const scale_1 = builder.grid_lines_builder[a1].scale;
 
-  const lines_0 = builder.grid_lines_builder[a0].lines.map(v => v/scale_0);
-  const lines_1 = builder.grid_lines_builder[a1].lines.map(v => v/scale_1);
+  const region_scale_0 = builder.region_lines_builder[a0].scale;
+  const region_scale_1 = builder.region_lines_builder[a1].scale;
+  const region_lines_0 = builder.region_lines_builder[a0].lines.map(v => v/region_scale_0);
+  const region_lines_1 = builder.region_lines_builder[a1].lines.map(v => v/region_scale_1);
+
+  const grid_scale_0 = builder.region_to_grid_map[a0].region_lines_builder.scale;
+  const grid_scale_1 = builder.region_to_grid_map[a1].region_lines_builder.scale;
+  const grid_lines_0 = builder.region_to_grid_map[a0].grid_lines.map(v => v/grid_scale_0);
+  const grid_lines_1 = builder.region_to_grid_map[a1].grid_lines.map(v => v/grid_scale_1);
 
   const get_boundary = (unpadded: number, padded: number | undefined, is_padded: boolean): number => {
     if (padded !== undefined && is_padded) return padded;
@@ -56,7 +63,33 @@ function create_chart() {
     type: "line",
     data: {
       datasets: Array.prototype.concat(
-        lines_0.map((x) => {
+        region_lines_0.map((x) => {
+          return {
+            data: [
+              { x, y: min_1, },
+              { x, y: max_1, },
+            ],
+            borderColor: "rgba(255,0,0,1.0)",
+            borderWidth: 1,
+            fill: false,
+            pointRadius: 0,
+            showLine: true,
+          }
+        }),
+        region_lines_1.map((y) => {
+          return {
+            data: [
+              { x: min_0, y },
+              { x: max_0, y },
+            ],
+            borderColor: "rgba(255,0,0,1.0)",
+            borderWidth: 1,
+            fill: false,
+            pointRadius: 0,
+            showLine: true,
+          }
+        }),
+        grid_lines_0.map((x) => {
           return {
             data: [
               { x, y: min_1, },
@@ -69,7 +102,7 @@ function create_chart() {
             showLine: true,
           }
         }),
-        lines_1.map((y) => {
+        grid_lines_1.map((y) => {
           return {
             data: [
               { x: min_0, y },
@@ -106,7 +139,7 @@ function create_chart() {
           type: "linear",
           min: show_min_1,
           max: show_max_1,
-          reverse: true,
+          reverse: false,
           title: {
             display: true,
             text: a1,
@@ -167,21 +200,41 @@ watch(is_padded, (show_padding) => {
 </script>
 
 <template>
-<div class="card card-border bg-base-100 w-full h-full">
-  <div class="card-body p-3">
-    <div class="w-fit flex flex-row gap-x-2 z-1 absolute m-1 justify-between" data-theme="light">
-      <div class="label">
-        <input class="checkbox checkbox-sm" type="checkbox" v-model="is_padded"/>
-        Show Padding
+<div class="w-full h-full grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-2 w-full">
+  <div class="card card-border bg-base-100 w-full h-full">
+    <div class="card-body p-3">
+      <div class="w-fit flex flex-row gap-x-2 z-1 absolute m-1" data-theme="light">
+        <div class="label">
+          <input class="checkbox checkbox-sm" type="checkbox" v-model="is_padded"/>
+          Show Padding
+        </div>
+        <select class="select select-sm" v-model="cross_section">
+          <option :value="'xy'">x-y</option>
+          <option :value="'xz'">x-z</option>
+          <option :value="'yz'">y-z</option>
+        </select>
       </div>
-      <select class="select select-sm" v-model="cross_section">
-        <option :value="'xy'">x-y</option>
-        <option :value="'xz'">x-z</option>
-        <option :value="'yz'">y-z</option>
-      </select>
+      <div class="relative w-full h-full bg-white rounded">
+        <canvas ref="grid-canvas"></canvas>
+      </div>
     </div>
-    <div class="relative w-full h-full bg-white rounded">
-      <canvas ref="grid-canvas"></canvas>
+  </div>
+  <div class="card card-border bg-base-100">
+    <div class="card-body p-3">
+      <TabsView>
+        <template #h-0>x</template>
+        <template #b-0>
+          <RegionTable class="bg-base-100 rounded-none" :region_to_grid_map="builder.region_to_grid_map.x"/>
+        </template>
+        <template #h-1>y</template>
+        <template #b-1>
+          <RegionTable class="bg-base-100 rounded-none" :region_to_grid_map="builder.region_to_grid_map.y"/>
+        </template>
+        <template #h-2>z</template>
+        <template #b-2>
+          <RegionTable class="bg-base-100 rounded-none" :region_to_grid_map="builder.region_to_grid_map.z"/>
+        </template>
+      </TabsView>
     </div>
   </div>
 </div>
