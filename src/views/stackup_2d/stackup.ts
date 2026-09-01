@@ -712,13 +712,14 @@ export class ColinearStackup extends LayerStackup {
       ...this.create_size_parameter(value, unit),
       parent: this,
       label,
-      get min(): number | undefined {
+      get min(): number {
         const position = this.parent.trace_position;
         const layer_index = this.parent.get_layer_index(position.layer_id);
         const layer = this.parent.layers[layer_index];
         const etch_width = layer.etch_width;
-        if (etch_width.value === undefined) return;
-        return convert_distance(etch_width.value, etch_width.unit, this.unit);
+        if (etch_width.value === undefined) return this.parent.minimum_feature_size;
+        const max_etch_width = convert_distance(etch_width.value, etch_width.unit, this.unit);
+        return Math.max(max_etch_width, this.parent.minimum_feature_size);
       },
       impedance_correlation: "negative" as const,
     };
@@ -886,19 +887,17 @@ export class BroadsideStackup extends LayerStackup {
       type: "size" as const,
       parent: this,
       label,
-      get min(): number | undefined {
-        let max_etch_width = 0;
-        const get_etch_width = (pair: BroadsidePair) => {
+      get min(): number {
+        const get_min_etch_width = (pair: BroadsidePair): number => {
           const position = this.parent.get_trace_position(pair);
           const layer_index = this.parent.get_layer_index(position.layer_id);
           const layer = this.parent.layers[layer_index];
           const etch_width = layer.etch_width;
-          if (etch_width.value === undefined) return;
-          const value = convert_distance(etch_width.value, etch_width.unit, this.unit);
-          max_etch_width = Math.max(value, max_etch_width);
+          if (etch_width.value === undefined) return this.parent.minimum_feature_size;
+          const max_etch_width = convert_distance(etch_width.value, etch_width.unit, this.unit);
+          return Math.max(max_etch_width, this.parent.minimum_feature_size);
         }
-        get_etch_width("left");
-        get_etch_width("right");
+        const max_etch_width = Math.max(get_min_etch_width("left"), get_min_etch_width("right"));
         return max_etch_width;
       },
       impedance_correlation: "negative" as const,
