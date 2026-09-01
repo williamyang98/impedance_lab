@@ -1,7 +1,7 @@
 import { LinesBuilder } from "../mesher/lines_builder.ts";
 import { generate_region_mesh_segments, RegionToGridMap, type RegionSpecification } from "../mesher/regions.ts";
 import { type GridBuilderConfig } from "../electrostatic_3d/grid_builder.ts";
-import { type Vec3, type Axis3D, type Bound, AXES_3D } from "../../utility/dim_types.ts";
+import { type Vec3, type Axis3D, type Bound, AXES_3D, map_axes_to_vec3 } from "../../utility/dim_types.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { SimulationSetup } from "./grid.ts";
 import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
@@ -454,36 +454,27 @@ export class GridBuilder {
     return region_sdf;
   }
 
-  setup_calculate_unpadded_boundary(): typeof this.unpadded_boundary {
+  setup_calculate_unpadded_boundary(): Vec3<Bound<number>> {
     this.profiler?.begin("calculate_unpadded_boundary");
-    const bound: Vec3<Partial<Bound<number>>> = {
-      x: { min: undefined, max: undefined, },
-      y: { min: undefined, max: undefined, },
-      z: { min: undefined, max: undefined, },
-    };
-    for (const axis of AXES_3D) {
+    const bound: Vec3<Bound<number>> = map_axes_to_vec3((axis) => {
       const line_builder = this.region_lines_builder[axis];
       line_builder.sort();
       const lines = line_builder.lines;
       if (lines.length <= 0) {
         throw Error(`No lines provided for axis ${axis}`);
       }
-      bound[axis].min = lines[0];
-      bound[axis].max = lines[lines.length-1];
-    }
+      return {
+        min: lines[0],
+        max: lines[lines.length-1],
+      };
+    });
     this.profiler?.end();
-    return bound as Vec3<Bound<number>>;
+    return bound;
   }
 
-  setup_pad_grid(): typeof this.padded_boundary {
+  setup_pad_grid(): Vec3<Partial<Bound<number>>> {
     this.profiler?.begin("pad_grid");
-    const padded_boundary: typeof this.padded_boundary = {
-      x: { min: undefined, max: undefined },
-      y: { min: undefined, max: undefined },
-      z: { min: undefined, max: undefined },
-    };
-
-    for (const axis of AXES_3D) {
+    const padded_boundary: Vec3<Partial<Bound<number>>> = map_axes_to_vec3((axis) => {
       const unpadded_bound = this.unpadded_boundary[axis];
       const unpadded_size = unpadded_bound.max-unpadded_bound.min;
       const multiplier = this.config.padding_size_multiplier[axis];
@@ -492,7 +483,7 @@ export class GridBuilder {
       const lines_builder = this.region_lines_builder[axis];
       const bound = this.unpadded_boundary[axis];
       const is_pad = this.padding[axis];
-      const padded = padded_boundary[axis];
+      const padded: Partial<Bound<number>> = {};
       if (is_pad.min) {
         const pad_min = bound.min-padding_size;
         lines_builder.push(pad_min);
@@ -503,7 +494,8 @@ export class GridBuilder {
         lines_builder.push(pad_max);
         padded.max = pad_max;
       }
-    }
+      return padded;
+    });
     this.profiler?.end();
     return padded_boundary;
   }
@@ -539,9 +531,8 @@ export class GridBuilder {
     this.profiler?.end();
   }
 
-  setup_subdivide_region_lines(): typeof this.region_to_grid_map {
-    const region_to_grid_map: Partial<typeof this.region_to_grid_map> = {};
-    for (const axis of AXES_3D) {
+  setup_subdivide_region_lines(): Vec3<RegionToGridMap> {
+    return map_axes_to_vec3((axis) => {
       const specs: RegionSpecification[] = [];
       const region_line_builder = this.region_lines_builder[axis];
       const spacings = region_line_builder.to_regions();
@@ -563,9 +554,8 @@ export class GridBuilder {
       const min_subdivisions = this.config.min_subdivisions[axis];
       const max_ratio = this.config.max_ratio[axis];
       const segments = generate_region_mesh_segments(specs, min_subdivisions, max_ratio);
-      region_to_grid_map[axis] = new RegionToGridMap(region_line_builder, segments);
-    }
-    return region_to_grid_map as typeof this.region_to_grid_map;
+      return new RegionToGridMap(region_line_builder, segments);
+    });
   }
 
   setup_create_grid(gpu_adapter: GPUAdapter, gpu_device: GPUDevice): SimulationSetup {
@@ -603,19 +593,17 @@ export class GridBuilder {
     if (region.type === "empty") return;
     const cpu = this.setup.cpu;
 
-    const array_size: Vec3<number> = {
-      x: 0,
-      y: 0,
-      z: 0,
-    };
-    let set_data = undefined as (undefined | ((i: number, beta: number) => void));
+    let grid_size: Vec3<number> | undefined = undefined;
+    let set_data: ((i: number, beta: number) => void) | undefined = undefined;
     switch (region.type) {
       case "dielectric": {
         const arr = cpu.epsilon_r;
         const data = arr.data;
-        array_size.z = arr.shape[0];
-        array_size.y = arr.shape[1];
-        array_size.x = arr.shape[2];
+        grid_size = {
+          z: arr.shape[0],
+          y: arr.shape[1],
+          x: arr.shape[2],
+        };
         const epsilon = region.permittivity;
         if (epsilon === null) {
           set_data = (i: number, beta: number) => {
@@ -633,9 +621,11 @@ export class GridBuilder {
       case "magnetic": {
         const arr = cpu.mu_r;
         const data = arr.data;
-        array_size.z = arr.shape[0];
-        array_size.y = arr.shape[1];
-        array_size.x = arr.shape[2];
+        grid_size = {
+          z: arr.shape[0],
+          y: arr.shape[1],
+          x: arr.shape[2],
+        };
         const permeability = region.permeability;
         if (permeability === null) {
           set_data = (i: number, beta: number) => {
@@ -653,9 +643,11 @@ export class GridBuilder {
       case "conductive": {
         const arr = cpu.sigma_k;
         const data = arr.data;
-        array_size.z = arr.shape[0];
-        array_size.y = arr.shape[1];
-        array_size.x = arr.shape[2];
+        grid_size = {
+          z: arr.shape[0],
+          y: arr.shape[1],
+          x: arr.shape[2],
+        };
         const conductivity = region.conductivity;
         if (conductivity === null) {
           set_data = (i: number, beta: number) => {
@@ -672,127 +664,79 @@ export class GridBuilder {
       }
     }
 
-    const array_size_x = array_size.x;
-    const array_size_xy = array_size.x*array_size.y;
+    const grid_size_x = grid_size.x;
+    const grid_size_xy = grid_size.x*grid_size.y;
 
     for (const sdf of region.sdfs) {
       const { region_id, fill } = sdf;
 
-      const partial_grid_bound: Vec3<Partial<Bound<number>>> = {
-        x: { min: undefined, max: undefined },
-        y: { min: undefined, max: undefined },
-        z: { min: undefined, max: undefined },
-      };
-
-      for (const axis of AXES_3D) {
+      const grid_absolute_bound: Vec3<Bound<number>> = map_axes_to_vec3((axis) => {
         const id = region_id[axis];
         const region_to_grid_map = this.region_to_grid_map[axis];
+        let grid_index_min = undefined;
+        let grid_index_max = undefined;
         if (id.min !== undefined) {
-          partial_grid_bound[axis].min = region_to_grid_map.id_to_grid_index(id.min);
+          grid_index_min = region_to_grid_map.id_to_grid_index(id.min);
         }
         if (id.max !== undefined) {
-          partial_grid_bound[axis].max = region_to_grid_map.id_to_grid_index(id.max);
+          grid_index_max = region_to_grid_map.id_to_grid_index(id.max);
         }
-      }
 
-      for (const axis of AXES_3D) {
-        if (partial_grid_bound[axis].min === undefined) {
-          partial_grid_bound[axis].min = 0;
-        }
-        if (partial_grid_bound[axis].max === undefined) {
-          partial_grid_bound[axis].max = array_size[axis];
-        }
-      }
+        if (grid_index_min === undefined) grid_index_min = 0;
+        if (grid_index_max === undefined) grid_index_max = grid_size[axis];
 
-      const grid_absolute_bound: Vec3<Bound<number>> = {
-        x: { min: 0, max: 0 },
-        y: { min: 0, max: 0 },
-        z: { min: 0, max: 0 },
-      };
-      for (const axis of AXES_3D) {
-        const partial_bound = partial_grid_bound[axis];
-        const bound = grid_absolute_bound[axis];
-        bound.min = partial_bound.min ?? 0;
-        bound.max = partial_bound.max ?? array_size[axis];
-      }
+        return { min: grid_index_min, max: grid_index_max };
+      });
 
       // get normalised grid coordinates for SDFs
-      const grid_count: Vec3<number> = {
-        x: 0,
-        y: 0,
-        z: 0,
-      };
-      for (const axis of AXES_3D) {
-        const bound = grid_absolute_bound[axis];
-        grid_count[axis] = bound.max - bound.min;
-      }
+      const grid_count: Vec3<number> = map_axes_to_vec3((axis) => {
+        const { min, max } = grid_absolute_bound[axis];
+        return max-min;
+      });
 
-      const grid_offset: Vec3<number[]> = {
-        x: [],
-        y: [],
-        z: [],
-      };
-      const grid_spacing: Vec3<number[]> = {
-        x: [],
-        y: [],
-        z: [],
-      };
-      for (const axis of AXES_3D) {
+      const grid_offset: Vec3<number[]> = map_axes_to_vec3((axis) => {
         const bound = grid_absolute_bound[axis];
         const region_to_grid_map = this.region_to_grid_map[axis];
-        grid_offset[axis] = region_to_grid_map.grid_lines.slice(bound.min, bound.max);
-        grid_spacing[axis] = region_to_grid_map.grid_segments.slice(bound.min, bound.max);
-      }
+        return region_to_grid_map.grid_lines.slice(bound.min, bound.max);
+      });
 
-      // centre coordinate inside yee grid cell
+      const grid_spacing: Vec3<number[]> = map_axes_to_vec3((axis) => {
+        const bound = grid_absolute_bound[axis];
+        const region_to_grid_map = this.region_to_grid_map[axis];
+        return region_to_grid_map.grid_segments.slice(bound.min, bound.max);
+      });
+
+      // centre material coordinate inside yee grid cell
       for (const axis of AXES_3D) {
-        const N = grid_count[axis];
         const offsets = grid_offset[axis];
         const spacings = grid_spacing[axis];
         if (offsets.length !== spacings.length) {
           throw Error(`Mismatch between grid lines (${offsets.length}) and grid spacing (${spacings.length}) array lengths along axis: ${axis}`);
         }
-        for (let i = 0; i < N; i++) {
+        for (let i = 0; i < offsets.length; i++) {
           offsets[i] += spacings[i]/2;
         }
       }
 
-      const grid_total_size: Vec3<number> = {
-        x: 0,
-        y: 0,
-        z: 0,
-      };
-      for (const axis of AXES_3D) {
+      const grid_total_size: Vec3<number> = map_axes_to_vec3((axis) => {
         const sizes = grid_spacing[axis];
         let sum = 0;
         for (let i = 0; i < sizes.length; i++) {
           sum += sizes[i];
         }
-        grid_total_size[axis] = sum;
-      }
-      const grid_norm_spacing: Vec3<number[]> = {
-        x: [],
-        y: [],
-        z: [],
-      };
-      const grid_norm_offset: Vec3<number[]> = {
-        x: [],
-        y: [],
-        z: [],
-      };
-      for (const axis of AXES_3D) {
+        return sum;
+      });
+
+      const grid_norm_offset: Vec3<number[]> = map_axes_to_vec3((axis) => {
         const total_size = grid_total_size[axis];
         const offsets = grid_offset[axis];
         const min_offset = offsets[0];
-        grid_norm_spacing[axis] = grid_spacing[axis].map(size => size/total_size);
-        grid_norm_offset[axis] = grid_offset[axis].map(line => (line-min_offset)/total_size);
-      }
+        return offsets.map(line => (line-min_offset)/total_size);
+      });
 
-      const grid_relative_bound: Vec3<Bound<number>> = {
-        x: { min: 0, max: grid_count.x },
-        y: { min: 0, max: grid_count.y },
-        z: { min: 0, max: grid_count.z },
-      };
+      const grid_relative_bound: Vec3<Bound<number>> = map_axes_to_vec3((axis) => {
+        return { min: 0, max: grid_count[axis] };
+      });
 
       switch (fill.type) {
         case "point": {
@@ -806,7 +750,7 @@ export class GridBuilder {
               for (let x = grid_relative_bound.x.min; x < grid_relative_bound.x.max; x++) {
                 const norm_x = grid_norm_offset.x[x];
                 const gx = grid_absolute_bound.x.min+x;
-                const i = gx + gy*array_size_x + gz*array_size_xy;
+                const i = gx + gy*grid_size_x + gz*grid_size_xy;
                 const beta = sdf(norm_z, norm_y, norm_x);
                 set_data(i, beta);
               }
@@ -822,7 +766,7 @@ export class GridBuilder {
               const gy = grid_absolute_bound.y.min+y;
               for (let x = grid_relative_bound.x.min; x < grid_relative_bound.x.max; x++) {
                 const gx = grid_absolute_bound.x.min+x;
-                const i = gx + gy*array_size_x + gz*array_size_xy;
+                const i = gx + gy*grid_size_x + gz*grid_size_xy;
                 set_data(i, beta);
               }
             }
@@ -868,10 +812,9 @@ export class GridBuilder {
     }
   }
   get mesh_lines(): Vec3<MeshLines> {
-    const mesh: Partial<Vec3<MeshLines>> = {};
-    for (const axis of AXES_3D) {
+    return map_axes_to_vec3((axis) => {
       const region_to_grid_map = this.region_to_grid_map[axis];
-      mesh[axis] = {
+      return {
         region_lines: region_to_grid_map.region_lines,
         grid_lines: region_to_grid_map.grid_lines,
         scale: region_to_grid_map.region_lines_builder.scale,
@@ -880,7 +823,6 @@ export class GridBuilder {
         mesh_segments: region_to_grid_map.region_segments,
         flip: false,
       };
-    }
-    return mesh as Vec3<MeshLines>;
+    });
   }
 }

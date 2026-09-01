@@ -4,7 +4,7 @@ import { LinesBuilder } from "../mesher/lines_builder.ts";
 import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../mesher/regions.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
-import { type Vec2, type Bound, AXES_2D } from "../../utility/dim_types.ts";
+import { type Vec2, type Bound, AXES_2D, map_axes_to_vec2 } from "../../utility/dim_types.ts";
 import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 type Pos2D = Vec2<number>;
@@ -330,31 +330,24 @@ export class GridBuilder extends ManagedObject {
 
   setup_calculate_unpadded_boundary(): Vec2<Bound<number>> {
     this.profiler?.begin("calculate_unpadded_boundary");
-    const bound: Vec2<Partial<Bound<number>>> = {
-      x: { min: undefined, max: undefined, },
-      y: { min: undefined, max: undefined, },
-    };
-    for (const axis of AXES_2D) {
+    const bound: Vec2<Bound<number>> = map_axes_to_vec2((axis) => {
       const line_builder = this.region_lines_builder[axis];
       line_builder.sort();
       const lines = line_builder.lines;
       if (lines.length <= 0) {
         throw Error(`No lines provided for axis ${axis}`);
       }
-      bound[axis].min = lines[0];
-      bound[axis].max = lines[lines.length-1];
-    }
+      return {
+        min: lines[0],
+        max: lines[lines.length-1],
+      };
+    });
     this.profiler?.end();
-    return bound as Vec2<Bound<number>>;
+    return bound;
   }
 
   setup_pad_grid(): Vec2<Partial<Bound<number>>> {
     this.profiler?.begin("pad_grid");
-    const padded_boundary: Vec2<Partial<Bound<number>>> = {
-      x: { min: undefined, max: undefined },
-      y: { min: undefined, max: undefined },
-    };
-
     // For 2D problems we want to pad as a ratio of the largest dimension since we want the aspect ratio between x/y to not be too small or large
     let max_unpadded_size = 0;
     for (const axis of AXES_2D) {
@@ -366,14 +359,13 @@ export class GridBuilder extends ManagedObject {
       throw Error(`The setup cannot be empty or zero size`);
     }
 
-    for (const axis of AXES_2D) {
+    const padded_boundary: Vec2<Partial<Bound<number>>> = map_axes_to_vec2((axis) => {
       const multiplier = this.config.padding_size_multiplier[axis];
       const padding_size = max_unpadded_size*multiplier;
-
       const lines_builder = this.region_lines_builder[axis];
       const bound = this.unpadded_boundary[axis];
       const is_pad = this.padding[axis];
-      const padded = padded_boundary[axis];
+      const padded: Partial<Bound<number>> = {};
       if (is_pad.min) {
         const pad_min = bound.min-padding_size;
         lines_builder.push(pad_min);
@@ -384,7 +376,8 @@ export class GridBuilder extends ManagedObject {
         lines_builder.push(pad_max);
         padded.max = pad_max;
       }
-    }
+      return padded;
+    });
     this.profiler?.end();
     return padded_boundary;
   }
@@ -424,9 +417,7 @@ export class GridBuilder extends ManagedObject {
 
   setup_subdivide_region_lines(): Vec2<RegionToGridMap> {
     this.profiler?.begin("create_x_region_to_grid_map");
-    const region_to_grid_map: Partial<Vec2<RegionToGridMap>> = {};
-
-    for (const axis of AXES_2D) {
+    const region_to_grid_map: Vec2<RegionToGridMap> = map_axes_to_vec2((axis) => {
       const line_builder = this.region_lines_builder[axis];
       const spacings = line_builder.to_regions();
       const specs: RegionSpecification[] = spacings.map((spacing) => {
@@ -448,9 +439,10 @@ export class GridBuilder extends ManagedObject {
       const min_subdivisions = this.config.min_subdivisions[axis];
       const max_ratio = this.config.max_ratio[axis];
       const segments = generate_region_mesh_segments(specs, min_subdivisions, max_ratio);
-      region_to_grid_map[axis] = new RegionToGridMap(line_builder, segments);
-    }
-    return region_to_grid_map as Vec2<RegionToGridMap>;
+      return new RegionToGridMap(line_builder, segments);
+    });
+    this.profiler?.end();
+    return region_to_grid_map;
   }
 
   setup_create_simulation_grid(): Grid {
@@ -540,133 +532,95 @@ export class GridBuilder extends ManagedObject {
     for (const sdf of region.sdfs) {
       const { region_id, fill } = sdf;
 
-      const partial_grid_bound: Vec2<Partial<Bound<number>>> = {
-        x: { min: undefined, max: undefined },
-        y: { min: undefined, max: undefined },
-      };
-
-      for (const axis of AXES_2D) {
+      const grid_absolute_bound: Vec2<Bound<number>> = map_axes_to_vec2((axis) => {
         const id = region_id[axis];
         const region_to_grid_map = this.region_to_grid_map[axis];
+        let grid_index_min: undefined | number = undefined;
+        let grid_index_max: undefined | number = undefined;
         if (id.min !== undefined) {
-          partial_grid_bound[axis].min = region_to_grid_map.id_to_grid_index(id.min);
+          grid_index_min = region_to_grid_map.id_to_grid_index(id.min);
         }
         if (id.max !== undefined) {
-          partial_grid_bound[axis].max = region_to_grid_map.id_to_grid_index(id.max);
+          grid_index_max = region_to_grid_map.id_to_grid_index(id.max);
         }
-      }
 
-      // voltage SDF should include boundaries of grid region
-      if (region.type === "voltage") {
-        for (const axis of AXES_2D) {
-          if (partial_grid_bound[axis].max !== undefined) {
-            partial_grid_bound[axis].max += 1;
-          }
+        // voltage SDF should include boundaries of grid region
+        if (region.type === "voltage" && grid_index_max !== undefined) {
+          grid_index_max += 1;
         }
-      }
 
-      for (const axis of AXES_2D) {
-        if (partial_grid_bound[axis].min === undefined) {
-          partial_grid_bound[axis].min = 0;
-        }
-        if (partial_grid_bound[axis].max === undefined) {
-          partial_grid_bound[axis].max = grid_size[axis];
-        }
-      }
+        if (grid_index_min === undefined) grid_index_min = 0;
+        if (grid_index_max === undefined) grid_index_max = grid_size[axis];
 
-      const grid_absolute_bound: Vec2<Bound<number>> = {
-        x: { min: 0, max: 0 },
-        y: { min: 0, max: 0 },
-      };
-      for (const axis of AXES_2D) {
-        const partial_bound = partial_grid_bound[axis];
-        const bound = grid_absolute_bound[axis];
-        bound.min = partial_bound.min ?? 0;
-        bound.max = partial_bound.max ?? grid_size[axis];
-      }
+        return { min: grid_index_min, max: grid_index_max };
+      });
+
 
       // get normalised grid coordinates for SDFs
-      const grid_count: Vec2<number> = {
-        x: 0,
-        y: 0,
-      };
-      for (const axis of AXES_2D) {
-        const bound = grid_absolute_bound[axis];
-        grid_count[axis] = bound.max-bound.min;
-      }
+      const grid_count: Vec2<number> = map_axes_to_vec2((axis) => {
+        const { min, max } = grid_absolute_bound[axis];
+        return max-min;
+      });
 
-      const grid_offset: Vec2<number[]> = {
-        x: [],
-        y: [],
-      };
-      const grid_spacing: Vec2<number[]> = {
-        x: [],
-        y: [],
-      };
-      for (const axis of AXES_2D) {
+      const grid_offset: Vec2<number[]> = map_axes_to_vec2((axis) => {
         const bound = grid_absolute_bound[axis];
         const region_to_grid_map = this.region_to_grid_map[axis];
-        grid_offset[axis] = region_to_grid_map.grid_lines.slice(bound.min, bound.max);
-        grid_spacing[axis] = region_to_grid_map.grid_segments.slice(bound.min, bound.max);
-      }
+        return region_to_grid_map.grid_lines.slice(bound.min, bound.max);
+      });
+
+      const grid_spacing: Vec2<number[]> = map_axes_to_vec2((axis) => {
+        const bound = grid_absolute_bound[axis];
+        const region_to_grid_map = this.region_to_grid_map[axis];
+        return region_to_grid_map.grid_segments.slice(bound.min, bound.max);
+      });
 
       if (region.type === "dielectric") {
         // centre coordinate to dielectric cell
         for (const axis of AXES_2D) {
-          const N = grid_count[axis];
           const offsets = grid_offset[axis];
           const spacings = grid_spacing[axis];
           if (offsets.length !== spacings.length) {
             throw Error(`Mismatch between grid lines (${offsets.length}) and grid spacing (${spacings.length}) array lengths along axis: ${axis}`);
           }
-          for (let i = 0; i < N; i++) {
+          for (let i = 0; i < offsets.length; i++) {
             offsets[i] += spacings[i]/2;
           }
         }
       }
 
-      const grid_total_size: Vec2<number> = {
-        x: 0,
-        y: 0,
-      };
-      for (const axis of AXES_2D) {
+      const grid_total_size: Vec2<number> = map_axes_to_vec2((axis) => {
         const sizes = grid_spacing[axis];
         let sum = 0;
         for (let i = 0; i < sizes.length; i++) {
           sum += sizes[i];
         }
-        grid_total_size[axis] = sum;
-      }
-      const grid_norm_spacing: Vec2<number[]> = {
-        x: [],
-        y: [],
-      };
-      const grid_norm_offset: Vec2<number[]> = {
-        x: [],
-        y: [],
-      };
-      for (const axis of AXES_2D) {
+        return sum;
+      });
+
+      const grid_norm_spacing: Vec2<number[]> = map_axes_to_vec2((axis) => {
+        const total_size = grid_total_size[axis];
+        const spacings = grid_spacing[axis];
+        return spacings.map(size => size/total_size);
+      });
+
+      const grid_norm_offset: Vec2<number[]> = map_axes_to_vec2((axis) => {
         const total_size = grid_total_size[axis];
         const offsets = grid_offset[axis];
         const min_offset = offsets[0];
-        grid_norm_spacing[axis] = grid_spacing[axis].map(size => size/total_size);
-        grid_norm_offset[axis] = grid_offset[axis].map(line => (line-min_offset)/total_size);
-      }
+        return offsets.map(line => (line-min_offset)/total_size);
+      });
 
-      const grid_relative_bound: Vec2<Bound<number>> = {
-        x: { min: 0, max: grid_count.x },
-        y: { min: 0, max: grid_count.y },
-      };
-      // voltage region allows customisation of whether outer or inner boundaries are used
-      if (region.type === "voltage" && region.ignore_boundary !== undefined) {
-        const boundary = region.ignore_boundary;
-        for (const axis of AXES_2D) {
-          const bound = boundary[axis];
-          if (bound === undefined) continue;
-          if (bound.min) grid_relative_bound[axis].min = 1;
-          if (bound.max) grid_relative_bound[axis].max = grid_count[axis]-1;
+      const grid_relative_bound: Vec2<Bound<number>> = map_axes_to_vec2((axis) => {
+        let grid_index_min = 0;
+        let grid_index_max = grid_count[axis];
+        // voltage region allows customisation of whether outer or inner boundaries are used
+        if (region.type === "voltage" && region.ignore_boundary !== undefined) {
+          const bound = region.ignore_boundary[axis];
+          if (bound?.min) grid_index_min = 1;
+          if (bound?.max) grid_index_max = grid_count[axis]-1;
         }
-      }
+        return { min: grid_index_min, max: grid_index_max };
+      });
 
       switch (fill.type) {
         case "point": {
@@ -735,19 +689,17 @@ export class GridBuilder extends ManagedObject {
   }
 
   get mesh_lines(): Vec2<MeshLines> {
-    const mesh: Partial<Vec2<MeshLines>> = {};
-    for (const axis of AXES_2D) {
+    return map_axes_to_vec2((axis) => {
       const region_to_grid_map = this.region_to_grid_map[axis];
-      mesh[axis] = {
+      return {
         region_lines: region_to_grid_map.region_lines,
         grid_lines: region_to_grid_map.grid_lines,
         scale: region_to_grid_map.region_lines_builder.scale,
         unpadded_boundary: this.unpadded_boundary[axis],
         padded_boundary: this.padded_boundary[axis],
         mesh_segments: region_to_grid_map.region_segments,
-        flip: false,
+        flip: axis === "y", // whoops we constructed it upside down
       };
-    }
-    return mesh as Vec2<MeshLines>;
+    });
   }
 }
