@@ -15,14 +15,14 @@ import LayersEditorView from "./LayersEditorView.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
 import GridViewer from "../../app/electrostatic_2d/GridViewer.vue";
-import GridBuilderView from "../../app/electrostatic_2d/GridBuilderView.vue";
-import ProfilerFlameChart from "../../utility/ProfilerFlameChart.vue";
+import MeshViewer2D from "../../components/mesh_viewer/MeshViewer2D.vue";
+import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
 import ExportView from "../../app/electrostatic_2d/ExportView.vue";
-import TabsView from "../../utility/TabsView.vue";
+import TabsView from "../../components/TabsView.vue";
 import GridBuilderConfigForm from "../../app/electrostatic_2d/GridBuilderConfigForm.vue";
-import VisualiserView from "../visualiser_2d/VisualiserView.vue";
-import ParameterSearchResultsGraph from "../parameter_search/ParameterSearchResultsGraph.vue";
-import ParameterSearchConfigForm from "../parameter_search/ParameterSearchConfigForm.vue";
+import VisualiserView from "../../components/visualiser_2d/VisualiserView.vue";
+import ParameterSearchResultsGraph from "../../app/parameter_search/ParameterSearchResultsGraph.vue";
+import ParameterSearchConfigForm from "../../app/parameter_search/ParameterSearchConfigForm.vue";
 import { PencilIcon, EyeIcon, SettingsIcon } from "@lucide/vue";
 // ts imports
 import {type Parameter, type StackupType, stackup_types } from "./stackup.ts";
@@ -37,6 +37,8 @@ import {
   type LayerTemplateType, layer_template_types,
 } from "./stackup_templates.ts";
 import { search_parameters, type SearchResults } from "./search.ts";
+import { AXES_2D, type Vec2 } from "../../utility/dim_types.ts";
+import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 const toast = providers.toast_manager.value;
 const user_data = providers.user_data.value;
@@ -109,6 +111,39 @@ const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const measurement = ref<Measurement | undefined>(undefined);
 const profiler = ref<Profiler | undefined>(undefined);
+const mesh = computed(() => {
+  if (stackup_grid.value === undefined) return undefined;
+  const mesh: Partial<Vec2<MeshLines>> = {};
+  const builder = stackup_grid.value.grid_builder;
+  for (const axis of AXES_2D) {
+    const region_to_grid_map = (axis === "x") ? builder.x_region_to_grid_map : builder.y_region_to_grid_map;
+    const unpadded_boundary = (axis === "x") ? {
+      min: builder.unpadded_boundary.x_left,
+      max: builder.unpadded_boundary.x_right,
+    } : {
+      min: builder.unpadded_boundary.y_top,
+      max: builder.unpadded_boundary.y_bottom,
+    };
+    const padded_boundary = (axis === "x") ? {
+      min: builder.padded_boundary.x_left,
+      max: builder.padded_boundary.x_right,
+    } : {
+      min: builder.padded_boundary.y_top,
+      max: builder.padded_boundary.y_bottom,
+    };
+    const flip = axis === "y";
+    mesh[axis] = {
+      region_lines: region_to_grid_map.region_lines,
+      grid_lines: region_to_grid_map.grid_lines,
+      scale: region_to_grid_map.region_lines_builder.scale,
+      unpadded_boundary,
+      padded_boundary,
+      mesh_segments: region_to_grid_map.region_segments,
+      flip,
+    };
+  }
+  return mesh as Vec2<MeshLines>;
+});
 
 async function sleep(millis: number) {
   await new Promise(resolve => setTimeout(resolve, millis));
@@ -357,7 +392,7 @@ const visualiser = computed_ref(() => {
   <!--Mesh tab-->
   <template #h-3>Mesh</template>
   <template #b-3>
-    <GridBuilderView v-if="stackup_grid" :builder="stackup_grid.grid_builder"/>
+    <MeshViewer2D v-if="mesh" :mesh="mesh"/>
     <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
       Calculate impedance to see mesh
     </div>

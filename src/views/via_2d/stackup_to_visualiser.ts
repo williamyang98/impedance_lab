@@ -11,8 +11,8 @@ import type {
   RectangleShape,
   TextLabel,
   Entity,
-} from "../visualiser_2d/visualiser.ts";
-import { colours, stroke, font } from "../visualiser_2d/pcb_defaults.ts";
+} from "../../components/visualiser_2d/visualiser.ts";
+import { colours, stroke, font } from "../../components/visualiser_2d/pcb_defaults.ts";
 
 const sizes = {
   plane_height: 15,

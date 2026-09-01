@@ -1,5 +1,8 @@
-import { KernelCalculateResidual, KernelJacobiSmooth, type Size3D } from '../../wgpu_kernels/electrostatic_3d';
+import { KernelCalculateResidual, KernelJacobiSmooth } from '../../wgpu_kernels/electrostatic_3d';
 import { Ndarray } from '../../utility/ndarray';
+import type { Vec3 } from '../../utility/dim_types';
+
+type Size3D = Vec3<number>;
 
 export class CpuGrid {
   size: Size3D;

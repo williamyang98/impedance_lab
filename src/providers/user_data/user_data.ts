@@ -1,11 +1,12 @@
 import { type DistanceUnit, distance_units } from "../../utility/unit_types.ts";
 import { type GridBuilderConfig as GridBuilderConfig2D } from "../../app/electrostatic_2d/grid_builder.ts";
-import { type GridBuilderConfig as GridBuilderConfig3D, type AxisValue } from "../../app/electrostatic_3d/grid_builder.ts";
+import { type GridBuilderConfig as GridBuilderConfig3D } from "../../app/electrostatic_3d/grid_builder.ts";
 import {
   type ComputeBenchmarkConfig,
   type MemoryBandwidthBenchmarkConfig,
 } from "../../views/gpu_benchmark/config.ts";
-import { type ParameterSearchConfig } from "../../views/parameter_search/search.ts";
+import { type ParameterSearchConfig } from "../../app/parameter_search/search.ts";
+import type { Vec3 } from "../../utility/dim_types.ts";
 
 function try_into_distance_unit(storage: Storage, key: string, default_value: DistanceUnit): DistanceUnit {
   const value = storage.getItem(key);
@@ -191,8 +192,8 @@ export class GridBuilderUserData3D implements GridBuilderConfig3D {
   storage: Storage;
   _minimum_grid_resolution: NumberEntry;
   _padding_size_multiplier: NumberEntry;
-  mesh: AxisValue<{ max_ratio: number, min_subdivisions: number }>;
-  padding_size_multiplier: AxisValue<number>;
+  mesh: Vec3<{ max_ratio: number, min_subdivisions: number }>;
+  padding_size_multiplier: Vec3<number>;
 
   constructor(storage: Storage, prefix: string) {
     this.storage = storage;

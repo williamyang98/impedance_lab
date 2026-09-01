@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { type GridBuilderConfig, axes } from "./grid_builder.ts";
+import { type GridBuilderConfig } from "./grid_builder.ts";
+import { AXES_3D } from '../../utility/dim_types.ts';
 import { TriangleAlert } from "@lucide/vue";
 import { NumberField, integer_validator, float_validator } from "../../utility/form_validation.ts";
 
@@ -16,10 +17,10 @@ function create_fields(config: GridBuilderConfig) {
     new NumberField(config, "minimum_grid_resolution", "Minimum grid resolution", 1e-4, undefined, undefined, float_validator),
   ];
   const axis_fields = [];
-  for (const axis of axes) {
+  for (const axis of AXES_3D) {
     axis_fields.push(new NumberField(config.padding_size_multiplier, axis, `Padding size ${axis} multiplier`, 0, 10, 0.1, float_validator));
   }
-  for (const axis of axes) {
+  for (const axis of AXES_3D) {
     axis_fields.push(new NumberField(config.mesh[axis], "max_ratio", `Maximum ${axis} ratio`, 0.1, 2.0, 0.1, float_validator));
     axis_fields.push(new NumberField(config.mesh[axis], "min_subdivisions", `Minimum ${axis} subdivisions`, 1, 20, 1, integer_validator));
   }

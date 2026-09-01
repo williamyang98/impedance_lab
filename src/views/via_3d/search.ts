@@ -5,7 +5,7 @@ import { type GridBuilderConfig } from "../../app/electrostatic_3d/grid_builder.
 import { type ImpedanceResult } from "./impedance.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { run_parameter_search, type ParameterSearchConfig } from "../parameter_search/search.ts";
+import { run_parameter_search, type ParameterSearchConfig } from "../../app/parameter_search/search.ts";
 import { Executor, calculate_ideal_total_steps } from "./executor.ts";
 
 export class SearchResult {

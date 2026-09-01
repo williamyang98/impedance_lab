@@ -1,8 +1,10 @@
 import { SimulationSetup } from "../../app/fdtd_3d/grid.ts";
-import { type Size3D } from "../../wgpu_kernels/fdtd_3d/index.ts";
 import { type GridBuilderConfig } from "../../app/electrostatic_3d/grid_builder.ts";
 import { type Region, GridBuilder } from "../../app/fdtd_3d/grid_builder.ts";
 import { Profiler } from "../../utility/profiler.ts";
+import type { Vec3 } from "../../utility/dim_types.ts";
+
+type Size3D = Vec3<number>;
 
 function estimate_single_ended_impedance_ipc2141(er: number, h: number, w: number, t: number): number {
   // https://www.digikey.com.au/en/resources/conversion-calculators/conversion-calculator-pcb-trace-impedance

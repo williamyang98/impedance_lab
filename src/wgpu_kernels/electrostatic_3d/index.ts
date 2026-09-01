@@ -3,12 +3,9 @@ import compute_jacobi_smooth from "./compute_jacobi_smooth.wgsl?raw";
 import compute_residual from "./compute_residual.wgsl?raw";
 import compute_copy_slice from "./compute_copy_slice.wgsl?raw";
 import { CpuGrid } from "../../app/electrostatic_3d/grid.ts";
+import type { Vec3 } from "../../utility/dim_types.ts";
 
-export interface Size3D {
-  x: number;
-  y: number;
-  z: number;
-}
+type Size3D = Vec3<number>;
 
 export class KernelJacobiSmooth {
   label: string;

@@ -5,7 +5,7 @@ import { type ImpedanceResult, calculate_via_impedance } from "./impedance.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
 import { WasmModule } from "../../wasm/index.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { run_parameter_search, type ParameterSearchConfig } from "../parameter_search/search.ts";
+import { run_parameter_search, type ParameterSearchConfig } from "../../app/parameter_search/search.ts";
 
 export class SearchResult {
   value: number;

@@ -1,17 +1,17 @@
 <script lang="ts" setup>
 import { ref, toRaw, computed } from "vue";
 import GridViewer from '../../app/electrostatic_2d/GridViewer.vue';
-import TabsView from '../../utility/TabsView.vue';
-import GridBuilderView from '../../app/electrostatic_2d/GridBuilderView.vue';
-import ProfilerFlameChart from '../../utility/ProfilerFlameChart.vue';
+import TabsView from '../../components/TabsView.vue';
+import MeshViewer2D from '../../components/mesh_viewer/MeshViewer2D.vue';
+import ProfilerFlameChart from '../../components/ProfilerFlameChart.vue';
 import ExportView from '../../app/electrostatic_2d/ExportView.vue';
 import GridBuilderConfigForm from "../../app/electrostatic_2d/GridBuilderConfigForm.vue";
-import VisualiserView from "../visualiser_2d/VisualiserView.vue";
+import VisualiserView from "../../components/visualiser_2d/VisualiserView.vue";
 import LayersEditorView from "./LayersEditorView.vue";
 import ImpedanceResultView from "./ImpedanceResultView.vue";
 import { PencilIcon, EyeIcon, SettingsIcon } from "@lucide/vue";
-import ParameterSearchResultsGraph from "../parameter_search/ParameterSearchResultsGraph.vue";
-import ParameterSearchConfigForm from "../parameter_search/ParameterSearchConfigForm.vue";
+import ParameterSearchResultsGraph from "../../app/parameter_search/ParameterSearchResultsGraph.vue";
+import ParameterSearchConfigForm from "../../app/parameter_search/ParameterSearchConfigForm.vue";
 
 import { providers } from "../../providers/providers.ts";
 import { Profiler } from '../../utility/profiler.ts';
@@ -22,6 +22,8 @@ import { Stackup, type Parameter } from "./stackup.ts";
 import ParameterForm from "./ParameterForm.vue";
 import { computed_ref } from "../../utility/computed_ref.ts";
 import { type SearchResults, search_parameters } from "./search.ts";
+import { AXES_2D, type Vec2 } from "../../utility/dim_types.ts";
+import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 const user_data = providers.user_data;
 
@@ -31,6 +33,39 @@ const profiler = ref<Profiler | undefined>(undefined);
 const grid = computed(() => stackup_grid.value?.grid);
 const is_running = ref<boolean>(false);
 const is_editing = ref<boolean>(true);
+const mesh = computed(() => {
+  if (stackup_grid.value === undefined) return undefined;
+  const mesh: Partial<Vec2<MeshLines>> = {};
+  const builder = stackup_grid.value.grid_builder;
+  for (const axis of AXES_2D) {
+    const region_to_grid_map = (axis === "x") ? builder.x_region_to_grid_map : builder.y_region_to_grid_map;
+    const unpadded_boundary = (axis === "x") ? {
+      min: builder.unpadded_boundary.x_left,
+      max: builder.unpadded_boundary.x_right,
+    } : {
+      min: builder.unpadded_boundary.y_top,
+      max: builder.unpadded_boundary.y_bottom,
+    };
+    const padded_boundary = (axis === "x") ? {
+      min: builder.padded_boundary.x_left,
+      max: builder.padded_boundary.x_right,
+    } : {
+      min: builder.padded_boundary.y_top,
+      max: builder.padded_boundary.y_bottom,
+    };
+    const flip = axis === "y";
+    mesh[axis] = {
+      region_lines: region_to_grid_map.region_lines,
+      grid_lines: region_to_grid_map.grid_lines,
+      scale: region_to_grid_map.region_lines_builder.scale,
+      unpadded_boundary,
+      padded_boundary,
+      mesh_segments: region_to_grid_map.region_segments,
+      flip,
+    };
+  }
+  return mesh as Vec2<MeshLines>;
+});
 
 const wasm_module = toRaw(providers.wasm_module.value);
 const toast = providers.toast_manager.value;
@@ -282,8 +317,8 @@ async function perform_search(search_params: Parameter[]) {
   </template>
   <template #h-3>Mesh</template>
   <template #b-3>
-    <div class="w-full h-full" v-if="stackup_grid?.grid_builder">
-      <GridBuilderView :builder="stackup_grid.grid_builder"/>
+    <div class="w-full h-full" v-if="mesh">
+      <MeshViewer2D :mesh="mesh"/>
     </div>
     <div v-else class="w-full text-center">
       <span class="text-lg my-2">Run simulation</span>

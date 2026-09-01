@@ -1,28 +1,30 @@
 <script lang="ts" setup>
-import { toRaw, ref, useTemplateRef, watch } from 'vue';
+import { toRaw, ref, useTemplateRef, watch, computed } from 'vue';
 import { providers } from '../../providers/providers';
 import ImpedanceResultView from './ImpedanceResultView.vue';
 import ExportView from '../../app/electrostatic_3d/ExportView.vue';
 import RendererView from '../../app/electrostatic_3d/RendererView.vue';
-import TabsView from '../../utility/TabsView.vue';
+import TabsView from '../../components/TabsView.vue';
 import { Profiler } from '../../utility/profiler.ts';
 import { StackupGrid } from "./stackup_to_grid.ts";
 import { Stackup } from "./stackup.ts";
 import { type Parameter } from "../via_2d/stackup.ts";
-import ProfilerFlameChart from '../../utility/ProfilerFlameChart.vue';
+import ProfilerFlameChart from '../../components/ProfilerFlameChart.vue';
 import { Executor, type ExecutorControls, calculate_ideal_total_steps } from './executor.ts';
 import { computed_ref } from '../../utility/computed_ref.ts';
 import { StackupVisualiser } from '../via_2d/stackup_to_visualiser.ts';
 import { search_parameters, type SearchResults } from './search.ts';
 import { SettingsIcon, PencilIcon, EyeIcon } from '@lucide/vue';
-import ParameterSearchConfigForm from '../parameter_search/ParameterSearchConfigForm.vue';
-import ParameterSearchResultsGraph from '../parameter_search/ParameterSearchResultsGraph.vue';
-import VisualiserView from "../visualiser_2d/VisualiserView.vue";
+import ParameterSearchConfigForm from '../../app/parameter_search/ParameterSearchConfigForm.vue';
+import ParameterSearchResultsGraph from '../../app/parameter_search/ParameterSearchResultsGraph.vue';
+import VisualiserView from "../../components/visualiser_2d/VisualiserView.vue";
 import LayersEditorView from "../via_2d/LayersEditorView.vue";
 import ParameterForm from "../via_2d/ParameterForm.vue";
 import { type ImpedanceResult } from './impedance.ts';
-import MeshViewer from '../../app/electrostatic_3d/MeshViewer.vue';
+import MeshViewer3D from '../../components/mesh_viewer/MeshViewer3D.vue';
 import GridBuilderConfigForm from '../../app/electrostatic_3d/GridBuilderConfigForm.vue';
+import { AXES_3D, type Vec3 } from '../../utility/dim_types.ts';
+import type { MeshLines } from '../../components/mesh_viewer/mesh_lines.ts';
 
 const gpu_device = toRaw(providers.gpu_device.value);
 const toast = providers.toast_manager.value;
@@ -52,6 +54,24 @@ const profiler = ref<Profiler | undefined>(undefined);
 
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
+const mesh = computed(() => {
+  if (stackup_grid.value === undefined) return undefined;
+  const mesh: Partial<Vec3<MeshLines>> = {};
+  const builder = stackup_grid.value.grid_builder;
+  for (const axis of AXES_3D) {
+    const region_to_grid_map = builder.region_to_grid_map[axis];
+    mesh[axis] = {
+      region_lines: region_to_grid_map.region_lines,
+      grid_lines: region_to_grid_map.grid_lines,
+      scale: region_to_grid_map.region_lines_builder.scale,
+      unpadded_boundary: builder.unpadded_boundary[axis],
+      padded_boundary: builder.padded_boundary[axis],
+      mesh_segments: region_to_grid_map.region_segments,
+      flip: false,
+    };
+  }
+  return mesh as Vec3<MeshLines>;
+});
 const executor_controls = ref<ExecutorControls>({
   total_steps: 2048,
   stride_size: 256,
@@ -357,7 +377,7 @@ async function perform_search(search_params: Parameter[]) {
   <template #h-3>Mesh</template>
   <template #b-3>
     <div class="w-full h-full min-h-0">
-      <MeshViewer v-if="stackup_grid" :builder="stackup_grid.grid_builder"/>
+      <MeshViewer3D v-if="mesh" :mesh="mesh"/>
     </div>
   </template>
   <template #h-4>Profiler</template>

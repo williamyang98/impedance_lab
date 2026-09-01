@@ -4,7 +4,7 @@ import type {
   HorizontalDimensionLine, VerticalDimensionLine, RectangleShape, PolygonShape, PolygonPoint,
   TextLabel, IconLabel,
   Entity,
-} from "../visualiser_2d/visualiser.ts";
+} from "../../components/visualiser_2d/visualiser.ts";
 import {
   is_same_position,
   type Stackup, type Position, type SpacingMode,
@@ -12,7 +12,7 @@ import {
   type LayerTraces, type Voltage, type BroadsidePair,
 } from "./stackup.ts";
 import { CirclePlusIcon, CircleMinusIcon } from "@lucide/vue";
-import { font, stroke, colours } from "../visualiser_2d/pcb_defaults.ts";
+import { font, stroke, colours } from "../../components/visualiser_2d/pcb_defaults.ts";
 
 const sizes = {
   soldermask_height: 17,

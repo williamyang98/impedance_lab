@@ -1,25 +1,17 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
-import type { NdarrayType } from "../../utility/ndarray.ts";
+import { type NdarrayType } from "../../utility/ndarray.ts";
+import { type Vec3 } from "../../utility/dim_types.ts";
 import compute_current_source_wgsl from "./compute_current_source.wgsl?raw";
 import compute_update_e_field_wgsl from "./compute_update_e_field.wgsl?raw";
 import compute_update_h_field_wgsl from "./compute_update_h_field.wgsl?raw";
 
-export interface Size3D {
-  x: number;
-  y: number;
-  z: number;
-}
+type Size3D = Vec3<number>;
+type GpuFieldBuffers = Vec3<NdGpuArray>;
 
 export interface NdGpuArray {
   data: GPUBuffer;
   dtype: NdarrayType;
   shape: number[];
-}
-
-export interface GpuFieldBuffers {
-  x: NdGpuArray;
-  y: NdGpuArray;
-  z: NdGpuArray;
 }
 
 function create_ndgpuarray_bindgroup(buffer: NdGpuArray) {

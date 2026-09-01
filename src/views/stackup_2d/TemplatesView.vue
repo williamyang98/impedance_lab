@@ -4,7 +4,7 @@ import { useRouter } from "vue-router";
 import {
   create_colinear_stackup, create_broadside_stackup, layer_template_types,
 } from "./stackup_templates.ts";
-import VisualiserView from "../visualiser_2d/VisualiserView.vue";
+import VisualiserView from "../../components/visualiser_2d/VisualiserView.vue";
 import { type VisualiserConfig, get_default_viewer_config, StackupVisualiser } from "./stackup_to_visualiser.ts";
 import { SearchIcon } from "@lucide/vue";
 import * as fuzzysort from "fuzzysort";

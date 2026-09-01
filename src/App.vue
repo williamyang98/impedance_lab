@@ -8,7 +8,7 @@ import UserDataProvider from "./providers/user_data/UserDataProvider.vue";
 import { MenuIcon, ChevronDownIcon } from '@lucide/vue';
 import { navigation_tree, type NavigationEndpoint, endpoints_table } from "./routes.ts";
 import GithubIcon from "./assets/github.svg";
-import DarkModeToggle from "./utility/DarkModeToggle.vue";
+import DarkModeToggle from "./components/DarkModeToggle.vue";
 
 const router = useRouter();
 const curr_route = useRoute();

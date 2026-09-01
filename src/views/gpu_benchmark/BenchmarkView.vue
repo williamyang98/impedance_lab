@@ -3,7 +3,7 @@ import ComputeBenchmarkView from './ComputeBenchmarkView.vue';
 import MemoryBandwidthBenchmarkView from "./MemoryBandwidthBenchmarkView.vue";
 import GPUSupportLimitsTable from './LimitsTable.vue';
 import GPUFeaturesList from './FeaturesList.vue';
-import TabsView from "../../utility/TabsView.vue";
+import TabsView from "../../components/TabsView.vue";
 
 </script>
 

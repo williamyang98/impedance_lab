@@ -1,22 +1,19 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { RegionToGridMap } from "./regions.ts";
+import { type MeshSegment } from "../../app/mesher/mesher.ts";
 
 const props = defineProps<{
-  region_to_grid_map: RegionToGridMap,
+  segments: MeshSegment[];
+  scale?: number;
 }>();
 
-const segments = computed(() => {
-  return props.region_to_grid_map.region_segments;
-});
-
-const scale_factor = computed(() => {
-  const scale = props.region_to_grid_map.region_lines_builder.scale;
-  return 1.0/scale;
+const scale = computed(() => {
+  if (props.scale === undefined) return 1.0;
+  return 1.0/props.scale;
 });
 
 function rescale(x: number): number {
-  return x * scale_factor.value;
+  return x*scale.value;
 }
 
 </script>

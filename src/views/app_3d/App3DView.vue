@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, useTemplateRef, onMounted, onBeforeUnmount, reactive } from "vue";
 import RendererView from "../../app/fdtd_3d/RendererView.vue";
-import TabsView from "../../utility/TabsView.vue";
-import MeshViewer from "../../app/fdtd_3d/MeshViewer.vue";
+import TabsView from "../../components/TabsView.vue";
+import MeshViewer3D from "../../components/mesh_viewer/MeshViewer3D.vue";
 import { GpuEngine } from "../../app/fdtd_3d/grid.ts" ;
 import { providers } from "../../providers/providers.ts";
 import {
@@ -10,6 +10,8 @@ import {
   create_differential_setup,
   create_single_ended_setup_vargrid,
 } from "./app_3d.ts";
+import { AXES_3D, type Vec3 } from "../../utility/dim_types.ts";
+import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
@@ -28,9 +30,23 @@ const setup = computed(() => {
   }
   return setups[selected_setup.value];
 });
-const grid_builder = computed(() => {
+const mesh = computed(() => {
   if (selected_setup.value !== "single_ended_vargrid") return undefined;
-  return setups.single_ended_vargrid;
+  const builder = setups.single_ended_vargrid;
+  const mesh: Partial<Vec3<MeshLines>> = {};
+  for (const axis of AXES_3D) {
+    const region_to_grid_map = builder.region_to_grid_map[axis];
+    mesh[axis] = {
+      region_lines: region_to_grid_map.region_lines,
+      grid_lines: region_to_grid_map.grid_lines,
+      scale: region_to_grid_map.region_lines_builder.scale,
+      unpadded_boundary: builder.unpadded_boundary[axis],
+      padded_boundary: builder.padded_boundary[axis],
+      mesh_segments: region_to_grid_map.region_segments,
+      flip: false,
+    };
+  }
+  return mesh as Vec3<MeshLines>;
 });
 const total_cells = computed(() => {
   const size = setup.value.size;
@@ -190,7 +206,7 @@ onBeforeUnmount(() => {
 <template #h-1>Mesh</template>
 <template #b-1>
   <div class="w-full h-full min-h-0">
-    <MeshViewer v-if="grid_builder" :builder="grid_builder"/>
+    <MeshViewer3D v-if="mesh" :mesh="mesh"/>
   </div>
 </template>
 </TabsView>

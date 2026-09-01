@@ -1,16 +1,15 @@
 import { type DistanceUnit, convert_distance } from "../../utility/unit_types";
 import {
   GridBuilder,
-  type GridBuilderConfig, type GridBuilderPadding,
-  type Region,
+  type GridBuilderConfig, type GridBuilderPadding, type Region,
 } from "../../app/electrostatic_3d/grid_builder.ts";
-import {
-  CpuGrid, GpuGrid,
-} from "../../app/electrostatic_3d/grid.ts";
+import { CpuGrid, GpuGrid } from "../../app/electrostatic_3d/grid.ts";
 import { type ReferencePlane, type Parameter } from "../via_2d/stackup.ts";
 import { Stackup } from "./stackup.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import type { Size3D } from "../../wgpu_kernels/electrostatic_3d/index.ts";
+import type { Vec3 } from "../../utility/dim_types.ts";
+
+type Size3D = Vec3<number>;
 
 function validate_parameter(param: Parameter) {
   if (param.value === undefined) {

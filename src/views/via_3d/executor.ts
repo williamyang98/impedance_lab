@@ -3,7 +3,9 @@ import { GpuEngine } from "../../app/electrostatic_3d/grid.ts";
 import { ToastManager } from "../../providers/toast/toast.ts";
 import { type ImpedanceResult, calculate_via_impedance } from "./impedance.ts";
 import type { Profiler } from "../../utility/profiler.ts";
-import type { Size3D } from "../../wgpu_kernels/electrostatic_3d/index.ts";
+import type { Vec3 } from "../../utility/dim_types.ts";
+
+type Size3D = Vec3<number>;
 
 export interface RunStatus {
   curr_step: number;
