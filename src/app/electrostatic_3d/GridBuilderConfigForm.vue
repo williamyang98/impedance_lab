@@ -21,8 +21,8 @@ function create_fields(config: GridBuilderConfig) {
     axis_fields.push(new NumberField(config.padding_size_multiplier, axis, `Padding size ${axis} multiplier`, 0, 10, 0.1, float_validator));
   }
   for (const axis of AXES_3D) {
-    axis_fields.push(new NumberField(config.mesh[axis], "max_ratio", `Maximum ${axis} ratio`, 0.1, 2.0, 0.1, float_validator));
-    axis_fields.push(new NumberField(config.mesh[axis], "min_subdivisions", `Minimum ${axis} subdivisions`, 1, 20, 1, integer_validator));
+    axis_fields.push(new NumberField(config.max_ratio, axis, `Maximum ${axis} ratio`, 0.1, 2.0, 0.1, float_validator));
+    axis_fields.push(new NumberField(config.min_subdivisions, axis, `Minimum ${axis} subdivisions`, 1, 20, 1, integer_validator));
   }
   return [...fields, ...axis_fields];
 }

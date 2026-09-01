@@ -59,10 +59,15 @@ export function create_single_ended_setup_vargrid(
       y: 5,
       z: 3,
     },
-    mesh: {
-      x: { max_ratio: 0.15, min_subdivisions: 3 },
-      y: { max_ratio: 0.15, min_subdivisions: 15 },
-      z: { max_ratio: 0.15, min_subdivisions: 3 },
+    max_ratio: {
+      x: 0.15,
+      y: 0.15,
+      z: 0.15,
+    },
+    min_subdivisions: {
+      x: 3,
+      y: 15,
+      z: 3,
     },
   };
 

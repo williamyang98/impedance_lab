@@ -37,8 +37,6 @@ import {
   type LayerTemplateType, layer_template_types,
 } from "./stackup_templates.ts";
 import { search_parameters, type SearchResults } from "./search.ts";
-import { AXES_2D, type Vec2 } from "../../utility/dim_types.ts";
-import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 const toast = providers.toast_manager.value;
 const user_data = providers.user_data.value;
@@ -111,39 +109,7 @@ const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
 const measurement = ref<Measurement | undefined>(undefined);
 const profiler = ref<Profiler | undefined>(undefined);
-const mesh = computed(() => {
-  if (stackup_grid.value === undefined) return undefined;
-  const mesh: Partial<Vec2<MeshLines>> = {};
-  const builder = stackup_grid.value.grid_builder;
-  for (const axis of AXES_2D) {
-    const region_to_grid_map = (axis === "x") ? builder.x_region_to_grid_map : builder.y_region_to_grid_map;
-    const unpadded_boundary = (axis === "x") ? {
-      min: builder.unpadded_boundary.x_left,
-      max: builder.unpadded_boundary.x_right,
-    } : {
-      min: builder.unpadded_boundary.y_top,
-      max: builder.unpadded_boundary.y_bottom,
-    };
-    const padded_boundary = (axis === "x") ? {
-      min: builder.padded_boundary.x_left,
-      max: builder.padded_boundary.x_right,
-    } : {
-      min: builder.padded_boundary.y_top,
-      max: builder.padded_boundary.y_bottom,
-    };
-    const flip = axis === "y";
-    mesh[axis] = {
-      region_lines: region_to_grid_map.region_lines,
-      grid_lines: region_to_grid_map.grid_lines,
-      scale: region_to_grid_map.region_lines_builder.scale,
-      unpadded_boundary,
-      padded_boundary,
-      mesh_segments: region_to_grid_map.region_segments,
-      flip,
-    };
-  }
-  return mesh as Vec2<MeshLines>;
-});
+const mesh = computed(() => stackup_grid.value?.grid_builder.mesh_lines);
 
 async function sleep(millis: number) {
   await new Promise(resolve => setTimeout(resolve, millis));

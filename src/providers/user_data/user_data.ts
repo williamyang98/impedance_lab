@@ -6,7 +6,7 @@ import {
   type MemoryBandwidthBenchmarkConfig,
 } from "../../views/gpu_benchmark/config.ts";
 import { type ParameterSearchConfig } from "../../app/parameter_search/search.ts";
-import type { Vec3 } from "../../utility/dim_types.ts";
+import type { Axis2D, Axis3D, Vec2, Vec3 } from "../../utility/dim_types.ts";
 
 function try_into_distance_unit(storage: Storage, key: string, default_value: DistanceUnit): DistanceUnit {
   const value = storage.getItem(key);
@@ -149,11 +149,9 @@ export class UserData {
 export class GridBuilderUserData2D implements GridBuilderConfig2D {
   storage: Storage;
   _minimum_grid_resolution: NumberEntry;
-  _padding_size_multiplier: NumberEntry;
-  _max_x_ratio: NumberEntry;
-  _min_x_subdivisions: NumberEntry;
-  _max_y_ratio: NumberEntry;
-  _min_y_subdivisions: NumberEntry;
+  padding_size_multiplier: Vec2<number>;
+  max_ratio: Vec2<number>;
+  min_subdivisions: Vec2<number>;
   _min_epsilon_resolution: NumberEntry;
   _signal_amplitude: NumberEntry;
 
@@ -161,27 +159,51 @@ export class GridBuilderUserData2D implements GridBuilderConfig2D {
     this.storage = storage;
     const get_name = (name: string) => `${prefix}.${name}`;
     this._minimum_grid_resolution = new NumberEntry(storage, get_name("minimum_grid_resolution"), 0.0001, "float");
-    this._padding_size_multiplier = new NumberEntry(storage, get_name("padding_size_multiplier"), 5, "float");
-    this._max_x_ratio = new NumberEntry(storage, get_name("max_x_ratio"), 0.7, "float");
-    this._min_x_subdivisions = new NumberEntry(storage, get_name("min_x_subdivisions"), 10, "integer");
-    this._max_y_ratio = new NumberEntry(storage, get_name("max_y_ratio"), 0.7, "float");
-    this._min_y_subdivisions = new NumberEntry(storage, get_name("min_y_subdivisions"), 10, "integer");
     this._min_epsilon_resolution = new NumberEntry(storage, get_name("min_epsilon_resolution"), 0.01, "float");
     this._signal_amplitude = new NumberEntry(storage, get_name("signal_amplitude"), 1, "float");
+
+    const create_max_ratio_axis = (axis: Axis2D) => {
+      return new NumberEntry(storage, get_name(`max_${axis}_ratio`), 0.7, "float");
+    };
+    const max_ratio = {
+      _x: create_max_ratio_axis("x"),
+      _y: create_max_ratio_axis("y"),
+      get x() { return this._x.value; },
+      set x(value: number) { this._x.value = value; },
+      get y() { return this._y.value; },
+      set y(value: number) { this._y.value = value; },
+    };
+    this.max_ratio = max_ratio;
+
+    const create_min_subdivisions_axis = (axis: Axis2D) => {
+      return new NumberEntry(storage, get_name(`min_${axis}_subdivisions`), 5, "integer");
+    };
+    const min_subdivisions = {
+      _x: create_min_subdivisions_axis("x"),
+      _y: create_min_subdivisions_axis("y"),
+      get x() { return this._x.value; },
+      set x(value: number) { this._x.value = value; },
+      get y() { return this._y.value; },
+      set y(value: number) { this._y.value = value; },
+    };
+    this.min_subdivisions = min_subdivisions;
+
+    const create_padding_size_multiplier_axis = (axis: Axis2D) => {
+      return new NumberEntry(storage, get_name(`padding_multiplier_${axis}`), 5, "float");
+    };
+    const padding_size_multiplier = {
+      _x: create_padding_size_multiplier_axis("x"),
+      _y: create_padding_size_multiplier_axis("y"),
+      get x() { return this._x.value; },
+      set x(value: number) { this._x.value = value; },
+      get y() { return this._y.value; },
+      set y(value: number) { this._y.value = value; },
+    };
+    this.padding_size_multiplier = padding_size_multiplier;
   }
 
   get minimum_grid_resolution() { return this._minimum_grid_resolution.value; }
   set minimum_grid_resolution(value: number) { this._minimum_grid_resolution.value = value; }
-  get padding_size_multiplier() { return this._padding_size_multiplier.value; }
-  set padding_size_multiplier(value: number) { this._padding_size_multiplier.value = value; }
-  get max_x_ratio() { return this._max_x_ratio.value; }
-  set max_x_ratio(value: number) { this._max_x_ratio.value = value; }
-  get min_x_subdivisions() { return this._min_x_subdivisions.value; }
-  set min_x_subdivisions(value: number) { this._min_x_subdivisions.value = value; }
-  get max_y_ratio() { return this._max_y_ratio.value; }
-  set max_y_ratio(value: number) { this._max_y_ratio.value = value; }
-  get min_y_subdivisions() { return this._min_y_subdivisions.value; }
-  set min_y_subdivisions(value: number) { this._min_y_subdivisions.value = value; }
   get min_epsilon_resolution() { return this._min_epsilon_resolution.value; }
   set min_epsilon_resolution(value: number) { this._min_epsilon_resolution.value = value; }
   get signal_amplitude() { return this._signal_amplitude.value; }
@@ -191,33 +213,48 @@ export class GridBuilderUserData2D implements GridBuilderConfig2D {
 export class GridBuilderUserData3D implements GridBuilderConfig3D {
   storage: Storage;
   _minimum_grid_resolution: NumberEntry;
-  _padding_size_multiplier: NumberEntry;
-  mesh: Vec3<{ max_ratio: number, min_subdivisions: number }>;
+  max_ratio: Vec3<number>;
+  min_subdivisions: Vec3<number>;
   padding_size_multiplier: Vec3<number>;
 
   constructor(storage: Storage, prefix: string) {
     this.storage = storage;
     const get_name = (name: string) => `${prefix}.${name}`;
     this._minimum_grid_resolution = new NumberEntry(storage, get_name("minimum_grid_resolution"), 0.0001, "float");
-    this._padding_size_multiplier = new NumberEntry(storage, get_name("padding_size_multiplier"), 5, "float");
 
-    const create_mesh_axis = (axis: string) => {
-      return {
-        _max_ratio: new NumberEntry(storage, get_name(`max_${axis}_ratio`), 0.7, "float"),
-        _min_subdivisions: new NumberEntry(storage, get_name(`min_${axis}_subdivisions`), 5, "integer"),
-        get max_ratio() { return this._max_ratio.value; },
-        set max_ratio(value: number) { this._max_ratio.value = value; },
-        get min_subdivisions() { return this._min_subdivisions.value; },
-        set min_subdivisions(value: number) { this._min_subdivisions.value = value; },
-      }
+    const create_max_ratio_axis = (axis: Axis3D) => {
+      return new NumberEntry(storage, get_name(`max_${axis}_ratio`), 0.7, "float");
     };
-    this.mesh = {
-      x: create_mesh_axis("x"),
-      y: create_mesh_axis("x"),
-      z: create_mesh_axis("x"),
-    }
+    const max_ratio = {
+      _x: create_max_ratio_axis("x"),
+      _y: create_max_ratio_axis("y"),
+      _z: create_max_ratio_axis("z"),
+      get x() { return this._x.value; },
+      set x(value: number) { this._x.value = value; },
+      get y() { return this._y.value; },
+      set y(value: number) { this._y.value = value; },
+      get z() { return this._z.value; },
+      set z(value: number) { this._z.value = value; },
+    };
+    this.max_ratio = max_ratio;
 
-    const create_padding_size_multiplier_axis = (axis: string) => {
+    const create_min_subdivisions_axis = (axis: Axis3D) => {
+      return new NumberEntry(storage, get_name(`min_${axis}_subdivisions`), 5, "integer");
+    };
+    const min_subdivisions = {
+      _x: create_min_subdivisions_axis("x"),
+      _y: create_min_subdivisions_axis("y"),
+      _z: create_min_subdivisions_axis("z"),
+      get x() { return this._x.value; },
+      set x(value: number) { this._x.value = value; },
+      get y() { return this._y.value; },
+      set y(value: number) { this._y.value = value; },
+      get z() { return this._z.value; },
+      set z(value: number) { this._z.value = value; },
+    };
+    this.min_subdivisions = min_subdivisions;
+
+    const create_padding_size_multiplier_axis = (axis: Axis3D) => {
       return new NumberEntry(storage, get_name(`padding_multiplier_${axis}`), 5, "float");
     };
     const padding_size_multiplier = {

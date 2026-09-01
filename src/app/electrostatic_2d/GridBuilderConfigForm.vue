@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { type GridBuilderConfig } from "./grid_builder.ts";
 import { TriangleAlert } from "@lucide/vue";
 import { NumberField, integer_validator, float_validator } from "../../utility/form_validation.ts";
+import { AXES_2D } from '../../utility/dim_types.ts';
 
 const props = defineProps<{
   config: GridBuilderConfig,
@@ -12,16 +13,16 @@ const props = defineProps<{
 const config = computed(() => props.config);
 
 function create_fields(config: GridBuilderConfig) {
-  return [
-    new NumberField(config, "minimum_grid_resolution", "Minimum grid resolution", 1e-4, undefined, undefined, float_validator),
-    new NumberField(config, "padding_size_multiplier", "Padding ratio", 1, 20, undefined, float_validator),
-    new NumberField(config, "max_x_ratio", "Maximum x ratio", 0.1, 2.0, 0.1, float_validator),
-    new NumberField(config, "min_x_subdivisions", "Minimum x subdivisions", 1, 20, 1, integer_validator),
-    new NumberField(config, "max_y_ratio", "Maximum y ratio", 0.1, 2.0, 0.1, float_validator),
-    new NumberField(config, "min_y_subdivisions", "Minimum y subdivisions", 1, 20, 1, integer_validator),
-    new NumberField(config, "min_epsilon_resolution", "Epsilon resolution", 1e-2, 1e-1, 1e-2, float_validator),
-    new NumberField(config, "signal_amplitude", "Signal Voltage", 0.1, 10, 0.1, float_validator),
-  ];
+  const fields = [];
+  fields.push(new NumberField(config, "minimum_grid_resolution", "Minimum grid resolution", 1e-4, undefined, undefined, float_validator));
+  for (const axis of AXES_2D) {
+    fields.push(new NumberField(config.padding_size_multiplier, axis, `Padding ${axis} ratio`, 1, 20, undefined, float_validator));
+    fields.push(new NumberField(config.max_ratio, axis, `Maximum ${axis} ratio`, 0.1, 2.0, 0.1, float_validator));
+    fields.push(new NumberField(config.min_subdivisions, axis, `Minimum ${axis} subdivisions`, 1, 20, 1, integer_validator));
+  }
+  fields.push(new NumberField(config, "min_epsilon_resolution", "Epsilon resolution", 1e-2, 1e-1, 1e-2, float_validator));
+  fields.push(new NumberField(config, "signal_amplitude", "Signal Voltage", 0.1, 10, 0.1, float_validator));
+  return fields;
 }
 
 const fields = ref(create_fields(config.value));

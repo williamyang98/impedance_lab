@@ -3,14 +3,12 @@ import { generate_region_mesh_segments, RegionToGridMap, type RegionSpecificatio
 import { Profiler } from "../../utility/profiler.ts";
 import { CpuGrid } from "./grid.ts";
 import { type Vec3, type Axis3D, type Bound, AXES_3D } from "../../utility/dim_types.ts";
+import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 type Position3D = Vec3<number>;
 type IgnoreBoundary = Partial<Vec3<Partial<Bound<boolean>>>>;
 export type GridBuilderPadding = Vec3<Bound<boolean>>;
 
-export interface MeshConfig {
-  min_gridlines: Partial<Vec3<number>>;
-}
 
 export interface CylinderShape {
   readonly type: "cylinder";
@@ -18,14 +16,14 @@ export interface CylinderShape {
   radius: number;
   length?: number; // extend along entire axis if undefined
   axis: Axis3D;
-  config: Partial<MeshConfig>;
+  min_gridlines?: Partial<Vec3<number>>;
 }
 
 export interface CuboidShape {
   readonly type: "cuboid";
   start: Partial<Position3D>; // extend to edge of grid if undefined
   end: Partial<Position3D>;
-  config: Partial<MeshConfig>;
+  min_gridlines?: Partial<Vec3<number>>;
 }
 
 export interface TriangularPrismShape {
@@ -39,7 +37,7 @@ export interface TriangularPrismShape {
   // for axis = y, width = dx, height = dz
   // for axis = z, width = dx, height = dy
   axis: Axis3D;
-  config: Partial<MeshConfig>;
+  min_gridlines?: Partial<Vec3<number>>;
 }
 
 export type Shape = CylinderShape | CuboidShape | TriangularPrismShape;
@@ -67,15 +65,9 @@ export type RegionType = Region["type"];
 
 export interface GridBuilderConfig {
   minimum_grid_resolution: number; // smallest possible region size before it is ignored
-  padding_size_multiplier: { // amount of air padding to add around simulation region
-    x: number;
-    y: number;
-    z: number;
-  };
-  mesh: Vec3<{
-    max_ratio: number, // maximum ratio between adjacent grid sections
-    min_subdivisions: number, // minimum number of grid sections between region lines
-  }>;
+  padding_size_multiplier: Vec3<number>; // amount of air padding to add around simulation region
+  max_ratio: Vec3<number>; // maximum ratio between adjacent grid sections
+  min_subdivisions: Vec3<number>; // minimum number of grid sections between region lines
 }
 
 function get_log_median(dims: number[]): number {
@@ -386,18 +378,17 @@ export class GridBuilder {
       }
     }
 
-    const config = shape.config;
-    if (config.min_gridlines !== undefined) {
+    if (shape.min_gridlines !== undefined) {
       for (const axis of AXES_3D) {
-        const count = config.min_gridlines[axis];
-        const bound = region_sdf.region_id[axis];
-        if (count === undefined) continue;
-        if (bound.min === undefined) continue;
-        if (bound.max === undefined) continue;
+        const min_gridlines = shape.min_gridlines[axis];
+        const region_id = region_sdf.region_id[axis];
+        if (min_gridlines === undefined) continue;
+        if (region_id.min === undefined) continue;
+        if (region_id.max === undefined) continue;
         this.min_gridlines[axis].push({
-          region_id_min: bound.min,
-          region_id_max: bound.max,
-          count,
+          region_id_min: region_id.min,
+          region_id_max: region_id.max,
+          count: min_gridlines,
         });
       }
     }
@@ -426,9 +417,9 @@ export class GridBuilder {
     return bound as Vec3<Bound<number>>;
   }
 
-  setup_pad_grid(): typeof this.padded_boundary {
+  setup_pad_grid(): Vec3<Partial<Bound<number>>> {
     this.profiler?.begin("pad_grid");
-    const padded_boundary: typeof this.padded_boundary = {
+    const padded_boundary: Vec3<Partial<Bound<number>>> = {
       x: { min: undefined, max: undefined },
       y: { min: undefined, max: undefined },
       z: { min: undefined, max: undefined },
@@ -471,12 +462,10 @@ export class GridBuilder {
 
   setup_rescale_region_lines() {
     this.profiler?.begin("rescale_region_lines");
-    const merge_size = this.config.minimum_grid_resolution;
     const region_sizes = [];
     for (const axis of AXES_3D) {
       const regions = this.region_lines_builder[axis].to_regions();
       for (const region of regions) {
-        if (region < merge_size) continue;
         region_sizes.push(region);
       }
     }
@@ -499,7 +488,7 @@ export class GridBuilder {
       for (const spacing of spacings) {
         specs.push({ size: spacing });
       }
-      const mesh_config = this.config.mesh[axis];
+
       const overrides = this.min_gridlines[axis];
       for (const override of overrides) {
         const i_start = line_builder.get_index(override.region_id_min);
@@ -512,7 +501,9 @@ export class GridBuilder {
         }
       }
 
-      const segments = generate_region_mesh_segments(specs, mesh_config.min_subdivisions, mesh_config.max_ratio);
+      const min_subdivisions = this.config.min_subdivisions[axis];
+      const max_ratio = this.config.max_ratio[axis];
+      const segments = generate_region_mesh_segments(specs, min_subdivisions, max_ratio);
       region_to_grid_map[axis] = new RegionToGridMap(line_builder, segments);
     }
     return region_to_grid_map as Vec3<RegionToGridMap>;
@@ -602,7 +593,6 @@ export class GridBuilder {
       }
     }
 
-    const grid_size_x = grid_size.x;
     const grid_size_xy = grid_size.x*grid_size.y;
 
     for (const sdf of region.sdfs) {
@@ -764,15 +754,31 @@ export class GridBuilder {
               const gy = grid_absolute_bound.y.min+y;
               for (let x = grid_relative_bound.x.min; x < grid_relative_bound.x.max; x++) {
                 const gx = grid_absolute_bound.x.min+x;
-                const i = gx + gy*grid_size_x + gz*grid_size_xy;
+                const i = gx + gy*grid_size.x + gz*grid_size_xy;
                 set_data(i, beta);
               }
             }
           }
           break;
         }
-
       }
     }
+  }
+
+  get mesh_lines(): Vec3<MeshLines> {
+    const mesh: Partial<Vec3<MeshLines>> = {};
+    for (const axis of AXES_3D) {
+      const region_to_grid_map = this.region_to_grid_map[axis];
+      mesh[axis] = {
+        region_lines: region_to_grid_map.region_lines,
+        grid_lines: region_to_grid_map.grid_lines,
+        scale: region_to_grid_map.region_lines_builder.scale,
+        unpadded_boundary: this.unpadded_boundary[axis],
+        padded_boundary: this.padded_boundary[axis],
+        mesh_segments: region_to_grid_map.region_segments,
+        flip: false,
+      };
+    }
+    return mesh as Vec3<MeshLines>;
   }
 }

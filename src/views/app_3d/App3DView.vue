@@ -10,8 +10,6 @@ import {
   create_differential_setup,
   create_single_ended_setup_vargrid,
 } from "./app_3d.ts";
-import { AXES_3D, type Vec3 } from "../../utility/dim_types.ts";
-import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
@@ -32,21 +30,7 @@ const setup = computed(() => {
 });
 const mesh = computed(() => {
   if (selected_setup.value !== "single_ended_vargrid") return undefined;
-  const builder = setups.single_ended_vargrid;
-  const mesh: Partial<Vec3<MeshLines>> = {};
-  for (const axis of AXES_3D) {
-    const region_to_grid_map = builder.region_to_grid_map[axis];
-    mesh[axis] = {
-      region_lines: region_to_grid_map.region_lines,
-      grid_lines: region_to_grid_map.grid_lines,
-      scale: region_to_grid_map.region_lines_builder.scale,
-      unpadded_boundary: builder.unpadded_boundary[axis],
-      padded_boundary: builder.padded_boundary[axis],
-      mesh_segments: region_to_grid_map.region_segments,
-      flip: false,
-    };
-  }
-  return mesh as Vec3<MeshLines>;
+  return setups.single_ended_vargrid.mesh_lines;
 });
 const total_cells = computed(() => {
   const size = setup.value.size;

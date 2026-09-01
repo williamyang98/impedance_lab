@@ -4,6 +4,7 @@ import { type GridBuilderConfig } from "../electrostatic_3d/grid_builder.ts";
 import { type Vec3, type Axis3D, type Bound, AXES_3D } from "../../utility/dim_types.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { SimulationSetup } from "./grid.ts";
+import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 type Position3D = Vec3<number>;
 type GridBuilderPadding = Vec3<Bound<boolean>>;
@@ -547,7 +548,6 @@ export class GridBuilder {
       for (const spacing of spacings) {
         specs.push({ size: spacing });
       }
-      const mesh_config = this.config.mesh[axis];
       const overrides = this.min_gridlines[axis];
       for (const override of overrides) {
         const i_start = region_line_builder.get_index(override.region_id_min);
@@ -560,7 +560,9 @@ export class GridBuilder {
         }
       }
 
-      const segments = generate_region_mesh_segments(specs, mesh_config.min_subdivisions, mesh_config.max_ratio);
+      const min_subdivisions = this.config.min_subdivisions[axis];
+      const max_ratio = this.config.max_ratio[axis];
+      const segments = generate_region_mesh_segments(specs, min_subdivisions, max_ratio);
       region_to_grid_map[axis] = new RegionToGridMap(region_line_builder, segments);
     }
     return region_to_grid_map as typeof this.region_to_grid_map;
@@ -864,5 +866,21 @@ export class GridBuilder {
         },
       })
     }
+  }
+  get mesh_lines(): Vec3<MeshLines> {
+    const mesh: Partial<Vec3<MeshLines>> = {};
+    for (const axis of AXES_3D) {
+      const region_to_grid_map = this.region_to_grid_map[axis];
+      mesh[axis] = {
+        region_lines: region_to_grid_map.region_lines,
+        grid_lines: region_to_grid_map.grid_lines,
+        scale: region_to_grid_map.region_lines_builder.scale,
+        unpadded_boundary: this.unpadded_boundary[axis],
+        padded_boundary: this.padded_boundary[axis],
+        mesh_segments: region_to_grid_map.region_segments,
+        flip: false,
+      };
+    }
+    return mesh as Vec3<MeshLines>;
   }
 }

@@ -68,7 +68,9 @@ export class LinesBuilder {
   to_regions(): number[] {
     this.sort();
     const N = this.lines.length;
-    if (N < 2) throw Error(`Need at least 2 grid lines for a region`);
+    if (N < 2) {
+      throw Error(`Need at least 2 grid lines for a region`);
+    }
     const regions = new Array(N-1);
     for (let i = 0; i < (N-1); i++) {
       regions[i] = this.lines[i+1]-this.lines[i];

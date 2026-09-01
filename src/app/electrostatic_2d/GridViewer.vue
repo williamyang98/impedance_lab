@@ -116,7 +116,7 @@ function update_grid(grid: Grid) {
   grid = toRaw(grid);
   renderer_core.grid = grid;
   is_uploaded.clear();
-  let aspect_ratio = grid.size[1]/grid.size[0];
+  let aspect_ratio = grid.size.x/grid.size.y;
   aspect_ratio = Math.min(aspect_ratio, 2);
   const elem = canvas_element.value;
   if (elem !== null) {

@@ -4,49 +4,38 @@ import { LinesBuilder } from "../mesher/lines_builder.ts";
 import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../mesher/regions.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
+import { type Vec2, type Bound, AXES_2D } from "../../utility/dim_types.ts";
+import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
+
+type Pos2D = Vec2<number>;
 
 export interface CircleShape {
   readonly type: "circle";
-  x: number;
-  y: number;
+  center: Pos2D;
   radius: number;
-  min_x_gridlines?: number;
-  min_y_gridlines?: number;
+  min_gridlines?: Partial<Vec2<number>>;
 }
 
 export interface RectangleShape {
   readonly type: "rectangle";
-  x_left?: number; // undefined means unbounded
-  x_right?: number;
-  y_top?: number;
-  y_bottom?: number;
-  min_x_gridlines?: number;
-  min_y_gridlines?: number;
+  box: Partial<Vec2<Partial<Bound<number>>>>;
+  min_gridlines?: Partial<Vec2<number>>;
 }
 
 export interface TriangleShape {
   readonly type: "triangle";
-  x_base: number;
-  x_tip: number;
-  y_base: number;
-  y_tip: number;
-  min_x_gridlines?: number;
-  min_y_gridlines?: number;
+  base: Pos2D;
+  tip: Pos2D;
+  min_gridlines?: Partial<Vec2<number>>;
 }
 
 export type Shape = CircleShape | RectangleShape | TriangleShape;
-
-export interface Bound2D<T> {
-  x_min: T;
-  x_max: T;
-  y_min: T;
-  y_max: T;
-}
+export type IgnoreBoundary = Partial<Vec2<Partial<Bound<boolean>>>>;
 
 export interface VoltageRegion {
   readonly type: "voltage";
   voltage_index: number | null; // null removes voltage
-  ignore_boundary?: Partial<Bound2D<boolean>>;
+  ignore_boundary?: IgnoreBoundary;
   shapes: Shape[];
 }
 
@@ -66,24 +55,15 @@ export type RegionType = "voltage" | "dielectric" | "empty";
 
 export interface GridBuilderConfig {
   minimum_grid_resolution: number; // smallest possible region size before it is ignored
-  padding_size_multiplier: number; // amount of air padding to add around simulation region
-  max_x_ratio: number; // maximum rate at which grid regions can grow/shrink relative to their neighbour
-  min_x_subdivisions: number; // minimum number of grid lines each region should have
-  max_y_ratio: number; // maximum rate at which grid regions can grow/shrink relative to their neighbour
-  min_y_subdivisions: number; // minimum number of grid lines each region should have
-  // TODO: move these somewhere else since grid builder doesnt actually use them
+  padding_size_multiplier: Vec2<number>; // amount of air padding to add around simulation region
+  max_ratio: Vec2<number>; // maximum rate at which grid regions can grow/shrink relative to their neighbour
+  min_subdivisions: Vec2<number>; // minimum number of grid lines each region should have
   min_epsilon_resolution: number; // smallest possible difference in dielectric epsilon values before they are considered the same
   signal_amplitude: number; // voltage value to use for +/- signals
 }
 
-export interface GridBuilderPadding {
-  x_left?: boolean;
-  x_right?: boolean;
-  y_top?: boolean;
-  y_bottom?: boolean;
-}
+export type GridBuilderPadding = Vec2<Partial<Bound<boolean>>>;
 
-// x=0,y=0 is top left
 function get_sdf_multisample(sdf: (y: number, x: number) => number) {
   function transform(y: number, x: number, dy: number, dx: number): number {
     // multisampling
@@ -110,10 +90,7 @@ function get_log_median(dims: number[]): number {
 }
 
 interface SDF {
-  rx_left?: number;
-  rx_right?: number;
-  ry_top?: number;
-  ry_bottom?: number;
+  region_id: Vec2<Partial<Bound<number>>>;
   fill: {
     readonly type: "point",
     sdf: (y: number, x: number) => number,
@@ -126,7 +103,7 @@ interface SDF {
 }
 
 type RegionSDF =
-  { type: "voltage", sdfs: SDF[], voltage_index: number | null, ignore_boundary?: Partial<Bound2D<boolean>> } |
+  { type: "voltage", sdfs: SDF[], voltage_index: number | null, ignore_boundary?: IgnoreBoundary } |
   { type: "dielectric", sdfs: SDF[], dielectric_index: number | null } |
   { type: "empty", sdfs: SDF[] };
 
@@ -140,24 +117,15 @@ export class GridBuilder extends ManagedObject {
   regions: Region[];
   padding: GridBuilderPadding;
   sdf_regions: RegionSDF[];
-  x_region_lines_builder = new LinesBuilder();
-  y_region_lines_builder = new LinesBuilder();
-  x_min_gridlines: { rx_left: number, rx_right: number, count: number }[] = [];
-  y_min_gridlines: { ry_top: number, ry_bottom: number, count: number }[] = [];
-  x_region_to_grid_map: RegionToGridMap;
-  y_region_to_grid_map: RegionToGridMap;
-  unpadded_boundary: {
-    x_left: number;
-    x_right: number;
-    y_top: number;
-    y_bottom: number;
-  };
-  padded_boundary: {
-    x_left?: number;
-    x_right?: number;
-    y_top?: number;
-    y_bottom?: number;
-  };
+  region_lines_builder: Vec2<LinesBuilder>;
+  region_to_grid_map: Vec2<RegionToGridMap>;
+  min_gridlines: Vec2<{
+    region_id_min: number,
+    region_id_max: number,
+    count: number,
+  }[]>;
+  unpadded_boundary: Vec2<Bound<number>>;
+  padded_boundary: Vec2<Partial<Bound<number>>>;
   grid_scale: number = 1.0;
   dielectric_indices = new Set<number>();
   voltage_indices = new Set<number>();
@@ -175,13 +143,21 @@ export class GridBuilder extends ManagedObject {
     this.padding = padding;
     this.profiler = profiler;
 
+    this.region_lines_builder = {
+      x: new LinesBuilder(),
+      y: new LinesBuilder(),
+    };
+    this.min_gridlines = {
+      x: [],
+      y: [],
+    };
+
     this.sdf_regions = this.setup_create_sdf_regions(regions);
     this.unpadded_boundary = this.setup_calculate_unpadded_boundary();
     this.padded_boundary = this.setup_pad_grid();
     this.setup_merge_nearby_region_lines();
     this.setup_rescale_region_lines();
-    this.x_region_to_grid_map = this.setup_create_x_region_to_grid_map();
-    this.y_region_to_grid_map = this.setup_create_y_region_to_grid_map();
+    this.region_to_grid_map = this.setup_subdivide_region_lines();
     this.grid = this.setup_create_simulation_grid();
     this._child_objects.add(this.grid);
     this.setup_fill_sdf_regions();
@@ -242,25 +218,25 @@ export class GridBuilder extends ManagedObject {
     let region_sdf: SDF | undefined = undefined;
     switch (shape.type) {
       case "circle": {
-        const x_left = shape.x-shape.radius;
-        const x_right = shape.x+shape.radius;
-        const y_top = shape.y-shape.radius;
-        const y_bottom = shape.y+shape.radius;
+        const x_min = shape.center.x-shape.radius;
+        const x_max = shape.center.x+shape.radius;
+        const y_min = shape.center.y-shape.radius;
+        const y_max = shape.center.y+shape.radius;
 
-        const rx_left = this.x_region_lines_builder.push(x_left);
-        const rx_right = this.x_region_lines_builder.push(x_right);
-        const ry_top = this.y_region_lines_builder.push(y_top);
-        const ry_bottom = this.y_region_lines_builder.push(y_bottom);
+        const rx_min = this.region_lines_builder.x.push(x_min);
+        const rx_max = this.region_lines_builder.x.push(x_max);
+        const ry_min = this.region_lines_builder.y.push(y_min);
+        const ry_max = this.region_lines_builder.y.push(y_max);
 
         const epsilon = 1e-3;
         const radius_squared = 0.5**2 + epsilon;
         const sdf = (y: number, x: number) => ((y-0.5)**2 + (x-0.5)**2 <= radius_squared) ? 1.0 : 0.0;
         const multisample_sdf = get_sdf_multisample(sdf);
         region_sdf = {
-          rx_left,
-          rx_right,
-          ry_top,
-          ry_bottom,
+          region_id: {
+            x: { min: rx_min, max: rx_max },
+            y: { min: ry_min, max: ry_max },
+          },
           fill: {
             type: "multisample",
             sdf: multisample_sdf,
@@ -269,21 +245,21 @@ export class GridBuilder extends ManagedObject {
         break;
       }
       case "rectangle": {
-        const x_left = shape.x_left;
-        const x_right = shape.x_right;
-        const y_top = shape.y_top;
-        const y_bottom = shape.y_bottom;
+        const x_min = shape.box.x?.min;
+        const x_max = shape.box.x?.max;
+        const y_min = shape.box.y?.min;
+        const y_max = shape.box.y?.max;
 
-        const rx_left = x_left !== undefined ? this.x_region_lines_builder.push(x_left) : undefined;
-        const rx_right = x_right !== undefined ? this.x_region_lines_builder.push(x_right) : undefined;
-        const ry_top = y_top !== undefined ? this.y_region_lines_builder.push(y_top) : undefined;
-        const ry_bottom = y_bottom !== undefined ? this.y_region_lines_builder.push(y_bottom) : undefined;
+        const rx_min = x_min !== undefined ? this.region_lines_builder.x.push(x_min) : undefined;
+        const rx_max = x_max !== undefined ? this.region_lines_builder.x.push(x_max) : undefined;
+        const ry_min = y_min !== undefined ? this.region_lines_builder.y.push(y_min) : undefined;
+        const ry_max = y_max !== undefined ? this.region_lines_builder.y.push(y_max) : undefined;
 
         region_sdf = {
-          rx_left,
-          rx_right,
-          ry_top,
-          ry_bottom,
+          region_id: {
+            x: { min: rx_min, max: rx_max },
+            y: { min: ry_min, max: ry_max },
+          },
           fill: {
             type: "constant",
           },
@@ -291,29 +267,29 @@ export class GridBuilder extends ManagedObject {
         break;
       }
       case "triangle": {
-        const x_left = Math.min(shape.x_base, shape.x_tip);
-        const x_right = Math.max(shape.x_base, shape.x_tip);
-        const y_top = Math.min(shape.y_base, shape.y_tip);
-        const y_bottom = Math.max(shape.y_base, shape.y_tip);
+        const x_min = Math.min(shape.base.x, shape.tip.x);
+        const x_max = Math.max(shape.base.x, shape.tip.x);
+        const y_min = Math.min(shape.base.y, shape.tip.y);
+        const y_max = Math.max(shape.base.y, shape.tip.y);
 
-        const rx_left = this.x_region_lines_builder.push(x_left);
-        const rx_right = this.x_region_lines_builder.push(x_right);
-        const ry_top = this.y_region_lines_builder.push(y_top);
-        const ry_bottom = this.y_region_lines_builder.push(y_bottom);
+        const rx_min = this.region_lines_builder.x.push(x_min);
+        const rx_max = this.region_lines_builder.x.push(x_max);
+        const ry_min = this.region_lines_builder.y.push(y_min);
+        const ry_max = this.region_lines_builder.y.push(y_max);
 
         const sdf_slope_bottom_left = (y: number, x: number) => (y >= x) ? 1.0 : 0.0;
         const sdf_slope_bottom_right = (y: number, x: number) => (y >= 1-x) ? 1.0 : 0.0;
         const sdf_slope_top_left = (y: number, x: number) => (y <= 1-x) ? 1.0 : 0.0;
         const sdf_slope_top_right = (y: number, x: number) => (y <= x) ? 1.0 : 0.0;
         let sdf = undefined;
-        if (shape.y_tip > shape.y_base) {
-          if (shape.x_base > shape.x_tip) {
+        if (shape.tip.y > shape.base.y) {
+          if (shape.base.x > shape.tip.x) {
             sdf = sdf_slope_top_left;
           } else {
             sdf = sdf_slope_top_right;
           }
         } else {
-          if (shape.x_base > shape.x_tip) {
+          if (shape.base.x > shape.tip.x) {
             sdf = sdf_slope_bottom_left;
           } else {
             sdf = sdf_slope_bottom_right;
@@ -321,10 +297,10 @@ export class GridBuilder extends ManagedObject {
         }
         const multisample_sdf = get_sdf_multisample(sdf);
         region_sdf = {
-          rx_left,
-          rx_right,
-          ry_top,
-          ry_bottom,
+          region_id: {
+            x: { min: rx_min, max: rx_max },
+            y: { min: ry_min, max: ry_max },
+          },
           fill: {
             type: "multisample",
             sdf: multisample_sdf,
@@ -334,62 +310,71 @@ export class GridBuilder extends ManagedObject {
       }
     }
 
-    if (shape.min_x_gridlines !== undefined && region_sdf.rx_left !== undefined && region_sdf.rx_right !== undefined) {
-      this.x_min_gridlines.push({
-        rx_left: region_sdf.rx_left,
-        rx_right: region_sdf.rx_right,
-        count: shape.min_x_gridlines,
-      });
+    if (shape.min_gridlines !== undefined) {
+      for (const axis of AXES_2D) {
+        const min_gridlines = shape.min_gridlines[axis];
+        const region_id = region_sdf.region_id[axis];
+        if (min_gridlines === undefined) continue;
+        if (region_id.min === undefined) continue;
+        if (region_id.max === undefined) continue;
+        this.min_gridlines[axis].push({
+          region_id_min: region_id.min,
+          region_id_max: region_id.max,
+          count: min_gridlines,
+        });
+      }
     }
-
-    if (shape.min_y_gridlines !== undefined && region_sdf.ry_top !== undefined && region_sdf.ry_bottom !== undefined) {
-      this.y_min_gridlines.push({
-        ry_top: region_sdf.ry_top,
-        ry_bottom: region_sdf.ry_bottom,
-        count: shape.min_y_gridlines,
-      });
-    }
-
     this.profiler?.end();
     return region_sdf;
   }
 
-  setup_calculate_unpadded_boundary(): typeof this.unpadded_boundary {
+  setup_calculate_unpadded_boundary(): Vec2<Bound<number>> {
     this.profiler?.begin("calculate_unpadded_boundary");
-    const x_left = this.x_region_lines_builder.lines.reduce((a,b) => Math.min(a,b), Infinity);
-    const x_right = this.x_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
-    const y_top = this.y_region_lines_builder.lines.reduce((a,b) => Math.min(a,b), Infinity);
-    const y_bottom = this.y_region_lines_builder.lines.reduce((a,b) => Math.max(a,b), -Infinity);
+    const bound: Vec2<Partial<Bound<number>>> = {
+      x: { min: undefined, max: undefined, },
+      y: { min: undefined, max: undefined, },
+    };
+    for (const axis of AXES_2D) {
+      const line_builder = this.region_lines_builder[axis];
+      line_builder.sort();
+      const lines = line_builder.lines;
+      if (lines.length <= 0) {
+        throw Error(`No lines provided for axis ${axis}`);
+      }
+      bound[axis].min = lines[0];
+      bound[axis].max = lines[lines.length-1];
+    }
     this.profiler?.end();
-    return { x_left, x_right, y_top, y_bottom };
+    return bound as Vec2<Bound<number>>;
   }
 
-  setup_pad_grid(): typeof this.padded_boundary {
+  setup_pad_grid(): Vec2<Partial<Bound<number>>> {
     this.profiler?.begin("pad_grid");
-    const { x_left, x_right, y_top, y_bottom } = this.unpadded_boundary;
-    const stackup_width = x_right-x_left;
-    const stackup_height = y_bottom-y_top;
-    const padding_size = Math.max(stackup_width, stackup_height)*this.config.padding_size_multiplier;
-    const padded_boundary: typeof this.padded_boundary = {};
-    if (this.padding.x_left) {
-      const x_left_pad = x_left-padding_size;
-      this.x_region_lines_builder.push(x_left_pad);
-      padded_boundary.x_left = x_left_pad;
-    }
-    if (this.padding.x_right) {
-      const x_right_pad = x_right+padding_size;
-      this.x_region_lines_builder.push(x_right_pad);
-      padded_boundary.x_right = x_right_pad;
-    }
-    if (this.padding.y_top) {
-      const y_top_pad = y_top-padding_size;
-      this.y_region_lines_builder.push(y_top_pad);
-      padded_boundary.y_top = y_top_pad;
-    }
-    if (this.padding.y_bottom) {
-      const y_bottom_pad = y_bottom+padding_size;
-      this.y_region_lines_builder.push(y_bottom_pad);
-      padded_boundary.y_bottom = y_bottom_pad;
+    const padded_boundary: Vec2<Partial<Bound<number>>> = {
+      x: { min: undefined, max: undefined },
+      y: { min: undefined, max: undefined },
+    };
+
+    for (const axis of AXES_2D) {
+      const unpadded_bound = this.unpadded_boundary[axis];
+      const unpadded_size = unpadded_bound.max-unpadded_bound.min;
+      const multiplier = this.config.padding_size_multiplier[axis];
+      const padding_size = unpadded_size*multiplier;
+
+      const lines_builder = this.region_lines_builder[axis];
+      const bound = this.unpadded_boundary[axis];
+      const is_pad = this.padding[axis];
+      const padded = padded_boundary[axis];
+      if (is_pad.min) {
+        const pad_min = bound.min-padding_size;
+        lines_builder.push(pad_min);
+        padded.min = pad_min;
+      }
+      if (is_pad.max) {
+        const pad_max = bound.max+padding_size;
+        lines_builder.push(pad_max);
+        padded.max = pad_max;
+      }
     }
     this.profiler?.end();
     return padded_boundary;
@@ -398,89 +383,74 @@ export class GridBuilder extends ManagedObject {
   setup_merge_nearby_region_lines() {
     this.profiler?.begin("merge_nearby_region_lines");
     const merge_size = this.config.minimum_grid_resolution;
-    this.x_region_lines_builder.merge(merge_size);
-    this.y_region_lines_builder.merge(merge_size);
+    for (const axis of AXES_2D) {
+      const lines_builder = this.region_lines_builder[axis];
+      lines_builder.merge(merge_size);
+    }
     this.profiler?.end();
   }
 
   setup_rescale_region_lines() {
     this.profiler?.begin("rescale_region_lines");
-    const merge_size = this.config.minimum_grid_resolution;
-    const x_region_sizes = this.x_region_lines_builder.to_regions();
-    const y_region_sizes = this.y_region_lines_builder.to_regions();
-    const region_sizes = [...x_region_sizes, ...y_region_sizes].filter(size => size >= merge_size);
+    const region_sizes = [];
+    for (const axis of AXES_2D) {
+      const regions = this.region_lines_builder[axis].to_regions();
+      for (const region of regions) {
+        region_sizes.push(region);
+      }
+    }
     // rescale for best accuracy for 32bit floating point
     const log_mean = get_log_median(region_sizes);
     const scale = 1.0/log_mean;
-    this.x_region_lines_builder.apply_scale(scale);
-    this.y_region_lines_builder.apply_scale(scale);
+    for (const axis of AXES_2D) {
+      this.region_lines_builder[axis].apply_scale(scale);
+    }
     this.grid_scale *= scale;
     this.profiler?.end();
   }
 
-  setup_create_x_region_to_grid_map(): RegionToGridMap {
+  setup_subdivide_region_lines(): Vec2<RegionToGridMap> {
     this.profiler?.begin("create_x_region_to_grid_map");
-    const size_to_region_spec = (size: number): RegionSpecification => {
-      return {
-        size,
-      };
-    };
-    const x_region_sizes = this.x_region_lines_builder.to_regions();
-    const x_region_specs: RegionSpecification[] = x_region_sizes.map(size_to_region_spec);
+    const region_to_grid_map: Partial<Vec2<RegionToGridMap>> = {};
 
-    // override minimum number of gridlines if specified
-    for (const x_min of this.x_min_gridlines) {
-      const ix_left = this.x_region_lines_builder.get_index(x_min.rx_left);
-      const ix_right = this.x_region_lines_builder.get_index(x_min.rx_right);
-      for (let i = ix_left; i < ix_right; i++) {
-        const old_count = x_region_specs[i].total_grid_lines;
-        const new_count = old_count === undefined ? x_min.count : Math.max(old_count, x_min.count);
-        x_region_specs[i].total_grid_lines = new_count;
+    for (const axis of AXES_2D) {
+      const line_builder = this.region_lines_builder[axis];
+      const spacings = line_builder.to_regions();
+      const specs: RegionSpecification[] = spacings.map((spacing) => {
+        return { size: spacing };
+      });
+
+      const overrides = this.min_gridlines[axis];
+      for (const override of overrides) {
+        const i_start = line_builder.get_index(override.region_id_min);
+        const i_end = line_builder.get_index(override.region_id_max);
+        for (let i = i_start; i < i_end; i++) {
+          const spec = specs[i];
+          if (spec.total_grid_lines === undefined || spec.total_grid_lines < override.count) {
+            spec.total_grid_lines = override.count;
+          }
+        }
       }
+
+      const min_subdivisions = this.config.min_subdivisions[axis];
+      const max_ratio = this.config.max_ratio[axis];
+      const segments = generate_region_mesh_segments(specs, min_subdivisions, max_ratio);
+      region_to_grid_map[axis] = new RegionToGridMap(line_builder, segments);
     }
-
-    const x_region_segments = generate_region_mesh_segments(x_region_specs, this.config.min_x_subdivisions, this.config.max_x_ratio);
-    this.profiler?.end();
-    return new RegionToGridMap(this.x_region_lines_builder, x_region_segments);
-  }
-
-  setup_create_y_region_to_grid_map() {
-    this.profiler?.begin("create_y_region_to_grid_map");
-    const size_to_region_spec = (size: number): RegionSpecification => {
-      return {
-        size,
-      };
-    };
-    const y_region_sizes = this.y_region_lines_builder.to_regions();
-    const y_region_specs: RegionSpecification[] = y_region_sizes.map(size_to_region_spec);
-
-    // override minimum number of gridlines if specified
-    for (const y_min of this.y_min_gridlines) {
-      const iy_top = this.y_region_lines_builder.get_index(y_min.ry_top);
-      const iy_bottom = this.y_region_lines_builder.get_index(y_min.ry_bottom);
-      for (let i = iy_top; i < iy_bottom; i++) {
-        const old_count = y_region_specs[i].total_grid_lines;
-        const new_count = old_count === undefined ? y_min.count : Math.max(old_count, y_min.count);
-        y_region_specs[i].total_grid_lines = new_count;
-      }
-    }
-
-    const y_region_segments = generate_region_mesh_segments(y_region_specs, this.config.min_y_subdivisions, this.config.max_y_ratio);
-    this.profiler?.end();
-    return new RegionToGridMap(this.y_region_lines_builder, y_region_segments);
+    return region_to_grid_map as Vec2<RegionToGridMap>;
   }
 
   setup_create_simulation_grid(): Grid {
     this.profiler?.begin("create_simulation_grid");
-    const grid = new Grid(
-      this.module,
-      this.y_region_to_grid_map.total_grid_segments,
-      this.x_region_to_grid_map.total_grid_segments,
-    );
-    grid.dx.array_view.set(this.x_region_to_grid_map.grid_segments);
-    grid.dy.array_view.set(this.y_region_to_grid_map.grid_segments);
-    grid.x.array_view.set(this.x_region_to_grid_map.grid_lines);
-    grid.y.array_view.set(this.y_region_to_grid_map.grid_lines);
+    const size: Vec2<number> = {
+      x: this.region_to_grid_map.x.total_grid_segments,
+      y: this.region_to_grid_map.y.total_grid_segments,
+    };
+    const grid = new Grid(this.module, size);
+    grid.dx.array_view.set(this.region_to_grid_map.x.grid_segments);
+    grid.dy.array_view.set(this.region_to_grid_map.y.grid_segments);
+    grid.x.array_view.set(this.region_to_grid_map.x.grid_lines);
+    grid.y.array_view.set(this.region_to_grid_map.y.grid_lines);
     this.profiler?.end();
     return grid;
   }
@@ -496,15 +466,17 @@ export class GridBuilder extends ManagedObject {
   setup_fill_sdf_region(region: RegionSDF) {
     if (region.type === "empty") return;
 
-    let Nx = undefined as (undefined | number);
-    let Ny = undefined as (undefined | number);
+    const grid_size: Vec2<number> = {
+      x: 0,
+      y: 0,
+    };
     let set_data = undefined as (undefined | ((i: number, beta: number) => void));
     switch (region.type) {
       case "voltage": {
         const arr = this.grid.v_index_beta;
         const data = arr.array_view;
-        Ny = arr.shape[0];
-        Nx = arr.shape[1];
+        grid_size.y = arr.shape[0];
+        grid_size.x = arr.shape[1];
         const index = region.voltage_index;
         if (index === null) {
           const v_none = Grid.pack_index_beta(0, 0);
@@ -528,8 +500,8 @@ export class GridBuilder extends ManagedObject {
       case "dielectric": {
         const arr = this.grid.ek_index_beta;
         const data = arr.array_view;
-        Ny = arr.shape[0];
-        Nx = arr.shape[1];
+        grid_size.y = arr.shape[0];
+        grid_size.x = arr.shape[1];
         const index = region.dielectric_index;
         if (index === null) {
           const er0 = Grid.pack_index_beta(0, 0);
@@ -553,77 +525,146 @@ export class GridBuilder extends ManagedObject {
     }
 
     for (const sdf of region.sdfs) {
-      const {
-        rx_left,
-        rx_right,
-        ry_top,
-        ry_bottom,
-        fill,
-      } = sdf;
+      const { region_id, fill } = sdf;
 
-      let gx_left = rx_left !== undefined ? this.x_region_to_grid_map.id_to_grid_index(rx_left) : undefined;
-      let gx_right = rx_right !== undefined ? this.x_region_to_grid_map.id_to_grid_index(rx_right) : undefined;
-      let gy_top = ry_top !== undefined ? this.y_region_to_grid_map.id_to_grid_index(ry_top) : undefined;
-      let gy_bottom = ry_bottom !== undefined ? this.y_region_to_grid_map.id_to_grid_index(ry_bottom) : undefined;
+      const partial_grid_bound: Vec2<Partial<Bound<number>>> = {
+        x: { min: undefined, max: undefined },
+        y: { min: undefined, max: undefined },
+      };
+
+      for (const axis of AXES_2D) {
+        const id = region_id[axis];
+        const region_to_grid_map = this.region_to_grid_map[axis];
+        if (id.min !== undefined) {
+          partial_grid_bound[axis].min = region_to_grid_map.id_to_grid_index(id.min);
+        }
+        if (id.max !== undefined) {
+          partial_grid_bound[axis].max = region_to_grid_map.id_to_grid_index(id.max);
+        }
+      }
 
       // voltage SDF should include boundaries of grid region
       if (region.type === "voltage") {
-        if (gx_right !== undefined) gx_right += 1;
-        if (gy_bottom !== undefined) gy_bottom += 1;
+        for (const axis of AXES_2D) {
+          if (partial_grid_bound[axis].max !== undefined) {
+            partial_grid_bound[axis].max += 1;
+          }
+        }
       }
 
-      gx_left = gx_left ?? 0;
-      gx_right = gx_right ?? Nx;
-      gy_top = gy_top ?? 0;
-      gy_bottom = gy_bottom ?? Ny;
+      for (const axis of AXES_2D) {
+        if (partial_grid_bound[axis].min === undefined) {
+          partial_grid_bound[axis].min = 0;
+        }
+        if (partial_grid_bound[axis].max === undefined) {
+          partial_grid_bound[axis].max = grid_size[axis];
+        }
+      }
+
+      const grid_absolute_bound: Vec2<Bound<number>> = {
+        x: { min: 0, max: 0 },
+        y: { min: 0, max: 0 },
+      };
+      for (const axis of AXES_2D) {
+        const partial_bound = partial_grid_bound[axis];
+        const bound = grid_absolute_bound[axis];
+        bound.min = partial_bound.min ?? 0;
+        bound.max = partial_bound.max ?? grid_size[axis];
+      }
 
       // get normalised grid coordinates for SDFs
-      const My = gy_bottom-gy_top;
-      const Mx = gx_right-gx_left;
-      const X = this.x_region_to_grid_map.grid_lines.slice(gx_left, gx_right);
-      const Y = this.y_region_to_grid_map.grid_lines.slice(gy_top, gy_bottom);
-      const dX = this.x_region_to_grid_map.grid_segments.slice(gx_left, gx_right);
-      const dY = this.y_region_to_grid_map.grid_segments.slice(gy_top, gy_bottom);
+      const grid_count: Vec2<number> = {
+        x: 0,
+        y: 0,
+      };
+      for (const axis of AXES_2D) {
+        const bound = grid_absolute_bound[axis];
+        grid_count[axis] = bound.max-bound.min;
+      }
+
+      const grid_offset: Vec2<number[]> = {
+        x: [],
+        y: [],
+      };
+      const grid_spacing: Vec2<number[]> = {
+        x: [],
+        y: [],
+      };
+      for (const axis of AXES_2D) {
+        const bound = grid_absolute_bound[axis];
+        const region_to_grid_map = this.region_to_grid_map[axis];
+        grid_offset[axis] = region_to_grid_map.grid_lines.slice(bound.min, bound.max);
+        grid_spacing[axis] = region_to_grid_map.grid_segments.slice(bound.min, bound.max);
+      }
 
       if (region.type === "dielectric") {
         // centre coordinate to dielectric cell
-        for (let x = 0; x < Mx; x++) {
-          X[x] += dX[x]/2;
-        }
-        for (let y = 0; y < My; y++) {
-          Y[y] += dY[y]/2;
+        for (const axis of AXES_2D) {
+          const N = grid_count[axis];
+          const offsets = grid_offset[axis];
+          const spacings = grid_spacing[axis];
+          if (offsets.length !== spacings.length) {
+            throw Error(`Mismatch between grid lines (${offsets.length}) and grid spacing (${spacings.length}) array lengths along axis: ${axis}`);
+          }
+          for (let i = 0; i < N; i++) {
+            offsets[i] += spacings[i]/2;
+          }
         }
       }
 
-      const abs_width = dX.reduce((a,b) => a+b, 0);
-      const abs_height = dY.reduce((a,b) => a+b, 0);
-      const norm_X = X.map(x => (x-X[0])/abs_width);
-      const norm_Y = Y.map(y => (y-Y[0])/abs_height);
-      const norm_dX = dX.map(dx => dx/abs_width);
-      const norm_dY = dY.map(dy => dy/abs_height);
+      const grid_total_size: Vec2<number> = {
+        x: 0,
+        y: 0,
+      };
+      for (const axis of AXES_2D) {
+        const sizes = grid_spacing[axis];
+        let sum = 0;
+        for (let i = 0; i < sizes.length; i++) {
+          sum += sizes[i];
+        }
+        grid_total_size[axis] = sum;
+      }
+      const grid_norm_spacing: Vec2<number[]> = {
+        x: [],
+        y: [],
+      };
+      const grid_norm_offset: Vec2<number[]> = {
+        x: [],
+        y: [],
+      };
+      for (const axis of AXES_2D) {
+        const total_size = grid_total_size[axis];
+        const offsets = grid_offset[axis];
+        const min_offset = offsets[0];
+        grid_norm_spacing[axis] = grid_spacing[axis].map(size => size/total_size);
+        grid_norm_offset[axis] = grid_offset[axis].map(line => (line-min_offset)/total_size);
+      }
 
-      let mx_min = 0;
-      let mx_max = Mx;
-      let my_min = 0;
-      let my_max = My;
+      const grid_relative_bound: Vec2<Bound<number>> = {
+        x: { min: 0, max: grid_count.x },
+        y: { min: 0, max: grid_count.y },
+      };
       // voltage region allows customisation of whether outer or inner boundaries are used
       if (region.type === "voltage" && region.ignore_boundary !== undefined) {
-        if (region.ignore_boundary.x_min) mx_min = 1;
-        if (region.ignore_boundary.x_max) mx_max = Mx-1;
-        if (region.ignore_boundary.y_min) my_min = 1;
-        if (region.ignore_boundary.y_max) my_max = My-1;
+        const boundary = region.ignore_boundary;
+        for (const axis of AXES_2D) {
+          const bound = boundary[axis];
+          if (bound === undefined) continue;
+          if (bound.min) grid_relative_bound[axis].min = 1;
+          if (bound.max) grid_relative_bound[axis].max = grid_count[axis]-1;
+        }
       }
 
       switch (fill.type) {
         case "point": {
           const sdf = fill.sdf;
-          for (let y = my_min; y < my_max; y++) {
-            const norm_y = norm_Y[y];
-            const gy = gy_top+y;
-            for (let x = mx_min; x < mx_max; x++) {
-              const norm_x = norm_X[x];
-              const gx = gx_left+x;
-              const i = gx + gy*Nx;
+          for (let y = grid_relative_bound.y.min; y < grid_relative_bound.y.max; y++) {
+            const norm_y = grid_norm_offset.y[y];
+            const gy = grid_absolute_bound.y.min+y;
+            for (let x = grid_relative_bound.x.min; x < grid_relative_bound.x.max; x++) {
+              const norm_x = grid_norm_offset.x[x];
+              const gx = grid_absolute_bound.x.min+x;
+              const i = gx + gy*grid_size.x;
               const beta = sdf(norm_y, norm_x);
               set_data(i, beta);
             }
@@ -632,15 +673,15 @@ export class GridBuilder extends ManagedObject {
         }
         case "multisample": {
           const sdf = fill.sdf;
-          for (let y = my_min; y < my_max; y++) {
-            const norm_y = norm_Y[y];
-            const norm_dy = norm_dY[y];
-            const gy = gy_top+y;
-            for (let x = mx_min; x < mx_max; x++) {
-              const norm_x = norm_X[x];
-              const norm_dx = norm_dX[x];
-              const gx = gx_left+x;
-              const i = gx + gy*Nx;
+          for (let y = grid_relative_bound.y.min; y < grid_relative_bound.y.max; y++) {
+            const norm_y = grid_norm_offset.y[y];
+            const norm_dy = grid_norm_spacing.y[y];
+            const gy = grid_absolute_bound.y.min+y;
+            for (let x = grid_relative_bound.x.min; x < grid_relative_bound.x.max; x++) {
+              const norm_x = grid_norm_offset.x[x];
+              const norm_dx = grid_norm_spacing.x[x];
+              const gx = grid_absolute_bound.x.min+x;
+              const i = gx + gy*grid_size.x;
               const beta = sdf(norm_y, norm_x, norm_dy, norm_dx);
               set_data(i, beta);
             }
@@ -649,21 +690,18 @@ export class GridBuilder extends ManagedObject {
         }
         case "constant": {
           const beta = 1.0;
-          for (let y = my_min; y < my_max; y++) {
-            const gy = gy_top+y;
-            for (let x = mx_min; x < mx_max; x++) {
-              const gx = gx_left+x;
-              const i = gx + gy*Nx;
+          for (let y = grid_relative_bound.y.min; y < grid_relative_bound.y.max; y++) {
+            const gy = grid_absolute_bound.y.min+y;
+            for (let x = grid_relative_bound.x.min; x < grid_relative_bound.x.max; x++) {
+              const gx = grid_absolute_bound.x.min+x;
+              const i = gx + gy*grid_size.x;
               set_data(i, beta);
             }
           }
           break;
         }
-
       }
-
     }
-
   }
 
   setup_allocate_lookup_tables() {
@@ -681,5 +719,22 @@ export class GridBuilder extends ManagedObject {
     this.grid.v_table = Float32ModuleNdarray.from_shape(this.module, [voltage_table_size]);
     this.grid.ek_table = Float32ModuleNdarray.from_shape(this.module, [dielectric_table_size]);
     this.profiler?.end();
+  }
+
+  get mesh_lines(): Vec2<MeshLines> {
+    const mesh: Partial<Vec2<MeshLines>> = {};
+    for (const axis of AXES_2D) {
+      const region_to_grid_map = this.region_to_grid_map[axis];
+      mesh[axis] = {
+        region_lines: region_to_grid_map.region_lines,
+        grid_lines: region_to_grid_map.grid_lines,
+        scale: region_to_grid_map.region_lines_builder.scale,
+        unpadded_boundary: this.unpadded_boundary[axis],
+        padded_boundary: this.padded_boundary[axis],
+        mesh_segments: region_to_grid_map.region_segments,
+        flip: false,
+      };
+    }
+    return mesh as Vec2<MeshLines>;
   }
 }

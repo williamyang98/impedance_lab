@@ -6,9 +6,12 @@ import {
 } from "../../wasm/index.ts";
 import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../../utility/module_ndarray.ts";
 import { Profiler } from "../../utility/profiler.ts";
+import type { Vec2 } from "../../utility/dim_types.ts";
+
+type Size2D = Vec2<number>;
 
 export class Grid extends ManagedObject {
-  readonly size: [number, number];
+  readonly size: Size2D;
   readonly x: Float32ModuleNdarray;
   readonly y: Float32ModuleNdarray;
   readonly dx: Float32ModuleNdarray;
@@ -36,22 +39,22 @@ export class Grid extends ManagedObject {
     return { index, beta };
   }
 
-  constructor(module: WasmModule, Ny: number, Nx: number) {
+  constructor(module: WasmModule, size: Size2D) {
     super(module);
-    this.size = [Ny, Nx];
-    this.x = Float32ModuleNdarray.from_shape(this.module, [Nx+1]);
-    this.y = Float32ModuleNdarray.from_shape(this.module, [Ny+1]);
-    this.dx = Float32ModuleNdarray.from_shape(this.module, [Nx]);
-    this.dy = Float32ModuleNdarray.from_shape(this.module, [Ny]);
-    this.v_index_beta = Uint32ModuleNdarray.from_shape(this.module, [Ny+1,Nx+1]);
-    this.v_field = Float32ModuleNdarray.from_shape(this.module, [Ny+1,Nx+1]);
-    this.ex_field = Float32ModuleNdarray.from_shape(this.module, [Ny+1,Nx]);
-    this.ey_field = Float32ModuleNdarray.from_shape(this.module, [Ny,Nx+1]);
-    this.ek_index_beta = Uint32ModuleNdarray.from_shape(this.module, [Ny,Nx]);
+    this.size = size;
+    this.x = Float32ModuleNdarray.from_shape(this.module, [size.x+1]);
+    this.y = Float32ModuleNdarray.from_shape(this.module, [size.y+1]);
+    this.dx = Float32ModuleNdarray.from_shape(this.module, [size.x]);
+    this.dy = Float32ModuleNdarray.from_shape(this.module, [size.y]);
+    this.v_index_beta = Uint32ModuleNdarray.from_shape(this.module, [size.y+1,size.x+1]);
+    this.v_field = Float32ModuleNdarray.from_shape(this.module, [size.y+1,size.x+1]);
+    this.ex_field = Float32ModuleNdarray.from_shape(this.module, [size.y+1,size.x]);
+    this.ey_field = Float32ModuleNdarray.from_shape(this.module, [size.y,size.x+1]);
+    this.ek_index_beta = Uint32ModuleNdarray.from_shape(this.module, [size.y,size.x]);
     this.v_input = 1;
 
     this._v_table = Float32ModuleNdarray.from_shape(this.module, [3]);
-    this._ek_table = Float32ModuleNdarray.from_shape(this.module, [Ny,Nx]);
+    this._ek_table = Float32ModuleNdarray.from_shape(this.module, [size.y,size.x]);
     this._child_objects.add(this.x);
     this._child_objects.add(this.y);
     this._child_objects.add(this.dx);
@@ -123,7 +126,7 @@ export class Grid extends ManagedObject {
       A_row_index_ptr.push(A_data.length);
     }
 
-    const [Ny,Nx] = this.size;
+    const { x: Nx, y: Ny } = this.size;
     {
       profiler?.begin("create_csr", "Create CSR matrix A to represent grid");
       const v_index_beta = this.v_index_beta.array_view;
@@ -225,7 +228,7 @@ export class Grid extends ManagedObject {
     if (this.lu_solver === undefined) {
       throw Error(`LU Solver has not been factorised yet. Call bake() first`);
     }
-    const [Ny,Nx] = this.size;
+    const { x: Nx, y: Ny } = this.size;
     {
       profiler?.begin("create_b", "Generate b column vector from forcing voltage potentials");
       const v_index_beta = this.v_index_beta.array_view;

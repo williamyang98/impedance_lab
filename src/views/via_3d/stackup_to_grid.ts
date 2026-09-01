@@ -129,7 +129,6 @@ export class StackupGrid {
             type: "cuboid",
             start: { z: z_top },
             end: { z: z_bottom },
-            config: {},
           },
         ],
       });
@@ -147,7 +146,6 @@ export class StackupGrid {
             type: "cuboid",
             start: { z: z_top },
             end: { z: z_bottom },
-            config: {},
           },
         ],
       });
@@ -176,7 +174,6 @@ export class StackupGrid {
             radius: Dantipad/2,
             length: z_bottom-z_top,
             axis: "z",
-            config: {},
           },
         ],
       });
@@ -196,7 +193,6 @@ export class StackupGrid {
             radius: Dpad/2,
             length: z_bottom-z_top,
             axis: "z",
-            config: {},
           },
         ],
       });
@@ -346,7 +342,6 @@ export class StackupGrid {
                 length: z_barrel_bottom-z_barrel_top,
                 radius: Dvia/2,
                 axis: "z",
-                config: {},
               },
             ],
           });
@@ -371,7 +366,6 @@ export class StackupGrid {
             axis: "z",
             radius: Dbarrel/2,
             length: z_barrel_bottom-z_barrel_top,
-            config: {},
           },
         ],
       });
@@ -396,7 +390,6 @@ export class StackupGrid {
             length: z_barrel_bottom-z_barrel_top,
             radius: Dbarrel/2,
             axis: "z",
-            config: {},
           },
         ],
       });
@@ -425,7 +418,6 @@ export class StackupGrid {
             length: z_barrel_bottom-z_barrel_top,
             radius: Dbarrel_inner/2,
             axis: "z",
-            config: {},
           },
         ],
       });

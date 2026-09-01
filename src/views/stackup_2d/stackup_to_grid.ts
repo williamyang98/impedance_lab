@@ -81,7 +81,7 @@ export class StackupGrid extends ManagedObject {
   config: GridBuilderConfig;
   traces_x_region: TracesXRegion;
   grid_builder_regions: Region[] = [];
-  grid_builder_padding: GridBuilderPadding = {};
+  grid_builder_padding: GridBuilderPadding;
   grid_builder: GridBuilder;
   // cache parameter value to avoid unnecessary recomputation of complicated min/max bounds
   parameter_cache = new Map<Parameter, number>();
@@ -97,6 +97,10 @@ export class StackupGrid extends ManagedObject {
     this.target_unit = stackup.size_unit;
     this.profiler = profiler;
     this.config = config;
+    this.grid_builder_padding = {
+      x: { min: true, max: true },
+      y: { min: true, max: true },
+    };
     this.voltage_indexes = {
       v_table: {
         "ground": 0,
@@ -255,9 +259,10 @@ export class StackupGrid extends ManagedObject {
       shapes: [
         {
           type: "rectangle",
-          y_top: y_offset,
-          y_bottom: y_offset+plane_height,
-          min_y_gridlines: 2,
+          box: {
+            y: { min: y_offset, max: y_offset+plane_height },
+          },
+          min_gridlines: { y: 2 },
         }
       ],
     });
@@ -275,24 +280,20 @@ export class StackupGrid extends ManagedObject {
     const shapes: Shape[] = [];
     shapes.push({
       type: "triangle",
-      x_base: x_left,
-      x_tip: x_left_taper,
-      y_base: y_base,
-      y_tip: y_taper,
+      base: { x: x_left, y: y_base },
+      tip: { x: x_left_taper, y: y_taper },
     });
     shapes.push({
       type: "rectangle",
-      x_left: x_left_taper,
-      x_right: x_right_taper,
-      y_top: Math.min(y_base, y_taper),
-      y_bottom: Math.max(y_base, y_taper),
+      box: {
+        x: { min: x_left_taper, max: x_right_taper },
+        y: { min: Math.min(y_base, y_taper), max: Math.max(y_base, y_taper) },
+      },
     });
     shapes.push({
       type: "triangle",
-      x_base: x_right,
-      x_tip: x_right_taper,
-      y_base: y_base,
-      y_tip: y_taper,
+      base: { x: x_right, y: y_base },
+      tip: { x: x_right_taper, y: y_taper },
     });
     return shapes;
   }
@@ -325,8 +326,9 @@ export class StackupGrid extends ManagedObject {
     }
     shapes.push({
       type: "rectangle",
-      y_top: Math.min(y_surface, y_base),
-      y_bottom: Math.max(y_surface, y_base),
+      box: {
+        y: { min: Math.min(y_surface, y_base), max: Math.max(y_surface, y_base) },
+      },
     });
     this.grid_builder_regions.push({
       type: "dielectric",
@@ -355,8 +357,9 @@ export class StackupGrid extends ManagedObject {
           shapes: [
             {
               type: "rectangle",
-              y_top: y_offset,
-              y_bottom: y_offset+height,
+              box: {
+                y: { min: y_offset, max: y_offset+height },
+              },
             },
           ],
         });
@@ -459,8 +462,9 @@ export class StackupGrid extends ManagedObject {
       shapes: [
         {
           type: "rectangle",
-          y_top,
-          y_bottom,
+          box: {
+            y: { min: y_top, max: y_bottom },
+          },
         },
       ],
     });
@@ -491,15 +495,11 @@ export class StackupGrid extends ManagedObject {
     this.profiler?.begin("create_grid_builder_padding");
     const padding = this.grid_builder_padding;
     // always pad x-axis
-    padding.x_left = true;
-    padding.x_right = true;
+    padding.x.min = true;
+    padding.x.max = true;
+    padding.y.min = this.conductor_stackup.at(0) !== "plane";
+    padding.y.max = this.conductor_stackup.at(-1) !== "plane";
 
-    if (this.conductor_stackup.at(0) !== "plane") {
-      padding.y_top = true;
-    }
-    if (this.conductor_stackup.at(-1) !== "plane") {
-      padding.y_bottom = true;
-    }
     this.profiler?.end();
   }
 

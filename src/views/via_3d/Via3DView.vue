@@ -23,8 +23,6 @@ import ParameterForm from "../via_2d/ParameterForm.vue";
 import { type ImpedanceResult } from './impedance.ts';
 import MeshViewer3D from '../../components/mesh_viewer/MeshViewer3D.vue';
 import GridBuilderConfigForm from '../../app/electrostatic_3d/GridBuilderConfigForm.vue';
-import { AXES_3D, type Vec3 } from '../../utility/dim_types.ts';
-import type { MeshLines } from '../../components/mesh_viewer/mesh_lines.ts';
 
 const gpu_device = toRaw(providers.gpu_device.value);
 const toast = providers.toast_manager.value;
@@ -54,24 +52,7 @@ const profiler = ref<Profiler | undefined>(undefined);
 
 const is_running = ref<boolean>(false);
 const stackup_grid = ref<StackupGrid | undefined>(undefined);
-const mesh = computed(() => {
-  if (stackup_grid.value === undefined) return undefined;
-  const mesh: Partial<Vec3<MeshLines>> = {};
-  const builder = stackup_grid.value.grid_builder;
-  for (const axis of AXES_3D) {
-    const region_to_grid_map = builder.region_to_grid_map[axis];
-    mesh[axis] = {
-      region_lines: region_to_grid_map.region_lines,
-      grid_lines: region_to_grid_map.grid_lines,
-      scale: region_to_grid_map.region_lines_builder.scale,
-      unpadded_boundary: builder.unpadded_boundary[axis],
-      padded_boundary: builder.padded_boundary[axis],
-      mesh_segments: region_to_grid_map.region_segments,
-      flip: false,
-    };
-  }
-  return mesh as Vec3<MeshLines>;
-});
+const mesh = computed(() => stackup_grid.value?.grid_builder.mesh_lines);
 const executor_controls = ref<ExecutorControls>({
   total_steps: 2048,
   stride_size: 256,

@@ -66,10 +66,8 @@ export class StackupGrid extends ManagedObject {
     this.grid_builder_config = grid_builder_config;
     this.via_barrel_parameters = this.setup_create_regions(stackup);
     this.grid_builder_padding = {
-      x_left: true,
-      x_right: true,
-      y_top: true,
-      y_bottom: true,
+      x: { min: true, max: true },
+      y: { min: true, max: true },
     };
     this.grid_builder = new GridBuilder(
       this.module,
@@ -138,8 +136,9 @@ export class StackupGrid extends ManagedObject {
         shapes: [
           {
             type: "rectangle",
-            y_top,
-            y_bottom,
+            box: {
+              y: { min: y_top, max: y_bottom },
+            },
           },
         ],
       });
@@ -155,8 +154,9 @@ export class StackupGrid extends ManagedObject {
         shapes: [
           {
             type: "rectangle",
-            y_top,
-            y_bottom,
+            box: {
+              y: { min: y_top, max: y_bottom },
+            },
           },
         ],
       });
@@ -165,16 +165,15 @@ export class StackupGrid extends ManagedObject {
         type: "voltage",
         voltage_index: null,
         ignore_boundary: {
-          x_min: true,
-          x_max: true,
+          x: { min: true, max: true },
         },
         shapes: [
           {
             type: "rectangle",
-            y_top,
-            y_bottom,
-            x_left: -Dantipad/2,
-            x_right: Dantipad/2,
+            box: {
+              x: { min: -Dantipad/2, max: Dantipad/2 },
+              y: { min: y_top, max: y_bottom },
+            },
           },
         ],
       });
@@ -186,10 +185,10 @@ export class StackupGrid extends ManagedObject {
         shapes: [
           {
             type: "rectangle",
-            y_top,
-            y_bottom,
-            x_left: -Dpad/2,
-            x_right: Dpad/2,
+            box: {
+              x: { min: -Dpad/2, max: Dpad/2 },
+              y: { min: y_top, max: y_bottom },
+            },
           },
         ],
       });
@@ -300,10 +299,10 @@ export class StackupGrid extends ManagedObject {
         shapes: [
           {
             type: "rectangle",
-            y_top: y_barrel_top,
-            y_bottom: y_barrel_bottom,
-            x_left: -Dbarrel/2,
-            x_right: Dbarrel/2,
+            box: {
+              x: { min: -Dbarrel/2, max: Dbarrel/2 },
+              y: { min: y_barrel_top, max: y_barrel_bottom },
+            },
           },
         ],
       });
@@ -320,10 +319,10 @@ export class StackupGrid extends ManagedObject {
         shapes: [
           {
             type: "rectangle",
-            y_top: y_barrel_top,
-            y_bottom: y_barrel_bottom,
-            x_left: -Dbarrel/2,
-            x_right: Dbarrel/2,
+            box: {
+              x: { min: -Dbarrel/2, max: Dbarrel/2 },
+              y: { min: y_barrel_top, max: y_barrel_bottom },
+            },
           },
         ],
       });
@@ -332,16 +331,15 @@ export class StackupGrid extends ManagedObject {
         type: "voltage",
         voltage_index: null,
         ignore_boundary: {
-          x_min: true,
-          x_max: true,
+          x: { min: true, max: true },
         },
         shapes: [
           {
             type: "rectangle",
-            y_top: y_barrel_top,
-            y_bottom: y_barrel_bottom,
-            x_left: -Dbarrel_inner/2,
-            x_right: Dbarrel_inner/2,
+            box: {
+              x: { min: -Dbarrel_inner/2, max: Dbarrel_inner/2 },
+              y: { min: y_barrel_top, max: y_barrel_bottom },
+            },
           },
         ],
       });
