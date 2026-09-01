@@ -155,8 +155,8 @@ export class GridBuilder extends ManagedObject {
     this.sdf_regions = this.setup_create_sdf_regions(regions);
     this.unpadded_boundary = this.setup_calculate_unpadded_boundary();
     this.padded_boundary = this.setup_pad_grid();
+    this.setup_rescale_region_lines(); // rescale first before merging to keep as many small features as possible
     this.setup_merge_nearby_region_lines();
-    this.setup_rescale_region_lines();
     this.region_to_grid_map = this.setup_subdivide_region_lines();
     this.grid = this.setup_create_simulation_grid();
     this._child_objects.add(this.grid);
@@ -355,11 +355,20 @@ export class GridBuilder extends ManagedObject {
       y: { min: undefined, max: undefined },
     };
 
+    // For 2D problems we want to pad as a ratio of the largest dimension since we want the aspect ratio between x/y to not be too small or large
+    let max_unpadded_size = 0;
     for (const axis of AXES_2D) {
       const unpadded_bound = this.unpadded_boundary[axis];
       const unpadded_size = unpadded_bound.max-unpadded_bound.min;
+      max_unpadded_size = Math.max(max_unpadded_size, unpadded_size);
+    }
+    if (max_unpadded_size === 0) {
+      throw Error(`The setup cannot be empty or zero size`);
+    }
+
+    for (const axis of AXES_2D) {
       const multiplier = this.config.padding_size_multiplier[axis];
-      const padding_size = unpadded_size*multiplier;
+      const padding_size = max_unpadded_size*multiplier;
 
       const lines_builder = this.region_lines_builder[axis];
       const bound = this.unpadded_boundary[axis];
@@ -396,8 +405,12 @@ export class GridBuilder extends ManagedObject {
     for (const axis of AXES_2D) {
       const regions = this.region_lines_builder[axis].to_regions();
       for (const region of regions) {
+        if (region < this.config.minimum_grid_resolution) continue;
         region_sizes.push(region);
       }
+    }
+    if (region_sizes.length === 0) {
+      throw Error("Need at least a single finite sized region to rescale 2d electrostatic grid");
     }
     // rescale for best accuracy for 32bit floating point
     const log_mean = get_log_median(region_sizes);
