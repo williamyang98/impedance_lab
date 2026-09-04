@@ -1,15 +1,23 @@
-# 3D FDTD
+# 3D Finite Difference Time Domain
 ## Maxwell's equations
 $$
 \begin{align}
 \frac{\delta \vec{D}}{\delta t} + \vec{J} &= \nabla \times \vec{H} \\
 \frac{\delta \vec{B}}{\delta t} &= -\nabla \times \vec{E} \\
+\nabla \cdot \vec{D} &= \rho \\
+\nabla \cdot \vec{B} &= 0 \\
+\end{align}
+$$
+
+Where
+$$
+\begin{align}
 \vec{D} &= \varepsilon \vec{E} \\
 \vec{B} &= \mu \vec{H} \\
 \end{align}
 $$
 
-## Joule loss
+### Joule loss
 $$
 \begin{align}
 \vec{J} &= \vec{J}_{loss} + \vec{J}_{input} \\
@@ -19,6 +27,8 @@ $$
 
 ## Yee Grid
 The Yee grid has the electric fields along the edges of the cells, and magnetics fields on the faces of the cells.
+This is called a staggered grid which makes it easier to discretise the curl operator and satisfy zero divergence.
+Additionally the update equations are also staggered and interleaved, with the electric fields and magnetic fields updated after each other in half time steps.
 
 ![Yee Grid](./svgs/yee_cell.svg)
 
@@ -65,7 +75,7 @@ $$
 \end{align}
 $$
 
-To get
+### Update equations
 
 $$
 \begin{align}
@@ -138,7 +148,7 @@ $$
 \phi^{i,j+\frac{1}{2},k+\frac{1}{2}} = \frac{\Delta t}{\mu^{i,j+\frac{1}{2},k+\frac{1}{2}}}
 $$
 
-To get
+### Update equations
 $$
 \begin{align}
 H_{x,t+\frac{1}{2}}^{i,j+\frac{1}{2},k+\frac{1}{2}} &=
