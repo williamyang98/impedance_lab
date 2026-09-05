@@ -5,92 +5,121 @@ struct Params {
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
-// Ax=b
-@group(0) @binding(1) var<storage,read_write> r_buf: array<f32>;
-@group(0) @binding(2) var<storage,read> x_buf: array<f32>;
-@group(0) @binding(3) var<storage,read> b_buf: array<f32>;
-@group(0) @binding(4) var<storage,read> mask_buf: array<u32>;
+// Av=b
+@group(0) @binding(1) var<storage,read_write> r_out: array<f32>;
+@group(0) @binding(2) var<storage,read> v_in: array<f32>;
+@group(0) @binding(3) var<storage,read> b: array<f32>;
+@group(0) @binding(4) var<storage,read> mask: array<u32>;
 // grid spline
-@group(0) @binding(5) var<storage,read> dx_buf: array<f32>;
-@group(0) @binding(6) var<storage,read> dy_buf: array<f32>;
-@group(0) @binding(7) var<storage,read> dz_buf: array<f32>;
+@group(0) @binding(5) var<storage,read> dx: array<f32>;
+@group(0) @binding(6) var<storage,read> dy: array<f32>;
+@group(0) @binding(7) var<storage,read> dz: array<f32>;
 
 override workgroup_size_x = 16;
 override workgroup_size_y = 16;
 override workgroup_size_z = 1;
 
+fn get_v_in(i: i32, j: i32, k: i32) -> f32 {
+    let Nx = i32(params.grid_size_x);
+    let Ny = i32(params.grid_size_y);
+    let Mx = Nx+1;
+    let My = Ny+1;
+    let Mxy = Mx*My;
+    let ijk: i32 = i + j*Mx + k*Mxy;
+    return v_in[ijk];
+}
+
 @compute
 @workgroup_size(workgroup_size_x, workgroup_size_y, workgroup_size_z)
-fn main(@builtin(global_invocation_id) _j: vec3<u32>) {
-    let Mx = params.grid_size_x+1;
-    let My = params.grid_size_y+1;
-    let Mz = params.grid_size_z+1;
+fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
+    let Nx = i32(params.grid_size_x);
+    let Ny = i32(params.grid_size_y);
+    let Nz = i32(params.grid_size_z);
+    let Mx = Nx+1;
+    let My = Ny+1;
+    let Mz = Nz+1;
 
-    // out bounds
-    let ix = _j.x;
-    let iy = _j.y;
-    let iz = _j.z;
-    if (ix >= Mx) { return; }
-    if (iy >= My) { return; }
-    if (iz >= Mz) { return; }
+    let i = i32(_index.x);
+    let j = i32(_index.y);
+    let k = i32(_index.z);
+
+    if (i >= Mx) { return; }
+    if (j >= My) { return; }
+    if (k >= Mz) { return; }
 
     let Mxy = Mx*My;
-    let i: u32 = ix + iy*Mx + iz*Mxy;
+    let ijk: i32 = i + j*Mx + k*Mxy;
 
     // mask is packed into 1bit within 32bit buffer
-    const mask_pack: u32 = 32;
-    let imask: u32 = i/mask_pack;
-    let imask_offset: u32 = i-imask*mask_pack;
+    const mask_total_bits: u32 = 32;
+    let mask_index: u32 = u32(ijk)/mask_total_bits;
+    let mask_offset: u32 = u32(ijk)-mask_index*mask_total_bits;
+    let mask_ijk = (mask[mask_index] >> mask_offset) & 0x01;
+    let b_ijk: f32 = b[ijk];
 
-    let b: f32 = b_buf[i];
-
-    let is_dirchlet_boundary: u32 = (mask_buf[imask] >> imask_offset) & 0x01;
-    if (is_dirchlet_boundary == 1) {
-        // r = Ax-b, A=1
-        // r = x-b
-        r_buf[i] = x_buf[i] - b;
+    // a_n = A[m,n] where m = i + j*Mx + k*Mxy
+    // forcing voltage potential constraint at node
+    if (mask_ijk == 1) {
+        // Av=b
+        // a_ijk = 1
+        // v_ijk = b
+        r_out[ijk] = 0;
         return;
     }
 
+    // ijk = i,j,k
+    // i0jk = i-0.5,j,k
+    // i1jk = i+0.5,j,k
+    let dx_i0 = dx[clamp(i-1,0,Nx-1)];
+    let dx_i1 = dx[clamp(i,0,Nx-1)];
+    let dy_j0 = dy[clamp(j-1,0,Ny-1)];
+    let dy_j1 = dy[clamp(j,0,Ny-1)];
+    let dz_k0 = dz[clamp(k-1,0,Nz-1)];
+    let dz_k1 = dz[clamp(k,0,Nz-1)];
+    let dx_i = (dx_i0+dx_i1)/2.0;
+    let dy_j = (dy_j0+dy_j1)/2.0;
+    let dz_k = (dz_k0+dz_k1)/2.0;
+
     // Ax=b
     // Ax = div(E) = b
-    // div(E) = - (V[z,y,x+1]/dx[x+0])/(dx[x]+dx[x-1]) # Ex[z,y,x]
-    //          + (V[z,y,x+0]/dx[x+0])/(dx[x]+dx[x-1]) # Ex[z,y,x]
-    //          + (V[z,y,x+0]/dx[x-1])/(dx[x]+dx[x-1]) # Ex[z,y,x-1]
-    //          - (V[z,y,x-1]/dx[x-1])/(dx[x]+dx[x-1]) # Ex[z,y,x-1]
-    //          - (V[z,y+1,x]/dy[y+0])/(dy[y]+dy[y-1]) # Ey[z,y,x]
-    //          + (V[z,y+0,x]/dy[y+0])/(dy[y]+dy[y-1]) # Ey[z,y,x]
-    //          + (V[z,y+0,x]/dy[y-1])/(dy[y]+dy[y-1]) # Ey[z,y-1,x]
-    //          - (V[z,y-1,x]/dy[y-1])/(dy[y]+dy[y-1]) # Ey[z,y-1,x]
-    //          - (V[z+1,y,x]/dz[z+0])/(dz[z]+dz[z-1]) # Ez[z,y,x]
-    //          + (V[z+0,y,x]/dz[z+0])/(dz[z]+dz[z-1]) # Ez[z,y,x]
-    //          + (V[z+0,y,x]/dz[z-1])/(dz[z]+dz[z-1]) # Ez[z-1,y,x]
-    //          - (V[z-1,y,x]/dz[z-1])/(dz[z]+dz[z-1]) # Ez[z-1,y,x]
-    // r = Ax-b
-    // r = div(E) - b
-    var div_E: f32 = 0;
-    if (ix > 0 && ix < Mx-1) {
-        let dx0 = dx_buf[ix-1];
-        let dx1 = dx_buf[ix];
-        let norm = dx0+dx1;
-        div_E += ((x_buf[i]-x_buf[i-1])/dx0)/norm;
-        div_E += ((x_buf[i]-x_buf[i+1])/dx1)/norm;
+    let a_ijk = -1.0/(dx_i*dx_i1)-1.0/(dy_j*dy_j1)-1.0/(dz_k*dz_k1)-1.0/(dx_i*dx_i0)-1.0/(dy_j*dy_j0)-1.0/(dz_k*dz_k0);
+    let v_ijk = v_in[ijk];
+
+    var sum_avk: f32 = 0;
+    sum_avk += a_ijk*v_ijk;
+    if (i > 0) {
+        let a_i0jk = 1.0/(dx_i*dx_i0);
+        let v_i0jk = get_v_in(i-1,j,k);
+        sum_avk += a_i0jk*v_i0jk;
+    }
+    if (i < Nx) {
+        let a_i1jk = 1.0/(dx_i*dx_i1);
+        let v_i1jk = get_v_in(i+1,j,k);
+        sum_avk += a_i1jk*v_i1jk;
+    }
+    if (j > 0) {
+        let a_ij0k = 1.0/(dy_j*dy_j0);
+        let v_ij0k = get_v_in(i,j-1,k);
+        sum_avk += a_ij0k*v_ij0k;
+    }
+    if (j < Ny) {
+        let a_ij1k = 1.0/(dy_j*dy_j1);
+        let v_ij1k = get_v_in(i,j+1,k);
+        sum_avk += a_ij1k*v_ij1k;
+    }
+    if (k > 0) {
+        let a_ijk0 = 1.0/(dz_k*dz_k0);
+        let v_ijk0 = get_v_in(i,j,k-1);
+        sum_avk += a_ijk0*v_ijk0;
+    }
+    if (k < Nz) {
+        let a_ijk1 = 1.0/(dz_k*dz_k1);
+        let v_ijk1 = get_v_in(i,j,k+1);
+        sum_avk += a_ijk1*v_ijk1;
     }
 
-    if (iy > 0 && iy < My-1) {
-        let dy0 = dy_buf[iy-1];
-        let dy1 = dy_buf[iy];
-        let norm = dy0+dy1;
-        div_E += ((x_buf[i]-x_buf[i-Mx])/dy0)/norm;
-        div_E += ((x_buf[i]-x_buf[i+Mx])/dy1)/norm;
-    }
-
-    if (iz > 0 && iz < Mz-1) {
-        let dz0 = dz_buf[iz-1];
-        let dz1 = dz_buf[iz];
-        let norm = dz0+dz1;
-        div_E += ((x_buf[i]-x_buf[i-Mxy])/dz0)/norm;
-        div_E += ((x_buf[i]-x_buf[i+Mxy])/dz1)/norm;
-    }
-    r_buf[i] = div_E - b;
+    // b_ijk = 0 for zero charge regions
+    // r_ijk = b_ijk - sum_avk
+    // r_ijk = -sum_avk
+    r_out[ijk] = -sum_avk;
 }
