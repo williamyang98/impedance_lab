@@ -112,91 +112,89 @@ export class Grid extends ManagedObject {
   }
 
   bake(profiler?: Profiler) {
-    // generate A matrix for Ax=b
+    // generate A matrix for Av=b in compressed sparse row (csr) representation
     const A_data: number[] = [];
     const A_col_indices: number[] = [];
     const A_row_index_ptr: number[] = [];
 
+    // compressed sparse row representation stores non-zero values along side all non-zero valued olumn indices per row, and last column index per row
     const push_csr_entry = (value: number, column: number) => {
       A_data.push(value);
       A_col_indices.push(column);
     }
-
     const push_csr_row = () => {
       A_row_index_ptr.push(A_data.length);
     }
+    const clamp = (i: number, min: number, max: number): number => {
+      return Math.min(Math.max(i, min), max);
+    };
 
     const { x: Nx, y: Ny } = this.size;
     {
       profiler?.begin("create_csr", "Create CSR matrix A to represent grid");
-      const v_index_beta = this.v_index_beta.array_view;
+
+      const Mx = Nx+1;
+      const My = Ny+1;
+      const v_index_beta = this.v_index_beta.array_view; // forcing potential
       const dx = this.dx.array_view;
       const dy = this.dy.array_view;
+      const get_index = (i: number, j: number): number => {
+        const ij = i+j*Mx;
+        return ij;
+      };
 
-      for (let y = 0; y < Ny+1; y++) {
-        for (let x = 0; x < Nx+1; x++) {
+      for (let j = 0; j < My; j++) {
+        for (let i = 0; i < Mx; i++) {
           push_csr_row();
-          const iv = x + y*(Nx+1);
-          const index_beta = v_index_beta[iv];
+          const ij = get_index(i,j);
+          const index_beta = v_index_beta[ij];
           const { beta } = Grid.unpack_index_beta(index_beta);
-          const has_div_E_constraint = (x > 0 && x < Nx) || (y > 0 && y < Ny);
-          if ((beta > 0.5) || !has_div_E_constraint) {
-            push_csr_entry(1, iv);
+
+          // a_n = A[m,n] where m = i + j*Mx
+          if (beta > 0.5) {
+            const a_ij = 1;
+            push_csr_entry(a_ij, ij);
             continue;
           }
 
-          // Creating the following constraint for cell at [y,x]
-          // div(E)[y,x] = (Ex[y,x]-Ex[y,x-1])/(dx[x]+dx[x-1]) +
-          //               (Ey[y,x]-Ey[y-1,x])/(dy[y]+dy[y-1])
-          // div(E)[y,x] = 0
-          //
-          // Ex[y,x] = -(V[y,x+1]-V[y,x])/dx[x]
-          // Ey[y,x] = -(V[y+1,x]-V[y,x])/dy[y]
-          //
-          // substituting into div(E)[y,x] = 0
-          // div(E)[y,x] = - (V[y,x+1]/dx[x+0])/(dx[x]+dx[x-1]) # Ex[y,x]
-          //               + (V[y,x+0]/dx[x+0])/(dx[x]+dx[x-1]) # Ex[y,x]
-          //               + (V[y,x+0]/dx[x-1])/(dx[x]+dx[x-1]) # Ex[y,x-1]
-          //               - (V[y,x-1]/dx[x-1])/(dx[x]+dx[x-1]) # Ex[y,x-1]
-          //               - (V[y+1,x]/dy[y+0])/(dy[y]+dy[y-1]) # Ey[y,x]
-          //               + (V[y+0,x]/dy[y+0])/(dy[y]+dy[y-1]) # Ey[y,x]
-          //               + (V[y+0,x]/dy[y-1])/(dy[y]+dy[y-1]) # Ey[y-1,x]
-          //               - (V[y-1,x]/dy[y-1])/(dy[y]+dy[y-1]) # Ey[y-1,x]
-          // div(E)[y,x] = 0
-          //
-          // This gives us a row for our constraint matrix L and target value b
-          // these are the possible columns that are set in a row inside L
-          // di = -(Nx+1), -1, 0, +1, +(Nx+1)
-          const column_value = [0,0,0,0,0];
-          const column_index = [iv-(Nx+1), iv-1, iv, iv+1, iv+(Nx+1)];
+          // ij = i,j
+          // i0j = i-0.5,j
+          // i1j = i+0.5,j
+          const dx_i0 = dx[clamp(i-1,0,Nx-1)];
+          const dx_i1 = dx[clamp(i,0,Nx-1)];
+          const dy_j0 = dy[clamp(j-1,0,Ny-1)];
+          const dy_j1 = dy[clamp(j,0,Ny-1)];
+          const dx_i = (dx_i0+dx_i1)/2.0;
+          const dy_j = (dy_j0+dy_j1)/2.0;
 
-          // div(Ex) = 0
-          if (x > 0 && x < Nx) {
-            const dx_0 = dx[x-1];
-            const dx_1 = dx[x];
-            const norm = dx_0+dx_1;
-            column_value[1] -= (1/dx_0)/norm;
-            column_value[2] += (1/dx_0 + 1/dx_1)/norm;
-            column_value[3] -= (1/dx_1)/norm;
+          // push sparse column values in order of A matrix column index
+          if (j > 0) {
+            const ij0 = get_index(i,j-1);
+            const a_ij0 = 1.0/(dy_j*dy_j0);
+            push_csr_entry(a_ij0, ij0);
           }
 
-          // div(Ey) = 0
-          if (y > 0 && y < Ny) {
-            const dy_0 = dy[y-1];
-            const dy_1 = dy[y];
-            const norm = dy_0+dy_1;
-            column_value[0] -= (1/dy_0)/norm;
-            column_value[2] += (1/dy_0 + 1/dy_1)/norm;
-            column_value[4] -= (1/dy_1)/norm;
+          if (i > 0) {
+            const i0j = get_index(i-1,j);
+            const a_i0j = 1.0/(dx_i*dx_i0);
+            push_csr_entry(a_i0j, i0j);
           }
 
-          for (let i = 0; i < 5; i++) {
-            const value = column_value[i];
-            const index = column_index[i];
-            if (value != 0) {
-              push_csr_entry(value, index);
-            }
+          const a_ij = -1.0/(dx_i*dx_i1)-1.0/(dy_j*dy_j1)-1.0/(dx_i*dx_i0)-1.0/(dy_j*dy_j0);
+          push_csr_entry(a_ij, ij);
+
+          if (i < Nx) {
+            const i1j = get_index(i+1,j);
+            const a_i1j = 1.0/(dx_i*dx_i1);
+            push_csr_entry(a_i1j, i1j);
           }
+
+          if (j < Ny) {
+            const ij1 = get_index(i,j+1);
+            const a_ij1 = 1.0/(dy_j*dy_j1);
+            push_csr_entry(a_ij1, ij1);
+          }
+
         }
       }
       push_csr_row();
@@ -233,15 +231,22 @@ export class Grid extends ManagedObject {
       profiler?.begin("create_b", "Generate b column vector from forcing voltage potentials");
       const v_index_beta = this.v_index_beta.array_view;
       const v_table = this.v_table.array_view;
-      // generate b matrix for Ax=b
-      const B = this.v_field.array_view;
-      for (let y = 0; y < Ny+1; y++) {
-        for (let x = 0; x < Nx+1; x++) {
-          const iv = x + y*(Nx+1);
-          const index_beta = v_index_beta[iv];
+      // generate b matrix for Av=b
+      const b = this.v_field.array_view;
+      const Mx = Nx+1;
+      const My = Ny+1;
+      for (let j = 0; j < My; j++) {
+        for (let i = 0; i < Mx; i++) {
+          const ij = i + j*Mx;
+          const index_beta = v_index_beta[ij];
           const { index, beta } = Grid.unpack_index_beta(index_beta);
-          const voltage = v_table[index];
-          B[iv] = (beta > 0.5) ? voltage : 0.0;
+          const is_forcing_potential = beta > 0.5;
+          if (is_forcing_potential) {
+            const voltage = v_table[index];
+            b[ij] = voltage;
+          } else {
+            b[ij] = 0; // div(E) = 0
+          }
         }
       }
       profiler?.end();
