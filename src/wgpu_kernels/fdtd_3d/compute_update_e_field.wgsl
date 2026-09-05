@@ -141,16 +141,19 @@ fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
     let beta_ijk1 = (beta_i1j1k1+beta_i0j1k1+beta_i1j0k1+beta_i0j0k1)/4.0;
 
     if (i < Nx) {
+        // Equation 1.3
         let index_Ex_i1jk = get_clamped_index(i,j,k,Nx,Ny+1,Nz+1);
         Ex[index_Ex_i1jk] = alpha_i1jk*(Ex[index_Ex_i1jk] + beta_i1jk*cHx_i1jk);
     }
 
     if (j < Ny) {
+        // Equation 1.4
         let index_Ey_ij1k = get_clamped_index(i,j,k,Nx+1,Ny,Nz+1);
         Ey[index_Ey_ij1k] = alpha_ij1k*(Ey[index_Ey_ij1k] + beta_ij1k*cHy_ij1k);
     }
 
     if (k < Nz) {
+        // Equation 1.5
         let index_Ez_ijk1 = get_clamped_index(i,j,k,Nx+1,Ny+1,Nz);
         Ez[index_Ez_ijk1] = alpha_ijk1*(Ez[index_Ez_ijk1] + beta_ijk1*cHz_ijk1);
     }

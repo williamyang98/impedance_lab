@@ -70,8 +70,8 @@ Substitute the following
 
 $$
 \begin{align}
-\alpha^{i+\frac{1}{2},j,k} &= \frac{1}{1 + \frac{\sigma^{i+\frac{1}{2},j,k}}{\varepsilon^{i+\frac{1}{2},j,k}} \Delta t} \\
-\beta^{i+\frac{1}{2},j,k} &= \frac{\Delta t}{\varepsilon^{i+\frac{1}{2},j,k}} \\
+\alpha^{i+\frac{1}{2},j,k} &= \frac{1}{1+\frac{\sigma^{i+\frac{1}{2},j,k}}{\varepsilon^{i+\frac{1}{2},j,k}} \Delta t} \tag{1.1} \\
+\beta^{i+\frac{1}{2},j,k} &= \frac{\Delta t}{\varepsilon^{i+\frac{1}{2},j,k}} \tag{1.2} \\
 \end{align}
 $$
 
@@ -88,7 +88,7 @@ E_{x,t-1}^{i+\frac{1}{2},j,k}
 - \frac{H_{y,t-\frac{1}{2}}^{i+\frac{1}{2},j,k-\frac{1}{2}}}{\Delta z^k}
 - J_{x,t-\frac{1}{2}}^{i+\frac{1}{2},j,k}
 \right)
-\right] \tag{1.1} \\
+\right] \tag{1.3} \\
 E_{y,t}^{i,j+\frac{1}{2},k} &= \alpha^{i,j+\frac{1}{2},k} \left[
 E_{y,t-1}^{i,j+\frac{1}{2},k}
 + \beta^{i,j+\frac{1}{2},k} \left(
@@ -98,7 +98,7 @@ E_{y,t-1}^{i,j+\frac{1}{2},k}
 - \frac{H_{z,t-\frac{1}{2}}^{i-\frac{1}{2},j+\frac{1}{2},k}}{\Delta x^i}
 - J_{y,t-\frac{1}{2}}^{i,j+\frac{1}{2},k}
 \right)
-\right] \tag{1.2} \\
+\right] \tag{1.4} \\
 E_{z,t}^{i,j,k+\frac{1}{2}} &= \alpha^{i,j,k+\frac{1}{2}} \left[
 E_{z,t-1}^{i,j,k+\frac{1}{2}}
 + \beta^{i,j,k+\frac{1}{2}} \left(
@@ -108,7 +108,7 @@ E_{z,t-1}^{i,j,k+\frac{1}{2}}
 - \frac{H_{x,t-\frac{1}{2}}^{i,j-\frac{1}{2},k+\frac{1}{2}}}{\Delta y^j}
 - J_{z,t-\frac{1}{2}}^{i,j,k+\frac{1}{2}}
 \right)
-\right] \tag{1.3} \\
+\right] \tag{1.5} \\
 \end{align}
 $$
 
@@ -145,7 +145,7 @@ $$
 
 Substitute the following
 $$
-\phi^{i,j+\frac{1}{2},k+\frac{1}{2}} = \frac{\Delta t}{\mu^{i,j+\frac{1}{2},k+\frac{1}{2}}}
+\phi^{i,j+\frac{1}{2},k+\frac{1}{2}} = \frac{\Delta t}{\mu^{i,j+\frac{1}{2},k+\frac{1}{2}}} \tag{1.6}
 $$
 
 ### Update equations
@@ -158,7 +158,7 @@ H_{x,t-\frac{1}{2}}^{i,j+\frac{1}{2},k+\frac{1}{2}}
 + \frac{E_{y,t}^{i,j+\frac{1}{2},k+1}}{\Delta z^{k+\frac{1}{2}}}
 - \frac{E_{z,t}^{i,j+1,k+\frac{1}{2}}}{\Delta y^{j+\frac{1}{2}}}
 - \frac{E_{y,t}^{i,j+\frac{1}{2},k}}{\Delta z^{k+\frac{1}{2}}}
-\right) \tag{2.1} \\
+\right) \tag{1.7} \\
 H_{y,t+\frac{1}{2}}^{i+\frac{1}{2},j,k+\frac{1}{2}} &=
 H_{y,t-\frac{1}{2}}^{i+\frac{1}{2},j,k+\frac{1}{2}}
 -\phi^{i+\frac{1}{2},j,k+\frac{1}{2}} \left(
@@ -166,7 +166,7 @@ H_{y,t-\frac{1}{2}}^{i+\frac{1}{2},j,k+\frac{1}{2}}
 + \frac{E_{z,t}^{i+1,j,k+\frac{1}{2}}}{\Delta x^{i+\frac{1}{2}}}
 - \frac{E_{x,t}^{i+\frac{1}{2},j,k+1}}{\Delta z^{k+\frac{1}{2}}}
 - \frac{E_{z,t}^{i,j,k+\frac{1}{2}}}{\Delta x^{i+\frac{1}{2}}}
-\right) \tag{2.2} \\
+\right) \tag{1.8} \\
 H_{z,t+\frac{1}{2}}^{i+\frac{1}{2},j+\frac{1}{2},k} &=
 H_{z,t-\frac{1}{2}}^{i+\frac{1}{2},j+\frac{1}{2},k}
 -\phi^{i+\frac{1}{2},j+\frac{1}{2},k} \left(
@@ -174,6 +174,6 @@ H_{z,t-\frac{1}{2}}^{i+\frac{1}{2},j+\frac{1}{2},k}
 + \frac{E_{x,t}^{i+\frac{1}{2},j+1,k}}{\Delta y^{j+\frac{1}{2}}}
 - \frac{E_{y,t}^{i+1,j+\frac{1}{2},k}}{\Delta x^{i+\frac{1}{2}}}
 - \frac{E_{x,t}^{i+\frac{1}{2},j,k}}{\Delta y^{j+\frac{1}{2}}}
-\right) \tag{2.3} \\
+\right) \tag{1.9} \\
 \end{align}
 $$

@@ -152,6 +152,7 @@ export class Grid extends ManagedObject {
 
           // a_n = A[m,n] where m = i + j*Mx
           if (beta > 0.5) {
+            // Equation 2.3
             const a_ij = 1;
             push_csr_entry(a_ij, ij);
             continue;
@@ -168,6 +169,7 @@ export class Grid extends ManagedObject {
           const dy_j = (dy_j0+dy_j1)/2.0;
 
           // push sparse column values in order of A matrix column index
+          // Equation 2.1
           if (j > 0) {
             const ij0 = get_index(i,j-1);
             const a_ij0 = 1.0/(dy_j*dy_j0);
@@ -194,7 +196,6 @@ export class Grid extends ManagedObject {
             const a_ij1 = 1.0/(dy_j*dy_j1);
             push_csr_entry(a_ij1, ij1);
           }
-
         }
       }
       push_csr_row();
@@ -243,9 +244,9 @@ export class Grid extends ManagedObject {
           const is_forcing_potential = beta > 0.5;
           if (is_forcing_potential) {
             const voltage = v_table[index];
-            b[ij] = voltage;
+            b[ij] = voltage; // Equation 2.4
           } else {
-            b[ij] = 0; // div(E) = 0
+            b[ij] = 0; // Equation 2.2
           }
         }
       }

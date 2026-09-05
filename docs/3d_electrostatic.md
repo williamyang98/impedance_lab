@@ -189,6 +189,7 @@ a_{m,n} =
 \frac{1}{\Delta z^k \Delta z^{k-\frac{1}{2}}} & \text{if } n = (i,j,k-1) \text{ and } k > 0 \\
 0 & \text{otherwise} \\
 \end{cases}
+\tag{2.1}
 $$
 
 $$
@@ -201,7 +202,7 @@ $$
 For regions with no forcing voltage potential the region is free of charges so
 
 $$
-b_m = 0
+b_m = 0 \tag{2.2}
 $$
 
 ### Boundary condition for voltage sources
@@ -213,10 +214,11 @@ a_{m,n} =
 1 & \text{if } n = m = (i,j,k) \\
 0 & \text{otherwise} \\
 \end{cases}
+\tag{2.3}
 $$
 
 $$
-b_{m} = V_{in}^{i,j,k}
+b_{m} = V_{in}^{i,j,k} \tag{2.4}
 $$
 
 ### Proving the system is weakly diagonally dominant
@@ -319,7 +321,7 @@ $$
 This can be expressed in per row form as
 $$
 \begin{align}
-r_m^k &= b_m - \sum a_{m,n} v_n^k \\
-v_m^{k+1} &= v_m^k + \omega \frac{r_m^k}{a_{m,m}} \\
+r_m^k &= b_m - \sum a_{m,n} v_n^k \tag{2.5} \\
+v_m^{k+1} &= v_m^k + \omega \frac{r_m^k}{a_{m,m}} \tag{2.6} \\
 \end{align}
 $$

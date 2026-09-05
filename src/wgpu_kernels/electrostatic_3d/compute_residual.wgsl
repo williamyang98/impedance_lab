@@ -61,8 +61,8 @@ fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
     // forcing voltage potential constraint at node
     if (mask_ijk == 1) {
         // Av=b
-        // a_ijk = 1
-        // v_ijk = b
+        // a_ijk = 1 (Equation 2.3)
+        // v_ijk = b (Equation 2.4)
         r_out[ijk] = 0;
         return;
     }
@@ -81,7 +81,7 @@ fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
     let dz_k = (dz_k0+dz_k1)/2.0;
 
     // Ax=b
-    // Ax = div(E) = b
+    // Ax = div(E) = b (Equation 2.1)
     let a_ijk = -1.0/(dx_i*dx_i1)-1.0/(dy_j*dy_j1)-1.0/(dz_k*dz_k1)-1.0/(dx_i*dx_i0)-1.0/(dy_j*dy_j0)-1.0/(dz_k*dz_k0);
     let v_ijk = v_in[ijk];
 
@@ -118,8 +118,8 @@ fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
         sum_avk += a_ijk1*v_ijk1;
     }
 
-    // b_ijk = 0 for zero charge regions
-    // r_ijk = b_ijk - sum_avk
+    // b_ijk = 0 for zero charge regions (Equation 2.2)
+    // r_ijk = b_ijk - sum_avk (Equation 2.5)
     // r_ijk = -sum_avk
     r_out[ijk] = -sum_avk;
 }

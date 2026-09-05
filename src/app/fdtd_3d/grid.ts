@@ -102,9 +102,9 @@ export class CpuGrid {
           const mu_k = this.mu_r.get(i)*mu_0;
           const sigma_k = this.sigma_k.get(i);
 
-          const alpha = 1/(1+sigma_k/epsilon_k*dt);
-          const beta = dt/epsilon_k;
-          const phi = dt/mu_k;
+          const alpha = 1/(1+sigma_k/epsilon_k*dt); // Equation 1.1
+          const beta = dt/epsilon_k; // Equation 1.2
+          const phi = dt/mu_k; // Equation 1.6
           this.bake_alpha.set(i, alpha);
           this.bake_beta.set(i, beta);
           this.bake_phi.set(i, phi);

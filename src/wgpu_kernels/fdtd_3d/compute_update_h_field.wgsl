@@ -116,16 +116,19 @@ fn main(@builtin(global_invocation_id) _index: vec3<u32>) {
     let phi_i1j1k = (phi_i1j1k1+phi_i1j1k0)/2.0;
 
     if (j < Ny && k < Nz) {
+        // Equation 1.7
         let index_Hx_ij1k1 = get_clamped_index(i,j,k,Nx+1,Ny,Nz);
         Hx[index_Hx_ij1k1] = Hx[index_Hx_ij1k1] - phi_ij1k1*cEx_ij1k1;
     }
 
     if (i < Nx && k < Nz) {
+        // Equation 1.8
         let index_Hy_i1jk1 = get_clamped_index(i,j,k,Nx,Ny+1,Nz);
         Hy[index_Hy_i1jk1] = Hy[index_Hy_i1jk1] - phi_i1jk1*cEy_i1jk1;
     }
 
     if (i < Nx && j < Ny) {
+        // Equation 1.9
         let index_Hz_i1j1k = get_clamped_index(i,j,k,Nx,Ny,Nz+1);
         Hz[index_Hz_i1j1k] = Hz[index_Hz_i1j1k] - phi_i1j1k*cEz_i1j1k;
     }
