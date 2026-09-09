@@ -1,22 +1,16 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
-import { type NdarrayType } from "../../utility/ndarray.ts";
 import { type Vec3 } from "../../utility/dim_types.ts";
+import { NdGpuArray } from "../../renderers/common.ts";
 import compute_current_source_wgsl from "./compute_current_source.wgsl?raw";
 import compute_update_e_field_wgsl from "./compute_update_e_field.wgsl?raw";
 import compute_update_h_field_wgsl from "./compute_update_h_field.wgsl?raw";
 
-type Size3D = Vec3<number>;
-type GpuFieldBuffers = Vec3<NdGpuArray>;
-
-export interface NdGpuArray {
-  data: GPUBuffer;
-  dtype: NdarrayType;
-  shape: number[];
-}
-
 function create_ndgpuarray_bindgroup(buffer: NdGpuArray) {
   return { buffer: buffer.data, offset: 0, size: buffer.data.size };
 }
+
+type Size3D = Vec3<number>;
+type GpuFieldBuffers = Vec3<NdGpuArray>;
 
 export class KernelCurrentSource {
   label: string;

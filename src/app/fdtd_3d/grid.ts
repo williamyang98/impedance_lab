@@ -1,9 +1,7 @@
 import type { Vec3 } from "../../utility/dim_types.ts";
-import { Ndarray, get_dtype_size, type NdarrayType } from "../../utility/ndarray.ts";
-import {
-  KernelCurrentSource, KernelUpdateElectricField, KernelUpdateMagneticField,
-  type NdGpuArray,
-} from "../../wgpu_kernels/fdtd_3d/index.ts";
+import { Ndarray } from "../../utility/ndarray.ts";
+import { KernelCurrentSource, KernelUpdateElectricField, KernelUpdateMagneticField } from "../../wgpu_kernels/fdtd_3d/index.ts";
+import { NdGpuArray } from "../../renderers/common.ts";
 
 type CpuFieldBuffers = Vec3<Ndarray>;
 type GpuFieldBuffers = Vec3<NdGpuArray>;
@@ -132,42 +130,27 @@ export class GpuGrid {
     this.device = device;
     this.size = size;
 
-    const create_buffer = (shape: number[], dtype: NdarrayType): NdGpuArray => {
-      const elem_size_bytes = get_dtype_size(dtype);
-      const total_elements = shape.reduce((a,b) => a*b, 1);
-      const byte_length = total_elements*elem_size_bytes;
-      const data = device.createBuffer({
-        size: byte_length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
-      });
-      return {
-        data,
-        shape,
-        dtype,
-      };
-    };
-
     this.d = {
-      x: create_buffer([size.x], "f32"),
-      y: create_buffer([size.y], "f32"),
-      z: create_buffer([size.z], "f32"),
+      x: new NdGpuArray(device, [size.x], "f32"),
+      y: new NdGpuArray(device, [size.y], "f32"),
+      z: new NdGpuArray(device, [size.z], "f32"),
     };
 
     this.E = {
-      x: create_buffer([size.z+1,size.y+1,size.x], "f32"),
-      y: create_buffer([size.z+1,size.y,size.x+1], "f32"),
-      z: create_buffer([size.z,size.y+1,size.x+1], "f32"),
+      x: new NdGpuArray(device, [size.z+1,size.y+1,size.x], "f32"),
+      y: new NdGpuArray(device, [size.z+1,size.y,size.x+1], "f32"),
+      z: new NdGpuArray(device, [size.z,size.y+1,size.x+1], "f32"),
     };
 
     this.H = {
-      x: create_buffer([size.z,size.y,size.x+1], "f32"),
-      y: create_buffer([size.z,size.y+1,size.x], "f32"),
-      z: create_buffer([size.z+1,size.y,size.x], "f32"),
+      x: new NdGpuArray(device, [size.z,size.y,size.x+1], "f32"),
+      y: new NdGpuArray(device, [size.z,size.y+1,size.x], "f32"),
+      z: new NdGpuArray(device, [size.z+1,size.y,size.x], "f32"),
     };
 
-    this.bake_alpha = create_buffer([size.z,size.y,size.x], "f32");
-    this.bake_beta = create_buffer([size.z,size.y,size.x], "f32");
-    this.bake_phi = create_buffer([size.z,size.y,size.x], "f32");
+    this.bake_alpha = new NdGpuArray(device, [size.z,size.y,size.x], "f32");
+    this.bake_beta = new NdGpuArray(device, [size.z,size.y,size.x], "f32");
+    this.bake_phi = new NdGpuArray(device, [size.z,size.y,size.x], "f32");
   }
 
   copy_from_cpu(cpu: CpuGrid) {

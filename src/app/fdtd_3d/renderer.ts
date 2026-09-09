@@ -1,6 +1,6 @@
 import { ComputeCopyToTexture } from "../../wgpu_kernels/view_3d/index.ts";
 import { ShaderComponentViewer } from "../../wgpu_kernels/view_2d/index.ts";
-import type { NdGpuArray } from "../../wgpu_kernels/fdtd_3d/index.ts";
+import { NdGpuArray } from "../../renderers/common.ts";
 
 export class Renderer {
   adapter: GPUAdapter;
