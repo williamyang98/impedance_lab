@@ -2,6 +2,7 @@ import { inject, type Ref } from "vue";
 import { ToastManager } from "./toast/toast.ts";
 import { UserData } from "./user_data/user_data.ts";
 import { WasmModule } from "../wasm";
+import { type Font } from "../renderers/font/msdf.ts";
 
 export const providers = {
   get toast_manager(): Ref<ToastManager> {
@@ -30,5 +31,10 @@ export const providers = {
     const value = inject<Ref<WasmModule | undefined>>("wasm_module");
     if (value === undefined) throw Error("Expected wasm_module to be injected from provider");
     return value as Ref<WasmModule>;
+  },
+  get msdf_font(): Ref<Font> {
+    const value = inject<Ref<Font | undefined>>("msdf_font");
+    if (value === undefined) throw Error("Expected msdf_font to be injected from provider");
+    return value as Ref<Font>;
   },
 }

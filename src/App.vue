@@ -3,6 +3,7 @@ import { watch } from "vue";
 import { useRouter, useRoute, RouterView } from "vue-router";
 import GpuProvider from "./providers/GpuProvider.vue";
 import WasmProvider from "./providers/WasmProvider.vue";
+import FontProvider from "./providers/FontProvider.vue";
 import ToastProvider from "./providers/toast/ToastProvider.vue";
 import UserDataProvider from "./providers/user_data/UserDataProvider.vue";
 import { MenuIcon, ChevronDownIcon } from '@lucide/vue';
@@ -35,6 +36,7 @@ function get_navigation_class(item: NavigationEndpoint): string {
 </script>
 
 <template>
+<FontProvider>
 <GpuProvider>
 <WasmProvider>
 <ToastProvider>
@@ -135,6 +137,7 @@ function get_navigation_class(item: NavigationEndpoint): string {
 </ToastProvider>
 </WasmProvider>
 </GpuProvider>
+</FontProvider>
 </template>
 
 <style scoped>

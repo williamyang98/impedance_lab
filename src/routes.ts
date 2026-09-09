@@ -97,7 +97,16 @@ export const navigation_tree: NavigationItem[] = [
           path: "/benchmark/gpu",
           view_component: () => import("./views/gpu_benchmark/BenchmarkView.vue"),
         },
-      }
+      },
+      {
+        type: "endpoint" as const,
+        name: "Settings",
+        route: {
+          name: "settings",
+          path: "/benchmark/settings",
+          view_component: () => import("./views/settings/SettingsView.vue"),
+        },
+      },
     ],
   },
 ];
