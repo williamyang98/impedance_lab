@@ -45,7 +45,7 @@ export class Renderer {
     const slice = this._update_slice_size({ x: grid.size.x+1, y: grid.size.y+1 });
     this.kernel_copy_to_texture.create_pass(
       command_encoder,
-      grid.Xin, grid.r, grid.b, grid.mask,
+      grid.v_in, grid.r, grid.b, grid.mask,
       slice.view,
       grid.size,
       copy_z,

@@ -1,12 +1,13 @@
 import { KernelCalculateResidual, KernelJacobiSmooth } from '../../wgpu_kernels/electrostatic_3d';
-import { Ndarray } from '../../utility/ndarray';
-import type { Vec3 } from '../../utility/dim_types';
+import { Ndarray, type NdarrayType } from '../../utility/ndarray.ts';
+import { type Vec3 } from '../../utility/dim_types';
+import { NdGpuArray } from '../../renderers/common.ts';
 
 type Size3D = Vec3<number>;
 
 export class CpuGrid {
   size: Size3D;
-  Xin: Ndarray;
+  v: Ndarray;
   r: Ndarray;
   b: Ndarray;
   mask: Ndarray;
@@ -23,12 +24,12 @@ export class CpuGrid {
   constructor(size: Size3D) {
     this.size = size;
 
-    const total_points = (size.x+1)*(size.y+1)*(size.z+1);
-    this.Xin = Ndarray.create_zeros([size.z+1,size.y+1,size.x+1], "f32");
+    const total_nodes = (size.x+1)*(size.y+1)*(size.z+1);
+    this.v = Ndarray.create_zeros([size.z+1,size.y+1,size.x+1], "f32");
     this.r = Ndarray.create_zeros([size.z+1,size.y+1,size.x+1], "f32");
     this.b = Ndarray.create_zeros([size.z+1,size.y+1,size.x+1], "f32");
     this.er = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
-    this.mask = Ndarray.create_zeros([Math.ceil(total_points/CpuGrid.total_mask_bits)], "u32");
+    this.mask = Ndarray.create_zeros([Math.ceil(total_nodes/CpuGrid.total_mask_bits)], "u32");
     this.dx = Ndarray.create_zeros([size.x], "f32");
     this.dy = Ndarray.create_zeros([size.y], "f32");
     this.dz = Ndarray.create_zeros([size.z], "f32");
@@ -41,45 +42,42 @@ export class CpuGrid {
 export class GpuGrid {
   size: Size3D;
   device: GPUDevice;
-  Xin: GPUBuffer;
-  Xout: GPUBuffer;
-  r: GPUBuffer;
-  b: GPUBuffer;
-  mask: GPUBuffer;
-  dx: GPUBuffer;
-  dy: GPUBuffer;
-  dz: GPUBuffer;
-  x: GPUBuffer;
-  y: GPUBuffer;
-  z: GPUBuffer;
+  v_in: NdGpuArray;
+  v_out: NdGpuArray;
+  r: NdGpuArray;
+  b: NdGpuArray;
+  mask: NdGpuArray;
+  dx: NdGpuArray;
+  dy: NdGpuArray;
+  dz: NdGpuArray;
+  x: NdGpuArray;
+  y: NdGpuArray;
+  z: NdGpuArray;
+  er: NdGpuArray;
   readback: GPUBuffer;
 
   constructor(size: Size3D, device: GPUDevice) {
     this.size = size;
     this.device = device;
     let max_buffer_size = -Infinity;
-    const create_buffer = (size: number): GPUBuffer => {
-      const buffer = device.createBuffer({
-        size,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
-      });
-      max_buffer_size = Math.max(max_buffer_size, size);
+    const create_buffer = (shape: number[], dtype: NdarrayType): NdGpuArray => {
+      const buffer = new NdGpuArray(device, shape, dtype);
+      max_buffer_size = Math.max(max_buffer_size, buffer.data.size);
       return buffer;
     };
-    const total_points = (size.x+1)*(size.y+1)*(size.z+1);
-    const sizeof_f32 = 4;
-    const sizeof_u32 = 4;
-    this.Xin = create_buffer(total_points*sizeof_f32);
-    this.Xout = create_buffer(total_points*sizeof_f32);
-    this.r = create_buffer(total_points*sizeof_f32);
-    this.b = create_buffer(total_points*sizeof_f32);
-    this.mask = create_buffer(Math.ceil(total_points/CpuGrid.total_mask_bits)*sizeof_u32);
-    this.dx = create_buffer((size.x)*sizeof_f32);
-    this.dy = create_buffer((size.y)*sizeof_f32);
-    this.dz = create_buffer((size.z)*sizeof_f32);
-    this.x = create_buffer((size.x+1)*sizeof_f32);
-    this.y = create_buffer((size.y+1)*sizeof_f32);
-    this.z = create_buffer((size.z+1)*sizeof_f32);
+    const total_nodes = (size.x+1)*(size.y+1)*(size.z+1);
+    this.v_in = create_buffer([size.z+1,size.y+1,size.x+1], "f32");
+    this.v_out = create_buffer([size.z+1,size.y+1,size.x+1], "f32");
+    this.r = create_buffer([size.z+1,size.y+1,size.x+1], "f32");
+    this.b = create_buffer([size.z+1,size.y+1,size.x+1], "f32");
+    this.mask = create_buffer([Math.ceil(total_nodes/CpuGrid.total_mask_bits)], "u32");
+    this.er = create_buffer([size.z,size.y,size.x], "f32");
+    this.dx = create_buffer([size.x], "f32");
+    this.dy = create_buffer([size.y], "f32");
+    this.dz = create_buffer([size.z], "f32");
+    this.x = create_buffer([size.x+1], "f32");
+    this.y = create_buffer([size.y+1], "f32");
+    this.z = create_buffer([size.z+1], "f32");
     if (!Number.isFinite(max_buffer_size)) {
       throw Error("Unable to determine maximum buffer size for readback buffer");
     }
@@ -89,20 +87,34 @@ export class GpuGrid {
     });
   }
 
-  swap_X() {
-    const tmp = this.Xin;
-    this.Xin = this.Xout;
-    this.Xout = tmp;
+  swap_voltage_buffer() {
+    const tmp = this.v_in;
+    this.v_in = this.v_out;
+    this.v_out = tmp;
   }
 
   from_cpu(cpu: CpuGrid) {
-    const write_buffer = (gpu: GPUBuffer, cpu: Ndarray) => {
-      this.device.queue.writeBuffer(gpu, 0, cpu.data, 0, cpu.data.length);
+    const write_buffer = (gpu: NdGpuArray, cpu: Ndarray) => {
+      if (gpu.dtype !== cpu.dtype) {
+        throw Error(`Mismatch between dtypes with cpu=${cpu.dtype} and gpu=${gpu.dtype}`);
+      }
+      function is_shape_equal(s0: number[], s1: number[]) {
+        if (s0.length !== s1.length) return false;
+        for (let i = 0; i < s0.length; i++) {
+          if (s0[i] !== s1[i]) return false;
+        }
+        return true;
+      }
+      if (!is_shape_equal(cpu.shape, gpu.shape)) {
+        throw Error(`Mismatch between shapes with cpu=[${cpu.shape.join(',')}] and gpu=[${gpu.shape.join(',')}]`);
+      }
+      this.device.queue.writeBuffer(gpu.data, 0, cpu.data, 0, cpu.data.length);
     };
-    write_buffer(this.Xin, cpu.Xin);
+    write_buffer(this.v_in, cpu.v);
     write_buffer(this.r, cpu.r);
     write_buffer(this.b, cpu.b);
     write_buffer(this.mask, cpu.mask);
+    write_buffer(this.er, cpu.er);
     write_buffer(this.dx, cpu.dx);
     write_buffer(this.dy, cpu.dy);
     write_buffer(this.dz, cpu.dz);
@@ -112,14 +124,24 @@ export class GpuGrid {
   }
 
   async to_cpu(cpu: CpuGrid) {
-    const read_buffer = async (gpu: GPUBuffer, cpu: Ndarray) => {
-      if (gpu.size !== cpu.data.byteLength) {
-        throw Error(`Mismatching size between gpu buffer (${gpu.size}B) and cpu buffer (${cpu.data.byteLength}B)`);
+    const read_buffer = async (gpu: NdGpuArray, cpu: Ndarray) => {
+      if (gpu.dtype !== cpu.dtype) {
+        throw Error(`Mismatch between dtypes with cpu=${cpu.dtype} and gpu=${gpu.dtype}`);
       }
-      const total_bytes = gpu.size;
+      function is_shape_equal(s0: number[], s1: number[]) {
+        if (s0.length !== s1.length) return false;
+        for (let i = 0; i < s0.length; i++) {
+          if (s0[i] !== s1[i]) return false;
+        }
+        return true;
+      }
+      if (!is_shape_equal(cpu.shape, gpu.shape)) {
+        throw Error(`Mismatch between shapes with cpu=[${cpu.shape.join(',')}] and gpu=[${gpu.shape.join(',')}]`);
+      }
+      const total_bytes = gpu.data.size;
       // copy to readback buffer
       const command_encoder = this.device.createCommandEncoder();
-      command_encoder.copyBufferToBuffer(gpu, 0, this.readback, 0, total_bytes);
+      command_encoder.copyBufferToBuffer(gpu.data, 0, this.readback, 0, total_bytes);
       this.device.queue.submit([command_encoder.finish()]);
       // map readback to cpu buffer
       await this.readback.mapAsync(GPUMapMode.READ);
@@ -129,7 +151,7 @@ export class GpuGrid {
       dst_view.set(src_view);
       this.readback.unmap();
     };
-    await read_buffer(this.Xin, cpu.Xin);
+    await read_buffer(this.v_in, cpu.v);
     await read_buffer(this.r, cpu.r);
   }
 }
@@ -149,18 +171,18 @@ export class GpuEngine {
   jacobi_smooth(command_encoder: GPUCommandEncoder, grid: GpuGrid, beta: number) {
     this.kernel_jacobi_smooth.create_pass(
       command_encoder,
-      grid.Xout, grid.Xin, grid.b, grid.mask,
+      grid.v_out, grid.v_in, grid.b, grid.mask,
       grid.dx, grid.dy, grid.dz,
       grid.size,
       beta,
     );
-    grid.swap_X();
+    grid.swap_voltage_buffer();
   }
 
   calculate_residual(command_encoder: GPUCommandEncoder, grid: GpuGrid) {
     this.kernel_calculate_residual.create_pass(
       command_encoder,
-      grid.r, grid.Xin, grid.b, grid.mask,
+      grid.r, grid.v_in, grid.b, grid.mask,
       grid.dx, grid.dy, grid.dz,
       grid.size,
     );

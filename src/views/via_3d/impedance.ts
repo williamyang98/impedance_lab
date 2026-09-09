@@ -81,7 +81,7 @@ function calculate_cell_energy(
 }
 
 function calculate_energy_homogenous(stackup_grid: StackupGrid): number {
-  const v_buf = stackup_grid.cpu_grid.Xin.cast(Float32Array);
+  const v_buf = stackup_grid.cpu_grid.v.cast(Float32Array);
   const dx_buf = stackup_grid.cpu_grid.dx.cast(Float32Array);
   const dy_buf = stackup_grid.cpu_grid.dy.cast(Float32Array);
   const dz_buf = stackup_grid.cpu_grid.dz.cast(Float32Array);
@@ -111,7 +111,7 @@ function calculate_energy_homogenous(stackup_grid: StackupGrid): number {
 }
 
 function calculate_energy_inhomogenous(stackup_grid: StackupGrid): number {
-  const v_buf = stackup_grid.cpu_grid.Xin.cast(Float32Array);
+  const v_buf = stackup_grid.cpu_grid.v.cast(Float32Array);
   const dx_buf = stackup_grid.cpu_grid.dx.cast(Float32Array);
   const dy_buf = stackup_grid.cpu_grid.dy.cast(Float32Array);
   const dz_buf = stackup_grid.cpu_grid.dz.cast(Float32Array);

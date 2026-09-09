@@ -1,5 +1,5 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
-import { type NdGpuArray } from "../fdtd_3d/index.ts";
+import { NdGpuArray } from "../../renderers/common.ts";
 import compute_copy_slice_wgsl from "./compute_copy_slice.wgsl?raw";
 
 export class ComputeCopyToTexture {

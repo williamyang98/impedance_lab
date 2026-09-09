@@ -4,6 +4,7 @@ import compute_residual from "./compute_residual.wgsl?raw";
 import compute_copy_slice from "./compute_copy_slice.wgsl?raw";
 import { CpuGrid } from "../../app/electrostatic_3d/grid.ts";
 import type { Vec3 } from "../../utility/dim_types.ts";
+import { NdGpuArray } from "../../renderers/common.ts";
 
 type Size3D = Vec3<number>;
 
@@ -66,21 +67,21 @@ export class KernelJacobiSmooth {
 
   create_pass(
     command_encoder: GPUCommandEncoder,
-    xout: GPUBuffer, xin: GPUBuffer, b: GPUBuffer, mask: GPUBuffer,
-    dx: GPUBuffer, dy: GPUBuffer, dz: GPUBuffer,
+    v_out: NdGpuArray, v_in: NdGpuArray, b: NdGpuArray, mask: NdGpuArray,
+    dx: NdGpuArray, dy: NdGpuArray, dz: NdGpuArray,
     grid_size: Size3D,
     beta: number,
   ) {
-    function assert_buffer_size(buf: GPUBuffer, expected_size: number) {
-      if (buf.size !== expected_size) {
-        throw Error(`Got buffer with size ${buf.size} but expected ${expected_size} bytes`);
+    function assert_buffer_size(buf: NdGpuArray, expected_size: number) {
+      if (buf.data.size !== expected_size) {
+        throw Error(`Got buffer with size ${buf.data.size} but expected ${expected_size} bytes`);
       }
     }
     const total_points = (grid_size.x+1)*(grid_size.y+1)*(grid_size.z+1);
     const sizeof_f32 = 4;
     const sizeof_u32 = 4;
-    assert_buffer_size(xout, total_points*sizeof_f32);
-    assert_buffer_size(xin, total_points*sizeof_f32);
+    assert_buffer_size(v_out, total_points*sizeof_f32);
+    assert_buffer_size(v_in, total_points*sizeof_f32);
     assert_buffer_size(b, total_points*sizeof_f32);
     assert_buffer_size(mask, Math.ceil(total_points/CpuGrid.total_mask_bits)*sizeof_u32);
     assert_buffer_size(dx, grid_size.x*sizeof_f32);
@@ -109,13 +110,13 @@ export class KernelJacobiSmooth {
       layout: this.bind_group_layout,
       entries: [
         bind_buffer(0, this.params_uniform),
-        bind_buffer(1, xout),
-        bind_buffer(2, xin),
-        bind_buffer(3, b),
-        bind_buffer(4, mask),
-        bind_buffer(5, dx),
-        bind_buffer(6, dy),
-        bind_buffer(7, dz),
+        bind_buffer(1, v_out.data),
+        bind_buffer(2, v_in.data),
+        bind_buffer(3, b.data),
+        bind_buffer(4, mask.data),
+        bind_buffer(5, dx.data),
+        bind_buffer(6, dy.data),
+        bind_buffer(7, dz.data),
       ],
     });
 
@@ -186,13 +187,13 @@ export class KernelCalculateResidual {
 
   create_pass(
     command_encoder: GPUCommandEncoder,
-    r: GPUBuffer, x: GPUBuffer, b: GPUBuffer, mask: GPUBuffer,
-    dx: GPUBuffer, dy: GPUBuffer, dz: GPUBuffer,
+    r: NdGpuArray, x: NdGpuArray, b: NdGpuArray, mask: NdGpuArray,
+    dx: NdGpuArray, dy: NdGpuArray, dz: NdGpuArray,
     grid_size: Size3D,
   ) {
-    function assert_buffer_size(buf: GPUBuffer, expected_size: number) {
-      if (buf.size !== expected_size) {
-        throw Error(`Got buffer with size ${buf.size} but expected ${expected_size} bytes`);
+    function assert_buffer_size(buf: NdGpuArray, expected_size: number) {
+      if (buf.data.size !== expected_size) {
+        throw Error(`Got buffer with size ${buf.data.size} but expected ${expected_size} bytes`);
       }
     }
     const total_points = (grid_size.x+1)*(grid_size.y+1)*(grid_size.z+1);
@@ -227,13 +228,13 @@ export class KernelCalculateResidual {
       layout: this.bind_group_layout,
       entries: [
         bind_buffer(0, this.params_uniform),
-        bind_buffer(1, r),
-        bind_buffer(2, x),
-        bind_buffer(3, b),
-        bind_buffer(4, mask),
-        bind_buffer(5, dx),
-        bind_buffer(6, dy),
-        bind_buffer(7, dz),
+        bind_buffer(1, r.data),
+        bind_buffer(2, x.data),
+        bind_buffer(3, b.data),
+        bind_buffer(4, mask.data),
+        bind_buffer(5, dx.data),
+        bind_buffer(6, dy.data),
+        bind_buffer(7, dz.data),
       ],
     });
 
@@ -334,7 +335,7 @@ export class ComputeCopySliceToTexture {
 
   create_pass(
     command_encoder: GPUCommandEncoder,
-    x_buf: GPUBuffer, r_buf: GPUBuffer, b_buf: GPUBuffer, mask_buf: GPUBuffer,
+    v_buf: NdGpuArray, r_buf: NdGpuArray, b_buf: NdGpuArray, mask_buf: NdGpuArray,
     gpu_texture_view: GPUTextureView,
     grid_size: Size3D,
     copy_z: number,
@@ -349,33 +350,19 @@ export class ComputeCopySliceToTexture {
     this.params.set("copy_z", copy_z);
     this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
 
+    const bind_gpu_array = (buffer: GPUBuffer) => {
+      return { buffer, offset: 0, size: buffer.size };
+    };
+
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size },
-        },
-        {
-          binding: 1,
-          resource: { buffer: x_buf, offset: 0, size: x_buf.size },
-        },
-        {
-          binding: 2,
-          resource: { buffer: r_buf, offset: 0, size: r_buf.size },
-        },
-        {
-          binding: 3,
-          resource: { buffer: b_buf, offset: 0, size: b_buf.size },
-        },
-        {
-          binding: 4,
-          resource: { buffer: mask_buf, offset: 0, size: mask_buf.size },
-        },
-        {
-          binding: 5,
-          resource: gpu_texture_view,
-        },
+        { binding: 0, resource: bind_gpu_array(this.params_uniform) },
+        { binding: 1, resource: bind_gpu_array(v_buf.data) },
+        { binding: 2, resource: bind_gpu_array(r_buf.data) },
+        { binding: 3, resource: bind_gpu_array(b_buf.data) },
+        { binding: 4, resource: bind_gpu_array(mask_buf.data) },
+        { binding: 5, resource: gpu_texture_view },
       ],
     });
 
