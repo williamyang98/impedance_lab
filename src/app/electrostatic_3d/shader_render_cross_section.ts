@@ -1,6 +1,5 @@
 import { type Axis3D, type Vec3 } from "../../utility/dim_types";
-import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh } from "../common.ts";
-import { NdGpuArray } from "../common.ts";
+import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh, NdGpuArray } from "../../renderers/common.ts";
 import shader_wgsl from "./shader_render_cross_section.wgsl?raw";
 
 export type DataMode = "node" | "face";

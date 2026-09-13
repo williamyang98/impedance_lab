@@ -1,4 +1,5 @@
-import { KernelCalculateResidual, KernelJacobiSmooth } from '../../wgpu_kernels/electrostatic_3d';
+import { KernelCalculateResidual } from './kernel_residual.ts';
+import { KernelJacobiSmooth } from './kernel_jacobi_smooth.ts';
 import { Ndarray, type NdarrayType } from '../../utility/ndarray.ts';
 import { type Vec3 } from '../../utility/dim_types';
 import { NdGpuArray } from '../../renderers/common.ts';

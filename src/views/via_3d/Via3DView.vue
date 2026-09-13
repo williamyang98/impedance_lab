@@ -23,7 +23,6 @@ import ParameterForm from "../via_2d/ParameterForm.vue";
 import { type ImpedanceResult } from './impedance.ts';
 import MeshViewer3D from '../../components/mesh_viewer/MeshViewer3D.vue';
 import GridBuilderConfigForm from '../../app/electrostatic_3d/GridBuilderConfigForm.vue';
-import RendererView0 from '../../renderers/electrostatic_3d/RendererView.vue';
 
 const gpu_device = toRaw(providers.gpu_device.value);
 const toast = providers.toast_manager.value;
@@ -373,10 +372,6 @@ async function perform_search(search_params: Parameter[]) {
     <div class="w-full flex justify-center-safe overflow-x-auto">
       <ExportView v-if="stackup_grid" :grid="stackup_grid.cpu_grid" class="w-fit border border-base-300 bg-base-100"/>
     </div>
-  </template>
-  <template #h-6>Viewer 0</template>
-  <template #b-6>
-    <RendererView0 v-if="stackup_grid" :grid="stackup_grid.gpu_grid"/>
   </template>
 </TabsView>
 </template>

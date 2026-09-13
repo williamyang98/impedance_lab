@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { type DisplayMode, Renderer } from "./renderer.ts";
+<script lang="ts" setup>
+import { Renderer, type RenderMode } from "./renderer.ts";
 import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
 import { ref, watch, computed, useTemplateRef } from "vue";
@@ -10,9 +10,7 @@ const props = defineProps<{
 }>();
 
 const gpu_device = providers.gpu_device.value;
-
 const renderer = new Renderer(gpu_device);
-
 const canvas_element = useTemplateRef<HTMLCanvasElement>("field-canvas");
 const canvas_context = computed<GPUCanvasContext>(() => {
   const canvas = canvas_element.value;
@@ -26,62 +24,42 @@ const canvas_context = computed<GPUCanvasContext>(() => {
   return canvas_context;
 });
 
-const copy_z = ref<number>(0);
-const max_z = ref<number>(0);
+const render_mode = ref<RenderMode>("voltage");
+const z_slice = ref<number>(0);
 const scale_db = ref<number>(0.0);
-const display_mode = ref<DisplayMode>("x");
-
-function upload_slice(command_encoder: GPUCommandEncoder) {
-  renderer.upload_slice(command_encoder, props.grid, copy_z.value);
-}
-
+const scale = computed(() => Math.pow(10, scale_db.value/20));
+const zoom_db = ref<number>(-20);
+const zoom = computed(() => Math.pow(10, zoom_db.value/20));
 function update_display(command_encoder: GPUCommandEncoder) {
   // can't render to 0 sized canvas
   const canvas = canvas_element.value;
   if (canvas === null || canvas.width === 0 || canvas.height == 0) return;
-
-  const scale = Math.pow(10, scale_db.value);
   const canvas_size = {
-    width: canvas_context.value.canvas.width,
-    height: canvas_context.value.canvas.height,
+    x: canvas_context.value.canvas.width,
+    y: canvas_context.value.canvas.height,
   };
-  renderer.update_display(command_encoder, canvas_context.value, canvas_size, display_mode.value, scale);
+  renderer.update_display(
+    command_encoder,
+    canvas_context.value, canvas_size,
+    props.grid,
+    render_mode.value,
+    z_slice.value,
+    scale.value, zoom.value,
+  );
 }
 
 const refresh = debounce_animation_frame_async(async () => {
   const command_encoder = gpu_device.createCommandEncoder();
-  upload_slice(command_encoder);
   update_display(command_encoder);
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone();
 });
 
-watch(() => props.grid, (grid) => {
-  max_z.value = grid.size.z;
-  copy_z.value = Math.min(Math.max(copy_z.value, 0), max_z.value);
-}, { immediate: true });
-
-watch(copy_z, debounce_animation_frame_async(async () => {
-  const command_encoder = gpu_device.createCommandEncoder();
-  upload_slice(command_encoder);
-  update_display(command_encoder);
-  gpu_device.queue.submit([command_encoder.finish()]);
-  await gpu_device.queue.onSubmittedWorkDone();
-}));
-
-watch(scale_db, debounce_animation_frame_async(async () => {
-  const command_encoder = gpu_device.createCommandEncoder();
-  update_display(command_encoder);
-  gpu_device.queue.submit([command_encoder.finish()]);
-  await gpu_device.queue.onSubmittedWorkDone();
-}));
-
-watch(display_mode, debounce_animation_frame_async(async () => {
-  const command_encoder = gpu_device.createCommandEncoder();
-  update_display(command_encoder);
-  gpu_device.queue.submit([command_encoder.finish()]);
-  await gpu_device.queue.onSubmittedWorkDone();
-}));
+watch(scale, () => { refresh(); });
+watch(z_slice, () => { refresh(); });
+watch(zoom, () => { refresh(); });
+watch(render_mode, () => { refresh(); });
+watch(() => props.grid, () => { refresh(); })
 
 // rerender grid if canvas was resized
 let resize_observer: ResizeObserver | undefined = undefined;
@@ -101,10 +79,8 @@ watch(canvas_element, (elem) => {
   resize_observer.observe(elem);
 });
 
-
 defineExpose({
   refresh,
-  copy_z,
   scale_db,
 });
 
@@ -115,26 +91,33 @@ defineExpose({
   <canvas ref="field-canvas" class="w-full h-full min-h-0 grid-view"></canvas>
   <form class="flex flex-col gap-y-2 w-full">
     <fieldset class="fieldset">
-      <legend for="mode" class="fieldset-legend w-full">Mode</legend>
-      <select class="select w-full" v-model="display_mode">
-        <option :value="'x'">Voltage</option>
-        <option :value="'b'">Input voltage</option>
-        <option :value="'r'">Residual</option>
+      <legend for="render_mode" class="fieldset-legend">Field</legend>
+      <select id="render_mode" class="select" v-model="render_mode">
+        <option :value="'voltage'">Voltage</option>
+        <option :value="'residual'">Residual</option>
+        <option :value="'dielectric'">Dielectric</option>
       </select>
     </fieldset>
     <fieldset class="fieldset">
-      <legend for="slice" class="fieldset-legend w-full flex flex-row justify-between">
-        <span>Z-index</span>
-        <span>{{ copy_z }}</span>
+      <legend for="zoom" class="fieldset-legend w-full flex flex-row justify-between">
+        <span>Zoom</span>
+        <span>{{ zoom_db.toFixed(2) }}dB</span>
       </legend>
-      <input id="slice" type="range" class="range w-full" v-model.number="copy_z" min="0" :max="max_z" step="1"/>
+      <input id="zoom" type="range" class="range w-full" v-model.number="zoom_db" min="-50" max="50" step="0.1"/>
     </fieldset>
     <fieldset class="fieldset">
       <legend for="scale" class="fieldset-legend w-full flex flex-row justify-between">
         <span>Scale</span>
         <span>{{ scale_db.toFixed(2) }}dB</span>
       </legend>
-      <input id="scale" type="range" class="range w-full" v-model.number="scale_db" min="-10" max="10" step="0.1"/>
+      <input id="scale" type="range" class="range w-full" v-model.number="scale_db" min="-200" max="200" step="0.1"/>
+    </fieldset>
+    <fieldset class="fieldset">
+      <legend for="z_slice" class="fieldset-legend w-full flex flex-row justify-between">
+        <span>Z</span>
+        <span>({{ z_slice }} / {{ grid.size.z }})</span>
+      </legend>
+      <input id="z_slice" type="range" class="range w-full" v-model.number="z_slice" min="0" :max="grid.size.z" step="1"/>
     </fieldset>
   </form>
 </div>
