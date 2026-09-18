@@ -71,10 +71,6 @@ function set_grid(new_gpu_grid: GpuGrid) {
   gpu_grid.value = new_gpu_grid;
 }
 
-function set_z_slice(new_z_slice: number) {
-  z_slice.value = Math.min(Math.max(new_z_slice, 0), max_z.value);
-}
-
 function update_display(command_encoder: GPUCommandEncoder) {
   if (gpu_grid.value === undefined) return;
   // can't render to 0 sized canvas
@@ -125,8 +121,10 @@ watch(canvas_element, (elem) => {
 
 defineExpose({
   set_grid,
-  set_z_slice,
   update_display,
+  z_slice,
+  scale_db,
+  zoom_db,
 });
 </script>
 

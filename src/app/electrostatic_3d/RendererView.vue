@@ -89,6 +89,8 @@ watch(canvas_element, (elem) => {
 
 defineExpose({
   refresh,
+  z_slice,
+  zoom_db,
   scale_db,
 });
 

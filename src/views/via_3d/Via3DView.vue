@@ -82,7 +82,12 @@ watch(renderer_view, (view) => {
 watch(stackup_grid, (new_stackup_grid) => {
   if (new_stackup_grid === undefined) return;
   if (renderer_view.value === null) return;
-  renderer_view.value.copy_z = Math.round(new_stackup_grid.size.z/2);
+  renderer_view.value.z_slice = Math.round(new_stackup_grid.size.z/2);
+
+  const dx = new_stackup_grid.cpu_grid.dx.cast(Float32Array);
+  const width = dx.reduce((a,b) => a+b, 0);
+  const zoom = 1/width;
+  renderer_view.value.zoom_db = 20.0*Math.log10(zoom);
 });
 
 async function sleep(millis: number) {

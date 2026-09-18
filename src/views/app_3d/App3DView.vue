@@ -3,7 +3,7 @@ import { ref, computed, useTemplateRef, onMounted, onBeforeUnmount, reactive, wa
 import RendererView from "../../app/fdtd_3d/RendererView.vue";
 import TabsView from "../../components/TabsView.vue";
 import MeshViewer3D from "../../components/mesh_viewer/MeshViewer3D.vue";
-import { GpuEngine } from "../../app/fdtd_3d/grid.ts" ;
+import { GpuEngine, SimulationSetup } from "../../app/fdtd_3d/grid.ts" ;
 import { providers } from "../../providers/providers.ts";
 import {
   create_single_ended_setup,
@@ -59,7 +59,6 @@ const viewer_3d_elem = useTemplateRef<typeof RendererView>("viewer_3d");
 async function refresh_display() {
   const viewer_3d = viewer_3d_elem.value;
   if (viewer_3d === null) return;
-  viewer_3d.set_grid(setup.value.gpu);
   const command_encoder = gpu_device.createCommandEncoder();
   viewer_3d.update_display(command_encoder);
   gpu_device.queue.submit([command_encoder.finish()]);
@@ -117,21 +116,23 @@ async function tick_loop() {
   await refresh_display();
 }
 
-onMounted(async () => {
-  const viewer_3d = viewer_3d_elem.value;
-  if (viewer_3d === null) {
-    throw Error(`Failed to acquire viewer 3d child component`);
-  }
-  viewer_3d.set_grid(setup.value.gpu);
-  await sleep(0);
-  viewer_3d.set_z_slice(Math.round(setup.value.size.z/2));
-  await start_loop();
-});
-
-watch(setup, async (setup) => {
+async function init_setup(setup: SimulationSetup) {
   setup.reset();
+  const viewer_3d = viewer_3d_elem.value;
+  if (viewer_3d !== null) {
+    viewer_3d.set_grid(setup.gpu);
+    const dx = setup.cpu.d.x.cast(Float32Array);
+    const width = dx.reduce((a,b) => a+b, 0);
+    const zoom = 1/width;
+    viewer_3d.zoom_db = 20.0*Math.log10(zoom);
+    viewer_3d.z_slice = Math.round(setup.size.z/2);
+  }
+  await sleep(0);
   await refresh_display();
-});
+}
+
+onMounted(async () => { await init_setup(setup.value); });
+watch(setup, async (setup) => { await init_setup(setup); });
 
 onBeforeUnmount(() => {
   void stop_loop();
