@@ -6,24 +6,20 @@ struct Params {
     clear_colour: vec4<f32>,
     mask_colour: vec4<f32>,
     z_slice: u32,
-    zoom: f32,
     _pad_0: u32,
     _pad_1: u32,
+    _pad_2: u32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var<storage, read> x: array<f32>; // [x+1]
-@group(0) @binding(2) var<storage, read> y: array<f32>; // [y+1]
-@group(0) @binding(3) var<storage, read> data: array<f32>; // node: [x+1,y+1], face: [x,y]
+@group(0) @binding(1) var<uniform> camera: mat3x3<f32>;
+@group(0) @binding(2) var<storage, read> x: array<f32>; // [x+1]
+@group(0) @binding(3) var<storage, read> y: array<f32>; // [y+1]
+@group(0) @binding(4) var<storage, read> data: array<f32>; // node: [x+1,y+1], face: [x,y]
 
 const DATA_MODE_NODE: i32 = 0; // node values
 const DATA_MODE_FACE: i32 = 1; // face values
 override data_mode = 0;
-
-const AXIS_MODE_X: i32 = 0;
-const AXIS_MODE_Y: i32 = 1;
-const AXIS_MODE_Z: i32 = 2;
-override axis_mode = 0;
 
 struct VertexOut {
     @builtin(position) vertex_position : vec4f,
@@ -72,9 +68,10 @@ fn vertex_main(
         let x_offset = x[i]-dx0/2.0;
         let y_offset = y[j]-dy0/2.0;
 
-        var vertex_pos = vec2<f32>(
+        var vertex_pos = vec3<f32>(
             dx*position.x+x_offset,
             dy*position.y+y_offset,
+            1.0,
         );
         vertex_pos.x = clamp(vertex_pos.x, x[0], x[Nx]);
         vertex_pos.y = clamp(vertex_pos.y, y[0], y[Ny]);
@@ -82,7 +79,7 @@ fn vertex_main(
         let data_index = i + j*i32(Mx) + i32(params.z_slice*Mxy);
         let data_value = data[data_index];
 
-        output.vertex_position = vec4f(vertex_pos*params.zoom, 0.0, 1.0);
+        output.vertex_position = vec4f((camera*vertex_pos).xy, 0.0, 1.0);
         output.data = data_value*params.scale;
     } else if (data_mode == DATA_MODE_FACE) {
         let Nxy = Nx*Ny;
@@ -94,15 +91,16 @@ fn vertex_main(
         let x_offset = x[i];
         let y_offset = y[j];
 
-        var vertex_pos = vec2<f32>(
+        var vertex_pos = vec3<f32>(
             dx*position.x+x_offset,
             dy*position.y+y_offset,
+            1.0,
         );
 
         let data_index = i + j*i32(Nx) + i32(params.z_slice*Nxy);
         let data_value = data[data_index];
 
-        output.vertex_position = vec4f(vertex_pos*params.zoom, 0.0, 1.0);
+        output.vertex_position = vec4f((camera*vertex_pos).xy, 0.0, 1.0);
         output.data = data_value*params.scale;
     }
 

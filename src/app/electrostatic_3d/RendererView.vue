@@ -25,6 +25,14 @@ const canvas_context = computed<GPUCanvasContext>(() => {
 });
 
 const render_mode = ref<RenderMode>("voltage");
+const max_z_slice = computed(() => {
+  switch (render_mode.value) {
+  case "voltage": return props.grid.v_in.shape[0];
+  case "residual": return props.grid.r.shape[0];
+  case "dielectric": return props.grid.er.shape[0];
+  case "input": return props.grid.b.shape[0];
+  }
+});
 const z_slice = ref<number>(0);
 const scale_db = ref<number>(0.0);
 const scale = computed(() => Math.pow(10, scale_db.value/20));
@@ -94,9 +102,17 @@ defineExpose({
       <legend for="render_mode" class="fieldset-legend">Field</legend>
       <select id="render_mode" class="select" v-model="render_mode">
         <option :value="'voltage'">Voltage</option>
+        <option :value="'input'">Input Voltage</option>
         <option :value="'residual'">Residual</option>
         <option :value="'dielectric'">Dielectric</option>
       </select>
+    </fieldset>
+    <fieldset class="fieldset">
+      <legend for="z_slice" class="fieldset-legend w-full flex flex-row justify-between">
+        <span>Z</span>
+        <span>({{ z_slice }} / {{ max_z_slice-1 }})</span>
+      </legend>
+      <input id="z_slice" type="range" class="range w-full" v-model.number="z_slice" min="0" :max="max_z_slice-1" step="1"/>
     </fieldset>
     <fieldset class="fieldset">
       <legend for="zoom" class="fieldset-legend w-full flex flex-row justify-between">
@@ -111,13 +127,6 @@ defineExpose({
         <span>{{ scale_db.toFixed(2) }}dB</span>
       </legend>
       <input id="scale" type="range" class="range w-full" v-model.number="scale_db" min="-200" max="200" step="0.1"/>
-    </fieldset>
-    <fieldset class="fieldset">
-      <legend for="z_slice" class="fieldset-legend w-full flex flex-row justify-between">
-        <span>Z</span>
-        <span>({{ z_slice }} / {{ grid.size.z }})</span>
-      </legend>
-      <input id="z_slice" type="range" class="range w-full" v-model.number="z_slice" min="0" :max="grid.size.z" step="1"/>
     </fieldset>
   </form>
 </div>

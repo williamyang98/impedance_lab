@@ -2,8 +2,8 @@ struct Params {
     colour: vec4<f32>,
     thickness: f32,
     depth: f32,
-    zoom: f32,
     _pad_0: u32,
+    _pad_1: u32,
 };
 
 const AXIS_MODE_X: i32 = 0;
@@ -15,7 +15,8 @@ struct VertexOut {
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var<storage, read> lines: array<f32>;
+@group(0) @binding(1) var<uniform> camera: mat3x3<f32>;
+@group(0) @binding(2) var<storage, read> lines: array<f32>;
 
 @vertex
 fn vertex_main(
@@ -26,11 +27,11 @@ fn vertex_main(
     let line: f32 = lines[instance_index];
     let thickness: f32 = params.thickness;
     if (axis_mode == AXIS_MODE_X) {
-        let x: f32 = line*params.zoom + (position.x*thickness) - thickness/2.0;
+        var x: f32 = line*camera[0][0] + camera[2][0] + (position.x*thickness) - thickness/2.0;
         let y: f32 = position.y*2.0 - 1.0;
         output.vertex_position = vec4f(x, y, params.depth, 1.0);
     } else if (axis_mode == AXIS_MODE_Y) {
-        let y: f32 = line*params.zoom + (position.y*thickness) - thickness/2.0;
+        let y: f32 = line*camera[1][1] + camera[2][1] + (position.y*thickness) - thickness/2.0;
         let x: f32 = position.x*2.0 - 1.0;
         output.vertex_position = vec4f(x, y, params.depth, 1.0);
     }

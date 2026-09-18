@@ -1,5 +1,5 @@
 import shader_wgsl from "./shader_lines_2d.wgsl?raw";
-import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh, NdGpuArray } from "../common.ts";
+import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh, NdGpuArray, GpuCamera2D } from "../common.ts";
 import type { Axis2D } from "../../utility/dim_types.ts";
 
 function get_axis_mode_value(axis_mode: Axis2D): number {
@@ -16,8 +16,8 @@ export class ShaderRenderLines2D {
     colour: ["f32", "f32", "f32", "f32"],
     thickness: "f32",
     depth: "f32",
-    zoom: "f32",
     _pad_0: "u32",
+    _pad_1: "u32",
   }>;
   shader_source: string;
   shader_module: GPUShaderModule;
@@ -34,8 +34,8 @@ export class ShaderRenderLines2D {
       colour: ["f32", "f32", "f32", "f32"],
       thickness: "f32",
       depth: "f32",
-      zoom: "f32",
       _pad_0: "u32",
+      _pad_1: "u32",
     });
     this.params = params;
     this.shader_source = shader_wgsl;
@@ -46,7 +46,8 @@ export class ShaderRenderLines2D {
     this.bind_group_layout = device.createBindGroupLayout({
       entries: [
         { binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: "uniform" } },
-        { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: "uniform" } },
+        { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
       ],
     });
     this.pipeline_layout = device.createPipelineLayout({
@@ -109,9 +110,9 @@ export class ShaderRenderLines2D {
     lines: NdGpuArray,
     colour: { r: number, g: number, b: number, a: number },
     axis_mode: Axis2D,
+    camera: GpuCamera2D,
     thickness: number,
     depth: number,
-    zoom: number,
   ) {
     if (lines.shape.length !== 1) {
       throw Error(`Expected lines array to be 1 dimensional but got shape [${lines.shape.join(',')}]`);
@@ -121,7 +122,6 @@ export class ShaderRenderLines2D {
     this.params.cpu.set_array("colour", [colour.r, colour.g, colour.b, colour.a]);
     this.params.cpu.set("thickness", thickness);
     this.params.cpu.set("depth", depth);
-    this.params.cpu.set("zoom", zoom);
     this.params.write_to_gpu();
 
     const bind_gpu_buffer = (buffer: GPUBuffer) => {
@@ -132,7 +132,8 @@ export class ShaderRenderLines2D {
       layout: this.bind_group_layout,
       entries: [
         { binding: 0, resource: bind_gpu_buffer(this.params.gpu) },
-        { binding: 1, resource: bind_gpu_buffer(lines.data) },
+        { binding: 1, resource: bind_gpu_buffer(camera.gpu) },
+        { binding: 2, resource: bind_gpu_buffer(lines.data) },
       ],
     });
     const render_pass = command_encoder.beginRenderPass({
