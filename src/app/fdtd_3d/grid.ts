@@ -1,10 +1,12 @@
 import type { Vec3 } from "../../utility/dim_types.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
-import { KernelCurrentSource, KernelUpdateElectricField, KernelUpdateMagneticField } from "../../wgpu_kernels/fdtd_3d/index.ts";
+import { KernelCurrentSource } from "./kernel_current_source.ts";
+import { KernelUpdateElectricField } from "./kernel_update_e_field.ts";
+import { KernelUpdateMagneticField } from "./kernel_update_h_field.ts";
 import { NdGpuArray } from "../../renderers/common.ts";
 
-type CpuFieldBuffers = Vec3<Ndarray>;
-type GpuFieldBuffers = Vec3<NdGpuArray>;
+export type CpuFieldBuffers = Vec3<Ndarray>;
+export type GpuFieldBuffers = Vec3<NdGpuArray>;
 type Size3D = Vec3<number>;
 
 export class CpuGrid {
