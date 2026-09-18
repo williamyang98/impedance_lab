@@ -119,6 +119,7 @@ export class GpuGrid {
   adapter: GPUAdapter;
   device: GPUDevice;
 
+  grid_lines: GpuFieldBuffers;
   d: GpuFieldBuffers;
   E: GpuFieldBuffers;
   H: GpuFieldBuffers;
@@ -131,6 +132,12 @@ export class GpuGrid {
     this.adapter = adapter;
     this.device = device;
     this.size = size;
+
+    this.grid_lines = {
+      x: new NdGpuArray(device, [size.x+1], "f32"),
+      y: new NdGpuArray(device, [size.y+1], "f32"),
+      z: new NdGpuArray(device, [size.z+1], "f32"),
+    };
 
     this.d = {
       x: new NdGpuArray(device, [size.x], "f32"),
@@ -178,6 +185,7 @@ export class GpuGrid {
       copy_buffer(gpu.y, cpu.y);
       copy_buffer(gpu.z, cpu.z);
     };
+    copy_field_buffers(this.grid_lines, cpu.grid_lines);
     copy_field_buffers(this.d, cpu.d);
     copy_field_buffers(this.E, cpu.E);
     copy_field_buffers(this.H, cpu.H);

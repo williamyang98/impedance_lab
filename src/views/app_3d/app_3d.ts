@@ -2,7 +2,7 @@ import { SimulationSetup } from "../../app/fdtd_3d/grid.ts";
 import { type GridBuilderConfig } from "../../app/electrostatic_3d/grid_builder.ts";
 import { type Region, GridBuilder } from "../../app/fdtd_3d/grid_builder.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import type { Vec3 } from "../../utility/dim_types.ts";
+import { AXES_3D, type Vec3 } from "../../utility/dim_types.ts";
 
 type Size3D = Vec3<number>;
 
@@ -172,6 +172,21 @@ export function create_single_ended_setup_vargrid(
   return grid_builder;
 }
 
+function generate_grid_lines_from_spacings(setup: SimulationSetup) {
+  const cpu = setup.cpu;
+  for (const axis of AXES_3D) {
+    const spacings = cpu.d[axis].cast(Float32Array);
+    const lines = cpu.grid_lines[axis].cast(Float32Array);
+    const size = spacings.reduce((a,b) => a+b, 0.0);
+    let offset = -size/2;
+    lines[0] = offset;
+    for (let i = 0; i < spacings.length; i++) {
+      lines[i+1] = offset;
+      offset += spacings[i];
+    }
+  }
+}
+
 export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice): SimulationSetup {
   const size: Size3D = { x: 256, y: 128, z: 16 };
   const setup = new SimulationSetup(adapter, device, size);
@@ -186,6 +201,7 @@ export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice
   cpu.d.x.fill(dxyz);
   cpu.d.y.fill(dxyz);
   cpu.d.z.fill(dxyz);
+  generate_grid_lines_from_spacings(setup);
 
   const plane_height = 1;
   const plane_border = 20;
@@ -258,6 +274,7 @@ export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice
   cpu.d.x.fill(dxyz);
   cpu.d.y.fill(dxyz);
   cpu.d.z.fill(dxyz);
+  generate_grid_lines_from_spacings(setup);
 
   const plane_height = 1;
   const plane_border = 20;

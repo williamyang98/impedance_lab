@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, useTemplateRef, onMounted, onBeforeUnmount, reactive } from "vue";
+import { ref, computed, useTemplateRef, onMounted, onBeforeUnmount, reactive, watch } from "vue";
 import RendererView from "../../app/fdtd_3d/RendererView.vue";
 import TabsView from "../../components/TabsView.vue";
 import MeshViewer3D from "../../components/mesh_viewer/MeshViewer3D.vue";
@@ -61,7 +61,6 @@ async function refresh_display() {
   if (viewer_3d === null) return;
   viewer_3d.set_grid(setup.value.gpu);
   const command_encoder = gpu_device.createCommandEncoder();
-  viewer_3d.upload_slice(command_encoder);
   viewer_3d.update_display(command_encoder);
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone();
@@ -125,8 +124,13 @@ onMounted(async () => {
   }
   viewer_3d.set_grid(setup.value.gpu);
   await sleep(0);
-  viewer_3d.set_copy_z(Math.round(setup.value.size.z/2));
+  viewer_3d.set_z_slice(Math.round(setup.value.size.z/2));
   await start_loop();
+});
+
+watch(setup, async (setup) => {
+  setup.reset();
+  await refresh_display();
 });
 
 onBeforeUnmount(() => {
@@ -138,8 +142,10 @@ onBeforeUnmount(() => {
 <TabsView :initial_tab="'0'">
 <template #h-0>Viewer</template>
 <template #b-0>
-  <div class="flex flex-col gap-y-1 max-w-[750px]">
-    <RendererView ref="viewer_3d"></RendererView>
+  <div class="flex flex-col gap-y-1 w-full">
+    <div class="w-full h-[30rem]">
+      <RendererView ref="viewer_3d"></RendererView>
+    </div>
     <div class="rounded-sm w-full h-[2.0rem] bg-slate-300 border-1 border-slate-300 border-sm">
       <div
         class="rounded-sm h-full bg-green-400 text-center"
