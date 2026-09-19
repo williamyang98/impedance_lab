@@ -61,8 +61,8 @@ fn vertex_main(
 
         let dx0 = get_dx(i-1);
         let dx1 = get_dx(i);
-        let dy0 = get_dx(j-1);
-        let dy1 = get_dx(j);
+        let dy0 = get_dy(j-1);
+        let dy1 = get_dy(j);
         let dx = (dx0+dx1)/2.0;
         let dy = (dy0+dy1)/2.0;
         let x_offset = x[i]-dx0/2.0;

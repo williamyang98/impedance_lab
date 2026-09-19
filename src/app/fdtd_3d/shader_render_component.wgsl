@@ -88,23 +88,23 @@ fn vertex_main(
 
     if (data_mode == DATA_MODE_EX) {
         dx = get_dx(i);
-        let dy0 = get_dx(j-1);
-        let dy1 = get_dx(j);
+        let dy0 = get_dy(j-1);
+        let dy1 = get_dy(j);
         dy = (dy0+dy1)/2.0;
         x_offset = x[i];
         y_offset = y[j]-dy0/2.0;
     } else if (data_mode == DATA_MODE_EY) {
         let dx0 = get_dx(i-1);
         let dx1 = get_dx(i);
-        dy = get_dx(j);
+        dy = get_dy(j);
         dx = (dx0+dx1)/2.0;
         x_offset = x[i]-dx0/2.0;
         y_offset = y[j];
     } else if (data_mode == DATA_MODE_EZ) {
         let dx0 = get_dx(i-1);
         let dx1 = get_dx(i);
-        let dy0 = get_dx(j-1);
-        let dy1 = get_dx(j);
+        let dy0 = get_dy(j-1);
+        let dy1 = get_dy(j);
         dx = (dx0+dx1)/2.0;
         dy = (dy0+dy1)/2.0;
         x_offset = x[i]-dx0/2.0;
@@ -112,20 +112,20 @@ fn vertex_main(
     } else if (data_mode == DATA_MODE_HX) {
         let dx0 = get_dx(i-1);
         let dx1 = get_dx(i);
-        dy = get_dx(j);
+        dy = get_dy(j);
         dx = (dx0+dx1)/2.0;
         x_offset = x[i]-dx0/2.0;
         y_offset = y[j];
     } else if (data_mode == DATA_MODE_HY) {
         dx = get_dx(i);
-        let dy0 = get_dx(j-1);
-        let dy1 = get_dx(j);
+        let dy0 = get_dy(j-1);
+        let dy1 = get_dy(j);
         dy = (dy0+dy1)/2.0;
         x_offset = x[i];
         y_offset = y[j]-dy0/2.0;
     } else if (data_mode == DATA_MODE_HZ) {
         dx = get_dx(i);
-        dy = get_dx(j);
+        dy = get_dy(j);
         x_offset = x[i];
         y_offset = y[j];
     }
