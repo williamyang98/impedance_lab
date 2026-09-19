@@ -17,7 +17,9 @@ async function create_gpu_instance() {
     return;
   }
 
-  const requested_adapter = await navigator.gpu.requestAdapter();
+  const requested_adapter = await navigator.gpu.requestAdapter({
+    powerPreference: "high-performance", // probably going to be ignored on Windows (https://crbug.com/369219127)
+  });
   if (!requested_adapter) {
     error_message.value = "Couldn't request WebGPU adapter";
     state.value = "failed";
@@ -31,7 +33,7 @@ async function create_gpu_instance() {
   const requested_device = await requested_adapter.requestDevice({
     requiredFeatures: requested_features,
     requiredLimits: {
-      maxStorageBuffersPerShaderStage: 11,
+      maxStorageBuffersPerShaderStage: 11, // for complex shaders and kernels that require many buffers
     },
   });
   adapter.value = requested_adapter;

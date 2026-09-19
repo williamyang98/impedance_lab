@@ -2,82 +2,30 @@
 import { ref } from "vue";
 import { providers } from "../../providers/providers.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
-import { GPUTimer } from "./gpu_timer.ts";
 import { NumberField, integer_validator } from "../../utility/form_validation.ts";
 import { TriangleAlert } from "@lucide/vue";
+import { MemoryBandwidthBenchmark, type MemoryBandwidthBenchmarkResult } from "../../app/benchmark/memory_bandwidth_benchmark.ts";
 
 const gpu_device = providers.gpu_device.value;
 const user_data = providers.user_data.value;
+const toasts = providers.toast_manager.value;
 const gpu_features = gpu_device.features as ReadonlySet<GPUFeatureName>;
-
 const is_running = ref<boolean>(false);
-
+const benchmark = new MemoryBandwidthBenchmark(gpu_device);
 const config = user_data.memory_bandwidth_benchmark_config;
 const config_form = ref([
   new NumberField(config, "total_transfers", "Total Transfers", 1, 1024, 1, integer_validator),
 ]);
-
-const buffer_size = gpu_device.limits.maxStorageBufferBindingSize;
-
-interface BenchmarkResult {
-  curr_step?: number;
-  total_steps?: number;
-  bandwidth?: number;
-  error?: string;
-}
-
-const benchmark_result = ref<BenchmarkResult>({});
+const benchmark_result = ref<MemoryBandwidthBenchmarkResult>({});
 
 async function run_benchmark() {
-  const gpu_buffer = gpu_device.createBuffer({
-    size: buffer_size,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-  });
-  const cpu_buffer = gpu_device.createBuffer({
-    size: buffer_size,
-    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-  });
-
-  const kernel_timer = new GPUTimer(gpu_device, 2);
-  is_running.value = true;
-
-  const total_steps = config.total_transfers;
-  benchmark_result.value.curr_step = 0;
-  benchmark_result.value.total_steps = total_steps;
-  benchmark_result.value.bandwidth = undefined;
-  benchmark_result.value.error = undefined;
-
   try {
-    const command_encoder = gpu_device.createCommandEncoder();
-    command_encoder.beginComputePass({
-      timestampWrites: kernel_timer.get_timestamp_writes(0),
-    }).end();
-    for (let i = 0; i < total_steps; i++) {
-      command_encoder.copyBufferToBuffer(gpu_buffer, cpu_buffer, buffer_size);
-      await cpu_buffer.mapAsync(GPUMapMode.READ, 0, buffer_size);
-      benchmark_result.value.curr_step = i+1;
-      cpu_buffer.unmap();
-    }
-    command_encoder.beginComputePass({
-      timestampWrites: kernel_timer.get_timestamp_writes(1),
-    }).end();
-    kernel_timer.enqueue_read(command_encoder);
-    gpu_device.queue.submit([command_encoder.finish()]);
-    await gpu_device.queue.onSubmittedWorkDone();
-
-    const timestamps = await kernel_timer.read_timestamps();
-    const elapsed_ns = timestamps[1].start_ns - timestamps[0].end_ns;
-    const elapsed = Number(elapsed_ns)*1e-9;
-
-    const bandwidth = (buffer_size*total_steps)/elapsed;
-    benchmark_result.value.bandwidth = bandwidth;
+    is_running.value = true;
+    await benchmark.run_benchmark(benchmark_result.value, config);
   } catch (error) {
-    benchmark_result.value.error = String(error);
+    toasts.error(String(error));
   } finally {
     is_running.value = false;
-    gpu_buffer.destroy();
-    cpu_buffer.destroy();
-    kernel_timer.destroy();
   }
 }
 </script>
@@ -109,7 +57,7 @@ async function run_benchmark() {
           </tr>
           <tr>
             <td class="font-medium text-nowrap">Buffer size</td>
-            <td>{{ with_standard_suffix(buffer_size, "B", 3) }}</td>
+            <td>{{ with_standard_suffix(benchmark.buffer_size, "B", 3) }}</td>
           </tr>
           <tr>
             <td class="font-medium text-nowrap">Memory bandwidth</td>

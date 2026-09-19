@@ -1,10 +1,8 @@
 import { type DistanceUnit, distance_units } from "../../utility/unit_types.ts";
 import { type GridBuilderConfig as GridBuilderConfig2D } from "../../app/electrostatic_2d/grid_builder.ts";
 import { type GridBuilderConfig as GridBuilderConfig3D } from "../../app/electrostatic_3d/grid_builder.ts";
-import {
-  type ComputeBenchmarkConfig,
-  type MemoryBandwidthBenchmarkConfig,
-} from "../../views/gpu_benchmark/config.ts";
+import { type ComputeBenchmarkConfig } from "../../app/benchmark/compute_benchmark.ts";
+import { type MemoryBandwidthBenchmarkConfig } from "../../app/benchmark/memory_bandwidth_benchmark.ts";
 import { type ParameterSearchConfig } from "../../app/parameter_search/search.ts";
 import type { Axis2D, Axis3D, Vec2, Vec3 } from "../../utility/dim_types.ts";
 

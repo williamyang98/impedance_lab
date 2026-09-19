@@ -12,7 +12,7 @@
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "build-only": "vite build",
-    "test": "vitest run",
+    "test": "vitest run --reporter=tree",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
     "docs:dev": "vitepress dev docs --port 5174",

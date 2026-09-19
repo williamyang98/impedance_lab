@@ -1,16 +1,16 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
 
-export type BenchmarkType = "f32" | "f16" | "u32" | "i32";
+export type ComputeBenchmarkType = "f32" | "f16" | "u32" | "i32";
 
-interface BenchmarkComputePipeline {
+interface ComputeBenchmarkPipeline {
   shader_source: string;
   shader_module: GPUShaderModule;
   compute_pipeline: GPUComputePipeline;
 }
 
-export class KernelBenchmark {
+export class KernelComputeBenchmark {
   device: GPUDevice;
-  compute_pipelines = new Map<BenchmarkType, BenchmarkComputePipeline>();
+  compute_pipelines = new Map<ComputeBenchmarkType, ComputeBenchmarkPipeline>();
   bind_group_layout: GPUBindGroupLayout;
   pipeline_layout: GPUPipelineLayout;
   workgroup_size: number = 256;
@@ -38,7 +38,7 @@ export class KernelBenchmark {
     this.pipeline_layout = device.createPipelineLayout({ bindGroupLayouts: [this.bind_group_layout] });
   }
 
-  get_type_size_bytes(type: BenchmarkType): number {
+  get_type_size_bytes(type: ComputeBenchmarkType): number {
     switch (type) {
       case "f16": return 2;
       case "f32": return 4;
@@ -47,7 +47,7 @@ export class KernelBenchmark {
     }
   }
 
-  get_inner_loop_code(type: BenchmarkType): string {
+  get_inner_loop_code(type: ComputeBenchmarkType): string {
     switch (type) {
       case "f16":
       case "f32": {
@@ -66,7 +66,7 @@ export class KernelBenchmark {
     }
   }
 
-  get_benchmark_pipeline(type: BenchmarkType): BenchmarkComputePipeline {
+  get_benchmark_pipeline(type: ComputeBenchmarkType): ComputeBenchmarkPipeline {
     let pipeline = this.compute_pipelines.get(type);
     if (pipeline === undefined) {
       const shader_source = /* wgsl */ `
@@ -122,7 +122,7 @@ export class KernelBenchmark {
     return pipeline;
   }
 
-  get_init_value(type: BenchmarkType): number {
+  get_init_value(type: ComputeBenchmarkType): number {
     switch (type) {
       case "f16": return 1.3;
       case "f32": return 1.3;
@@ -134,7 +134,7 @@ export class KernelBenchmark {
   create_pass(
     compute_pass: GPUComputePassEncoder,
     gpu_A: GPUBuffer,
-    length: number, type: BenchmarkType,
+    length: number, type: ComputeBenchmarkType,
     loop_count: number,
   ) {
     const dispatch_size = Math.ceil(length/this.workgroup_size/this.simd_width);
