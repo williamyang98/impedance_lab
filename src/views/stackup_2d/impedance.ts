@@ -1,5 +1,5 @@
 import { Profiler } from "../../utility/profiler.ts";
-import { Grid } from "../../app/electrostatic_2d/grid.ts";
+import { CpuGrid } from "../../app/electrostatic_2d/grid.ts";
 
 export interface ImpedanceResult {
   voltage: number;
@@ -14,7 +14,7 @@ export interface ImpedanceResult {
   effective_er: number;
 }
 
-export function calculate_impedance(grid: Grid, profiler?: Profiler): ImpedanceResult {
+export function calculate_impedance(grid: CpuGrid, profiler?: Profiler): ImpedanceResult {
   // scale of the grid doesnt matter for 2d electrostatics with infinitely long transmission lines
   // since Laplace's equations and boundary conditions are scale-invariant
   profiler?.begin("energy_homogenous", "Calculate energy stored without dielectric material");

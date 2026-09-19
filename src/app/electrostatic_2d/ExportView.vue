@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { toRaw, computed } from "vue";
-import { Grid } from "./grid.ts";
+import { CpuGrid } from "./grid.ts";
 import { DownloadIcon } from "@lucide/vue";
 import { Uint8ArrayNdarrayWriter } from "../../utility/ndarray.ts";
 import { type IModuleNdarray, ModuleNdarrayWriter } from "../../utility/module_ndarray.ts";
@@ -11,7 +11,7 @@ import { providers } from "../../providers/providers.ts";
 const toast = providers.toast_manager.value;
 
 const props = defineProps<{
-  grid: Grid,
+  grid: CpuGrid,
 }>();
 
 interface DownloadLink {

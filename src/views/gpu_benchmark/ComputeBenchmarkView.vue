@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { ref } from "vue";
 import { providers } from "../../providers/providers.ts";
-import { KernelBenchmark, type BenchmarkType } from "../../wgpu_kernels/benchmark/index.ts";
+import { KernelBenchmark, type BenchmarkType } from "../../app/benchmark/index.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 import { GPUTimer } from "./gpu_timer.ts";
 import { NumberField, integer_validator } from "../../utility/form_validation.ts";

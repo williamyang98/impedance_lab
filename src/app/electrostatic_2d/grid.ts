@@ -6,11 +6,13 @@ import {
 } from "../../wasm/index.ts";
 import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../../utility/module_ndarray.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import type { Vec2 } from "../../utility/dim_types.ts";
+import { type Vec2 } from "../../utility/dim_types.ts";
+import { NdGpuArray } from "../../renderers/common.ts";
+import { Ndarray } from "../../utility/ndarray.ts";
 
 type Size2D = Vec2<number>;
 
-export class Grid extends ManagedObject {
+export class CpuGrid extends ManagedObject {
   readonly size: Size2D;
   readonly x: Float32ModuleNdarray;
   readonly y: Float32ModuleNdarray;
@@ -148,7 +150,7 @@ export class Grid extends ManagedObject {
           push_csr_row();
           const ij = get_index(i,j);
           const index_beta = v_index_beta[ij];
-          const { beta } = Grid.unpack_index_beta(index_beta);
+          const { beta } = CpuGrid.unpack_index_beta(index_beta);
 
           // a_n = A[m,n] where m = i + j*Mx
           if (beta > 0.5) {
@@ -240,7 +242,7 @@ export class Grid extends ManagedObject {
         for (let i = 0; i < Mx; i++) {
           const ij = i + j*Mx;
           const index_beta = v_index_beta[ij];
-          const { index, beta } = Grid.unpack_index_beta(index_beta);
+          const { index, beta } = CpuGrid.unpack_index_beta(index_beta);
           const is_forcing_potential = beta > 0.5;
           if (is_forcing_potential) {
             const voltage = v_table[index];
@@ -272,5 +274,80 @@ export class Grid extends ManagedObject {
 
   get height(): number {
     return this.dy.length;
+  }
+}
+
+export class GpuGrid {
+  device: GPUDevice;
+  size: Size2D;
+  x: NdGpuArray;
+  y: NdGpuArray;
+  dx: NdGpuArray;
+  dy: NdGpuArray;
+  v_index_beta: NdGpuArray;
+  v_field: NdGpuArray;
+  ex_field: NdGpuArray;
+  ey_field: NdGpuArray;
+  ek_index_beta: NdGpuArray;
+  v_table: NdGpuArray;
+  ek_table: NdGpuArray;
+
+  constructor(device: GPUDevice, size: Size2D) {
+    this.device = device;
+    this.size = size;
+    this.x = new NdGpuArray(device, [size.x+1], "f32");
+    this.y = new NdGpuArray(device, [size.y+1], "f32");
+    this.dx = new NdGpuArray(device, [size.x], "f32");
+    this.dy = new NdGpuArray(device, [size.y], "f32");
+    this.v_field = new NdGpuArray(device, [size.y+1,size.x+1], "f32");
+    this.ex_field = new NdGpuArray(device, [size.y+1,size.x], "f32");
+    this.ey_field = new NdGpuArray(device, [size.y,size.x+1], "f32");
+    this.v_index_beta = new NdGpuArray(device, [size.y+1,size.x+1], "u32");
+    this.ek_index_beta = new NdGpuArray(device, [size.y,size.x], "u32");
+    this.v_table = new NdGpuArray(device, [3], "f32");
+    this.ek_table = new NdGpuArray(device, [size.y,size.x], "f32");
+  }
+
+  from_cpu(cpu: CpuGrid) {
+    if (this.size.x !== cpu.size.x || this.size.y !== cpu.size.y) {
+      const format_size = (size: Size2D) => `{x:${size.x},y:${size.y}}`;
+      throw Error(`Mismatch between gpu.size=${format_size(this.size)}, cpu.size=${format_size(cpu.size)}`);
+    }
+
+    const is_shape_equal = (s0: number[], s1: number[]): boolean => {
+      if (s0.length !== s1.length) return false;
+      for (let i = 0; i < s0.length; i++) {
+        if (s0[i] !== s1[i]) return false;
+      }
+      return true;
+    };
+    const write_buffer = (gpu: NdGpuArray, cpu: Ndarray) => {
+      if (gpu.dtype !== cpu.dtype) {
+        throw Error(`Mismatch between dtypes with cpu=${cpu.dtype} and gpu=${gpu.dtype}`);
+      }
+      if (!is_shape_equal(cpu.shape, gpu.shape)) {
+        throw Error(`Mismatch between shapes with cpu=[${cpu.shape.join(',')}] and gpu=[${gpu.shape.join(',')}]`);
+      }
+      this.device.queue.writeBuffer(gpu.data, 0, cpu.data, 0, cpu.data.length);
+    };
+
+    write_buffer(this.x, cpu.x.ndarray);
+    write_buffer(this.y, cpu.y.ndarray);
+    write_buffer(this.dx, cpu.dx.ndarray);
+    write_buffer(this.dy, cpu.dy.ndarray);
+    write_buffer(this.v_field, cpu.v_field.ndarray);
+    write_buffer(this.ex_field, cpu.ex_field.ndarray);
+    write_buffer(this.ey_field, cpu.ey_field.ndarray);
+    write_buffer(this.v_index_beta, cpu.v_index_beta.ndarray);
+    write_buffer(this.ek_index_beta, cpu.ek_index_beta.ndarray);
+
+    if (!is_shape_equal(this.ek_table.shape, cpu.ek_table.shape)) {
+      this.ek_table = new NdGpuArray(this.device, cpu.ek_table.shape, "f32");
+    }
+    if (!is_shape_equal(this.v_table.shape, cpu.v_table.shape)) {
+      this.v_table = new NdGpuArray(this.device, cpu.v_table.shape, "f32");
+    }
+    write_buffer(this.ek_table, cpu.ek_table.ndarray);
+    write_buffer(this.v_table, cpu.v_table.ndarray);
   }
 }

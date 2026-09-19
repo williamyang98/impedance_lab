@@ -6,7 +6,7 @@ import {
 
 } from "./stackup.ts";
 import { ManagedObject, WasmModule } from "../../wasm/index.ts";
-import { Grid } from "../../app/electrostatic_2d/grid.ts";
+import { CpuGrid } from "../../app/electrostatic_2d/grid.ts";
 import {
   GridBuilder, type GridBuilderConfig, type GridBuilderPadding,
   type Region, type Shape,
@@ -130,7 +130,7 @@ export class StackupGrid extends ManagedObject {
     this._child_objects.add(this.grid_builder);
   }
 
-  get grid(): Grid {
+  get grid(): CpuGrid {
     return this.grid_builder.grid;
   }
 
@@ -159,12 +159,24 @@ export class StackupGrid extends ManagedObject {
   setup_create_traces_x_region(): TracesXRegion {
     const get_traces = (layout: LayerTraces): TraceXRegion[] => {
       const regions: TraceXRegion[] = [];
-      let x_offset = 0;
       const Ntraces = layout.traces.length;
       const Nspacings = layout.spacings.length;
       if (Ntraces !== (Nspacings+1)) {
         throw Error(`Expected number of traces ${Ntraces} to be number of spacings ${Nspacings} + 1`);
       }
+
+      // precalculate width to centre setup
+      let setup_width = 0;
+      for (let i = 0; i < Ntraces; i++) {
+        const trace = layout.traces[i];
+        setup_width += this.get_parameter_value(trace.width);
+        const spacing = layout.spacings.at(i);
+        if (spacing !== undefined) {
+          setup_width += this.get_parameter_value(spacing.width);
+        }
+      }
+      let x_offset = -setup_width/2.0;
+
       for (let i = 0; i < Ntraces; i++) {
         const trace = layout.traces[i];
         {

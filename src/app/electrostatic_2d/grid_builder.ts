@@ -1,5 +1,5 @@
 import { ManagedObject, WasmModule } from "../../wasm/index.ts";
-import { Grid } from "./grid.ts";
+import { CpuGrid } from "./grid.ts";
 import { LinesBuilder } from "../mesher/lines_builder.ts";
 import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../mesher/regions.ts";
 import { Profiler } from "../../utility/profiler.ts";
@@ -113,7 +113,7 @@ type RegionSDF =
 // positive y-axis goes from top to bottom
 // Region -> Shapes[] -> SDF[]
 export class GridBuilder extends ManagedObject {
-  grid: Grid;
+  grid: CpuGrid;
   regions: Region[];
   padding: GridBuilderPadding;
   sdf_regions: RegionSDF[];
@@ -445,13 +445,13 @@ export class GridBuilder extends ManagedObject {
     return region_to_grid_map;
   }
 
-  setup_create_simulation_grid(): Grid {
+  setup_create_simulation_grid(): CpuGrid {
     this.profiler?.begin("create_simulation_grid");
     const size: Vec2<number> = {
       x: this.region_to_grid_map.x.total_grid_segments,
       y: this.region_to_grid_map.y.total_grid_segments,
     };
-    const grid = new Grid(this.module, size);
+    const grid = new CpuGrid(this.module, size);
     grid.dx.array_view.set(this.region_to_grid_map.x.grid_segments);
     grid.dy.array_view.set(this.region_to_grid_map.y.grid_segments);
     grid.x.array_view.set(this.region_to_grid_map.x.grid_lines);
@@ -484,19 +484,19 @@ export class GridBuilder extends ManagedObject {
         grid_size.x = arr.shape[1];
         const index = region.voltage_index;
         if (index === null) {
-          const v_none = Grid.pack_index_beta(0, 0);
+          const v_none = CpuGrid.pack_index_beta(0, 0);
           set_data = (i: number, beta: number): void => {
             if (beta > 0.5) data[i] = v_none;
           }
         } else {
           set_data = (i: number, beta: number): void => {
             const old_value = data[i];
-            const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
+            const { index: old_index, beta: old_beta } = CpuGrid.unpack_index_beta(old_value);
             if (old_index !== index) {
-              data[i] = Grid.pack_index_beta(index, beta);
+              data[i] = CpuGrid.pack_index_beta(index, beta);
             } else {
               const new_beta = Math.min(beta+old_beta, 1.0);
-              data[i] = Grid.pack_index_beta(index, new_beta);
+              data[i] = CpuGrid.pack_index_beta(index, new_beta);
             }
           }
         }
@@ -509,19 +509,19 @@ export class GridBuilder extends ManagedObject {
         grid_size.x = arr.shape[1];
         const index = region.dielectric_index;
         if (index === null) {
-          const er0 = Grid.pack_index_beta(0, 0);
+          const er0 = CpuGrid.pack_index_beta(0, 0);
           set_data = (i: number, beta: number): void => {
             if (beta > 0.5) data[i] = er0;
           }
         } else {
           set_data = (i: number, beta: number): void => {
             const old_value = data[i];
-            const { index: old_index, beta: old_beta } = Grid.unpack_index_beta(old_value);
+            const { index: old_index, beta: old_beta } = CpuGrid.unpack_index_beta(old_value);
             if (old_index !== index) {
-              data[i] = Grid.pack_index_beta(index, beta);
+              data[i] = CpuGrid.pack_index_beta(index, beta);
             } else {
               const new_beta = Math.min(beta+old_beta, 1.0);
-              data[i] = Grid.pack_index_beta(index, new_beta);
+              data[i] = CpuGrid.pack_index_beta(index, new_beta);
             }
           }
         }

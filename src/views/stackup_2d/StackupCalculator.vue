@@ -14,7 +14,7 @@ import { useRoute, type LocationQuery } from "vue-router";
 import LayersEditorView from "./LayersEditorView.vue";
 import MeasurementTable from "./MeasurementTable.vue";
 import ParameterForm from "./ParameterForm.vue";
-import GridViewer from "../../app/electrostatic_2d/GridViewer.vue";
+import RendererView from "../../app/electrostatic_2d/RendererView.vue";
 import MeshViewer2D from "../../components/mesh_viewer/MeshViewer2D.vue";
 import ProfilerFlameChart from "../../components/ProfilerFlameChart.vue";
 import ExportView from "../../app/electrostatic_2d/ExportView.vue";
@@ -350,7 +350,7 @@ const visualiser = computed_ref(() => {
   <!--Visualisation tab-->
   <template #h-2>Visualiser</template>
   <template #b-2>
-    <GridViewer v-if="stackup_grid" :grid="stackup_grid.grid"/>
+    <RendererView v-if="stackup_grid" :grid="stackup_grid.grid"/>
     <div v-else class="flex items-center justify-center w-full h-full text-xl text-center">
       Calculate impedance to see visualisation
     </div>

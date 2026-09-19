@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { ref, toRaw, computed } from "vue";
-import GridViewer from '../../app/electrostatic_2d/GridViewer.vue';
+import RendererView from '../../app/electrostatic_2d/RendererView.vue';
 import TabsView from '../../components/TabsView.vue';
 import MeshViewer2D from '../../components/mesh_viewer/MeshViewer2D.vue';
 import ProfilerFlameChart from '../../components/ProfilerFlameChart.vue';
@@ -275,7 +275,7 @@ async function perform_search(search_params: Parameter[]) {
   <template #h-2>Viewer</template>
   <template #b-2>
     <div class="w-full h-full" v-if="grid">
-      <GridViewer :grid="grid"/>
+      <RendererView :grid="grid"/>
     </div>
     <div v-else class="w-full text-center">
       <span class="text-lg my-2">Run simulation</span>

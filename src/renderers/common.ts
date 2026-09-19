@@ -119,6 +119,62 @@ export function create_square_mesh(device: GPUDevice): GpuMesh {
   }
 }
 
+export interface ArrowConfig {
+  arrow_height: number;
+  quiver_width: number;
+}
+
+export function create_arrow_mesh(device: GPUDevice, config: ArrowConfig): GpuMesh {
+  const vertices = new Float32Array([
+    // arrow tip
+     0.0, 1.0,
+    -1.0, 1.0-config.arrow_height,
+     1.0, 1.0-config.arrow_height,
+    // quiver body
+    -config.quiver_width/2, 1.0-config.arrow_height,
+     config.quiver_width/2, 1.0-config.arrow_height,
+    -config.quiver_width/2, -1,
+     config.quiver_width/2, -1,
+  ]);
+  const indices = new Uint16Array([
+    // arrow tip
+    0, 1, 2,
+    // quiver body
+    3, 4, 5,
+    4, 5, 6,
+    // padding to align to 4byte boundary
+    0,
+  ]);
+  const vertex_buffer = device.createBuffer({
+    size: vertices.byteLength,
+    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+  });
+  const index_buffer = device.createBuffer({
+    size: indices.byteLength,
+    usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(vertex_buffer, 0, vertices, 0, vertices.length);
+  device.queue.writeBuffer(index_buffer, 0, indices, 0, indices.length);
+
+  const vertex_buffer_layout: GPUVertexBufferLayout = {
+    attributes: [
+      { shaderLocation: 0, offset: 0, format: "float32x2" }, // position
+    ],
+    arrayStride: 8,
+    stepMode: "vertex",
+  };
+  const index_format: GPUIndexFormat = "uint16";
+  const total_indices = indices.length;
+  return {
+    device,
+    vertex_buffer,
+    index_buffer,
+    vertex_buffer_layout,
+    index_format,
+    total_indices,
+  }
+}
+
 export class NdGpuArray {
   data: GPUBuffer;
   dtype: NdarrayType;
