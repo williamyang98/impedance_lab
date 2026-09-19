@@ -1,11 +1,11 @@
-import { GpuCamera2D, type GpuRenderTexture } from "../../renderers/common.ts";
+import { GpuCamera2D, type GpuRenderTexture } from "../../utility/gpu_common.ts";
 import type { Vec2 } from "../../utility/dim_types.ts";
 import { GpuGrid } from "./grid.ts";
 import { ShaderRenderComponent, type DataMode as ComponentDataMode } from "./shader_render_component.ts";
 import { ShaderRenderIndexBeta, type DataMode as IndexBetaDataMode, type ColourMode as IndexBetaColourMode } from "./shader_render_index_beta.ts";
 import { ShaderRenderMagnitude } from "./shader_render_magnitude.ts";
 import { ShaderRenderQuiver } from "./shader_render_quiver.ts";
-import { ShaderRenderLines2D } from "../../renderers/graph/shader_lines_2d.ts";
+import { ShaderRenderLines2D } from "../graph/shader_lines_2d.ts";
 
 export type RenderMode =
   { type: "component", data: ComponentDataMode } |

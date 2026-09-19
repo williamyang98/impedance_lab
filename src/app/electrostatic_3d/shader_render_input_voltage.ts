@@ -1,5 +1,5 @@
 import { type Axis3D, type Vec3 } from "../../utility/dim_types";
-import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh, NdGpuArray, GpuCamera2D } from "../../renderers/common.ts";
+import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh, NdGpuArray, GpuCamera2D } from "../../utility/gpu_common.ts";
 import shader_wgsl from "./shader_render_input_voltage.wgsl?raw";
 
 export interface CrossSection {

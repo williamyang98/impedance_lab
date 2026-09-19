@@ -3,7 +3,7 @@ import { Ndarray } from "../../utility/ndarray.ts";
 import { KernelCurrentSource } from "./kernel_current_source.ts";
 import { KernelUpdateElectricField } from "./kernel_update_e_field.ts";
 import { KernelUpdateMagneticField } from "./kernel_update_h_field.ts";
-import { NdGpuArray } from "../../renderers/common.ts";
+import { NdGpuArray } from "../../utility/gpu_common.ts";
 
 export type CpuFieldBuffers = Vec3<Ndarray>;
 export type GpuFieldBuffers = Vec3<NdGpuArray>;

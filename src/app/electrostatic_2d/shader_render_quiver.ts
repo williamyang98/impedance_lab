@@ -1,4 +1,4 @@
-import { type GpuRenderTexture, type GpuMesh, GpuUniform, GpuCamera2D, create_arrow_mesh } from "../../renderers/common.ts";
+import { type GpuRenderTexture, type GpuMesh, GpuUniform, GpuCamera2D, create_arrow_mesh } from "../../utility/gpu_common.ts";
 import { GpuGrid } from "./grid.ts";
 import shader_render_quiver_wgsl from "./shader_render_quiver.wgsl?raw";
 

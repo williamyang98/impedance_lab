@@ -1,7 +1,7 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
 import { CpuGrid } from "../../app/electrostatic_3d/grid.ts";
 import { type Vec3 } from "../../utility/dim_types.ts";
-import { NdGpuArray } from "../../renderers/common.ts";
+import { NdGpuArray } from "../../utility/gpu_common.ts";
 import kernel_jacobi_smooth from "./kernel_jacobi_smooth.wgsl?raw";
 
 type Size3D = Vec3<number>;

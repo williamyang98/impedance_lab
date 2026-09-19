@@ -2,7 +2,7 @@ import { KernelCalculateResidual } from './kernel_residual.ts';
 import { KernelJacobiSmooth } from './kernel_jacobi_smooth.ts';
 import { Ndarray, type NdarrayType } from '../../utility/ndarray.ts';
 import { type Vec3 } from '../../utility/dim_types';
-import { NdGpuArray } from '../../renderers/common.ts';
+import { NdGpuArray } from '../../utility/gpu_common.ts';
 
 type Size3D = Vec3<number>;
 

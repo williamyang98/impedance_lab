@@ -1,8 +1,8 @@
 import type { GpuGrid } from "../../app/electrostatic_3d/grid";
 import type { Vec2 } from "../../utility/dim_types";
-import { GpuCamera2D, type GpuRenderTexture, NdGpuArray } from "../../renderers/common.ts";
+import { GpuCamera2D, type GpuRenderTexture, NdGpuArray } from "../../utility/gpu_common.ts";
 import { ShaderRenderCrossSection, type DataMode } from "./shader_render_cross_section";
-import { ShaderRenderLines2D } from "../../renderers/graph/shader_lines_2d.ts";
+import { ShaderRenderLines2D } from "../graph/shader_lines_2d.ts";
 import { ShaderRenderInputVoltage } from "./shader_render_input_voltage.ts";
 
 export type RenderMode = "voltage" | "dielectric" | "residual" | "input";

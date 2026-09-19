@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, provide, onMounted } from "vue";
-import { type Font } from "../renderers/font/msdf";
-import { load_font } from "../renderers/font/roboto_regular_msdf";
+import { type Font } from "../app/font/msdf";
+import { load_font } from "../app/font/roboto_regular_msdf";
 
 type LoadState = "loading" | "failed" | "finished";
 const state = ref<LoadState>("loading");

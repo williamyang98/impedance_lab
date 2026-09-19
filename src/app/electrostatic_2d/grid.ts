@@ -7,7 +7,7 @@ import {
 import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../../utility/module_ndarray.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { type Vec2 } from "../../utility/dim_types.ts";
-import { NdGpuArray } from "../../renderers/common.ts";
+import { NdGpuArray } from "../../utility/gpu_common.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
 
 type Size2D = Vec2<number>;

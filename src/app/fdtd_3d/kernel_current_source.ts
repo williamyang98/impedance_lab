@@ -1,7 +1,7 @@
 import { StructView } from "../../utility/cstyle_struct.ts";
 import { type Vec3 } from "../../utility/dim_types.ts";
 import { type GpuFieldBuffers } from "./grid.ts";
-import { NdGpuArray } from "../../renderers/common.ts";
+import { NdGpuArray } from "../../utility/gpu_common.ts";
 import kernel_current_source_wgsl from "./kernel_current_source.wgsl?raw";
 
 type Size3D = Vec3<number>;

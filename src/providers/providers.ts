@@ -2,7 +2,7 @@ import { inject, type Ref } from "vue";
 import { ToastManager } from "./toast/toast.ts";
 import { UserData } from "./user_data/user_data.ts";
 import { WasmModule } from "../wasm";
-import { type Font } from "../renderers/font/msdf.ts";
+import { type Font } from "../app/font/msdf.ts";
 
 export const providers = {
   get toast_manager(): Ref<ToastManager> {

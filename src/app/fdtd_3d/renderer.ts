@@ -1,8 +1,8 @@
-import { GpuCamera2D, type GpuRenderTexture } from "../../renderers/common.ts";
+import { GpuCamera2D, type GpuRenderTexture } from "../../utility/gpu_common.ts";
 import type { Vec2 } from "../../utility/dim_types.ts";
 import { GpuGrid } from "./grid.ts";
 import { ShaderRenderComponent, type DataMode } from "./shader_render_component.ts";
-import { ShaderRenderLines2D } from "../../renderers/graph/shader_lines_2d.ts";
+import { ShaderRenderLines2D } from "../graph/shader_lines_2d.ts";
 
 export class Renderer {
   adapter: GPUAdapter;

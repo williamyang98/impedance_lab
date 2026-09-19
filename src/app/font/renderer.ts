@@ -1,7 +1,7 @@
 import { type Font } from "./msdf.ts";
 import { GpuFont } from "./gpu_font.ts";
 import { ShaderMsdfFont } from "./shader_msdf_font.ts";
-import { type GpuRenderTexture } from "../common.ts";
+import { type GpuRenderTexture } from "../../utility/gpu_common.ts";
 import { type Vec2 } from "../../utility/dim_types.ts";
 import { Printer } from "./printer.ts";
 

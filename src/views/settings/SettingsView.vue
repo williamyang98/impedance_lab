@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import FontRendererView from "../../renderers/font/RendererView.vue";
+import FontRendererView from "../../app/font/RendererView.vue";
 
 </script>
 

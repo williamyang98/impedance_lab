@@ -1,4 +1,4 @@
-import { type GpuRenderTexture, type GpuMesh, create_square_mesh, GpuUniform, GpuCamera2D } from "../../renderers/common.ts";
+import { type GpuRenderTexture, type GpuMesh, create_square_mesh, GpuUniform, GpuCamera2D } from "../../utility/gpu_common.ts";
 import { GpuGrid } from "./grid.ts";
 import shader_render_component_wgsl from "./shader_render_component.wgsl?raw";
 
