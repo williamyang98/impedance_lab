@@ -43,12 +43,12 @@ jobs:
     - name: Install and activate emscripten
       working-directory: ./src/wasm/vendor/emsdk
       run: |
-        python ./emsdk.py install 4.0.10
-        python ./emsdk.py activate 4.0.10
+        python ./emsdk.py install 6.0.9
+        python ./emsdk.py activate 6.0.9
     
     - name: Install typescript compiler for emscripten
       working-directory: ./src/wasm/vendor/emsdk/upstream/emscripten
-      run: npm install typescript
+      run: npm install typescript@5.9.3
 
     - name: Compile emscripten WASM module
       working-directory: ./src/wasm

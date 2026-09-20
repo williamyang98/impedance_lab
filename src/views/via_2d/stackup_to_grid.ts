@@ -9,7 +9,7 @@ import {
   type ReferencePlane,
 } from "./stackup.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { type WasmModule, ManagedObject } from "../../wasm";
+import { WasmModule, type ManagedObject, ReferenceBlock } from "../../wasm/index.ts";
 
 function validate_parameter(param: Parameter) {
   if (param.value === undefined) {
@@ -44,7 +44,9 @@ export interface ViaBarrelInfo {
   inner_diameter: number;
 }
 
-export class StackupGrid extends ManagedObject {
+export class StackupGrid implements ManagedObject {
+  readonly module: WasmModule;
+  reference_block: ReferenceBlock;
   grid_builder_config: GridBuilderConfig;
   grid_builder_padding: GridBuilderPadding;
   grid_builder_regions: Region[] = [];
@@ -61,7 +63,8 @@ export class StackupGrid extends ManagedObject {
   parameter_cache = new Map<Parameter, number>();
 
   constructor(module: WasmModule, stackup: Stackup, grid_builder_config: GridBuilderConfig, profiler?: Profiler) {
-    super(module);
+    this.module = module;
+    this.reference_block = new ReferenceBlock(module, this);
     this.profiler = profiler;
     this.grid_builder_config = grid_builder_config;
     this.via_barrel_parameters = this.setup_create_regions(stackup);
@@ -76,9 +79,22 @@ export class StackupGrid extends ManagedObject {
       this.profiler,
     );
     this.energy_integral_scale = this.grid_builder.grid_scale * convert_distance(1, this.calculation_unit, this.target_unit);
-    this._child_objects.add(this.grid_builder);
+    this.reference_block.children.add(this.grid_builder);
     this.configure_dielectric();
     this.configure_voltage();
+  }
+
+  clone() {
+    this.reference_block.clone();
+    return this;
+  }
+
+  delete(): boolean {
+    return this.reference_block.delete(this);
+  }
+
+  is_deleted(): boolean {
+    return this.reference_block.is_deleted();
   }
 
   get grid() {
@@ -354,12 +370,12 @@ export class StackupGrid extends ManagedObject {
   }
 
   configure_dielectric() {
-    const ek_table = this.grid.ek_table.array_view;
+    const ek_table = this.grid.ek_table.data;
     ek_table.set(this.epsilon_table);
   }
 
   configure_voltage() {
-    const v_table = this.grid.v_table.array_view;
+    const v_table = this.grid.v_table.data;
     const v_input = this.grid_builder_config.signal_amplitude;
     this.voltage_table[1] = v_input;
     this.grid.v_input = v_input;

@@ -5,7 +5,7 @@ import {
   type BroadsidePair, type LayerTraces, type Voltage,
 
 } from "./stackup.ts";
-import { ManagedObject, WasmModule } from "../../wasm/index.ts";
+import { type ManagedObject, ModuleNdarray, ReferenceBlock, WasmModule } from "../../wasm/index.ts";
 import { CpuGrid } from "../../app/electrostatic_2d/grid.ts";
 import {
   GridBuilder, type GridBuilderConfig, type GridBuilderPadding,
@@ -47,6 +47,15 @@ function validate_parameter(param: Parameter): Parameter & { value: number } {
   return param as Parameter & { value: number };
 }
 
+function assert_table_length(table: ModuleNdarray, length: number) {
+  if (table.shape.length !== 1) {
+    throw Error(`Expected table to have a dimension 1 but got table.shape=[${table.shape.join(',')}] with ${table.shape.length} dimensions`);
+  }
+  if (table.shape[0] !== length) {
+    throw Error(`Expected table to have a shape=[${length}] but got table.shape=[${table.shape.join(',')}]`);
+  }
+}
+
 interface TraceXRegion {
   x_left: number;
   x_right: number;
@@ -66,7 +75,9 @@ interface BroadsideTracesXRegion {
 type TracesXRegion = ColinearTracesXRegion | BroadsideTracesXRegion;
 type ConductorType = "traces" | "plane";
 
-export class StackupGrid extends ManagedObject {
+export class StackupGrid implements ManagedObject {
+  readonly module: WasmModule;
+  reference_block: ReferenceBlock;
   stackup: Stackup;
   target_unit: DistanceUnit;
   conductor_stackup: ConductorType[] = [];
@@ -92,7 +103,8 @@ export class StackupGrid extends ManagedObject {
     stackup: Stackup, config: GridBuilderConfig,
     profiler: Profiler | undefined,
   ) {
-    super(module);
+    this.module = module;
+    this.reference_block = new ReferenceBlock(module, this);
     this.stackup = stackup;
     this.target_unit = stackup.size_unit;
     this.profiler = profiler;
@@ -127,7 +139,23 @@ export class StackupGrid extends ManagedObject {
       this.config, this.grid_builder_padding,
       this.profiler,
     );
-    this._child_objects.add(this.grid_builder);
+    this.reference_block.children.add(this.grid_builder);
+    const grid = this.grid_builder.grid;
+    grid.v_table = ModuleNdarray.create_zeros(this.module, [3], "f32");
+    grid.ek_table = ModuleNdarray.create_zeros(this.module, [this.epsilon_indexes.ek_table.length], "f32");
+  }
+
+  clone() {
+    this.reference_block.clone();
+    return this;
+  }
+
+  delete(): boolean {
+    return this.reference_block.delete(this);
+  }
+
+  is_deleted(): boolean {
+    return this.reference_block.is_deleted();
   }
 
   get grid(): CpuGrid {
@@ -549,7 +577,8 @@ export class StackupGrid extends ManagedObject {
   }
 
   configure_odd_mode_diffpair_voltage() {
-    const v_table = this.grid.v_table.array_view;
+    assert_table_length(this.grid.v_table, 3);
+    const v_table = this.grid.v_table.data;
     v_table[0] = 0;
     v_table[1] = this.config.signal_amplitude;
     v_table[2] = -this.config.signal_amplitude;
@@ -557,7 +586,8 @@ export class StackupGrid extends ManagedObject {
   }
 
   configure_even_mode_diffpair_voltage() {
-    const v_table = this.grid.v_table.array_view;
+    assert_table_length(this.grid.v_table, 3);
+    const v_table = this.grid.v_table.data;
     v_table[0] = 0;
     v_table[1] = this.config.signal_amplitude;
     v_table[2] = this.config.signal_amplitude;
@@ -565,7 +595,8 @@ export class StackupGrid extends ManagedObject {
   }
 
   configure_single_ended_voltage() {
-    const v_table = this.grid.v_table.array_view;
+    assert_table_length(this.grid.v_table, 3);
+    const v_table = this.grid.v_table.data;
     v_table[0] = 0;
     v_table[1] = this.config.signal_amplitude;
     v_table[2] = 0;
@@ -573,8 +604,9 @@ export class StackupGrid extends ManagedObject {
   }
 
   configure_masked_dielectric() {
+    assert_table_length(this.grid.ek_table, this.epsilon_indexes.ek_table.length);
     const src_ek_table = this.epsilon_indexes.ek_table;
-    const dst_ek_table = this.grid.ek_table.array_view;
+    const dst_ek_table = this.grid.ek_table.data;
     for (let i = 0; i < src_ek_table.length; i++) {
       const ek = src_ek_table[i];
       dst_ek_table[i] = ek.value;
@@ -582,8 +614,9 @@ export class StackupGrid extends ManagedObject {
   }
 
   configure_unmasked_dielectric() {
+    assert_table_length(this.grid.ek_table, this.epsilon_indexes.ek_table.length);
     const src_ek_table = this.epsilon_indexes.ek_table;
-    const dst_ek_table = this.grid.ek_table.array_view;
+    const dst_ek_table = this.grid.ek_table.data;
     const soldermask_indices = this.epsilon_indexes.soldermask_indices;
     const er0 = src_ek_table[0].value;
     for (let i = 0; i < src_ek_table.length; i++) {

@@ -139,9 +139,9 @@ async function calculate_impedance() {
     new_profiler.end();
 
     new_profiler.begin("run", "Perform impedance measurements", {
-      "Total Columns": `${new_stackup.grid.width}`,
-      "Total Rows": `${new_stackup.grid.height}`,
-      "Total Cells": `${new_stackup.grid.width*new_stackup.grid.height}`,
+      "Total Columns": `${new_stackup.grid.size.x}`,
+      "Total Rows": `${new_stackup.grid.size.y}`,
+      "Total Cells": `${new_stackup.grid.size.x*new_stackup.grid.size.y}`,
     });
     new_measurement = perform_measurement(new_stackup, new_profiler);
     new_profiler.end();

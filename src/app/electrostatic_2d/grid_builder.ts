@@ -1,9 +1,8 @@
-import { ManagedObject, WasmModule } from "../../wasm/index.ts";
+import { type ManagedObject, ReferenceBlock, WasmModule, ModuleNdarray } from "../../wasm/index.ts";
 import { CpuGrid } from "./grid.ts";
 import { LinesBuilder } from "../mesher/lines_builder.ts";
 import { generate_region_mesh_segments, type RegionSpecification, RegionToGridMap } from "../mesher/regions.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { Float32ModuleNdarray } from "../../utility/module_ndarray.ts";
 import { type Vec2, type Bound, AXES_2D, map_axes_to_vec2 } from "../../utility/dim_types.ts";
 import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
@@ -112,7 +111,9 @@ type RegionSDF =
 // positive x-axis goes from left to right
 // positive y-axis goes from top to bottom
 // Region -> Shapes[] -> SDF[]
-export class GridBuilder extends ManagedObject {
+export class GridBuilder implements ManagedObject {
+  readonly module: WasmModule;
+  reference_block: ReferenceBlock;
   grid: CpuGrid;
   regions: Region[];
   padding: GridBuilderPadding;
@@ -137,7 +138,8 @@ export class GridBuilder extends ManagedObject {
     config: GridBuilderConfig, padding: GridBuilderPadding,
     profiler?: Profiler,
   ) {
-    super(module);
+    this.module = module;
+    this.reference_block = new ReferenceBlock(module, this);
     this.regions = regions;
     this.config = config;
     this.padding = padding;
@@ -159,9 +161,22 @@ export class GridBuilder extends ManagedObject {
     this.setup_merge_nearby_region_lines();
     this.region_to_grid_map = this.setup_subdivide_region_lines();
     this.grid = this.setup_create_simulation_grid();
-    this._child_objects.add(this.grid);
+    this.reference_block.children.add(this.grid);
     this.setup_fill_sdf_regions();
     this.setup_allocate_lookup_tables();
+  }
+
+  clone() {
+    this.reference_block.clone();
+    return this;
+  }
+
+  delete(): boolean {
+    return this.reference_block.delete(this);
+  }
+
+  is_deleted(): boolean {
+    return this.reference_block.is_deleted();
   }
 
   setup_create_sdf_regions(regions: Region[]) {
@@ -452,10 +467,10 @@ export class GridBuilder extends ManagedObject {
       y: this.region_to_grid_map.y.total_grid_segments,
     };
     const grid = new CpuGrid(this.module, size);
-    grid.dx.array_view.set(this.region_to_grid_map.x.grid_segments);
-    grid.dy.array_view.set(this.region_to_grid_map.y.grid_segments);
-    grid.x.array_view.set(this.region_to_grid_map.x.grid_lines);
-    grid.y.array_view.set(this.region_to_grid_map.y.grid_lines);
+    grid.dx.data.set(this.region_to_grid_map.x.grid_segments);
+    grid.dy.data.set(this.region_to_grid_map.y.grid_segments);
+    grid.x.data.set(this.region_to_grid_map.x.grid_lines);
+    grid.y.data.set(this.region_to_grid_map.y.grid_lines);
     this.profiler?.end();
     return grid;
   }
@@ -479,7 +494,7 @@ export class GridBuilder extends ManagedObject {
     switch (region.type) {
       case "voltage": {
         const arr = this.grid.v_index_beta;
-        const data = arr.array_view;
+        const data = arr.data;
         grid_size.y = arr.shape[0];
         grid_size.x = arr.shape[1];
         const index = region.voltage_index;
@@ -504,7 +519,7 @@ export class GridBuilder extends ManagedObject {
       }
       case "dielectric": {
         const arr = this.grid.ek_index_beta;
-        const data = arr.array_view;
+        const data = arr.data;
         grid_size.y = arr.shape[0];
         grid_size.x = arr.shape[1];
         const index = region.dielectric_index;
@@ -683,8 +698,8 @@ export class GridBuilder extends ManagedObject {
       dielectric_table_size = Math.max(dielectric_table_size, index+1);
     }
 
-    this.grid.v_table = Float32ModuleNdarray.from_shape(this.module, [voltage_table_size]);
-    this.grid.ek_table = Float32ModuleNdarray.from_shape(this.module, [dielectric_table_size]);
+    this.grid.v_table = ModuleNdarray.create_zeros(this.module, [voltage_table_size], "f32");
+    this.grid.ek_table = ModuleNdarray.create_zeros(this.module, [dielectric_table_size], "f32");
     this.profiler?.end();
   }
 

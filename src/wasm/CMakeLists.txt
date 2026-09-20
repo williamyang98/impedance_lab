@@ -43,6 +43,10 @@ target_link_options(wasm_module PUBLIC
     --bind --emit-tsd wasm_module.d.ts
     # malloc/free to wasm module's own heap
     -sALLOW_MEMORY_GROWTH=1
+    # https://emscripten.org/docs/tools_reference/settings_reference.html#growable-arraybuffers
+    # Allows for the WASM heap's ArrayBuffer to resize without swapping out the underlying ArrayBuffer causing it to detach
+    # which would invalidate any TypedArrays like Float32Array that reference that ArrayBuffer
+    -sGROWABLE_ARRAYBUFFERS=2
     -sEXPORTED_FUNCTIONS=_malloc,_free
-    -sEXPORTED_RUNTIME_METHODS=HEAP8
+    -sEXPORTED_RUNTIME_METHODS=HEAPU8
 )

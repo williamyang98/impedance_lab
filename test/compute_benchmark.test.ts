@@ -30,6 +30,8 @@ async function request_gpu_device() {
 }
 
 describe.skipIf(is_runner)("compute_benchmarks", async () => {
+  if (is_runner) return;
+
   const storage = new TestStorage();
   const user_data = new UserData(storage);
   const gpu_device = await request_gpu_device();

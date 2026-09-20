@@ -102,9 +102,9 @@ export async function search_parameters(
     profiler.end();
 
     profiler.begin("calculate_impedance", "Perform impedance measurements", {
-      "Total Columns": `${stackup_grid.grid.width}`,
-      "Total Rows": `${stackup_grid.grid.height}`,
-      "Total Cells": `${stackup_grid.grid.width*stackup_grid.grid.height}`,
+      "Total Columns": `${stackup_grid.grid.size.x}`,
+      "Total Rows": `${stackup_grid.grid.size.y}`,
+      "Total Cells": `${stackup_grid.grid.size.x*stackup_grid.grid.size.y}`,
     });
     const measurement = calculate_via_impedance(stackup_grid, profiler);
     profiler.end();

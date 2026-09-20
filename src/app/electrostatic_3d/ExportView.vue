@@ -7,7 +7,7 @@ import { Ndarray } from "../../utility/ndarray.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 import { ZipFile } from "../../wasm/index.ts";
 import { providers } from "../../providers/providers.ts";
-import { ModuleNdarrayWriter } from "../../utility/module_ndarray.ts";
+import { ModuleNdarrayWriter } from "../../wasm/index.ts";
 
 const toast = providers.toast_manager.value;
 const wasm_module = toRaw(providers.wasm_module.value);
@@ -62,8 +62,8 @@ function download_all_ndarrays(name: string) {
       const writer = new ModuleNdarrayWriter(wasm_module);
       try {
         link.data.export_as_numpy_bytecode(writer);
-        if (writer.write_buffer !== undefined) {
-          zip_file.write_file(link.name, writer.write_buffer);
+        if (writer.buffer !== undefined) {
+          zip_file.write_file(link.name, writer.buffer);
         }
       } catch (err) {
         toast.error(`failed to write numpy file '${link.name}' to zip with: ${String(err)}`);
@@ -72,7 +72,7 @@ function download_all_ndarrays(name: string) {
     }
     zip_data = zip_file.get_bytes();
 
-    const blob = new Blob([zip_data.data_view], { type: "application/octet-stream" });
+    const blob = new Blob([zip_data.slice()], { type: "application/octet-stream" });
     const elem = document.createElement("a");
     elem.href = window.URL.createObjectURL(blob);
     elem.download = name;

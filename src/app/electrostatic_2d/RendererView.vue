@@ -5,6 +5,7 @@ import { ref, watch, computed, useTemplateRef, toRaw } from "vue";
 import { Renderer, type RenderMode } from "./renderer.ts";
 import { type ColourMode as IndexBetaColourMode } from "./shader_render_index_beta.ts";
 import { debounce_animation_frame_async } from "../../utility/debounce.ts";
+import { ModuleFloat32Array } from "../../wasm/typed_array.ts";
 
 const props = defineProps<{
   grid: CpuGrid,
@@ -57,7 +58,7 @@ watch(() => props.grid, (cpu_grid) => {
   const new_gpu_grid = new GpuGrid(gpu_device, cpu_grid.size)
   new_gpu_grid.from_cpu(cpu_grid);
   gpu_grid.value = new_gpu_grid;
-  const width = cpu_grid.dx.ndarray.cast(Float32Array).reduce((a,b) => a+b, 0);
+  const width = cpu_grid.dx.cast(ModuleFloat32Array).reduce((a,b) => a+b, 0);
   const scale = 1.0/width;
   zoom_db.value = 20*Math.log10(scale);
 }, { immediate: true });

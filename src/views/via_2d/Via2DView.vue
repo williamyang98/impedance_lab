@@ -93,9 +93,9 @@ async function calculate_impedance() {
 
     const grid = new_stackup_grid.grid;
     new_profiler.begin("calculate_impedance", undefined, {
-      "Width": grid.width.toString(),
-      "Height": grid.height.toString(),
-      "Total": `${grid.width*grid.height}`,
+      "Width": `${grid.size.x}`,
+      "Height": `${grid.size.y}`,
+      "Total": `${grid.size.x*grid.size.y}`,
     });
     const new_result = calculate_via_impedance(new_stackup_grid, new_profiler);
     new_profiler.end();

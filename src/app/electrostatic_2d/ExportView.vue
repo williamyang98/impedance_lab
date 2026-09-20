@@ -3,7 +3,7 @@ import { toRaw, computed } from "vue";
 import { CpuGrid } from "./grid.ts";
 import { DownloadIcon } from "@lucide/vue";
 import { Uint8ArrayNdarrayWriter } from "../../utility/ndarray.ts";
-import { type IModuleNdarray, ModuleNdarrayWriter } from "../../utility/module_ndarray.ts";
+import { ModuleNdarray, ModuleNdarrayWriter } from "../../wasm/index.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 import { ZipFile } from "../../wasm/index.ts";
 import { providers } from "../../providers/providers.ts";
@@ -16,7 +16,7 @@ const props = defineProps<{
 
 interface DownloadLink {
   name: string;
-  data: IModuleNdarray;
+  data: ModuleNdarray;
 }
 
 const download_links = computed<DownloadLink[]>(() => {
@@ -38,7 +38,7 @@ const download_links = computed<DownloadLink[]>(() => {
 
 function download_ndarray(link: DownloadLink) {
   const writer = new Uint8ArrayNdarrayWriter();
-  link.data.ndarray.export_as_numpy_bytecode(writer);
+  link.data.export_as_numpy_bytecode(writer);
   if (writer.buffer !== undefined) {
     const blob = new Blob([writer.buffer], { type: "application/octet-stream" });
     const elem = document.createElement("a");
@@ -58,11 +58,11 @@ function download_all_ndarrays(name: string) {
     zip_file = new ZipFile(module);
     for (let link of links) {
       link = toRaw(link);
-      const writer = new ModuleNdarrayWriter(link.data.module);
+      const writer = new ModuleNdarrayWriter(module);
       try {
-        link.data.ndarray.export_as_numpy_bytecode(writer);
-        if (writer.write_buffer !== undefined) {
-          zip_file.write_file(link.name, writer.write_buffer);
+        link.data.export_as_numpy_bytecode(writer);
+        if (writer.buffer !== undefined) {
+          zip_file.write_file(link.name, writer.buffer);
         }
       } catch (err) {
         toast.error(`failed to write numpy file '${link.name}' to zip with: ${String(err)}`);
@@ -71,7 +71,7 @@ function download_all_ndarrays(name: string) {
     }
     zip_data = zip_file.get_bytes();
 
-    const blob = new Blob([zip_data.data_view], { type: "application/octet-stream" });
+    const blob = new Blob([zip_data.slice()], { type: "application/octet-stream" });
     const elem = document.createElement("a");
     elem.href = window.URL.createObjectURL(blob);
     elem.download = name;
@@ -101,8 +101,8 @@ function download_all_ndarrays(name: string) {
     <tr v-for="(link, index) in download_links" :key="index">
       <td class="font-medium text-nowrap">{{ link.name }}</td>
       <td>[{{ link.data.shape.join(',') }}]</td>
-      <td>{{ link.data.ndarray.dtype }}</td>
-      <td class="text-nowrap">{{ with_standard_suffix(link.data.data_view.byteLength, "B") }}</td>
+      <td>{{ link.data.dtype }}</td>
+      <td class="text-nowrap">{{ with_standard_suffix(link.data.data.byteLength, "B") }}</td>
       <td>
         <button class="btn btn-sm float-right p-1" @click="download_ndarray(link)">
           <DownloadIcon class="w-[1.25rem] h-[1.25rem]"/>

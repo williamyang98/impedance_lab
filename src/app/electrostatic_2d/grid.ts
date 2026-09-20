@@ -1,30 +1,30 @@
 import {
-  WasmModule,
-  ManagedObject,
-  LU_Solver,
-  Float32ModuleBuffer, Int32ModuleBuffer,
+  type ManagedObject,
+  WasmModule, LU_Solver, ModuleNdarray, ReferenceBlock,
+  ModuleFloat32Array, ModuleInt32Array,
 } from "../../wasm/index.ts";
-import { Float32ModuleNdarray, Uint32ModuleNdarray } from "../../utility/module_ndarray.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { type Vec2 } from "../../utility/dim_types.ts";
 import { NdGpuArray } from "../../utility/gpu_common.ts";
-import { Ndarray } from "../../utility/ndarray.ts";
 
 type Size2D = Vec2<number>;
 
-export class CpuGrid extends ManagedObject {
+export class CpuGrid implements ManagedObject {
+  readonly module: WasmModule;
+  reference_block: ReferenceBlock;
+
   readonly size: Size2D;
-  readonly x: Float32ModuleNdarray;
-  readonly y: Float32ModuleNdarray;
-  readonly dx: Float32ModuleNdarray;
-  readonly dy: Float32ModuleNdarray;
-  readonly v_index_beta: Uint32ModuleNdarray;
-  _v_table: Float32ModuleNdarray;
-  readonly v_field: Float32ModuleNdarray;
-  readonly ex_field: Float32ModuleNdarray;
-  readonly ey_field: Float32ModuleNdarray;
-  _ek_table: Float32ModuleNdarray;
-  readonly ek_index_beta: Uint32ModuleNdarray;
+  readonly x: ModuleNdarray;
+  readonly y: ModuleNdarray;
+  readonly dx: ModuleNdarray;
+  readonly dy: ModuleNdarray;
+  readonly v_index_beta: ModuleNdarray;
+  _v_table: ModuleNdarray;
+  readonly v_field: ModuleNdarray;
+  readonly ex_field: ModuleNdarray;
+  readonly ey_field: ModuleNdarray;
+  _ek_table: ModuleNdarray;
+  readonly ek_index_beta: ModuleNdarray;
 
   v_input: number;
 
@@ -42,63 +42,73 @@ export class CpuGrid extends ManagedObject {
   }
 
   constructor(module: WasmModule, size: Size2D) {
-    super(module);
+    this.module = module;
+    this.reference_block = new ReferenceBlock(module, this);
     this.size = size;
-    this.x = Float32ModuleNdarray.from_shape(this.module, [size.x+1]);
-    this.y = Float32ModuleNdarray.from_shape(this.module, [size.y+1]);
-    this.dx = Float32ModuleNdarray.from_shape(this.module, [size.x]);
-    this.dy = Float32ModuleNdarray.from_shape(this.module, [size.y]);
-    this.v_index_beta = Uint32ModuleNdarray.from_shape(this.module, [size.y+1,size.x+1]);
-    this.v_field = Float32ModuleNdarray.from_shape(this.module, [size.y+1,size.x+1]);
-    this.ex_field = Float32ModuleNdarray.from_shape(this.module, [size.y+1,size.x]);
-    this.ey_field = Float32ModuleNdarray.from_shape(this.module, [size.y,size.x+1]);
-    this.ek_index_beta = Uint32ModuleNdarray.from_shape(this.module, [size.y,size.x]);
+    this.x = ModuleNdarray.create_zeros(module, [size.x+1], "f32");
+    this.y = ModuleNdarray.create_zeros(module, [size.y+1], "f32");
+    this.dx = ModuleNdarray.create_zeros(module, [size.x], "f32");
+    this.dy = ModuleNdarray.create_zeros(module, [size.y], "f32");
+    this.v_index_beta = ModuleNdarray.create_zeros(module, [size.y+1,size.x+1], "u32");
+    this.v_field = ModuleNdarray.create_zeros(module, [size.y+1,size.x+1], "f32");
+    this.ex_field = ModuleNdarray.create_zeros(module, [size.y+1,size.x], "f32");
+    this.ey_field = ModuleNdarray.create_zeros(module, [size.y,size.x+1], "f32");
+    this.ek_index_beta = ModuleNdarray.create_zeros(module, [size.y,size.x], "u32");
     this.v_input = 1;
 
-    this._v_table = Float32ModuleNdarray.from_shape(this.module, [3]);
-    this._ek_table = Float32ModuleNdarray.from_shape(this.module, [size.y,size.x]);
-    this._child_objects.add(this.x);
-    this._child_objects.add(this.y);
-    this._child_objects.add(this.dx);
-    this._child_objects.add(this.dy);
-    this._child_objects.add(this.v_index_beta);
-    this._child_objects.add(this.v_field);
-    this._child_objects.add(this.ex_field);
-    this._child_objects.add(this.ey_field);
-    this._child_objects.add(this.ek_index_beta);
-    this._child_objects.add(this._v_table);
-    this._child_objects.add(this._ek_table);
+    this._v_table = ModuleNdarray.create_zeros(module, [3], "f32");
+    this._ek_table = ModuleNdarray.create_zeros(module, [3], "f32");
+    this.reference_block.add_children(this);
   }
 
-  set v_table(v_table: Float32ModuleNdarray) {
-    this._child_objects.delete(this._v_table);
-    this._child_objects.add(v_table);
+  clone() {
+    this.reference_block.clone();
+    return this;
+  }
+
+  delete(): boolean {
+    return this.reference_block.delete(this);
+  }
+
+  is_deleted(): boolean {
+    return this.reference_block.is_deleted();
+  }
+
+  set v_table(v_table: ModuleNdarray) {
+    if (v_table.dtype !== "f32") {
+      throw Error(`Got v_table.dtype=${v_table.dtype} but expected 'f32'`);
+    }
+    this.reference_block.children.delete(this._v_table);
+    this.reference_block.children.add(v_table);
     this._v_table.delete();
     this._v_table = v_table;
   }
 
-  get v_table(): Float32ModuleNdarray {
+  get v_table(): ModuleNdarray {
     return this._v_table;
   }
 
-  set ek_table(ek_table: Float32ModuleNdarray) {
-    this._child_objects.delete(this._ek_table);
-    this._child_objects.add(ek_table);
+  set ek_table(ek_table: ModuleNdarray) {
+    if (ek_table.dtype !== "f32") {
+      throw Error(`Got ek_table.dtype=${ek_table.dtype} but expected 'f32'`);
+    }
+    this.reference_block.children.delete(this._ek_table);
+    this.reference_block.children.add(ek_table);
     this._ek_table.delete();
     this._ek_table = ek_table;
   }
 
-  get ek_table(): Float32ModuleNdarray {
+  get ek_table(): ModuleNdarray {
     return this._ek_table;
   }
 
   set lu_solver(lu_solver: LU_Solver | undefined) {
     if (this._lu_solver !== undefined) {
-      this._child_objects.delete(this._lu_solver);
+      this.reference_block.children.delete(this._lu_solver);
       this._lu_solver.delete();
     }
     if (lu_solver !== undefined) {
-      this._child_objects.add(lu_solver);
+      this.reference_block.children.add(lu_solver);
     }
     this._lu_solver = lu_solver;
   }
@@ -108,9 +118,9 @@ export class CpuGrid extends ManagedObject {
   }
 
   reset() {
-    this.v_field.array_view.fill(0.0);
-    this.ex_field.array_view.fill(0.0);
-    this.ey_field.array_view.fill(0.0);
+    this.v_field.fill(0.0);
+    this.ex_field.fill(0.0);
+    this.ey_field.fill(0.0);
   }
 
   bake(profiler?: Profiler) {
@@ -137,9 +147,9 @@ export class CpuGrid extends ManagedObject {
 
       const Mx = Nx+1;
       const My = Ny+1;
-      const v_index_beta = this.v_index_beta.array_view; // forcing potential
-      const dx = this.dx.array_view;
-      const dy = this.dy.array_view;
+      const v_index_beta = this.v_index_beta.data; // forcing potential
+      const dx = this.dx.data;
+      const dy = this.dy.data;
       const get_index = (i: number, j: number): number => {
         const ij = i+j*Mx;
         return ij;
@@ -205,17 +215,17 @@ export class CpuGrid extends ManagedObject {
     }
 
     profiler?.begin("alloc_csr", "Allocate temporary CSR A matrix buffers inside WASM heap");
-    const pinned_A_data = Float32ModuleBuffer.create(this.module, A_data.length);
-    const pinned_A_col_indices = Int32ModuleBuffer.create(this.module, A_col_indices.length);
-    const pinned_A_row_index_ptr = Int32ModuleBuffer.create(this.module, A_row_index_ptr.length);
-    pinned_A_data.array_view.set(A_data);
-    pinned_A_col_indices.array_view.set(A_col_indices);
-    pinned_A_row_index_ptr.array_view.set(A_row_index_ptr);
+    const pinned_A_data = new ModuleFloat32Array(this.reference_block.module, A_data.length);
+    const pinned_A_col_indices = new ModuleInt32Array(this.reference_block.module, A_col_indices.length);
+    const pinned_A_row_index_ptr = new ModuleInt32Array(this.reference_block.module, A_row_index_ptr.length);
+    pinned_A_data.set(A_data);
+    pinned_A_col_indices.set(A_col_indices);
+    pinned_A_row_index_ptr.set(A_row_index_ptr);
     profiler?.end();
 
     const total_voltages = (Ny+1)*(Nx+1);
     profiler?.begin("create_lu_solver", "Calculate new LU factorisations");
-    this.lu_solver = new LU_Solver(this.module, pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
+    this.lu_solver = new LU_Solver(this.reference_block.module, pinned_A_data, pinned_A_col_indices, pinned_A_row_index_ptr, total_voltages, total_voltages);
     profiler?.end();
 
     profiler?.begin("free_csr", "Freeing temporary CSR A matrix");
@@ -232,10 +242,10 @@ export class CpuGrid extends ManagedObject {
     const { x: Nx, y: Ny } = this.size;
     {
       profiler?.begin("create_b", "Generate b column vector from forcing voltage potentials");
-      const v_index_beta = this.v_index_beta.array_view;
-      const v_table = this.v_table.array_view;
+      const v_index_beta = this.v_index_beta.data;
+      const v_table = this.v_table.data;
       // generate b matrix for Av=b
-      const b = this.v_field.array_view;
+      const b = this.v_field.data;
       const Mx = Nx+1;
       const My = Ny+1;
       for (let j = 0; j < My; j++) {
@@ -256,7 +266,7 @@ export class CpuGrid extends ManagedObject {
     }
 
     profiler?.begin("solve_v_field", "Solve for voltage field in system Ax=b where A has LU factors");
-    const solve_info = this.lu_solver.solve(this.v_field);
+    const solve_info = this.lu_solver.solve(this.v_field.cast(ModuleFloat32Array));
     profiler?.end();
 
     profiler?.begin("calc_e_field", "Calculate electric field from voltage field");
@@ -266,14 +276,6 @@ export class CpuGrid extends ManagedObject {
     if (solve_info !== 0) {
       console.error(`LU solver failed with code: ${solve_info}`);
     }
-  }
-
-  get width(): number {
-    return this.dx.length;
-  }
-
-  get height(): number {
-    return this.dy.length;
   }
 }
 
@@ -321,25 +323,30 @@ export class GpuGrid {
       }
       return true;
     };
-    const write_buffer = (gpu: NdGpuArray, cpu: Ndarray) => {
+    const write_buffer = (gpu: NdGpuArray, cpu: ModuleNdarray) => {
       if (gpu.dtype !== cpu.dtype) {
         throw Error(`Mismatch between dtypes with cpu=${cpu.dtype} and gpu=${gpu.dtype}`);
       }
       if (!is_shape_equal(cpu.shape, gpu.shape)) {
         throw Error(`Mismatch between shapes with cpu=[${cpu.shape.join(',')}] and gpu=[${gpu.shape.join(',')}]`);
       }
-      this.device.queue.writeBuffer(gpu.data, 0, cpu.data, 0, cpu.data.length);
+      // https://github.com/emscripten-core/emscripten/pull/27242
+      // NOTE: Of course WebGPU doesn't like it when we pass a resizable ArrayBuffer to it for "security" reasons
+      //       So we have to copy the contents of the resizable ArrayBuffer into a non-resizable buffer
+      //       At the moment this problem seems to be an implementation issue with ResizableArrayBuffer being relatively "new"
+      const data = cpu.data.slice();
+      this.device.queue.writeBuffer(gpu.data, 0, data, 0, data.length);
     };
 
-    write_buffer(this.x, cpu.x.ndarray);
-    write_buffer(this.y, cpu.y.ndarray);
-    write_buffer(this.dx, cpu.dx.ndarray);
-    write_buffer(this.dy, cpu.dy.ndarray);
-    write_buffer(this.v_field, cpu.v_field.ndarray);
-    write_buffer(this.ex_field, cpu.ex_field.ndarray);
-    write_buffer(this.ey_field, cpu.ey_field.ndarray);
-    write_buffer(this.v_index_beta, cpu.v_index_beta.ndarray);
-    write_buffer(this.ek_index_beta, cpu.ek_index_beta.ndarray);
+    write_buffer(this.x, cpu.x);
+    write_buffer(this.y, cpu.y);
+    write_buffer(this.dx, cpu.dx);
+    write_buffer(this.dy, cpu.dy);
+    write_buffer(this.v_field, cpu.v_field);
+    write_buffer(this.ex_field, cpu.ex_field);
+    write_buffer(this.ey_field, cpu.ey_field);
+    write_buffer(this.v_index_beta, cpu.v_index_beta);
+    write_buffer(this.ek_index_beta, cpu.ek_index_beta);
 
     if (!is_shape_equal(this.ek_table.shape, cpu.ek_table.shape)) {
       this.ek_table = new NdGpuArray(this.device, cpu.ek_table.shape, "f32");
@@ -347,7 +354,7 @@ export class GpuGrid {
     if (!is_shape_equal(this.v_table.shape, cpu.v_table.shape)) {
       this.v_table = new NdGpuArray(this.device, cpu.v_table.shape, "f32");
     }
-    write_buffer(this.ek_table, cpu.ek_table.ndarray);
-    write_buffer(this.v_table, cpu.v_table.ndarray);
+    write_buffer(this.ek_table, cpu.ek_table);
+    write_buffer(this.v_table, cpu.v_table);
   }
 }

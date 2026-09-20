@@ -7,15 +7,15 @@ The following instructions expect a Bash shell (also includes Git-Bash for Windo
 
 ## 2. Setup emscripten
 1. Go into ```/vendor/emsdk```.
-2. Install specific version of emscripten: ```python ./emsdk.py install 4.0.10```
-3. Activate specific version of emscripten: ```python ./emsdk.py activate 4.0.10```
+2. Install specific version of emscripten: ```python ./emsdk.py install 6.0.9```
+3. Activate specific version of emscripten: ```python ./emsdk.py activate 6.0.9```
 4. Activate emscriptem environment: ```eval $(python ./emsdk.py construct_env)```
 
 ## 3. Fix missing typescript compiler
 An error such as ```em++: error: tsc executable not found in node_modules or in $PATH``` may occur. This is because emsdk doesn't install typescript from npm by default.
 
 1. Go to upstream/emscripten: ```cd vendor/emsdk/upstream/emscripten```
-2. Install typescript: ```npm install typescript```
+2. Install working typescript version: ```npm install typescript@5.9.3```
 
 # Later setup
 1. Activate python environment: ```source ./venv/scripts/activate```.
