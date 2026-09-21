@@ -56,6 +56,9 @@ export class WasmModule {
   constructor(main: MainModule) {
     this.main = main;
     this.finalisation_registry = this.create_finalization_registry();
+    if (!this.heap.buffer.resizable) {
+      throw Error(`Failed to create a resizable WASM heap`);
+    }
   }
 
   get heap(): Uint8Array<ArrayBuffer> {
