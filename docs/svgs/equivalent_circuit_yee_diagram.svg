@@ -1,0 +1,324 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" viewBox="0 0 280 150">
+<style>
+.axis {
+ stroke: black;
+ fill: none;
+ stroke-width: 1;
+}
+
+.coord {
+ fill: black;
+ font-size: 7px;
+}
+
+.label {
+ font-size: 10px;
+}
+
+.label.superscript {
+ font-size: 5px;
+ text-align: start;
+ transform: translateY(-4px);
+}
+
+.label.subscript {
+ font-size: 5px;
+ text-align: start;
+ transform: translateY(1px);
+}
+
+.label.current {
+ fill: blue;
+}
+
+.label.voltage {
+ fill: red;
+}
+
+.wire {
+ stroke-width: 1;
+ stroke: black;
+}
+
+.wire.faded {
+ stroke-width: 0.5;
+ stroke: black;
+ stroke-dasharray: 0 1 0;
+}
+
+.label-background {
+ /* stroke: black; */
+ /* stroke-width: 1px; */
+ stroke-width: 0;
+ fill: #ffffffcc;
+}
+
+.faded-25 {
+ opacity: 0.25;
+}
+
+text {
+ font-family: monospace;
+}
+</style>
+
+<!--Reusable components-->
+<defs>
+<!--Arrow head-->
+<g id="current-arrow" transform="translate(0 -0.75)">
+ <!-- Small translate to make arrow seem optically centered when spinning it around -->
+ <line x1="0" x2="0" y1="-0.5" y2="5.5" stroke-width="2" stroke="blue"/>
+ <polygon points="-3 -0.5, 3 -0.5, 0 -5.5" fill="blue"/>
+</g>
+<!--Circular arrow-->
+<g id="current-circular-arrow">
+ <!--cos(20)*5 = 4.6985 -->
+ <!--sin(20)*5 = 1.7101 -->
+ <!-- M x y A rx ry x-axis large-arc clockwise-flag endx endy -->
+ <path d="M -1.7101 -3.6985 A 5 5 0 1 1 -5 0" stroke-linecap="round" fill="none" stroke-width="2" stroke="blue"/>
+ <polygon points="-3 0, 3 0, 0 -5" transform="translate(-5 2)" fill="blue"/>
+</g>
+<!--Voltage-->
+<g id="capacitor">
+ <rect x="-7" y="-2.5" width="14" height="5" fill="white" stroke-width="0"/>
+ <line x1="-7" y1="-2.5" x2="7" y2="-2.5" stroke-width="1" stroke="black"/>
+ <line x1="-7" y1="2.5" x2="7" y2="2.5" stroke-width="1" stroke="black"/>
+</g>
+<g id="resistor">
+ <rect x="-3" y="-7" width="6" height="14" fill="white" stroke-width="1" stroke="black"/>
+</g>
+<g id="inductor">
+ <rect x="-2" y="-9" width="3" height="18" fill="white"/>
+ <!-- M x y A rx ry x-axis large-arc clockwise-flag endx endy -->
+ <g stroke="black" stroke-width="1" stroke-linecap="round" fill="white">
+  <path d="M 0 -9 A 3 3 0 1 1 0 -3"/>
+  <path d="M 0 -3 A 3 3 0 1 1 0 3"/>
+  <path d="M 0 3 A 3 3 0 1 1 0 9"/>
+ </g>
+</g>
+<g id="air-core-transformer">
+ <line x1="0" x2="0" y1="-16" y2="16" stroke-width="1" stroke="black"/>
+ <line x1="10" x2="10" y1="-16" y2="16" stroke-width="1" stroke="black"/>
+ <use href="#inductor" transform="translate(10 0) scale(-1 1)"/> 
+ <use href="#inductor"/> 
+ <circle cx="-4" cy="-13" r="2" fill="black"/>
+ <circle cx="14" cy="-13" r="2" fill="black"/>
+</g>
+<g id="current-source">
+ <circle cx="0" cy="0" r="7" fill="white" stroke-width="1" stroke="black"/>
+ <polygon points="-2.5 0, 2.5 0, 0 -5" transform="translate(0 0)"/>
+ <line x1="0" x2="0" y1="0" y2="5" stroke-width="1" stroke="black"/>
+</g>
+<g id="label-bar">
+ <line x1="-2" x2="2" y1="0" y2="0" stroke-width="½" stroke="black"/>
+</g>
+<g id="labelled-air-core-transformer">
+ <line class="wire" x1="0" x2="0" y1="-50" y2="50"/>
+ <line class="wire" x1="10" x2="10" y1="-50" y2="50"/>
+ <use href="#current-arrow" transform="translate(0 -25) scale(1 -1)"/>
+ <use href="#current-arrow" transform="translate(10 -25)"/>
+ <use href="#air-core-transformer"/> 
+ <text class="label voltage" x="-7" y="-2">+</text>
+ <text class="label voltage" x="-7" y="8">-</text>
+ <text class="label voltage" x="12" y="-2">+</text>
+ <text class="label voltage" x="12" y="8">-</text>
+</g>
+</defs>
+
+<!--Background-->
+<rect width="100%" height="100%" fill="white"/>
+<!-- Axis -->
+<g transform="translate(10, 10) scale(0.85)">
+ <line class="axis" x1="0" y1="0" x2="0" y2="30"/>
+ <polygon points="-3.75 0, 3.75 0, 0 -6.25" fill="black" />
+ <line class="axis" x1="0" y1="30" x2="30" y2="30"/>
+ <polygon points="30 26.75, 30 33.75, 36.25 30" fill="black" />
+ <line class="axis" x1="0" y1="30" x2="20" y2="10"/>
+ <polygon points="18 8, 22 12, 25 5" fill="black" />
+ <text class="coord" x="15" y="38" text-anchor="center">x</text>
+ <text class="coord" x="-2" y="15" text-anchor="end">y</text>
+ <text class="coord" x="17" y="20" text-anchor="start">z</text>
+</g>
+
+<!-- Circuit -->
+<g transform="translate(10 75)">
+<!-- Edge components --> 
+<g>
+ <line class="wire" x1="0" x2="90" y1="-20" y2="-20"/>
+ <line class="wire" x1="0" x2="90" y1="30" y2="30"/>
+ <!--Capacitor-->
+ <g transform="translate(0 0)">
+  <line class="wire" x1="0" x2="0" y1="-20" y2="30"/>
+  <use href="#capacitor"/> 
+  <g transform="translate(10 3)">
+   <text class="label">C</text>
+   <text class="label superscript" x="6">i,j+½,k</text>
+  </g>
+  <g transform="translate(0 18)">
+   <use href="#current-arrow" transform="scale(1 -1)"/>
+   <g transform="translate(4 4)">
+    <text class="label current">I</text>
+    <text class="label subscript current" x="6">C</text>
+   </g>
+  </g>
+ </g>
+ <!--Resistor-->
+ <g transform="translate(45 0)">
+  <line class="wire" x1="0" x2="0" y1="-20" y2="30"/>
+  <use href="#resistor"/> 
+  <g transform="translate(7 3)">
+   <text class="label">R</text>
+   <text class="label superscript" x="6">i,j+½,k</text>
+  </g>
+  <g transform="translate(0 18)">
+   <use href="#current-arrow" transform="scale(1 -1)"/>
+   <g transform="translate(4 4)">
+    <text class="label current">I</text>
+    <text class="label subscript current" x="6">R</text>
+   </g>
+  </g>
+ </g>
+ <!--Current source-->
+ <g transform="translate(90 0)">
+  <line class="wire" x1="0" x2="0" y1="-20" y2="30"/>
+  <use href="#current-source"/>
+  <g transform="translate(10 3)">
+   <use href="#label-bar" transform="translate(2.75 -8)"/>
+   <text class="label">I</text>
+   <text class="label superscript" x="6">i,j+½,k</text>
+   <text class="label subscript" x="6">y</text>
+  </g>
+  <g transform="translate(0 18)">
+   <use href="#current-arrow"/>
+   <g transform="translate(4 4)">
+    <text class="label current">I</text>
+    <text class="label subscript current" x="6">S</text>
+   </g>
+  </g>
+ </g>
+ <!-- Edge to face -->
+ <g transform="translate(45 0)">
+  <line class="wire" x1="0" x2="90" y1="-50" y2="-50"/>
+  <line class="wire" x1="0" x2="90" y1="50" y2="50"/>
+  <line class="wire" x1="0" x2="0" y1="-50" y2="-20"/>
+  <line class="wire" x1="0" x2="0" y1="30" y2="50"/>
+ </g>
+ <!--Contributing face currents-->
+ <g transform="translate(45 0)">
+  <!--Top-->
+  <g transform="translate(0 -50)">
+   <line class="wire faded" x1="-25" x2="0" y1="0" y2="0"/>
+   <line class="wire faded" x1="0" x2="25" y1="0" y2="0" transform="rotate(-45)"/>
+   <line class="wire faded" x1="0" x2="25" y1="0" y2="0" transform="rotate(135)"/>
+   <use href="#current-arrow" transform="translate(-12.5 0) rotate(90)"/>
+   <use href="#current-arrow" transform="translate(12.5 0) rotate(90)"/>
+   <use href="#current-arrow" transform="rotate(225) translate(0 -12.5)"/>
+   <use href="#current-arrow" transform="rotate(225) translate(0 12.5)"/>
+  </g>
+  <!--Bottom-->
+  <g transform="translate(0 50)">
+   <line class="wire faded" x1="-25" x2="0" y1="0" y2="0"/>
+   <line class="wire faded" x1="0" x2="25" y1="0" y2="0" transform="rotate(-45)"/>
+   <line class="wire faded" x1="0" x2="25" y1="0" y2="0" transform="rotate(135)"/>
+   <use href="#current-arrow" transform="translate(-12.5 0) rotate(-90)"/>
+   <use href="#current-arrow" transform="translate(12.5 0) rotate(-90)"/>
+   <use href="#current-arrow" transform="rotate(45) translate(0 -12.5)"/>
+   <use href="#current-arrow" transform="rotate(45) translate(0 12.5)"/>
+  </g>
+  <!--Current labels-->
+  <g transform="translate(0 50)">
+   <g transform="translate(15 10)">
+    <text class="label current">I</text>
+    <text class="label subscript current" x="6">z</text>
+    <text class="label superscript current" x="6">i+½,j+½,k</text>
+   </g>
+   <g transform="translate(-50 10)">
+    <text class="label current">I</text>
+    <text class="label subscript current" x="6">z</text>
+    <text class="label superscript current" x="6">i-½,j+½,k</text>
+   </g>
+   <g transform="translate(16 -9)">
+    <text class="label current">I</text>
+    <text class="label subscript current" x="6">x</text>
+    <text class="label superscript current" x="6">i,j+½,k+½</text>
+   </g>
+   <g transform="translate(-15 22)">
+    <text class="label current">I</text>
+    <text class="label subscript current" x="6">x</text>
+    <text class="label superscript current" x="6">i,j+½,k-½</text>
+   </g>
+  </g>
+ </g>
+</g>
+<!-- Face current loop -->
+<g transform="translate(145 0)">
+ <!--Current loop-->
+ <g transform="translate(50 0)">
+  <use class="faded-25" href="#current-arrow" transform="translate(0 0) rotate(45) scale(0.75)"/>
+  <use href="#current-circular-arrow" transform="scale(1.5)"/>
+  <g transform="translate(-15 -10)">
+   <text class="label current">I</text>
+   <text class="label subscript current" x="6">z</text>
+   <text class="label superscript current" x="6">i+½,j+½,k</text>
+  </g>
+ </g>
+ <!--Left transformer-->
+ <g transform="translate(-10 0)">
+  <use href="#labelled-air-core-transformer"/> 
+  <g transform="translate(18 4)">
+   <text class="label voltage">V</text>
+   <text class="label superscript voltage" x="6">i,j+½,k</text>
+   <text class="label subscript voltage" x="6">y</text>
+  </g>
+ </g>
+ <!--Top transformer-->
+ <g transform="translate(50 -60)">
+  <g transform="rotate(90)">
+   <use href="#labelled-air-core-transformer"/> 
+   <line class="wire" x1="-10" x2="0" y1="-50" y2="-50"/>
+   <line class="wire" x1="-10" x2="0" y1="50" y2="50"/>
+  </g>
+  <g transform="translate(-15 28)">
+   <text class="label voltage">V</text>
+   <text class="label superscript voltage" x="6">i+½,j+1,k</text>
+   <text class="label subscript voltage" x="6">x</text>
+  </g>
+ </g>
+ <!--Bottom transformer-->
+ <g transform="translate(50 50)">
+  <g transform="rotate(90)">
+   <use href="#labelled-air-core-transformer"/> 
+   <line class="wire" x1="10" x2="20" y1="-50" y2="-50"/>
+   <line class="wire" x1="10" x2="20" y1="50" y2="50"/>
+  </g>
+  <g transform="translate(-10 -10)">
+   <text class="label voltage">V</text>
+   <text class="label superscript voltage" x="6">i+½,j,k</text>
+   <text class="label subscript voltage" x="6">x</text>
+  </g>
+ </g>
+ <!--Right transformer-->
+ <g transform="translate(100 0)">
+  <use href="#labelled-air-core-transformer"/> 
+  <line class="wire" x1="10" x2="20" y1="-50" y2="-50"/>
+  <line class="wire" x1="10" x2="20" y1="50" y2="50"/>
+  <g transform="translate(-38 4)">
+   <text class="label voltage">V</text>
+   <text class="label superscript voltage" x="6">i+1,j+½,k</text>
+   <text class="label subscript voltage" x="6">y</text>
+  </g>
+ </g>
+ <!--Inductance of face-->
+ <g transform="translate(0 22)">
+  <use href="#inductor" transform="scale(-1 1)"/>
+  <text class="label voltage" x="2" y="-2">-</text>
+  <text class="label voltage" x="2" y="8">+</text>
+  <g transform="translate(8 4)">
+   <text class="label">L</text>
+   <text class="label superscript" x="5">i+½,j+½,k</text>
+  </g>
+ </g>
+</g>
+
+</g>
+</svg>
