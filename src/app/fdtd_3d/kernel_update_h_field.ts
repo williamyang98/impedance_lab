@@ -1,4 +1,4 @@
-import { StructView } from "../../utility/cstyle_struct.ts";
+import * as cstruct from "../../utility/cstruct.ts";
 import { type Vec3 } from "../../utility/dim_types.ts";
 import { type GpuFieldBuffers } from "./grid.ts";
 import { NdGpuArray } from "../../utility/gpu_common.ts";
@@ -6,19 +6,19 @@ import kernel_update_h_field_wgsl from "./kernel_update_h_field.wgsl?raw";
 
 type Size3D = Vec3<number>;
 
-function create_ndgpuarray_bindgroup(buffer: NdGpuArray) {
-  return { buffer: buffer.data, offset: 0, size: buffer.data.size };
-}
+const Params =
+  cstruct.struct({
+    grid_size: cstruct.vector(cstruct.primitive("u32"), 3),
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
+
 export class KernelUpdateMagneticField {
   label: string;
   workgroup_size: Size3D;
   device: GPUDevice;
-  params = new StructView({
-    grid_size_x: "u32",
-    grid_size_y: "u32",
-    grid_size_z: "u32",
-  });
-  params_uniform: GPUBuffer;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -29,10 +29,7 @@ export class KernelUpdateMagneticField {
     this.label = "update_h_field";
     this.workgroup_size = workgroup_size;
     this.device = device;
-    this.params_uniform = device.createBuffer({
-      size: this.params.buffer.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    this.params = new Params(device);
     this.shader_source = kernel_update_h_field_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -81,25 +78,28 @@ export class KernelUpdateMagneticField {
       y: Math.ceil((grid_size.y+1)/this.workgroup_size.y),
       z: Math.ceil((grid_size.z+1)/this.workgroup_size.z),
     };
-    this.params.set("grid_size_x", grid_size.x);
-    this.params.set("grid_size_y", grid_size.y);
-    this.params.set("grid_size_z", grid_size.z);
-    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
+    this.params.view.grid_size.x = grid_size.x;
+    this.params.view.grid_size.y = grid_size.y;
+    this.params.view.grid_size.z = grid_size.z;
+    this.params.write_to_gpu();
 
+    const bind_gpu_buffer = (buffer: GPUBuffer) => {
+      return { buffer: buffer, offset: 0, size: buffer.size };
+    };
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size } },
-        { binding: 1, resource: create_ndgpuarray_bindgroup(d.x) },
-        { binding: 2, resource: create_ndgpuarray_bindgroup(d.y) },
-        { binding: 3, resource: create_ndgpuarray_bindgroup(d.z) },
-        { binding: 4, resource: create_ndgpuarray_bindgroup(H.x) },
-        { binding: 5, resource: create_ndgpuarray_bindgroup(H.y) },
-        { binding: 6, resource: create_ndgpuarray_bindgroup(H.z) },
-        { binding: 7, resource: create_ndgpuarray_bindgroup(E.x) },
-        { binding: 8, resource: create_ndgpuarray_bindgroup(E.y) },
-        { binding: 9, resource: create_ndgpuarray_bindgroup(E.z) },
-        { binding: 10, resource: create_ndgpuarray_bindgroup(bake_phi) },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(d.x.data) },
+        { binding: 2, resource: bind_gpu_buffer(d.y.data) },
+        { binding: 3, resource: bind_gpu_buffer(d.z.data) },
+        { binding: 4, resource: bind_gpu_buffer(H.x.data) },
+        { binding: 5, resource: bind_gpu_buffer(H.y.data) },
+        { binding: 6, resource: bind_gpu_buffer(H.z.data) },
+        { binding: 7, resource: bind_gpu_buffer(E.x.data) },
+        { binding: 8, resource: bind_gpu_buffer(E.y.data) },
+        { binding: 9, resource: bind_gpu_buffer(E.z.data) },
+        { binding: 10, resource: bind_gpu_buffer(bake_phi.data) },
       ],
     });
 

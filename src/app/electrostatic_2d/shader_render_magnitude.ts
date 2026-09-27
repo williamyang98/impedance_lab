@@ -1,17 +1,23 @@
-import { type GpuRenderTexture, type GpuMesh, create_square_mesh, GpuUniform, GpuCamera2D } from "../../utility/gpu_common.ts";
+import * as cstruct from "../../utility/cstruct.ts";
+import { type GpuRenderTexture, type GpuMesh, create_square_mesh, GpuCamera2D } from "../../utility/gpu_common.ts";
 import { GpuGrid } from "./grid.ts";
 import shader_render_magnitude_wgsl from "./shader_render_magnitude.wgsl?raw";
+
+const Params =
+  cstruct.struct({
+    scale: cstruct.primitive("f32"),
+    alpha_scale: cstruct.primitive("f32"),
+    grid_size: cstruct.vector(cstruct.primitive("u32"), 2),
+    clear_colour: cstruct.vector(cstruct.primitive("f32"), 4),
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
 
 export class ShaderRenderMagnitude {
   label: string;
   device: GPUDevice;
-  params: GpuUniform<{
-    scale: "f32",
-    alpha_scale: "f32",
-    grid_size_x: "u32",
-    grid_size_y: "u32",
-    clear_colour: ["f32", "f32", "f32", "f32"],
-  }>;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -23,16 +29,7 @@ export class ShaderRenderMagnitude {
   constructor(device: GPUDevice) {
     this.label = " component_shader";
     this.device = device;
-    const params = new GpuUniform(device, {
-      scale: "f32",
-      alpha_scale: "f32",
-      grid_size_x: "u32",
-      grid_size_y: "u32",
-      clear_colour: ["f32", "f32", "f32", "f32"],
-      mask_colour: ["f32", "f32", "f32", "f32"],
-    });
-    this.params = params;
-
+    this.params = new Params(device);
     this.shader_source = shader_render_magnitude_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -104,12 +101,14 @@ export class ShaderRenderMagnitude {
   ) {
     alpha_scale = alpha_scale ?? 1.0;
 
-    this.params.cpu.set("scale", scale);
-    this.params.cpu.set("alpha_scale", alpha_scale);
-    this.params.cpu.set("grid_size_x", grid.size.x);
-    this.params.cpu.set("grid_size_y", grid.size.y);
-    const rgba_to_array = (colour: GPUColorDict) => [colour.r, colour.g, colour.b, colour.a];
-    this.params.cpu.set_array("clear_colour", rgba_to_array(this.clear_colour));
+    this.params.view.scale = scale;
+    this.params.view.alpha_scale = alpha_scale;
+    this.params.view.grid_size.x = grid.size.x;
+    this.params.view.grid_size.y = grid.size.y;
+    this.params.view.clear_colour.r = this.clear_colour.r;
+    this.params.view.clear_colour.g = this.clear_colour.g;
+    this.params.view.clear_colour.b = this.clear_colour.b;
+    this.params.view.clear_colour.a = this.clear_colour.a;
     this.params.write_to_gpu();
 
     const total_instances = grid.size.x*grid.size.y;
@@ -120,8 +119,8 @@ export class ShaderRenderMagnitude {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: bind_gpu_buffer(this.params.gpu) },
-        { binding: 1, resource: bind_gpu_buffer(camera.gpu) },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(camera.gpu_buffer) },
         { binding: 2, resource: bind_gpu_buffer(grid.x.data) },
         { binding: 3, resource: bind_gpu_buffer(grid.y.data) },
         { binding: 4, resource: bind_gpu_buffer(grid.ex_field.data) },

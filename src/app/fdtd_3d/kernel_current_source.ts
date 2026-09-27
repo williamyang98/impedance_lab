@@ -1,32 +1,25 @@
-import { StructView } from "../../utility/cstyle_struct.ts";
+import * as cstruct from "../../utility/cstruct.ts";
 import { type Vec3 } from "../../utility/dim_types.ts";
 import { type GpuFieldBuffers } from "./grid.ts";
-import { NdGpuArray } from "../../utility/gpu_common.ts";
 import kernel_current_source_wgsl from "./kernel_current_source.wgsl?raw";
 
 type Size3D = Vec3<number>;
-
-function create_ndgpuarray_bindgroup(buffer: NdGpuArray) {
-  return { buffer: buffer.data, offset: 0, size: buffer.data.size };
-}
+const Params =
+  cstruct.struct({
+    grid_size: cstruct.vector(cstruct.primitive("u32"), 3),
+    source_offset: cstruct.vector(cstruct.primitive("u32"), 3),
+    source_size: cstruct.vector(cstruct.primitive("u32"), 3),
+    e0: cstruct.primitive("f32"),
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
 
 export class KernelCurrentSource {
   label: string;
   workgroup_size: Size3D;
   device: GPUDevice;
-  params = new StructView({
-    grid_size_x: "u32",
-    grid_size_y: "u32",
-    grid_size_z: "u32",
-    source_offset_x: "u32",
-    source_offset_y: "u32",
-    source_offset_z: "u32",
-    source_size_x: "u32",
-    source_size_y: "u32",
-    source_size_z: "u32",
-    e0: "f32",
-  });
-  params_uniform: GPUBuffer;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -37,10 +30,7 @@ export class KernelCurrentSource {
     this.label = "current_source";
     this.workgroup_size = workgroup_size;
     this.device = device;
-    this.params_uniform = device.createBuffer({
-      size: this.params.buffer.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    this.params = new Params(device);
     this.shader_source = kernel_current_source_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -81,25 +71,28 @@ export class KernelCurrentSource {
       y: Math.ceil((source_size.y+1)/this.workgroup_size.y),
       z: Math.ceil((source_size.z+1)/this.workgroup_size.z),
     };
-    this.params.set("grid_size_x", grid_size.x);
-    this.params.set("grid_size_y", grid_size.y);
-    this.params.set("grid_size_z", grid_size.z);
-    this.params.set("source_offset_x", source_offset.x);
-    this.params.set("source_offset_y", source_offset.y);
-    this.params.set("source_offset_z", source_offset.z);
-    this.params.set("source_size_x", source_size.x);
-    this.params.set("source_size_y", source_size.y);
-    this.params.set("source_size_z", source_size.z);
-    this.params.set("e0", e0);
-    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
+    this.params.view.grid_size.x = grid_size.x;
+    this.params.view.grid_size.y = grid_size.y;
+    this.params.view.grid_size.z = grid_size.z;
+    this.params.view.source_offset.x = source_offset.x;
+    this.params.view.source_offset.y = source_offset.y;
+    this.params.view.source_offset.z = source_offset.z;
+    this.params.view.source_size.x = source_size.x;
+    this.params.view.source_size.y = source_size.y;
+    this.params.view.source_size.z = source_size.z;
+    this.params.view.e0 = e0;
+    this.params.write_to_gpu();
 
+    const bind_gpu_buffer = (buffer: GPUBuffer) => {
+      return { buffer: buffer, offset: 0, size: buffer.size };
+    };
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size } },
-        { binding: 1, resource: create_ndgpuarray_bindgroup(E.x) },
-        { binding: 2, resource: create_ndgpuarray_bindgroup(E.y) },
-        { binding: 3, resource: create_ndgpuarray_bindgroup(E.z) },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(E.x.data) },
+        { binding: 2, resource: bind_gpu_buffer(E.y.data) },
+        { binding: 3, resource: bind_gpu_buffer(E.z.data) },
       ],
     });
 

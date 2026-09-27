@@ -1,22 +1,24 @@
-import { StructView } from "../../utility/cstyle_struct.ts";
+import * as cstruct from "../../utility/cstruct.ts";
 import { CpuGrid } from "../../app/electrostatic_3d/grid.ts";
 import { type Vec3 } from "../../utility/dim_types.ts";
 import { NdGpuArray } from "../../utility/gpu_common.ts";
 import kernel_jacobi_smooth from "./kernel_jacobi_smooth.wgsl?raw";
 
 type Size3D = Vec3<number>;
+const Params =
+  cstruct.struct({
+    grid_size: cstruct.vector(cstruct.primitive("u32"), 3),
+    beta: cstruct.primitive("f32"),
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
 
 export class KernelJacobiSmooth {
   label: string;
   workgroup_size: Size3D;
   device: GPUDevice;
-  params = new StructView({
-    grid_size_x: "u32",
-    grid_size_y: "u32",
-    grid_size_z: "u32",
-    beta: "f32",
-  });
-  params_uniform: GPUBuffer;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -28,10 +30,7 @@ export class KernelJacobiSmooth {
     this.workgroup_size = workgroup_size;
 
     this.device = device;
-    this.params_uniform = device.createBuffer({
-      size: this.params.buffer.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    this.params = new Params(device);
     this.shader_source = kernel_jacobi_smooth;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -91,11 +90,11 @@ export class KernelJacobiSmooth {
       y: Math.ceil((grid_size.y+1)/this.workgroup_size.y),
       z: Math.ceil((grid_size.z+1)/this.workgroup_size.z),
     };
-    this.params.set("grid_size_x", grid_size.x);
-    this.params.set("grid_size_y", grid_size.y);
-    this.params.set("grid_size_z", grid_size.z);
-    this.params.set("beta", beta);
-    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
+    this.params.view.grid_size.x = grid_size.x;
+    this.params.view.grid_size.y = grid_size.y;
+    this.params.view.grid_size.z = grid_size.z;
+    this.params.view.beta = beta;
+    this.params.write_to_gpu();
 
     function bind_buffer(binding: number, buf: GPUBuffer): GPUBindGroupEntry {
       return {
@@ -107,7 +106,7 @@ export class KernelJacobiSmooth {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        bind_buffer(0, this.params_uniform),
+        bind_buffer(0, this.params.gpu_buffer),
         bind_buffer(1, v_out.data),
         bind_buffer(2, v_in.data),
         bind_buffer(3, b.data),

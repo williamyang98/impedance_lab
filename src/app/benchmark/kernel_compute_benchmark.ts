@@ -1,4 +1,13 @@
-import { StructView } from "../../utility/cstyle_struct.ts";
+import * as cstruct from "../../utility/cstruct.ts";
+
+const Params =
+  cstruct.struct({
+    loop_count: cstruct.primitive("s32"),
+    init_value: cstruct.primitive("f32"),
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
 
 export type ComputeBenchmarkType = "f32" | "f16" | "u32" | "i32";
 
@@ -17,18 +26,11 @@ export class KernelComputeBenchmark {
   inner_loop_count: number = 512;
   iops_per_loop: number = 4;
   simd_width: number = 4;
-  params = new StructView({
-    loop_count: "s32",
-    init_value: "f32",
-  });
-  params_uniform: GPUBuffer;
+  params: Params;
 
   constructor(device: GPUDevice) {
     this.device = device;
-    this.params_uniform = device.createBuffer({
-      size: this.params.buffer.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    this.params = new Params(device);
     this.bind_group_layout = device.createBindGroupLayout({
       entries: [
         { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "uniform" } },
@@ -139,21 +141,17 @@ export class KernelComputeBenchmark {
   ) {
     const dispatch_size = Math.ceil(length/this.workgroup_size/this.simd_width);
 
-    this.params.set("loop_count", loop_count);
-    this.params.set("init_value", this.get_init_value(type));
-    this.device.queue.writeBuffer(this.params_uniform, 0, this.params.buffer, 0, this.params.buffer.byteLength);
-
+    this.params.view.loop_count = loop_count;
+    this.params.view.init_value = this.get_init_value(type);
+    this.params.write_to_gpu();
+    const bind_gpu_buffer = (buffer: GPUBuffer) => {
+      return { buffer, offset: 0, size: buffer.size };
+    };
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        {
-          binding: 0,
-          resource: { buffer: this.params_uniform, offset: 0, size: this.params_uniform.size },
-        },
-        {
-          binding: 1,
-          resource: { buffer: gpu_A, offset: 0, size: gpu_A.size },
-        },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(gpu_A) },
       ],
     });
 

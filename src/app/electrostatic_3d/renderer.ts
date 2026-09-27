@@ -47,8 +47,8 @@ export class Renderer {
     const clear_colour = { r: 0.0, g: 0.0, b: 0.0, a: 1.0 };
     const mask_colour = { r: 1.0, g: 1.0, b: 1.0, a: 0.8 };
 
-    this.camera.cpu.aspect_ratio = render_texture.size.x/render_texture.size.y;
-    this.camera.cpu.zoom = zoom;
+    this.camera.view.aspect_ratio = render_texture.size.x/render_texture.size.y;
+    this.camera.view.zoom = zoom;
     this.camera.write_to_gpu();
 
     if (render_mode === "input") {

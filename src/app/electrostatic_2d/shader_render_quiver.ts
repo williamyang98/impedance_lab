@@ -1,18 +1,24 @@
-import { type GpuRenderTexture, type GpuMesh, GpuUniform, GpuCamera2D, create_arrow_mesh } from "../../utility/gpu_common.ts";
+import * as cstruct from "../../utility/cstruct.ts";
+import { type GpuRenderTexture, type GpuMesh, GpuCamera2D, create_arrow_mesh } from "../../utility/gpu_common.ts";
 import { GpuGrid } from "./grid.ts";
 import shader_render_quiver_wgsl from "./shader_render_quiver.wgsl?raw";
+
+const Params =
+  cstruct.struct({
+    scale: cstruct.primitive("f32"),
+    grid_size: cstruct.vector(cstruct.primitive("u32"), 2),
+    _pad_0: cstruct.primitive("u32"),
+    low_colour: cstruct.vector(cstruct.primitive("f32"), 4),
+    high_colour: cstruct.vector(cstruct.primitive("f32"), 4),
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
 
 export class ShaderRenderQuiver {
   label: string;
   device: GPUDevice;
-  params: GpuUniform<{
-    scale: "f32",
-    grid_size_x: "u32",
-    grid_size_y: "u32",
-    _pad_0: "u32",
-    low_colour: ["f32", "f32", "f32", "f32"],
-    high_colour: ["f32", "f32", "f32", "f32"],
-  }>;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -24,16 +30,7 @@ export class ShaderRenderQuiver {
   constructor(device: GPUDevice) {
     this.label = " component_shader";
     this.device = device;
-    const params = new GpuUniform(device, {
-      scale: "f32",
-      grid_size_x: "u32",
-      grid_size_y: "u32",
-      _pad_0: "u32",
-      low_colour: ["f32", "f32", "f32", "f32"],
-      high_colour: ["f32", "f32", "f32", "f32"],
-    });
-    this.params = params;
-
+    this.params = new Params(device);
     this.shader_source = shader_render_quiver_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -110,13 +107,17 @@ export class ShaderRenderQuiver {
     low_colour = low_colour ?? { r: 0.2, g: 0.2, b: 0.2, a: 1.0 };
     high_colour = high_colour ?? { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
 
-
-    this.params.cpu.set("scale", scale);
-    this.params.cpu.set("grid_size_x", grid.size.x);
-    this.params.cpu.set("grid_size_y", grid.size.y);
-    const rgba_to_array = (colour: GPUColorDict) => [colour.r, colour.g, colour.b, colour.a];
-    this.params.cpu.set_array("low_colour", rgba_to_array(low_colour));
-    this.params.cpu.set_array("high_colour", rgba_to_array(high_colour));
+    this.params.view.scale = scale;
+    this.params.view.grid_size.x = grid.size.x;
+    this.params.view.grid_size.y = grid.size.y;
+    this.params.view.low_colour.r = low_colour.r;
+    this.params.view.low_colour.g = low_colour.g;
+    this.params.view.low_colour.b = low_colour.b;
+    this.params.view.low_colour.a = low_colour.a;
+    this.params.view.high_colour.r = high_colour.r;
+    this.params.view.high_colour.g = high_colour.g;
+    this.params.view.high_colour.b = high_colour.b;
+    this.params.view.high_colour.a = high_colour.a;
     this.params.write_to_gpu();
 
     const total_instances = grid.size.x*grid.size.y;
@@ -126,8 +127,8 @@ export class ShaderRenderQuiver {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: bind_gpu_buffer(this.params.gpu) },
-        { binding: 1, resource: bind_gpu_buffer(camera.gpu) },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(camera.gpu_buffer) },
         { binding: 2, resource: bind_gpu_buffer(grid.x.data) },
         { binding: 3, resource: bind_gpu_buffer(grid.y.data) },
         { binding: 4, resource: bind_gpu_buffer(grid.ex_field.data) },

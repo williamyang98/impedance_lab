@@ -1,6 +1,6 @@
-import { StructView, type StructFieldType } from "../utility/cstyle_struct";
-import { get_dtype_size, Ndarray, type NdarrayType } from "../utility/ndarray.ts";
+import { get_dtype_size, type NdarrayType } from "../utility/ndarray.ts";
 import { type Vec2 } from "../utility/dim_types";
+import * as cstruct from "../utility/cstruct.ts";
 
 export interface GpuRenderTexture {
   texture: GPUTexture;
@@ -8,64 +8,48 @@ export interface GpuRenderTexture {
   size: Vec2<number>;
 }
 
-export class GpuUniform<T extends Record<string, StructFieldType | StructFieldType[]>> {
-  device: GPUDevice;
-  cpu: StructView<T>;
-  gpu: GPUBuffer;
-
-  constructor(device: GPUDevice, fields: T) {
-    this.device = device;
-    this.cpu = new StructView(fields);
-    this.gpu = device.createBuffer({
-      size: this.cpu.buffer.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
-  }
-
-  write_to_gpu() {
-    this.device.queue.writeBuffer(this.gpu, 0, this.cpu.buffer, 0, this.cpu.buffer.byteLength);
-  }
-}
+const Matrix3x3f =
+  cstruct.matrix(cstruct.primitive("f32"), [3,4]) // each row padded with extra 4 bytes
+  .layout()
+  .gpu_buffer();
 
 export class GpuCamera2D {
-  device: GPUDevice;
-  cpu: {
+  mat3x3f: InstanceType<typeof Matrix3x3f>;
+  view: {
     aspect_ratio: number;
     zoom: number;
     offset: Vec2<number>;
   };
-  cpu_buffer: Ndarray;
-  gpu: GPUBuffer;
 
   constructor(device: GPUDevice) {
-    this.device = device;
-    this.cpu = {
+    this.mat3x3f = new Matrix3x3f(device);
+    this.view = {
       aspect_ratio: 1.0,
       zoom: 1.0,
       offset: { x: 0.0, y: 0.0 },
     };
-    this.cpu_buffer = Ndarray.create_zeros([3,4], "f32"); // mat3x3<f32> with each row std140 padded to 4 x 4 bytes
-    this.gpu = device.createBuffer({
-      size: this.cpu_buffer.data.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+  }
+
+  get gpu_buffer(): GPUBuffer {
+    return this.mat3x3f.gpu_buffer;
+  }
+
+  get array_buffer(): ArrayBuffer {
+    return this.mat3x3f.array_buffer;
   }
 
   write_to_gpu() {
     // x' = H/W * z*(x + x0) = H/W*z*x + H/W*z*x0
     // y' = z*(y+y0) = z*y + z*y0
     // [x', y', 1.0] = A * [x, y, 1.0]
-    this.cpu_buffer.fill(0.0);
-    this.cpu_buffer.set([0,0], this.cpu.zoom/this.cpu.aspect_ratio);
-    this.cpu_buffer.set([0,2], this.cpu.zoom/this.cpu.aspect_ratio*this.cpu.offset.x);
-
-    this.cpu_buffer.set([1,1], this.cpu.zoom);
-    this.cpu_buffer.set([1,2], this.cpu.zoom*this.cpu.offset.y);
-
-    this.cpu_buffer.set([2,2], 1.0);
-
-    const cpu = this.cpu_buffer.data;
-    this.device.queue.writeBuffer(this.gpu, 0, cpu.buffer, 0, cpu.byteLength);
+    const view = this.view;
+    const mvp = this.mat3x3f.view;
+    mvp[0][0] = view.zoom/view.aspect_ratio;
+    mvp[0][2] = view.zoom/view.aspect_ratio*view.offset.x;
+    mvp[1][1] = view.zoom;
+    mvp[1][2] = view.zoom*view.offset.y;
+    mvp[2][2] = 1.0;
+    this.mat3x3f.write_to_gpu();
   }
 }
 

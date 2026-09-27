@@ -1,21 +1,28 @@
-import { GpuUniform, type GpuRenderTexture, type GpuMesh, create_square_mesh } from "../../utility/gpu_common.ts";
+import * as cstruct from "../../utility/cstruct.ts";
+import { type GpuRenderTexture, type GpuMesh, create_square_mesh } from "../../utility/gpu_common.ts";
 import { GlyphCoords } from "./glyph_coords.ts";
 import { GpuFont } from "./gpu_font.ts";
 import shader_wgsl from "./shader_msdf_font.wgsl?raw";
 
+const Params =
+  cstruct.struct({
+    scale: cstruct.primitive("f32"),
+    zoom: cstruct.primitive("f32"),
+    atlas_width: cstruct.primitive("f32"),
+    atlas_height: cstruct.primitive("f32"), // 16 bytes
+    atlas_distance_range: cstruct.primitive("f32"),
+    _pad_0: cstruct.primitive("u32"),
+    _pad_1: cstruct.primitive("u32"),
+    _pad_2: cstruct.primitive("u32"), // 32 bytes
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
+
 export class ShaderMsdfFont {
   label: string;
   device: GPUDevice;
-  params: GpuUniform<{
-    scale: "f32",
-    zoom: "f32",
-    atlas_width: "f32",
-    atlas_height: "f32",
-    atlas_distance_range: "f32",
-    _pad_0: "u32",
-    _pad_1: "u32",
-    _pad_2: "u32",
-  }>;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -29,17 +36,7 @@ export class ShaderMsdfFont {
   constructor(device: GPUDevice) {
     this.device = device;
     this.label = "electrostatic_3d_shader";
-    const params = new GpuUniform(device, {
-      scale: "f32",
-      zoom: "f32",
-      atlas_width: "f32",
-      atlas_height: "f32",
-      atlas_distance_range: "f32",
-      _pad_0: "u32",
-      _pad_1: "u32",
-      _pad_2: "u32",
-    });
-    this.params = params;
+    this.params = new Params(device);
     this.shader_source = shader_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -119,11 +116,11 @@ export class ShaderMsdfFont {
     }
 
     const font = gpu_font.font;
-    this.params.cpu.set("zoom", zoom);
-    this.params.cpu.set("scale", scale);
-    this.params.cpu.set("atlas_width", font.layout.atlas.width);
-    this.params.cpu.set("atlas_height", font.layout.atlas.height);
-    this.params.cpu.set("atlas_distance_range", font.layout.atlas.distanceRange);
+    this.params.view.zoom = zoom;
+    this.params.view.scale = scale;
+    this.params.view.atlas_width = font.layout.atlas.width;
+    this.params.view.atlas_height = font.layout.atlas.height;
+    this.params.view.atlas_distance_range = font.layout.atlas.distanceRange;
     this.params.write_to_gpu();
     const total_instances = glyph_coords.length;
 
@@ -134,7 +131,7 @@ export class ShaderMsdfFont {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: bind_gpu_buffer(this.params.gpu) },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
         { binding: 1, resource: this.atlas_sampler },
         { binding: 2, resource: gpu_font.atlas },
         { binding: 3, resource: bind_gpu_buffer(gpu_font.glyph_coords) },

@@ -1,4 +1,5 @@
-import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh, GpuCamera2D, NdGpuArray } from "../../utility/gpu_common.ts";
+import * as cstruct from "../../utility/cstruct.ts";
+import { type GpuRenderTexture, type GpuMesh, create_square_mesh, GpuCamera2D, NdGpuArray } from "../../utility/gpu_common.ts";
 import type { GpuGrid } from "./grid.ts";
 import shader_render_component_wgsl from "./shader_render_component.wgsl?raw";
 
@@ -26,19 +27,23 @@ export function get_data_from_grid(grid: GpuGrid, mode: DataMode): NdGpuArray {
   }
 }
 
+const Params =
+  cstruct.struct({
+    scale: cstruct.primitive("f32"),
+    size: cstruct.vector(cstruct.primitive("u32"), 3), // 16 bytes
+    clear_colour: cstruct.vector(cstruct.primitive("f32"), 4), // 32 bytes
+    mask_colour: cstruct.vector(cstruct.primitive("f32"), 4), // 48 bytes
+    z_slice: cstruct.primitive("u32"),
+    _pad: cstruct.array(cstruct.primitive("u32"), 3), // 64 bytes
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
+
 export class ShaderRenderComponent {
   label: string;
   device: GPUDevice;
-  params: GpuUniform<{
-    scale: "f32",
-    size_x: "u32",
-    size_y: "u32",
-    size_z: "u32",
-    clear_colour: ["f32", "f32", "f32", "f32"],
-    mask_colour: ["f32", "f32", "f32", "f32"],
-    z_slice: "u32",
-    _pad: ["u32", "u32", "u32"],
-  }>;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -51,18 +56,7 @@ export class ShaderRenderComponent {
   constructor(device: GPUDevice) {
     this.device = device;
     this.label = "electrostatic_3d_shader";
-    const params = new GpuUniform(device, {
-      scale: "f32",
-      size_x: "u32",
-      size_y: "u32",
-      size_z: "u32",
-      clear_colour: ["f32", "f32", "f32", "f32"],
-      mask_colour: ["f32", "f32", "f32", "f32"],
-      z_slice: "u32",
-      zoom: "f32",
-      _pad: ["u32", "u32"],
-    });
-    this.params = params;
+    this.params = new Params(device);
     this.shader_source = shader_render_component_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -141,16 +135,20 @@ export class ShaderRenderComponent {
     z_slice: number,
     scale: number,
   ) {
-    this.params.cpu.set("scale", scale);
-    this.params.cpu.set("size_x", grid.size.x);
-    this.params.cpu.set("size_y", grid.size.y);
-    this.params.cpu.set("size_z", grid.size.z);
-    const rgba_to_array = (colour: GPUColorDict) => [colour.r, colour.g, colour.b, colour.a];
-    this.params.cpu.set_array("clear_colour", rgba_to_array(this.clear_colour));
-    this.params.cpu.set_array("mask_colour", rgba_to_array(this.mask_colour));
-    this.params.cpu.set("z_slice", z_slice);
+    this.params.view.scale = scale;
+    this.params.view.size.x = grid.size.x;
+    this.params.view.size.y = grid.size.y;
+    this.params.view.size.z = grid.size.z;
+    this.params.view.clear_colour.r = this.clear_colour.r;
+    this.params.view.clear_colour.g = this.clear_colour.g;
+    this.params.view.clear_colour.b = this.clear_colour.b;
+    this.params.view.clear_colour.a = this.clear_colour.a;
+    this.params.view.mask_colour.r = this.mask_colour.r;
+    this.params.view.mask_colour.g = this.mask_colour.g;
+    this.params.view.mask_colour.b = this.mask_colour.b;
+    this.params.view.mask_colour.a = this.mask_colour.a;
+    this.params.view.z_slice = z_slice;
     this.params.write_to_gpu();
-
 
     const data = get_data_from_grid(grid, data_mode);
     const total_instances = data.shape[1]*data.shape[2];
@@ -161,8 +159,8 @@ export class ShaderRenderComponent {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: bind_gpu_buffer(this.params.gpu) },
-        { binding: 1, resource: bind_gpu_buffer(camera.gpu) },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(camera.gpu_buffer) },
         { binding: 2, resource: bind_gpu_buffer(grid.grid_lines.x.data) },
         { binding: 3, resource: bind_gpu_buffer(grid.grid_lines.y.data) },
         { binding: 4, resource: bind_gpu_buffer(data.data) },

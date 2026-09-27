@@ -1,6 +1,7 @@
-import shader_wgsl from "./shader_lines_2d.wgsl?raw";
-import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh, NdGpuArray, GpuCamera2D } from "../../utility/gpu_common.ts";
+import * as cstruct from "../../utility/cstruct.ts";
+import { type GpuRenderTexture, type GpuMesh, create_square_mesh, NdGpuArray, GpuCamera2D } from "../../utility/gpu_common.ts";
 import type { Axis2D } from "../../utility/dim_types.ts";
+import shader_wgsl from "./shader_lines_2d.wgsl?raw";
 
 function get_axis_mode_value(axis_mode: Axis2D): number {
   switch (axis_mode) {
@@ -9,16 +10,22 @@ function get_axis_mode_value(axis_mode: Axis2D): number {
   }
 }
 
+const Params =
+  cstruct.struct({
+    colour: cstruct.vector(cstruct.primitive("f32"), 4),
+    thickness: cstruct.primitive("f32"),
+    depth: cstruct.primitive("f32"),
+    _pad_0: cstruct.primitive("u32"),
+    _pad_1: cstruct.primitive("u32"),
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
+
 export class ShaderRenderLines2D {
   label: string;
   device: GPUDevice;
-  params: GpuUniform<{
-    colour: ["f32", "f32", "f32", "f32"],
-    thickness: "f32",
-    depth: "f32",
-    _pad_0: "u32",
-    _pad_1: "u32",
-  }>;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -30,14 +37,7 @@ export class ShaderRenderLines2D {
   constructor(device: GPUDevice) {
     this.device = device;
     this.label = "electrostatic_3d_shader";
-    const params = new GpuUniform(device, {
-      colour: ["f32", "f32", "f32", "f32"],
-      thickness: "f32",
-      depth: "f32",
-      _pad_0: "u32",
-      _pad_1: "u32",
-    });
-    this.params = params;
+    this.params = new Params(device);
     this.shader_source = shader_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -119,9 +119,12 @@ export class ShaderRenderLines2D {
     }
     const total_lines = lines.shape[0];
 
-    this.params.cpu.set_array("colour", [colour.r, colour.g, colour.b, colour.a]);
-    this.params.cpu.set("thickness", thickness);
-    this.params.cpu.set("depth", depth);
+    this.params.view.colour.r = colour.r;
+    this.params.view.colour.g = colour.g;
+    this.params.view.colour.b = colour.b;
+    this.params.view.colour.a = colour.a;
+    this.params.view.thickness = thickness;
+    this.params.view.depth = depth;
     this.params.write_to_gpu();
 
     const bind_gpu_buffer = (buffer: GPUBuffer) => {
@@ -131,8 +134,8 @@ export class ShaderRenderLines2D {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: bind_gpu_buffer(this.params.gpu) },
-        { binding: 1, resource: bind_gpu_buffer(camera.gpu) },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(camera.gpu_buffer) },
         { binding: 2, resource: bind_gpu_buffer(lines.data) },
       ],
     });

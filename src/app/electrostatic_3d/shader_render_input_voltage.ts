@@ -1,5 +1,6 @@
+import * as cstruct from "../../utility/cstruct.ts";
 import { type Axis3D, type Vec3 } from "../../utility/dim_types";
-import { type GpuRenderTexture, type GpuMesh, GpuUniform, create_square_mesh, NdGpuArray, GpuCamera2D } from "../../utility/gpu_common.ts";
+import { type GpuRenderTexture, type GpuMesh, create_square_mesh, NdGpuArray, GpuCamera2D } from "../../utility/gpu_common.ts";
 import shader_wgsl from "./shader_render_input_voltage.wgsl?raw";
 
 export interface CrossSection {
@@ -14,19 +15,23 @@ export interface CrossSection {
   zoom: number;
 }
 
+const Params =
+  cstruct.struct({
+    scale: cstruct.primitive("f32"),
+    size: cstruct.vector(cstruct.primitive("u32"), 3), // 16 bytes
+    clear_colour: cstruct.vector(cstruct.primitive("f32"), 4), // 32 bytes
+    mask_colour: cstruct.vector(cstruct.primitive("f32"), 4), // 48 bytes
+    axis_2_slice: cstruct.primitive("u32"),
+    _pad: cstruct.array(cstruct.primitive("u32"), 3), // 64 bytes
+  })
+  .layout()
+  .gpu_buffer();
+type Params = InstanceType<typeof Params>;
+
 export class ShaderRenderInputVoltage {
   label: string;
   device: GPUDevice;
-  params: GpuUniform<{
-    scale: "f32",
-    size_x: "u32",
-    size_y: "u32",
-    size_z: "u32",
-    clear_colour: ["f32", "f32", "f32", "f32"],
-    mask_colour: ["f32", "f32", "f32", "f32"],
-    axis_2_slice: "u32",
-    _pad: ["u32", "u32", "u32"],
-  }>;
+  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -39,18 +44,7 @@ export class ShaderRenderInputVoltage {
   constructor(device: GPUDevice) {
     this.device = device;
     this.label = "electrostatic_3d_shader";
-    const params = new GpuUniform(device, {
-      scale: "f32",
-      size_x: "u32",
-      size_y: "u32",
-      size_z: "u32",
-      clear_colour: ["f32", "f32", "f32", "f32"],
-      mask_colour: ["f32", "f32", "f32", "f32"],
-      axis_2_slice: "u32",
-      zoom: "f32",
-      _pad: ["u32", "u32"],
-    });
-    this.params = params;
+    this.params = new Params(device);
     this.shader_source = shader_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -122,14 +116,19 @@ export class ShaderRenderInputVoltage {
     cross_section: CrossSection,
     camera: GpuCamera2D,
   ) {
-    this.params.cpu.set("scale", cross_section.scale);
-    this.params.cpu.set("size_x", cross_section.grid_size.x);
-    this.params.cpu.set("size_y", cross_section.grid_size.y);
-    this.params.cpu.set("size_z", cross_section.grid_size.z);
-    const rgba_to_array = (colour: GPUColorDict) => [colour.r, colour.g, colour.b, colour.a];
-    this.params.cpu.set_array("clear_colour", rgba_to_array(this.clear_colour));
-    this.params.cpu.set_array("mask_colour", rgba_to_array(this.mask_colour));
-    this.params.cpu.set("axis_2_slice", cross_section.axis_2_slice);
+    this.params.view.scale = cross_section.scale;
+    this.params.view.size.x = cross_section.grid_size.x;
+    this.params.view.size.y = cross_section.grid_size.y;
+    this.params.view.size.z = cross_section.grid_size.z;
+    this.params.view.clear_colour.r = this.clear_colour.r;
+    this.params.view.clear_colour.g = this.clear_colour.g;
+    this.params.view.clear_colour.b = this.clear_colour.b;
+    this.params.view.clear_colour.a = this.clear_colour.a;
+    this.params.view.mask_colour.r = this.mask_colour.r;
+    this.params.view.mask_colour.g = this.mask_colour.g;
+    this.params.view.mask_colour.b = this.mask_colour.b;
+    this.params.view.mask_colour.a = this.mask_colour.a;
+    this.params.view.axis_2_slice = cross_section.axis_2_slice;
     this.params.write_to_gpu();
 
     const size = cross_section.grid_size;
@@ -148,8 +147,8 @@ export class ShaderRenderInputVoltage {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: bind_gpu_buffer(this.params.gpu) },
-        { binding: 1, resource: bind_gpu_buffer(camera.gpu) },
+        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(camera.gpu_buffer) },
         { binding: 2, resource: bind_gpu_buffer(cross_section.axis_0.data) },
         { binding: 3, resource: bind_gpu_buffer(cross_section.axis_1.data) },
         { binding: 4, resource: bind_gpu_buffer(cross_section.data.data) },
