@@ -3,6 +3,7 @@ import { UserData } from "../src/providers/user_data/user_data.ts";
 import { TestStorage } from "./test_storage.ts";
 import { ComputeBenchmark } from "../src/app/benchmark/compute_benchmark.ts";
 import * as webgpu from "webgpu";
+import { app_request_gpu_device_from_adapter } from "../src/providers/gpu_provider.ts";
 
 const is_runner = import.meta.env.CI;
 let gpu: GPU | undefined = undefined;
@@ -18,14 +19,7 @@ async function request_gpu_device() {
     powerPreference: "high-performance",
   });
   assert.isNotNull(requested_adapter);
-  assert.isTrue(requested_adapter.features.has("core-features-and-limits"));
-  const desired_features: GPUFeatureName[] = ["shader-f16", "timestamp-query", "float32-filterable"];
-  const requested_features = desired_features.filter((feature) => {
-    return requested_adapter.features.has(feature);
-  });
-  const gpu_device = await requested_adapter.requestDevice({
-    requiredFeatures: requested_features,
-  });
+  const gpu_device = await app_request_gpu_device_from_adapter(requested_adapter);
   return gpu_device;
 }
 
