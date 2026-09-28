@@ -5,34 +5,50 @@ import { providers } from "../../providers/providers.ts";
 import { ref, watch, computed, useTemplateRef } from "vue";
 import { get_data_from_grid, type DataMode } from "./shader_render_component.ts";
 import { debounce_animation_frame_async } from "../../utility/debounce.ts";
-
-type AxisDisplayMode = "x" | "y" | "z";
-type FieldDisplayMode = "voltage" | "current";
+import { type Axis3D } from "../../utility/dim_types.ts";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
 const gpu_renderer = new Renderer(gpu_adapter, gpu_device);
 
-const axis_mode = ref<AxisDisplayMode>("z");
-const field_mode = ref<FieldDisplayMode>("voltage");
-const data_mode = computed<DataMode>(() => {
-  const get_voltage = (mode: AxisDisplayMode): DataMode => {
-    switch (mode) {
-      case "x": return "Vx";
-      case "y": return "Vy";
-      case "z": return "Vz";
-    }
-  };
-  const get_current = (mode: AxisDisplayMode): DataMode => {
-    switch (mode) {
-      case "x": return "Ix";
-      case "y": return "Iy";
-      case "z": return "Iz";
-    }
-  };
+const axis_mode = ref<Axis3D>("z");
+const field_mode = ref<DataMode["type"]>("V");
+const data_mode = computed<DataMode>((): DataMode => {
   switch (field_mode.value) {
-    case "voltage": return get_voltage(axis_mode.value);
-    case "current": return get_current(axis_mode.value);
+    case "V": // @fallthrough
+    case "I": // @fallthrough
+    case "R": // @fallthrough
+    case "C": // @fallthrough
+    case "L": // @fallthrough
+    case "alpha": // @fallthrough
+    case "beta": // @fallthrough
+    case "phi": {
+      return { type: field_mode.value, axis: axis_mode.value };
+    }
+    case "epsilon_r": // @fallthrough
+    case "mu_r": // @fallthrough
+    case "sigma_k": {
+      return { type: field_mode.value };
+    }
+  }
+});
+const is_axis_required = computed(() => {
+  switch (field_mode.value) {
+    case "V": // @fallthrough
+    case "I": // @fallthrough
+    case "R": // @fallthrough
+    case "C": // @fallthrough
+    case "L": // @fallthrough
+    case "alpha": // @fallthrough
+    case "beta": // @fallthrough
+    case "phi": {
+      return true;
+    }
+    case "epsilon_r": // @fallthrough
+    case "mu_r": // @fallthrough
+    case "sigma_k": {
+      return false;
+    }
   }
 });
 const gpu_grid = ref<GpuGrid | undefined>(undefined);
@@ -135,11 +151,20 @@ defineExpose({
     <fieldset class="fieldset">
       <legend for="field" class="fieldset-legend">Field</legend>
       <select id="field" class="select" v-model="field_mode">
-        <option :value="'voltage'">Voltage</option>
-        <option :value="'current'">Current</option>
+        <option :value="'V'">Voltage</option>
+        <option :value="'I'">Current</option>
+        <option :value="'R'">Resistance</option>
+        <option :value="'C'">Capacitance</option>
+        <option :value="'L'">Inductance</option>
+        <option :value="'alpha'">Alpha</option>
+        <option :value="'beta'">Beta</option>
+        <option :value="'phi'">Phi</option>
+        <option :value="'epsilon_r'">Permittivity</option>
+        <option :value="'mu_r'">Permeability</option>
+        <option :value="'sigma_k'">Conductivity</option>
       </select>
     </fieldset>
-    <fieldset class="fieldset">
+    <fieldset class="fieldset" v-if="is_axis_required">
       <legend for="axis" class="fieldset-legend">Axis</legend>
       <select id="axis" class="select" v-model="axis_mode">
         <option :value="'x'">x</option>

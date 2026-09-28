@@ -44,9 +44,9 @@ export class CpuGrid {
     };
     this.dt = 1;
 
-    this.sigma_k = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
-    this.epsilon_r = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
-    this.mu_r = Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    const create_cell_array = (): Ndarray => {
+      return Ndarray.create_zeros([size.z,size.y,size.x], "f32");
+    };
 
     const create_edge_arrays = (): Vec3<Ndarray> => {
       return {
@@ -63,6 +63,10 @@ export class CpuGrid {
         z: Ndarray.create_zeros([size.z+1,size.y,size.x], "f32"),
       };
     };
+
+    this.sigma_k = create_cell_array();
+    this.epsilon_r = create_cell_array();
+    this.mu_r = create_cell_array();
 
     this.V = create_edge_arrays();
     this.I = create_face_arrays();
@@ -342,6 +346,9 @@ export class GpuGrid {
   adapter: GPUAdapter;
   device: GPUDevice;
 
+  sigma_k: NdGpuArray;
+  epsilon_r: NdGpuArray;
+  mu_r: NdGpuArray;
   grid_lines: Vec3<NdGpuArray>;
   d: Vec3<NdGpuArray>;
   V: Vec3<NdGpuArray>;
@@ -370,6 +377,10 @@ export class GpuGrid {
       z: new NdGpuArray(device, [size.z], "f32"),
     };
 
+    const create_cell_array = (): NdGpuArray => {
+      return new NdGpuArray(device, [size.z,size.y,size.x], "f32");
+    };
+
     const create_edge_arrays = (): Vec3<NdGpuArray> => {
       return {
         x: new NdGpuArray(device, [size.z+1,size.y+1,size.x], "f32"),
@@ -386,6 +397,9 @@ export class GpuGrid {
       };
     };
 
+    this.sigma_k = create_cell_array();
+    this.epsilon_r = create_cell_array();
+    this.mu_r = create_cell_array();
     this.V = create_edge_arrays();
     this.I = create_face_arrays();
     this.bake_R = create_edge_arrays();
@@ -419,6 +433,10 @@ export class GpuGrid {
       copy_buffer(gpu.y, cpu.y);
       copy_buffer(gpu.z, cpu.z);
     };
+
+    copy_buffer(this.sigma_k, cpu.sigma_k);
+    copy_buffer(this.epsilon_r, cpu.epsilon_r);
+    copy_buffer(this.mu_r, cpu.mu_r);
     copy_field_buffers(this.grid_lines, cpu.grid_lines);
     copy_field_buffers(this.d, cpu.d);
     copy_field_buffers(this.V, cpu.V);
