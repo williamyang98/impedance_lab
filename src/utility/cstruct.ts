@@ -17,6 +17,11 @@ export type FixedSizeArray<T, N extends number> = {
   readonly length: N;
 }
 
+export interface DynamicSizeArray<T> {
+  get(index: number): T | undefined;
+  set(index: number, value: T): void;
+}
+
 // Schema -> Layout -> View = [object, ArrayBuffer]
 export type SchemaType =
   PrimitiveSchema<DataType> |
@@ -622,6 +627,87 @@ export function vector_matrix<T extends SchemaType, N extends VectorSize, M exte
   const row = vector(dtype, shape[1]);
   const matrix = vector(row, shape[0]);
   return matrix;
+}
+
+// dynamic sized array
+export class DynamicArrayLayout<T extends LayoutType, Output = unknown> {
+  readonly type: "dynamic_array";
+  readonly __output!: Output;
+  offset_bytes: number;
+  _element_layout: T;
+
+  constructor(element_layout: T, offset?: number) {
+    offset = offset ?? 0;
+    this.type = "dynamic_array";
+    this._element_layout = element_layout;
+    this.offset_bytes = offset;
+  }
+
+  add_offset_bytes(offset_bytes: number) {
+    const new_offset_bytes = this.offset_bytes+offset_bytes;
+    return new DynamicArrayLayout<T, Output>(this._element_layout, new_offset_bytes);
+  }
+
+  object(): Output {
+    const view: unknown[] = [];
+    return view as Output;
+  }
+
+  data_view(data_view: DataView): DataViewType<Output> {
+    const offset_bytes = this.offset_bytes;
+    const element_layout = this._element_layout;
+    const element_size_bytes = element_layout.size_bytes;
+    const total_elements = Math.floor((data_view.byteLength-this.offset_bytes)/element_size_bytes);
+    const size_bytes = total_elements*element_size_bytes;
+    const output_view = {
+      get(index: number): unknown {
+        const element_offset_bytes = offset_bytes + element_size_bytes*index;
+        const offset_element_layout = element_layout.add_offset_bytes(element_offset_bytes);
+        const element_view = offset_element_layout.data_view(data_view);
+        return element_view.view;
+      },
+      set(index: number, value: number): void {
+        const element_offset_bytes = offset_bytes + element_size_bytes*index;
+        const offset_element_layout = element_layout.add_offset_bytes(element_offset_bytes);
+        const element_view = offset_element_layout.data_view(data_view);
+        element_view.view = value;
+      },
+    };
+    return {
+      __output: undefined as Output,
+      size_bytes,
+      offset_bytes,
+      data_view,
+      view: output_view as Output,
+    };
+  }
+
+  array_buffer(array_buffer: ArrayBuffer): DataViewType<Output> {
+    const data_view = new DataView(array_buffer);
+    return this.data_view(data_view);
+  }
+}
+
+export class DynamicArraySchema<T extends SchemaType, L extends LayoutType, Output = unknown> {
+  readonly type: "dynamic_array";
+  readonly dtype: T;
+  readonly __output!: Output;
+  readonly __layout!: DynamicArrayLayout<L, Output>;
+
+  constructor(dtype: T) {
+    this.type = "dynamic_array";
+    this.dtype = dtype;
+  }
+
+  layout(): typeof this.__layout {
+    return new DynamicArrayLayout(this.dtype.layout()) as typeof this.__layout;
+  }
+}
+
+export function dynamic_array<T extends SchemaType>(dtype: T) {
+  type Output = DynamicSizeArray<T["__output"]>;
+  type ElementLayout = T["__layout"];
+  return new DynamicArraySchema<T, ElementLayout, Output>(dtype);
 }
 
 export type HasOutputType = SchemaType | LayoutType | DataViewType | DataViewClass<unknown>;
