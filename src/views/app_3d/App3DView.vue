@@ -10,6 +10,7 @@ import {
   create_differential_setup,
   create_single_ended_setup_vargrid,
 } from "./app_3d.ts";
+import { with_standard_suffix } from "../../utility/standard_suffix.ts";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
@@ -167,7 +168,7 @@ onBeforeUnmount(() => {
       </select>
     </div>
     <div>
-      <table class="table">
+      <table class="table table-compact">
         <tbody>
           <tr>
             <td class="font-medium">Total steps</td>
@@ -179,11 +180,15 @@ onBeforeUnmount(() => {
           </tr>
           <tr>
             <td class="font-medium">Step rate</td>
-            <td>{{ step_rate !== undefined ? `${step_rate.toFixed(2)} steps/s` : '?' }}</td>
+            <td>{{ step_rate !== undefined ? with_standard_suffix(step_rate, "steps/s", 4) : "?" }}</td>
           </tr>
           <tr>
             <td class="font-medium">Cell rate</td>
-            <td>{{ cell_rate !== undefined ? `${(cell_rate*1e-6).toFixed(2)} Mcells/s` : '?' }}</td>
+            <td>{{ cell_rate !== undefined ? with_standard_suffix(cell_rate, "cells/s", 4) : "?" }}</td>
+          </tr>
+          <tr>
+            <td class="font-medium">Total Cells</td>
+            <td>{{ total_cells }}</td>
           </tr>
           <tr>
             <td class="font-medium">Grid Size</td>

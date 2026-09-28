@@ -10,7 +10,7 @@ function get_axis_mode_value(axis_mode: Axis2D): number {
   }
 }
 
-const Params =
+export const Params =
   cstruct.struct({
     colour: cstruct.vector(cstruct.primitive("f32"), 4),
     thickness: cstruct.primitive("f32"),
@@ -20,12 +20,11 @@ const Params =
   })
   .layout()
   .gpu_buffer();
-type Params = InstanceType<typeof Params>;
+export type Params = InstanceType<typeof Params>;
 
 export class ShaderRenderLines2D {
   label: string;
   device: GPUDevice;
-  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -37,7 +36,6 @@ export class ShaderRenderLines2D {
   constructor(device: GPUDevice) {
     this.device = device;
     this.label = "electrostatic_3d_shader";
-    this.params = new Params(device);
     this.shader_source = shader_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -108,25 +106,14 @@ export class ShaderRenderLines2D {
     command_encoder: GPUCommandEncoder,
     render_texture: GpuRenderTexture,
     lines: NdGpuArray,
-    colour: { r: number, g: number, b: number, a: number },
     axis_mode: Axis2D,
     camera: GpuCamera2D,
-    thickness: number,
-    depth: number,
+    params: Params,
   ) {
     if (lines.shape.length !== 1) {
       throw Error(`Expected lines array to be 1 dimensional but got shape [${lines.shape.join(',')}]`);
     }
     const total_lines = lines.shape[0];
-
-    this.params.view.colour.r = colour.r;
-    this.params.view.colour.g = colour.g;
-    this.params.view.colour.b = colour.b;
-    this.params.view.colour.a = colour.a;
-    this.params.view.thickness = thickness;
-    this.params.view.depth = depth;
-    this.params.write_to_gpu();
-
     const bind_gpu_buffer = (buffer: GPUBuffer) => {
       return { buffer: buffer, offset: 0, size: buffer.size };
     };
@@ -134,7 +121,7 @@ export class ShaderRenderLines2D {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
+        { binding: 0, resource: bind_gpu_buffer(params.gpu_buffer) },
         { binding: 1, resource: bind_gpu_buffer(camera.gpu_buffer) },
         { binding: 2, resource: bind_gpu_buffer(lines.data) },
       ],

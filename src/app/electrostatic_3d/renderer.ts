@@ -1,9 +1,9 @@
 import type { GpuGrid } from "../../app/electrostatic_3d/grid";
-import type { Vec2 } from "../../utility/dim_types";
+import { AXES_2D, type Vec2 } from "../../utility/dim_types";
 import { GpuCamera2D, type GpuRenderTexture, NdGpuArray } from "../../utility/gpu_common.ts";
 import { ShaderRenderCrossSection, type DataMode } from "./shader_render_cross_section";
-import { ShaderRenderLines2D } from "../graph/shader_lines_2d.ts";
 import { ShaderRenderInputVoltage } from "./shader_render_input_voltage.ts";
+import { ShaderRenderLines2D, Params as GraphLineParams } from "../graph/shader_lines_2d.ts";
 
 export type RenderMode = "voltage" | "dielectric" | "residual" | "input";
 
@@ -13,6 +13,7 @@ export class Renderer {
   shader_render_cross_section: ShaderRenderCrossSection;
   shader_render_lines_2d: ShaderRenderLines2D;
   camera: GpuCamera2D;
+  graph_line_params: Vec2<GraphLineParams>;
 
   constructor(device: GPUDevice) {
     this.device = device;
@@ -20,6 +21,10 @@ export class Renderer {
     this.shader_render_lines_2d = new ShaderRenderLines2D(device);
     this.shader_render_input_voltage = new ShaderRenderInputVoltage(device);
     this.camera = new GpuCamera2D(device);
+    this.graph_line_params = {
+      x: new GraphLineParams(device),
+      y: new GraphLineParams(device),
+    };
   }
 
   update_display(
@@ -97,13 +102,18 @@ export class Renderer {
     {
       const colour = { r: 1.0, g: 1.0, b: 1.0, a: 0.65 };
       const depth = 0.1;
-      {
-        const thickness = 2.0/render_texture.size.x;
-        this.shader_render_lines_2d.create_pass(command_encoder, render_texture, gpu_grid.x, colour, "x", this.camera, thickness, depth);
-      }
-      {
-        const thickness = 2.0/render_texture.size.y;
-        this.shader_render_lines_2d.create_pass(command_encoder, render_texture, gpu_grid.y, colour, "y", this.camera, thickness, depth);
+      for (const axis of AXES_2D) {
+        const grid_lines = gpu_grid[axis];
+        const params = this.graph_line_params[axis];
+        const thickness = 2.0/render_texture.size[axis];
+        params.view.colour.r = colour.r;
+        params.view.colour.g = colour.g;
+        params.view.colour.b = colour.b;
+        params.view.colour.a = colour.a;
+        params.view.depth = depth;
+        params.view.thickness = thickness;
+        params.write_to_gpu();
+        this.shader_render_lines_2d.create_pass(command_encoder, render_texture, grid_lines, axis, this.camera, params);
       }
     }
   }
