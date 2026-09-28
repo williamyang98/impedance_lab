@@ -140,7 +140,7 @@ fn vertex_main(
 
     let data_index = i + j*M.x + i32(params.z_slice)*Mxy;
     let data_value = data[data_index];
-    output.vertex_position = vec4f((camera*vertex_pos).xy, 0.0, 1.0);
+    output.vertex_position = vec4f((vertex_pos*camera).xy, 0.0, 1.0);
     output.data = data_value*params.scale;
 
     return output;

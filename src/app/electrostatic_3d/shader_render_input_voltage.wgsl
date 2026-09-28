@@ -82,7 +82,7 @@ fn vertex_main(
     let mask_offset: u32 = u32(data_index - mask_index*mask_total_bits);
     let mask_value: u32 = (mask[mask_index] >> mask_offset) & 0x01;
 
-    output.vertex_position = vec4f((camera*vertex_pos).xy, 0.0, 1.0);
+    output.vertex_position = vec4f((vertex_pos*camera).xy, 0.0, 1.0);
     output.data = data_value*params.scale;
     output.mask = f32(mask_value); // cast to float for fragment shader
 

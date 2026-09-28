@@ -113,7 +113,7 @@ fn vertex_main(
     );
 
     var output : VertexOut;
-    output.vertex_position = vec4f((camera*vertex_pos).xy, 0.0, 1.0);
+    output.vertex_position = vec4f((vertex_pos*camera).xy, 0.0, 1.0);
     output.magnitude = scale;
     return output;
 }

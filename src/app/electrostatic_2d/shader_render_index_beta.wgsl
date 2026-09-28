@@ -105,7 +105,7 @@ fn vertex_main(
     let beta: f32 = f32(data_index_beta & 0xFFFF) / f32(0xFFFF);
     let value = table[index];
 
-    output.vertex_position = vec4f((camera*vertex_pos).xy, 0.0, 1.0);
+    output.vertex_position = vec4f((vertex_pos*camera).xy, 0.0, 1.0);
     output.value = value;
     output.beta = beta;
     output.index = f32(index);

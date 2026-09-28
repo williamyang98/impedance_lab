@@ -83,7 +83,7 @@ fn vertex_main(
     vertex_pos.y = clamp(vertex_pos.y, y[0], y[Ny]);
 
     let value = get_e_mag(i,j);
-    output.vertex_position = vec4f((camera*vertex_pos).xy, 0.0, 1.0);
+    output.vertex_position = vec4f((vertex_pos*camera).xy, 0.0, 1.0);
     output.data = value*params.scale;
 
     return output;
