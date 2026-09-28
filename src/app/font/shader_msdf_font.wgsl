@@ -1,12 +1,8 @@
 struct Params {
     scale: f32,
-    zoom: f32,
     atlas_width: f32,
     atlas_height: f32,
     atlas_distance_range: f32,
-    _pad_0: u32,
-    _pad_1: u32,
-    _pad_2: u32,
 }
 
 struct AtlasCoord {
@@ -22,16 +18,14 @@ struct GlyphCoord {
     width: f32,
     height: f32,
     atlas_index: u32,
-    // _pad_0: u32,
-    // _pad_1: u32,
-    // _pad_2: u32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var atlas_sampler: sampler;
-@group(0) @binding(2) var atlas: texture_2d<f32>;
-@group(0) @binding(3) var<storage, read> atlas_coords: array<AtlasCoord>;
-@group(0) @binding(4) var<storage, read> glyph_coords: array<GlyphCoord>;
+@group(0) @binding(1) var<uniform> camera: mat3x3<f32>;
+@group(0) @binding(2) var atlas_sampler: sampler;
+@group(0) @binding(3) var atlas: texture_2d<f32>;
+@group(0) @binding(4) var<storage, read> atlas_coords: array<AtlasCoord>;
+@group(0) @binding(5) var<storage, read> glyph_coords: array<GlyphCoord>;
 
 struct VertexOut {
     @builtin(position) vertex_position : vec4f,
@@ -49,12 +43,12 @@ fn vertex_main(
     var output: VertexOut;
     let vertex_x = glyph_coord.x + glyph_coord.width*position.x;
     let vertex_y = glyph_coord.y + glyph_coord.height*position.y;
-    let vertex_pos = vec2f(vertex_x, vertex_y);
+    let vertex_pos = vec3f(vertex_x, vertex_y, 1.0);
 
     let atlas_x = atlas_coord.x + atlas_coord.width*position.x;
     let atlas_y = atlas_coord.y + atlas_coord.height*position.y;
 
-    output.vertex_position = vec4f(vertex_pos*params.zoom*2.0 - 1.0, 0.0, 1.0);
+    output.vertex_position = vec4f((vertex_pos*camera).xy, 0.0, 1.0);
     output.atlas_coord = vec2f(atlas_x, atlas_y);
     return output;
 }

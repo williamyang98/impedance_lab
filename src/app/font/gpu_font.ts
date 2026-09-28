@@ -1,3 +1,4 @@
+import * as cstruct from "../../utility/cstruct.ts";
 import { type Font, type Glyph } from "./msdf.ts";
 
 export interface GlyphInfo {
@@ -5,12 +6,17 @@ export interface GlyphInfo {
   glyph_index?: number;
 }
 
-interface GlyphCoord {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+const GlyphCoordSchema = cstruct.struct({
+  x: cstruct.primitive("f32"),
+  y: cstruct.primitive("f32"),
+  width: cstruct.primitive("f32"),
+  height: cstruct.primitive("f32"),
+});
+type GlyphCoord = cstruct.InferOutput<typeof GlyphCoordSchema>;
+const GlyphCoordLayout = GlyphCoordSchema.layout();
+const sizeof_glyph_coord = GlyphCoordLayout.size_bytes;
+const GlyphCoordArraySchema = cstruct.dynamic_array(GlyphCoordSchema);
+const GlyphCoordArrayLayout = GlyphCoordArraySchema.layout();
 
 export class GpuFont {
   device: GPUDevice;
@@ -76,29 +82,24 @@ export class GpuFont {
     }
 
     // glyph coords gpu buffer
-    const sizeof_f32 = 4;
-    const sizeof_glyph_coord = sizeof_f32*4;
-    const cpu_glyph_coords_buffer: Uint8Array<ArrayBuffer> = new Uint8Array(glyph_coords.length*sizeof_glyph_coord);
-    {
-      const view = new DataView(cpu_glyph_coords_buffer.buffer);
-      const is_little_endian = true;
-      let byte_offset = 0;
-      const push_f32 = (value: number) => {
-        view.setFloat32(byte_offset, value, is_little_endian);
-        byte_offset += sizeof_f32;
-      };
-      for (const coord of glyph_coords) {
-        push_f32(coord.x);
-        push_f32(coord.y);
-        push_f32(coord.width);
-        push_f32(coord.height);
+    const cpu_glyph_coords_buffer = new ArrayBuffer(glyph_coords.length*sizeof_glyph_coord);
+    const cpu_glyph_coords_view = GlyphCoordArrayLayout.array_buffer(cpu_glyph_coords_buffer).view;
+    for (let i = 0; i < glyph_coords.length; i++) {
+      const coord = glyph_coords[i];
+      const view = cpu_glyph_coords_view.get(i);
+      if (view === undefined) {
+        throw Error(`Coord index out of range in buffer view index=${i}`);
       }
+      view.x = coord.x;
+      view.y = coord.y;
+      view.width = coord.width;
+      view.height = coord.height;
     }
     const gpu_glyph_coords = device.createBuffer({
       size: cpu_glyph_coords_buffer.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    device.queue.writeBuffer(gpu_glyph_coords, 0, cpu_glyph_coords_buffer.buffer, 0, cpu_glyph_coords_buffer.byteLength);
+    device.queue.writeBuffer(gpu_glyph_coords, 0, cpu_glyph_coords_buffer, 0, cpu_glyph_coords_buffer.byteLength);
 
     this.device = device;
     this.font = font;

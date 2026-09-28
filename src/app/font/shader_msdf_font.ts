@@ -1,28 +1,23 @@
 import * as cstruct from "../../utility/cstruct.ts";
-import { type GpuRenderTexture, type GpuMesh, create_square_mesh } from "../../utility/gpu_common.ts";
+import { type GpuRenderTexture, type GpuMesh, GpuCamera2D, create_square_mesh } from "../../utility/gpu_common.ts";
 import { GlyphCoords } from "./glyph_coords.ts";
 import { GpuFont } from "./gpu_font.ts";
 import shader_wgsl from "./shader_msdf_font.wgsl?raw";
 
-const Params =
+export const Params =
   cstruct.struct({
     scale: cstruct.primitive("f32"),
-    zoom: cstruct.primitive("f32"),
     atlas_width: cstruct.primitive("f32"),
-    atlas_height: cstruct.primitive("f32"), // 16 bytes
-    atlas_distance_range: cstruct.primitive("f32"),
-    _pad_0: cstruct.primitive("u32"),
-    _pad_1: cstruct.primitive("u32"),
-    _pad_2: cstruct.primitive("u32"), // 32 bytes
+    atlas_height: cstruct.primitive("f32"),
+    atlas_distance_range: cstruct.primitive("f32"), // 16bytes
   })
   .layout()
   .gpu_buffer();
-type Params = InstanceType<typeof Params>;
+export type Params = InstanceType<typeof Params>;
 
 export class ShaderMsdfFont {
   label: string;
   device: GPUDevice;
-  params: Params;
   shader_source: string;
   shader_module: GPUShaderModule;
   bind_group_layout: GPUBindGroupLayout;
@@ -36,7 +31,6 @@ export class ShaderMsdfFont {
   constructor(device: GPUDevice) {
     this.device = device;
     this.label = "electrostatic_3d_shader";
-    this.params = new Params(device);
     this.shader_source = shader_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
@@ -45,10 +39,11 @@ export class ShaderMsdfFont {
     this.bind_group_layout = device.createBindGroupLayout({
       entries: [
         { binding: 0, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: "uniform" } },
-        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
-        { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: { viewDimension: "2d" } },
-        { binding: 3, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
+        { binding: 1, visibility: GPUShaderStage.VERTEX, buffer: { type: "uniform" } },
+        { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: "filtering" } },
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: { viewDimension: "2d" } },
         { binding: 4, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
+        { binding: 5, visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
       ],
     });
     this.pipeline_layout = device.createPipelineLayout({
@@ -107,21 +102,15 @@ export class ShaderMsdfFont {
   create_pass(
     command_encoder: GPUCommandEncoder,
     render_texture: GpuRenderTexture,
+    params: Params,
+    camera: GpuCamera2D,
     gpu_font: GpuFont,
     glyph_coords: GlyphCoords,
-    zoom: number, scale: number,
   ) {
-    if (glyph_coords.gpu === undefined) {
+    if (glyph_coords.buffer === undefined) {
       throw Error("Glyph coords has not been written to gpu buffer yet");
     }
 
-    const font = gpu_font.font;
-    this.params.view.zoom = zoom;
-    this.params.view.scale = scale;
-    this.params.view.atlas_width = font.layout.atlas.width;
-    this.params.view.atlas_height = font.layout.atlas.height;
-    this.params.view.atlas_distance_range = font.layout.atlas.distanceRange;
-    this.params.write_to_gpu();
     const total_instances = glyph_coords.length;
 
     const bind_gpu_buffer = (buffer: GPUBuffer) => {
@@ -131,11 +120,12 @@ export class ShaderMsdfFont {
     const bind_group = this.device.createBindGroup({
       layout: this.bind_group_layout,
       entries: [
-        { binding: 0, resource: bind_gpu_buffer(this.params.gpu_buffer) },
-        { binding: 1, resource: this.atlas_sampler },
-        { binding: 2, resource: gpu_font.atlas },
-        { binding: 3, resource: bind_gpu_buffer(gpu_font.glyph_coords) },
-        { binding: 4, resource: { buffer: glyph_coords.gpu, offset: 0, size: glyph_coords.byte_length } },
+        { binding: 0, resource: bind_gpu_buffer(params.gpu_buffer) },
+        { binding: 1, resource: bind_gpu_buffer(camera.gpu_buffer) },
+        { binding: 2, resource: this.atlas_sampler },
+        { binding: 3, resource: gpu_font.atlas },
+        { binding: 4, resource: bind_gpu_buffer(gpu_font.glyph_coords) },
+        { binding: 5, resource: bind_gpu_buffer(glyph_coords.buffer.gpu) },
       ],
     });
     const render_pass = command_encoder.beginRenderPass({

@@ -10,18 +10,6 @@ const gpu_device = providers.gpu_device.value;
 const renderer = new Renderer(gpu_device, font);
 const printer = renderer.printer;
 
-{
-  let font_size = 20;
-  printer.print("Lorem ipsum\n", font_size);
-  printer.print("The quick brown fox jumps over the lazy dog.\n", font_size);
-  printer.print("0123456789\n", font_size);
-
-  font_size = 10;
-  printer.print("ABCDEFGHIJKLMNOPQRSTUVWXYZ\n", font_size);
-  printer.print("abcdefghijklmnopqrstuvwxyz\n", font_size);
-  printer.print("~!@#$%^&*()_+`-=\\", font_size);
-}
-
 const canvas_element = useTemplateRef<HTMLCanvasElement>("field-canvas");
 const canvas_context = computed<GPUCanvasContext>(() => {
   const canvas = canvas_element.value;
@@ -37,8 +25,10 @@ const canvas_context = computed<GPUCanvasContext>(() => {
 
 const scale_db = ref<number>(0.0);
 const scale = computed(() => Math.pow(10, scale_db.value));
-const zoom_db = ref<number>(-2.4);
+const zoom_db = ref<number>(-2.0);
 const zoom = computed(() => Math.pow(10, zoom_db.value));
+const font_size = ref<number>(15);
+const text_input = ref<string>("Lorem ipsum");
 
 function update_display(command_encoder: GPUCommandEncoder) {
   // can't render to 0 sized canvas
@@ -61,6 +51,34 @@ const refresh = debounce_animation_frame_async(async () => {
   gpu_device.queue.submit([command_encoder.finish()]);
   await gpu_device.queue.onSubmittedWorkDone();
 });
+
+function print_test(is_refresh: boolean) {
+  let size = font_size.value;
+  printer.print("Lorem ipsum\n", size);
+  printer.print("The quick brown fox jumps over the lazy dog.\n", size);
+  printer.print("0123456789\n", size);
+
+  size *= 0.5;
+  printer.print("ABCDEFGHIJKLMNOPQRSTUVWXYZ\n", size);
+  printer.print("abcdefghijklmnopqrstuvwxyz\n", size);
+  printer.print("~!@#$%^&*()_+`-=\\\n", size);
+
+  if (is_refresh) {
+    refresh();
+  }
+}
+print_test(false);
+
+function append_text() {
+  printer.print(text_input.value + "\n", font_size.value);
+  text_input.value = "";
+  refresh();
+}
+
+function clear_text() {
+  printer.reset();
+  refresh();
+}
 
 watch(scale, () => { refresh(); });
 watch(zoom, () => { refresh(); });
@@ -91,7 +109,7 @@ defineExpose({
 </script>
 
 <template>
-<div class="w-full h-full grid grid-cols-1 sm:grid-cols-[auto_15rem] gap-x-2 gap-y-2">
+<div class="w-full h-[35rem] grid grid-cols-1 sm:grid-cols-[auto_15rem] gap-x-2 gap-y-2">
   <canvas ref="field-canvas" class="w-full h-full min-h-0 grid-view"></canvas>
   <form class="flex flex-col gap-y-2 w-full">
     <fieldset class="fieldset">
@@ -108,6 +126,23 @@ defineExpose({
       </legend>
       <input id="scale" type="range" class="range w-full" v-model.number="scale_db" min="-10" max="10" step="0.1"/>
     </fieldset>
+  </form>
+</div>
+<div class="w-full">
+  <form class="flex flex-col gap-y-2 w-full" @submit.prevent="append_text">
+    <fieldset class="fieldset">
+      <legend for="text_input" class="fieldset-legend">Text</legend>
+      <input id="text_input" type="text" class="input" v-model="text_input"/>
+    </fieldset>
+    <fieldset class="fieldset">
+      <legend for="font_size" class="fieldset-legend">Font Size</legend>
+      <input id="font_size" type="number" class="input" v-model.number="font_size" min="0" max="200" step="0.1"/>
+    </fieldset>
+    <div class="flex flex-row">
+      <button class="btn" type="submit">Print</button>
+      <button class="btn" @click="clear_text" type="button">Clear</button>
+      <button class="btn" @click="print_test(true)" type="button">Print Test</button>
+    </div>
   </form>
 </div>
 </template>
