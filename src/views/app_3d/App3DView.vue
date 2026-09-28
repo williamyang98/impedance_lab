@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, useTemplateRef, onMounted, onBeforeUnmount, reactive, watch } from "vue";
-import RendererView from "../../app/fdtd_3d/RendererView.vue";
+import RendererView from "../../app/ec_fdtd_3d/RendererView.vue";
 import TabsView from "../../components/TabsView.vue";
 import MeshViewer3D from "../../components/mesh_viewer/MeshViewer3D.vue";
-import { GpuEngine, SimulationSetup } from "../../app/fdtd_3d/grid.ts" ;
+import { GpuEngine, SimulationSetup } from "../../app/ec_fdtd_3d/grid.ts" ;
 import { providers } from "../../providers/providers.ts";
 import {
   create_single_ended_setup,

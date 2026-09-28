@@ -1,6 +1,6 @@
-import { SimulationSetup } from "../../app/fdtd_3d/grid.ts";
+import { SimulationSetup } from "../../app/ec_fdtd_3d/grid.ts";
 import { type GridBuilderConfig } from "../../app/electrostatic_3d/grid_builder.ts";
-import { type Region, GridBuilder } from "../../app/fdtd_3d/grid_builder.ts";
+import { type Region, GridBuilder } from "../../app/ec_fdtd_3d/grid_builder.ts";
 import { Profiler } from "../../utility/profiler.ts";
 import { AXES_3D, type Vec3 } from "../../utility/dim_types.ts";
 
@@ -155,6 +155,7 @@ export function create_single_ended_setup_vargrid(
         end: { x: terminator_thickness/2, y: trace_width/2, z: dielectric_height },
         config: {},
       },
+      direction: "z",
     },
   ];
 
@@ -167,7 +168,7 @@ export function create_single_ended_setup_vargrid(
   setup.source_values = signals;
   setup.maximum_steps = 8192;
   setup.cpu.calculate_minimum_timestep();
-  setup.cpu.bake_materials();
+  setup.cpu.bake_cell_materials();
 
   return grid_builder;
 }
@@ -236,6 +237,7 @@ export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice
     current_id: 0,
     offset: { z: z_start+plane_height, y: Math.floor(Ny/2-signal_width/2), x: Math.floor(Nx/2) },
     size: { z: separation_height, y: signal_width, x: 1 },
+    direction: "z",
   });
 
   // terminator resistors
@@ -254,7 +256,7 @@ export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice
       .fill(sigma);
   }
   cpu.calculate_minimum_timestep();
-  cpu.bake_materials();
+  cpu.bake_cell_materials();
   setup.maximum_steps = 8192;
 
   return setup;
@@ -318,11 +320,13 @@ export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice
     current_id: 0,
     offset: { z: z_start+plane_height, y: Math.floor(Ny/2-signal_spacing/2-signal_width), x: Math.floor(Nx/2) },
     size: { z: separation_height, y: signal_width, x: 1 },
+    direction: "z",
   });
   setup.sources.push({
     current_id: 1,
     offset: { z: z_start+plane_height, y: Math.floor(Ny/2+signal_spacing/2), x: Math.floor(Nx/2) },
     size: { z: separation_height, y: signal_width, x: 1 },
+    direction: "z",
   });
   setup.maximum_steps = 8192;
 
@@ -344,7 +348,7 @@ export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice
     add_terminator(Nx-plane_border-terminator_thickness, Math.floor(Ny/2+signal_spacing/2));
   }
   cpu.calculate_minimum_timestep();
-  cpu.bake_materials();
+  cpu.bake_cell_materials();
 
   return setup;
 };
