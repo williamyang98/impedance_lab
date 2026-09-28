@@ -1,6 +1,6 @@
 import type { Axis3D, Vec3 } from "../../utility/dim_types.ts";
 import { Ndarray } from "../../utility/ndarray.ts";
-import { KernelApplyCurrentSource } from "./kernel_apply_current_source.ts";
+import { KernelApplyCurrentSource, Params as CurrentSourceParams } from "./kernel_apply_current_source.ts";
 import { KernelUpdateVoltage } from "./kernel_update_voltage.ts";
 import { KernelUpdateCurrent } from "./kernel_update_current.ts";
 import { NdGpuArray } from "../../utility/gpu_common.ts";
@@ -515,6 +515,7 @@ export class GpuEngine {
   kernel_apply_current_source: KernelApplyCurrentSource;
   kernel_update_voltage: KernelUpdateVoltage;
   kernel_update_current: KernelUpdateCurrent;
+  current_source_params: CurrentSourceParams[];
 
   constructor(adapter: GPUAdapter, device: GPUDevice) {
     this.adapter = adapter;
@@ -524,27 +525,44 @@ export class GpuEngine {
     this.kernel_apply_current_source = new KernelApplyCurrentSource(source_workgroup_size, device);
     this.kernel_update_voltage = new KernelUpdateVoltage(grid_workgroup_size, device);
     this.kernel_update_current = new KernelUpdateCurrent(grid_workgroup_size, device);
+    this.current_source_params = [];
   }
 
   step_fdtd(setup: SimulationSetup) {
     const sources = setup.sources;
     const gpu = setup.gpu;
     setup.timer.trigger();
-    for (const source of sources) {
+
+    const command_encoder = this.device.createCommandEncoder();
+    for (let i = 0; i < sources.length; i++) {
+      const source = sources[i];
       const values = setup.source_values[source.current_id];
       if (values === undefined) continue;
       const value = values.at(setup.current_step);
       if (value === undefined) continue;
 
-      // FIXME: we cannot reuse the uniform buffer for each pass since it just references the same uniform buffer
-      //        this has the unintended consequence of writing to the very last location for all the sources
-      //        we can allocate a new uniform buffer for each unique pass that is used by each source
-      const command_encoder = this.device.createCommandEncoder();
-      this.kernel_apply_current_source.create_pass(command_encoder, gpu.V, gpu.bake_beta, value, source.direction, gpu.size, source.offset, source.size);
-      this.device.queue.submit([command_encoder.finish()]);
-    }
+      let source_params = this.current_source_params.at(i);
+      if (source_params === undefined) {
+        source_params = new CurrentSourceParams(this.device);
+        this.current_source_params.push(source_params);
+      }
 
-    const command_encoder = this.device.createCommandEncoder();
+      const V = gpu.V[source.direction];
+      const beta = gpu.bake_beta[source.direction];
+      source_params.view.data_size.x = V.shape[2];
+      source_params.view.data_size.y = V.shape[1];
+      source_params.view.data_size.z = V.shape[0];
+      source_params.view.source_offset.x = source.offset.x;
+      source_params.view.source_offset.y = source.offset.y;
+      source_params.view.source_offset.z = source.offset.z;
+      source_params.view.source_size.x = source.size.x;
+      source_params.view.source_size.y = source.size.y;
+      source_params.view.source_size.z = source.size.z;
+      source_params.view.i_source = value;
+      source_params.write_to_gpu();
+
+      this.kernel_apply_current_source.create_pass(command_encoder, V, beta, source_params);
+    }
     this.kernel_update_voltage.create_pass(command_encoder, gpu.V, gpu.I, gpu.bake_alpha, gpu.bake_beta, gpu.size);
     this.kernel_update_current.create_pass(command_encoder, gpu.I, gpu.V, gpu.bake_phi, gpu.size);
     this.device.queue.submit([command_encoder.finish()]);
