@@ -181,10 +181,10 @@ fn fragment_main(vertex: VertexOut) -> @location(0) vec4f {
         colour = vec4(rgb, alpha);
     } else if (colour_mode == COLOUR_MODE_INVERSE_POSITIVE) {
         let alpha = max(1.0 - value, 0.0); // higher means less visible
-        // const pos_colour = vec4<f32>(0.0, 1.0, 0.0, 1.0);
-        // let beta = clamp(value, 0, 1);
-        // let rgb = mix(params.mask_colour, pos_colour, beta).rgb;
-        colour = vec4(params.mask_colour.rgb, alpha);
+        const pos_colour = vec4<f32>(0.0, 1.0, 0.0, 1.0);
+        let beta = clamp(value, 0, 1);
+        let rgb = mix(pos_colour, params.mask_colour, beta).rgb;
+        colour = vec4(rgb, alpha);
     } else if (colour_mode == COLOUR_MODE_POSITIVE) {
         const pos_colour = vec4<f32>(0.0, 1.0, 0.0, 1.0);
         let alpha = clamp(value, 0, 1);

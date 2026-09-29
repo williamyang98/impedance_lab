@@ -2,7 +2,7 @@ import { KernelCalculateResidual } from './kernel_residual.ts';
 import { KernelJacobiSmooth } from './kernel_jacobi_smooth.ts';
 import { Ndarray, type NdarrayType } from '../../utility/ndarray.ts';
 import { type Vec3 } from '../../utility/dim_types';
-import { NdGpuArray } from '../../utility/gpu_common.ts';
+import { NdGpuArray, read_gpu_buffer_through_readback } from '../../utility/gpu_common.ts';
 
 type Size3D = Vec3<number>;
 
@@ -125,35 +125,8 @@ export class GpuGrid {
   }
 
   async to_cpu(cpu: CpuGrid) {
-    const read_buffer = async (gpu: NdGpuArray, cpu: Ndarray) => {
-      if (gpu.dtype !== cpu.dtype) {
-        throw Error(`Mismatch between dtypes with cpu=${cpu.dtype} and gpu=${gpu.dtype}`);
-      }
-      function is_shape_equal(s0: number[], s1: number[]) {
-        if (s0.length !== s1.length) return false;
-        for (let i = 0; i < s0.length; i++) {
-          if (s0[i] !== s1[i]) return false;
-        }
-        return true;
-      }
-      if (!is_shape_equal(cpu.shape, gpu.shape)) {
-        throw Error(`Mismatch between shapes with cpu=[${cpu.shape.join(',')}] and gpu=[${gpu.shape.join(',')}]`);
-      }
-      const total_bytes = gpu.data.size;
-      // copy to readback buffer
-      const command_encoder = this.device.createCommandEncoder();
-      command_encoder.copyBufferToBuffer(gpu.data, 0, this.readback, 0, total_bytes);
-      this.device.queue.submit([command_encoder.finish()]);
-      // map readback to cpu buffer
-      await this.readback.mapAsync(GPUMapMode.READ);
-      const mapped_view = this.readback.getMappedRange();
-      const dst_view = new Uint8Array(cpu.data.buffer, 0, total_bytes);
-      const src_view = new Uint8Array(mapped_view, 0, total_bytes);
-      dst_view.set(src_view);
-      this.readback.unmap();
-    };
-    await read_buffer(this.v_in, cpu.v);
-    await read_buffer(this.r, cpu.r);
+    await read_gpu_buffer_through_readback(this.v_in, cpu.v, this.readback);
+    await read_gpu_buffer_through_readback(this.r, cpu.r, this.readback);
   }
 }
 

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, useTemplateRef, onMounted, onBeforeUnmount, reactive, watch } from "vue";
+import { ref, computed, useTemplateRef, onMounted, onBeforeUnmount, watch } from "vue";
 import RendererView from "../../app/ec_fdtd_3d/RendererView.vue";
 import TabsView from "../../components/TabsView.vue";
 import MeshViewer3D from "../../components/mesh_viewer/MeshViewer3D.vue";
-import { GpuEngine, SimulationSetup } from "../../app/ec_fdtd_3d/grid.ts" ;
+import { GpuEngine, SimulationSetup } from "../../app/ec_fdtd_3d/engine.ts" ;
 import { providers } from "../../providers/providers.ts";
 import {
   create_single_ended_setup,
@@ -11,50 +11,72 @@ import {
   create_single_ended_setup_vargrid,
 } from "./app_3d.ts";
 import { with_standard_suffix } from "../../utility/standard_suffix.ts";
+import { GridBuilder } from "../../app/ec_fdtd_3d/grid_builder.ts";
 
 const gpu_device = providers.gpu_device.value;
 const gpu_adapter = providers.gpu_adapter.value;
+const gpu_engine = new GpuEngine(gpu_adapter, gpu_device);
 
-const setups = reactive({
-  single_ended: create_single_ended_setup(gpu_adapter, gpu_device),
-  differential: create_differential_setup(gpu_adapter, gpu_device),
-  single_ended_vargrid: create_single_ended_setup_vargrid(gpu_adapter, gpu_device),
-});
+interface Setups {
+  single_ended: SimulationSetup;
+  differential: SimulationSetup;
+  single_ended_vargrid: GridBuilder;
+}
+type SetupType = keyof Setups;
+async function create_setups(gpu_engine: GpuEngine) {
+  return {
+    single_ended: await create_single_ended_setup(gpu_engine),
+    differential: await create_differential_setup(gpu_engine),
+    single_ended_vargrid: await create_single_ended_setup_vargrid(gpu_engine),
+  };
+}
 
-type SetupType = keyof typeof setups;
+const setups = ref<Setups | undefined>(undefined);
+
 const selected_setup = ref<SetupType>("single_ended_vargrid");
 const setup = computed(() => {
+  if (setups.value === undefined) return undefined;
   if (selected_setup.value === "single_ended_vargrid") {
-    return setups.single_ended_vargrid.setup;
+    return setups.value.single_ended_vargrid.setup;
   }
-  return setups[selected_setup.value];
+  return setups.value[selected_setup.value];
 });
 const mesh = computed(() => {
   if (selected_setup.value !== "single_ended_vargrid") return undefined;
-  return setups.single_ended_vargrid.mesh_lines;
+  if (setups.value === undefined) return undefined;
+  return setups.value.single_ended_vargrid.mesh_lines;
 });
 const total_cells = computed(() => {
+  if (setup.value === undefined) return undefined;
   const size = setup.value.size;
   return size.x*size.y*size.z;
 });
-
-const gpu_engine = new GpuEngine(gpu_adapter, gpu_device);
 
 const tick_promise = ref<Promise<void> | undefined>(undefined);
 const display_rate: number = 128;
 
 const step_rate = computed(() => {
+  if (setup.value === undefined) return undefined;
   if (setup.value.timer.elapsed_seconds === undefined) return undefined;
   const dt = Math.max(setup.value.timer.elapsed_seconds, 1e-6);
   return setup.value.current_step / dt;
 });
 const cell_rate = computed(() => {
+  if (setup.value === undefined) return undefined;
+  if (total_cells.value === undefined) return undefined;
   if (setup.value.timer.elapsed_seconds === undefined) return undefined;
   const dt = Math.max(setup.value.timer.elapsed_seconds, 1e-6);
   return setup.value.current_step*total_cells.value/dt;
 });
 const is_running = computed(() => tick_promise.value !== undefined);
-const progress_percentage = computed(() => setup.value.current_step/setup.value.maximum_steps*100);
+const is_finished = computed(() => {
+  if (setup.value === undefined) return true;
+  return setup.value.current_step === setup.value.maximum_steps;
+});
+const progress_percentage = computed(() => {
+  if (setup.value === undefined) return 0;
+  return setup.value.current_step/setup.value.maximum_steps*100;
+});
 
 const viewer_3d_elem = useTemplateRef<typeof RendererView>("viewer_3d");
 async function refresh_display() {
@@ -71,6 +93,7 @@ function sleep(millis: number) {
 }
 
 async function simulation_loop() {
+  if (setup.value === undefined) return;
   const update_stride = 32;
   for (let i = 0; i < update_stride; i++) {
     const curr_step = setup.value.current_step;
@@ -97,18 +120,14 @@ async function stop_loop() {
   await promise;
 }
 
-async function start_loop() {
-  await stop_loop();
-  setup.value.reset();
-  tick_promise.value = simulation_loop();
-}
-
-async function resume_loop() {
+async function play_loop() {
+  if (setup.value === undefined) return;
   await stop_loop();
   tick_promise.value = simulation_loop();
 }
 
 async function tick_loop() {
+  if (setup.value === undefined) return;
   const curr_step = setup.value.current_step;
   const max_steps = setup.value.maximum_steps;
   if (curr_step >= max_steps) return;
@@ -117,8 +136,22 @@ async function tick_loop() {
   await refresh_display();
 }
 
+async function reset() {
+  if (setup.value === undefined) return;
+  await stop_loop();
+  gpu_engine.reset_voltage_current(setup.value);
+  await refresh_display();
+}
+
+async function reset_and_play() {
+  if (setup.value === undefined) return;
+  await stop_loop();
+  gpu_engine.reset_voltage_current(setup.value);
+  tick_promise.value = simulation_loop();
+}
+
 async function init_setup(setup: SimulationSetup) {
-  setup.reset();
+  gpu_engine.reset_voltage_current(setup);
   const viewer_3d = viewer_3d_elem.value;
   if (viewer_3d !== null) {
     viewer_3d.set_grid(setup.gpu);
@@ -132,8 +165,17 @@ async function init_setup(setup: SimulationSetup) {
   await refresh_display();
 }
 
-onMounted(async () => { await init_setup(setup.value); });
-watch(setup, async (setup) => { await init_setup(setup); });
+onMounted(async () => {
+  setups.value = await create_setups(gpu_engine);
+  if (setup.value !== undefined) {
+    await init_setup(setup.value);
+  }
+});
+watch(setup, async (setup) => {
+  if (setup !== undefined) {
+    await init_setup(setup);
+  }
+});
 
 onBeforeUnmount(() => {
   void stop_loop();
@@ -153,21 +195,24 @@ onBeforeUnmount(() => {
         class="rounded-sm h-full bg-green-400 text-center"
         :style="{ width: `${progress_percentage.toFixed(2)}%` }"
       >
-        <span class="align-middle px-2 font-medium">{{ setup.current_step }}/{{ setup.maximum_steps }}</span>
+        <span v-if="setup" class="align-middle px-2 font-medium">{{ setup.current_step }}/{{ setup.maximum_steps }}</span>
+        <span v-else>Constructing setup ...</span>
       </div>
     </div>
     <div class="flex flex-row gap-x-1">
-      <button class="btn" @click="start_loop()" :disabled="is_running">Restart</button>
-      <button class="btn" @click="resume_loop()" v-if="!is_running">Resume</button>
-      <button class="btn" @click="stop_loop()" v-if="is_running">Pause</button>
-      <button class="btn" @click="tick_loop()" :disabled="is_running">Tick</button>
+      <button class="btn btn-error" @click="reset()" :disabled="is_running">Reset</button>
+      <button v-if="!is_running && !is_finished" class="btn btn-success" @click="play_loop()">Play</button>
+      <button v-else-if="!is_finished" class="btn btn-warning" @click="stop_loop">Stop</button>
+      <button v-else class="btn btn-error" @click="reset_and_play">Restart</button>
+      <button class="btn" @click="tick_loop()" :disabled="is_running || is_finished">Tick</button>
+
       <select class="select" v-model="selected_setup">
         <option :value="'single_ended'">Single Ended</option>
         <option :value="'differential'">Differential</option>
         <option :value="'single_ended_vargrid'">Single Ended Vargrid</option>
       </select>
     </div>
-    <div>
+    <div v-if="setup">
       <table class="table table-compact">
         <tbody>
           <tr>

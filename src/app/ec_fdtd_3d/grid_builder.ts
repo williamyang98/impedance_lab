@@ -3,7 +3,7 @@ import { generate_region_mesh_segments, RegionToGridMap, type RegionSpecificatio
 import { type GridBuilderConfig } from "../electrostatic_3d/grid_builder.ts";
 import { type Vec3, type Axis3D, type Bound, AXES_3D, map_axes_to_vec3 } from "../../utility/dim_types.ts";
 import { Profiler } from "../../utility/profiler.ts";
-import { SimulationSetup } from "./grid.ts";
+import { SimulationSetup } from "./engine.ts";
 import type { MeshLines } from "../../components/mesh_viewer/mesh_lines.ts";
 
 type Position3D = Vec3<number>;
@@ -588,7 +588,6 @@ export class GridBuilder {
     for (const fill of this.sdf_regions) {
       this.setup_fill_sdf_region(fill);
     }
-    this.setup.cpu.bake_cell_materials();
     this.profiler?.end();
   }
 

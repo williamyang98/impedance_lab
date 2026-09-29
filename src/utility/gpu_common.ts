@@ -1,4 +1,4 @@
-import { get_dtype_size, type NdarrayType } from "../utility/ndarray.ts";
+import { get_dtype_size, Ndarray, type NdarrayType } from "../utility/ndarray.ts";
 import { type Vec2 } from "../utility/dim_types";
 import * as cstruct from "../utility/cstruct.ts";
 
@@ -160,6 +160,7 @@ export function create_arrow_mesh(device: GPUDevice, config: ArrowConfig): GpuMe
 }
 
 export class NdGpuArray {
+  device: GPUDevice;
   data: GPUBuffer;
   dtype: NdarrayType;
   shape: number[];
@@ -172,8 +173,49 @@ export class NdGpuArray {
       size: byte_length,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
+    this.device = device;
     this.data = data;
     this.dtype = dtype;
     this.shape = shape;
   }
+}
+
+export async function read_gpu_buffer_through_readback(gpu: NdGpuArray, cpu: Ndarray, readback_buffer: GPUBuffer) {
+  const required_usage_flags = GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ;
+  const provided_usage_flags = readback_buffer.usage & required_usage_flags;
+  if (provided_usage_flags !== required_usage_flags) {
+    throw Error(`Expected readback buffer to have usage flags ${required_usage_flags} but got ${provided_usage_flags}`);
+  }
+
+  const device = gpu.device;
+  if (gpu.dtype !== cpu.dtype) {
+    throw Error(`Mismatch between dtypes with cpu=${cpu.dtype} and gpu=${gpu.dtype}`);
+  }
+  function is_shape_equal(s0: number[], s1: number[]) {
+    if (s0.length !== s1.length) return false;
+    for (let i = 0; i < s0.length; i++) {
+      if (s0[i] !== s1[i]) return false;
+    }
+    return true;
+  }
+  if (!is_shape_equal(cpu.shape, gpu.shape)) {
+    throw Error(`Mismatch between shapes with cpu=[${cpu.shape.join(',')}] and gpu=[${gpu.shape.join(',')}]`);
+  }
+
+  const total_bytes = gpu.data.size;
+  if (readback_buffer.size < total_bytes) {
+    throw Error(`Readback buffer of size ${readback_buffer.size} bytes is too small to copy gpu buffer of sise ${total_bytes}`);
+  }
+
+  // copy to readback buffer
+  const command_encoder = device.createCommandEncoder();
+  command_encoder.copyBufferToBuffer(gpu.data, 0, readback_buffer, 0, total_bytes);
+  device.queue.submit([command_encoder.finish()]);
+  // map readback to cpu buffer
+  await readback_buffer.mapAsync(GPUMapMode.READ);
+  const mapped_view = readback_buffer.getMappedRange();
+  const dst_view = new Uint8Array(cpu.data.buffer, 0, total_bytes);
+  const src_view = new Uint8Array(mapped_view, 0, total_bytes);
+  dst_view.set(src_view);
+  readback_buffer.unmap();
 }

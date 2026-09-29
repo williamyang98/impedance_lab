@@ -1,4 +1,4 @@
-import { SimulationSetup } from "../../app/ec_fdtd_3d/grid.ts";
+import { SimulationSetup, GpuEngine } from "../../app/ec_fdtd_3d/engine.ts";
 import { type GridBuilderConfig } from "../../app/electrostatic_3d/grid_builder.ts";
 import { type Region, GridBuilder } from "../../app/ec_fdtd_3d/grid_builder.ts";
 import { Profiler } from "../../utility/profiler.ts";
@@ -35,10 +35,13 @@ function create_sinc_pulse(period: number): number[] {
   return values;
 }
 
-export function create_single_ended_setup_vargrid(
-  gpu_adapter: GPUAdapter, gpu_device: GPUDevice,
+export async function create_single_ended_setup_vargrid(
+  gpu_engine: GpuEngine,
   profiler?: Profiler
-): GridBuilder {
+): Promise<GridBuilder> {
+  const gpu_adapter = gpu_engine.adapter;
+  const gpu_device = gpu_engine.device;
+
   const plane_thickness = 0.035e-3;
   const dielectric_height = 0.25e-3;
   const trace_width = 0.3e-3;
@@ -168,8 +171,8 @@ export function create_single_ended_setup_vargrid(
   setup.source_values = signals;
   setup.maximum_steps = 8192;
   setup.cpu.calculate_minimum_timestep();
-  setup.cpu.bake_cell_materials();
 
+  await gpu_engine.bake_cell_materials(setup);
   return grid_builder;
 }
 
@@ -188,9 +191,12 @@ function generate_grid_lines_from_spacings(setup: SimulationSetup) {
   }
 }
 
-export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice): SimulationSetup {
+export async function create_single_ended_setup(gpu_engine: GpuEngine): Promise<SimulationSetup> {
+  const gpu_adapter = gpu_engine.adapter;
+  const gpu_device = gpu_engine.device;
+
   const size: Size3D = { x: 256, y: 128, z: 16 };
-  const setup = new SimulationSetup(adapter, device, size);
+  const setup = new SimulationSetup(gpu_adapter, gpu_device, size);
   const cpu = setup.cpu;
 
   const { x: Nx, y: Ny, z: Nz } = size;
@@ -256,15 +262,18 @@ export function create_single_ended_setup(adapter: GPUAdapter, device: GPUDevice
       .fill(sigma);
   }
   cpu.calculate_minimum_timestep();
-  cpu.bake_cell_materials();
   setup.maximum_steps = 8192;
+  await gpu_engine.bake_cell_materials(setup);
 
   return setup;
 }
 
-export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice): SimulationSetup {
+export async function create_differential_setup(gpu_engine: GpuEngine): Promise<SimulationSetup> {
+  const gpu_adapter = gpu_engine.adapter;
+  const gpu_device = gpu_engine.device;
+
   const size: Size3D = { x: 256, y: 128, z: 16 };
-  const setup = new SimulationSetup(adapter, device, size);
+  const setup = new SimulationSetup(gpu_adapter, gpu_device, size);
   const cpu = setup.cpu;
 
   const { x: Nx, y: Ny, z: Nz } = size;
@@ -328,7 +337,6 @@ export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice
     size: { z: separation_height, y: signal_width, x: 1 },
     direction: "z",
   });
-  setup.maximum_steps = 8192;
 
   // terminator resistors
   {
@@ -348,7 +356,9 @@ export function create_differential_setup(adapter: GPUAdapter, device: GPUDevice
     add_terminator(Nx-plane_border-terminator_thickness, Math.floor(Ny/2+signal_spacing/2));
   }
   cpu.calculate_minimum_timestep();
-  cpu.bake_cell_materials();
+
+  setup.maximum_steps = 8192;
+  await gpu_engine.bake_cell_materials(setup);
 
   return setup;
 };
