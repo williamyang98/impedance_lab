@@ -1,90 +1,15 @@
 import * as cstruct from "../../utility/cstruct.ts";
 import { type Axis3D } from "../../utility/dim_types.ts";
-import { type GpuRenderTexture, type GpuMesh, create_square_mesh, GpuCamera2D, NdGpuArray } from "../../utility/gpu_common.ts";
+import { type GpuRenderTexture, type GpuMesh, create_square_mesh, GpuCamera2D } from "../../utility/gpu_common.ts";
 import { GpuGrid } from "./grid.ts";
-import shader_render_component_wgsl from "./shader_render_component.wgsl?raw";
+import shader_render_edge_current_wgsl from "./shader_render_edge_current.wgsl?raw";
 
-type ComponentMode =
-  { type: "edge" | "face", axis: Axis3D } |
-  { type: "cell" };
 
-type ColourMode = "positive_negative" | "inverse_positive" | "positive";
-
-export type DataMode =
-  { type: "V" | "I" | "R" | "C" | "L" | "alpha" | "beta" | "phi", axis: Axis3D } |
-  { type: "epsilon_r" | "mu_r" | "sigma_k" };
-
-function component_mode_to_enum_value(mode: ComponentMode): number {
-  const get_axis_value = (axis: Axis3D): number => {
-    switch (axis) {
-    case "x": return 0;
-    case "y": return 1;
-    case "z": return 2;
-    }
-  }
-  switch (mode.type) {
-  case "edge": return get_axis_value(mode.axis) + 0;
-  case "face": return get_axis_value(mode.axis) + 3;
-  case "cell": return 6;
-  }
-}
-
-function colour_mode_to_enum_value(mode: ColourMode): number {
-  switch (mode) {
-  case "positive_negative": return 0;
-  case "inverse_positive": return 1;
-  case "positive": return 2;
-  }
-}
-
-function data_mode_to_component_mode(mode: DataMode): ComponentMode {
-  const get_component = (type: "edge" | "face", axis: Axis3D) => {
-    return { type, axis };
-  };
-  switch (mode.type) {
-  case "V": return get_component("edge", mode.axis);
-  case "I": return get_component("face", mode.axis);
-  case "R": return get_component("edge", mode.axis);
-  case "C": return get_component("edge", mode.axis);
-  case "L": return get_component("face", mode.axis);
-  case "alpha": return get_component("edge", mode.axis);
-  case "beta": return get_component("edge", mode.axis);
-  case "phi": return get_component("face", mode.axis);
-  case "epsilon_r": return { type: "cell" };
-  case "mu_r": return { type: "cell" };
-  case "sigma_k": return { type: "cell" };
-  }
-}
-
-function data_mode_to_colour_mode(mode: DataMode): ColourMode {
-  switch (mode.type) {
-  case "V": return "positive_negative";
-  case "I": return "positive_negative";
-  case "R": return "inverse_positive";
-  case "C": return "positive";
-  case "L": return "positive";
-  case "alpha": return "positive";
-  case "beta": return "positive";
-  case "phi": return "positive";
-  case "epsilon_r": return "positive";
-  case "mu_r": return "positive";
-  case "sigma_k": return "positive";
-  }
-}
-
-function get_data_from_grid(grid: GpuGrid, mode: DataMode): NdGpuArray {
-  switch (mode.type) {
-  case "V": return grid.V[mode.axis];
-  case "I": return grid.I[mode.axis];
-  case "R": return grid.bake_R[mode.axis];
-  case "C": return grid.bake_C[mode.axis];
-  case "L": return grid.bake_L[mode.axis];
-  case "alpha": return grid.bake_alpha[mode.axis];
-  case "beta": return grid.bake_beta[mode.axis];
-  case "phi": return grid.bake_phi[mode.axis];
-  case "epsilon_r": return grid.epsilon_r;
-  case "mu_r": return grid.mu_r;
-  case "sigma_k": return grid.sigma_k;
+function axis_mode_to_enum_value(axis_mode: Axis3D): number {
+  switch (axis_mode) {
+  case "x": return 0;
+  case "y": return 1;
+  case "z": return 2;
   }
 }
 
@@ -103,7 +28,7 @@ const Params =
   .gpu_buffer();
 type Params = InstanceType<typeof Params>;
 
-export class ShaderRenderComponent {
+export class ShaderRenderEdgeCurrent {
   label: string;
   device: GPUDevice;
   params: Params;
@@ -118,9 +43,9 @@ export class ShaderRenderComponent {
 
   constructor(device: GPUDevice) {
     this.device = device;
-    this.label = "electrostatic_3d_shader";
+    this.label = "shader_render_edge_current";
     this.params = new Params(device);
-    this.shader_source = shader_render_component_wgsl;
+    this.shader_source = shader_render_edge_current_wgsl;
     this.shader_module = device.createShaderModule({
       code: this.shader_source,
     });
@@ -132,6 +57,8 @@ export class ShaderRenderComponent {
         { binding: 2, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
         { binding: 3, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
         { binding: 4, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
+        { binding: 5, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
+        { binding: 6, visibility: GPUShaderStage.VERTEX, buffer: { type: "read-only-storage" } },
       ],
     });
     this.pipeline_layout = device.createPipelineLayout({
@@ -141,14 +68,8 @@ export class ShaderRenderComponent {
     this.mask_colour = { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
   }
 
-  get_render_pipeline(data_mode: DataMode): GPURenderPipeline {
-    const component_mode = data_mode_to_component_mode(data_mode);
-    const colour_mode = data_mode_to_colour_mode(data_mode);
-    const component_mode_to_string = () => {
-      if (component_mode.type === "cell") return "cell";
-      return `${component_mode.type}_${component_mode.axis}`;
-    };
-    const key = `${component_mode_to_string()}_${colour_mode}`;
+  get_render_pipeline(axis_mode: Axis3D): GPURenderPipeline {
+    const key = axis_mode;
     let pipeline = this.render_pipelines.get(key);
     if (pipeline !== undefined) return pipeline;
     pipeline = this.device.createRenderPipeline({
@@ -157,15 +78,12 @@ export class ShaderRenderComponent {
         entryPoint: "vertex_main",
         buffers: [this.mesh.vertex_buffer_layout],
         constants: {
-          "component_mode": component_mode_to_enum_value(component_mode),
+          "axis_mode": axis_mode_to_enum_value(axis_mode),
         }
       },
       fragment: {
         module: this.shader_module,
         entryPoint: "fragment_main",
-        constants: {
-          "colour_mode": colour_mode_to_enum_value(colour_mode),
-        },
         targets: [
           {
             // we are output to canvas texture
@@ -201,7 +119,7 @@ export class ShaderRenderComponent {
     render_texture: GpuRenderTexture,
     grid: GpuGrid,
     camera: GpuCamera2D,
-    data_mode: DataMode,
+    axis_mode: Axis3D,
     z_slice: number,
     scale: number,
   ) {
@@ -223,7 +141,7 @@ export class ShaderRenderComponent {
     this.params.view.value_max = MAX_RANGE;
     this.params.write_to_gpu();
 
-    const data = get_data_from_grid(grid, data_mode);
+    const data = grid.V[axis_mode]; // edge matrix
     const total_instances = data.shape[1]*data.shape[2];
     const bind_gpu_buffer = (buffer: GPUBuffer) => {
       return { buffer: buffer, offset: 0, size: buffer.size };
@@ -236,10 +154,12 @@ export class ShaderRenderComponent {
         { binding: 1, resource: bind_gpu_buffer(camera.gpu_buffer) },
         { binding: 2, resource: bind_gpu_buffer(grid.grid_lines.x.data) },
         { binding: 3, resource: bind_gpu_buffer(grid.grid_lines.y.data) },
-        { binding: 4, resource: bind_gpu_buffer(data.data) },
+        { binding: 4, resource: bind_gpu_buffer(grid.I.x.data) },
+        { binding: 5, resource: bind_gpu_buffer(grid.I.y.data) },
+        { binding: 6, resource: bind_gpu_buffer(grid.I.z.data) },
       ],
     });
-    const pipeline = this.get_render_pipeline(data_mode);
+    const pipeline = this.get_render_pipeline(axis_mode);
     const render_pass = command_encoder.beginRenderPass({
       colorAttachments: [
         {

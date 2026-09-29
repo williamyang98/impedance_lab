@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { Renderer } from "./renderer.ts";
+import { Renderer, get_data_shape_from_render_mode, type RenderMode } from "./renderer.ts";
 import { GpuGrid } from "./grid.ts";
 import { providers } from "../../providers/providers.ts";
 import { ref, watch, computed, useTemplateRef } from "vue";
-import { get_data_from_grid, type DataMode } from "./shader_render_component.ts";
 import { debounce_animation_frame_async } from "../../utility/debounce.ts";
 import { type Axis3D } from "../../utility/dim_types.ts";
 
@@ -12,9 +11,9 @@ const gpu_adapter = providers.gpu_adapter.value;
 const gpu_renderer = new Renderer(gpu_adapter, gpu_device);
 
 const axis_mode = ref<Axis3D>("z");
-const field_mode = ref<DataMode["type"]>("V");
-const data_mode = computed<DataMode>((): DataMode => {
-  switch (field_mode.value) {
+const render_mode_type = ref<RenderMode["type"]>("V");
+const render_mode = computed<RenderMode>((): RenderMode => {
+  switch (render_mode_type.value) {
     case "V": // @fallthrough
     case "I": // @fallthrough
     case "R": // @fallthrough
@@ -22,18 +21,19 @@ const data_mode = computed<DataMode>((): DataMode => {
     case "L": // @fallthrough
     case "alpha": // @fallthrough
     case "beta": // @fallthrough
-    case "phi": {
-      return { type: field_mode.value, axis: axis_mode.value };
+    case "phi": // @fallthrough
+    case "I_edge": {
+      return { type: render_mode_type.value, axis: axis_mode.value };
     }
     case "epsilon_r": // @fallthrough
     case "mu_r": // @fallthrough
     case "sigma_k": {
-      return { type: field_mode.value };
+      return { type: render_mode_type.value };
     }
   }
 });
 const is_axis_required = computed(() => {
-  switch (field_mode.value) {
+  switch (render_mode_type.value) {
     case "V": // @fallthrough
     case "I": // @fallthrough
     case "R": // @fallthrough
@@ -41,7 +41,9 @@ const is_axis_required = computed(() => {
     case "L": // @fallthrough
     case "alpha": // @fallthrough
     case "beta": // @fallthrough
-    case "phi": {
+    case "phi": // @fallthrough
+    case "phi": // @fallthrough
+    case "I_edge": {
       return true;
     }
     case "epsilon_r": // @fallthrough
@@ -52,18 +54,15 @@ const is_axis_required = computed(() => {
   }
 });
 const gpu_grid = ref<GpuGrid | undefined>(undefined);
-const gpu_data = computed(() => {
-  if (gpu_grid.value === undefined) return undefined;
-  return get_data_from_grid(gpu_grid.value, data_mode.value);
-});
 const z_slice = ref<number>(0);
 const scale_db = ref<number>(0.0);
 const zoom_db = ref<number>(0.0);
 const scale = computed(() => Math.pow(10.0, scale_db.value/20.0));
 const zoom = computed(() => Math.pow(10.0, zoom_db.value/20.0));
 const max_z = computed(() => {
-  if (gpu_data.value === undefined) return 0;
-  return gpu_data.value.shape[0]-1;
+  if (gpu_grid.value === undefined) return 0;
+  const shape = get_data_shape_from_render_mode(render_mode.value, gpu_grid.value);
+  return shape[0]-1;
 });
 
 watch(max_z, (max_z) => {
@@ -100,7 +99,7 @@ function update_display(command_encoder: GPUCommandEncoder) {
     command_encoder,
     canvas_context.value, canvas_size,
     gpu_grid.value,
-    data_mode.value,
+    render_mode.value,
     z_slice.value,
     scale.value, zoom.value);
 }
@@ -115,7 +114,7 @@ const refresh = debounce_animation_frame_async(async () => {
 watch(scale, () => { refresh(); });
 watch(z_slice, () => { refresh(); });
 watch(zoom, () => { refresh(); });
-watch(data_mode, () => { refresh(); });
+watch(render_mode, () => { refresh(); });
 
 // rerender grid if canvas was resized
 let resize_observer: ResizeObserver | undefined = undefined;
@@ -150,9 +149,10 @@ defineExpose({
   <form class="flex flex-col gap-y-2 w-full">
     <fieldset class="fieldset">
       <legend for="field" class="fieldset-legend">Field</legend>
-      <select id="field" class="select" v-model="field_mode">
+      <select id="field" class="select" v-model="render_mode_type">
         <option :value="'V'">Voltage</option>
-        <option :value="'I'">Current</option>
+        <option :value="'I'">Magnetic Current</option>
+        <option :value="'I_edge'">Edge Current</option>
         <option :value="'R'">Resistance</option>
         <option :value="'C'">Capacitance</option>
         <option :value="'L'">Inductance</option>
