@@ -5,6 +5,7 @@ const links = [
   { text: "3D FDTD", link: "/3d_fdtd" },
   { text: "3D Electrostatic", link: "/3d_electrostatic" },
   { text: "3D EC-FDTD", link: "/3d_ec_fdtd" },
+  { text: "3D EC-FDTD UPML", link: "/3d_ec_fdtd_upml" },
 ];
 
 export default defineConfig({
