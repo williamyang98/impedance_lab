@@ -610,12 +610,12 @@ $$
 $$
 % 
 \begin{align}
-\frac{\varepsilon_0}{\Delta t \Delta x^{i+\frac{1}{2}}} \left( V_{x,t}^{i+\frac{1}{2},j,k} - V_{x,t-1}^{i+\frac{1}{2},j,k} \right) &=
+-\frac{\varepsilon_0}{\Delta t \Delta x^{i+\frac{1}{2}}} \left( V_{x,t}^{i+\frac{1}{2},j,k} - V_{x,t-1}^{i+\frac{1}{2},j,k} \right) &=
 \frac{\varepsilon_{r,x}^{i+\frac{1}{2},j,k}}{\Delta y^j \Delta z^k} \nabla_{x,t-\frac{1}{2}}^{I,i+\frac{1}{2},j,k} +
 \frac{\sigma_x^{E,i+\frac{1}{2},j,k}}{\varepsilon_0 \Delta y^j \Delta z^k} \sum_{\tau=\frac{1}{2}}^{t-\frac{1}{2}} \nabla_{x,\tau}^{I,i+\frac{1}{2},j,k} \Delta t \\
 % 
 V_{x,t}^{i+\frac{1}{2},j,k} &= V_{x,t-1}^{i+\frac{1}{2},j,k}
-+ \frac{\Delta t \Delta x^{i+\frac{1}{2}}}{\varepsilon_0 \Delta y^j \Delta z^k}
+- \frac{\Delta t \Delta x^{i+\frac{1}{2}}}{\varepsilon_0 \Delta y^j \Delta z^k}
 \left(
 \varepsilon_{r,x}^{i+\frac{1}{2},j,k} \nabla_{x,t-\frac{1}{2}}^{I,i+\frac{1}{2},j,k} +
 \frac{\sigma_x^{E,i+\frac{1}{2},j,k} \Delta t}{\varepsilon_0} \sum_{\tau=\frac{1}{2}}^{t-\frac{1}{2}} \nabla_{x,\tau}^{I,i+\frac{1}{2},j,k}
